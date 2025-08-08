@@ -1,6 +1,6 @@
-# DayStart iOS App - Mock Implementation
+# DayStart
 
-A fully functional iOS app with mock data for testing the complete UX flow before backend integration.
+A personalized, AI-powered iOS morning podcast app that combines your local weather, news, sports, stocks, and encouragement into a custom audio briefing delivered with natural voices and ready the moment you wake up.
 
 ## Project Structure
 
