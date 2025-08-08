@@ -149,27 +149,9 @@ struct OnboardingGradientBackground: View {
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        ZStack {
-            // Base color
-            (colorScheme == .dark ? Color(hex: 0x1A1A2E) : Color(hex: 0xFFFDF0))
-            
-            // Overlay gradient
-            LinearGradient(
-                colors: [
-                    colorScheme == .dark 
-                        ? Color(hex: 0x2D3748, alpha: 0.6)
-                        : Color(hex: 0xFFD23F, alpha: 0.1),
-                    Color.clear,
-                    colorScheme == .dark
-                        ? Color(hex: 0x4A5568, alpha: 0.4)
-                        : Color(hex: 0xFFA500, alpha: 0.05)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-        .ignoresSafeArea()
-        .animation(.easeInOut(duration: 0.6), value: colorScheme)
+        BananaTheme.ColorToken.background
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 0.6), value: colorScheme)
     }
 }
 

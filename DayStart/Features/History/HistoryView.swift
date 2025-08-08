@@ -33,8 +33,7 @@ struct HistoryView: View {
                 .foregroundColor(.gray)
             
             Text("No DayStarts Yet")
-                .font(.title2)
-                .fontWeight(.semibold)
+                .adaptiveFont(BananaTheme.Typography.title2)
             
             Text("Your completed DayStarts will appear here")
                 .font(.subheadline)
@@ -47,10 +46,7 @@ struct HistoryView: View {
     private var historyList: some View {
         List {
             ForEach(userPreferences.history) { dayStart in
-                HistoryRow(dayStart: dayStart, onReplay: {
-                    presentationMode.wrappedValue.dismiss()
-                    onReplay(dayStart)
-                })
+                HistoryRow(dayStart: dayStart)
             }
         }
     }
@@ -58,8 +54,8 @@ struct HistoryView: View {
 
 struct HistoryRow: View {
     let dayStart: DayStartData
-    let onReplay: () -> Void
     @State private var isExpanded = false
+    @StateObject private var audioPlayer = AudioPlayerManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -80,7 +76,7 @@ struct HistoryRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(dayStart.date, style: .date)
-                    .font(.headline)
+                    .adaptiveFont(BananaTheme.Typography.headline)
                 
                 Text(dayStart.date, style: .time)
                     .font(.subheadline)
@@ -94,7 +90,7 @@ struct HistoryRow: View {
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color.gray.opacity(0.1))
+                .background(BananaTheme.ColorToken.card)
                 .cornerRadius(8)
         }
     }
@@ -103,7 +99,7 @@ struct HistoryRow: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Transcript")
                 .font(.caption)
-                .fontWeight(.semibold)
+                .adaptiveFontWeight(light: .semibold, dark: .bold)
                 .foregroundColor(.secondary)
             
             Text(dayStart.transcript)
@@ -118,24 +114,62 @@ struct HistoryRow: View {
     }
     
     private var actionButtons: some View {
-        HStack(spacing: 12) {
-            Button(action: onReplay) {
-                Label("Replay", systemImage: "play.circle.fill")
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Button(action: {
+                    if audioPlayer.currentTrackId != dayStart.id {
+                        audioPlayer.loadAudio(for: dayStart)
+                    }
+                    audioPlayer.togglePlayPause()
+                }) {
+                    Label(audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "Pause" : "Play",
+                          systemImage: audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.subheadline)
+                        .foregroundColor(BananaTheme.ColorToken.accent)
+                }
+                .buttonStyle(.bordered)
+
+                Button(action: { isExpanded.toggle() }) {
+                    Label(
+                        isExpanded ? "Hide Transcript" : "Show Transcript",
+                        systemImage: isExpanded ? "chevron.up" : "chevron.down"
+                    )
                     .font(.subheadline)
-                    .foregroundColor(.blue)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.gray)
             }
-            .buttonStyle(.bordered)
-            
-            Button(action: { isExpanded.toggle() }) {
-                Label(
-                    isExpanded ? "Hide Transcript" : "Show Transcript",
-                    systemImage: isExpanded ? "chevron.up" : "chevron.down"
-                )
-                .font(.subheadline)
+
+            if audioPlayer.currentTrackId == dayStart.id {
+                // Inline voicemail-style player
+                VStack(spacing: 8) {
+                    Slider(
+                        value: Binding(
+                            get: { audioPlayer.currentTime },
+                            set: { newValue in audioPlayer.seek(to: newValue) }
+                        ),
+                        in: 0...max(audioPlayer.duration, 1)
+                    )
+                    .accentColor(BananaTheme.ColorToken.accent)
+
+                    HStack {
+                        Text(timeString(audioPlayer.currentTime))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(timeString(audioPlayer.duration))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.gray)
         }
+    }
+
+    private func timeString(_ time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
     
     private var formattedDuration: String {

@@ -10,6 +10,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     @Published var currentTime: TimeInterval = 0
     @Published var duration: TimeInterval = 0
     @Published var playbackRate: Float = 1.0
+    @Published var currentTrackId: UUID?
     
     private var audioPlayer: AVAudioPlayer?
     private var displayLink: Timer?
@@ -19,26 +20,41 @@ class AudioPlayerManager: NSObject, ObservableObject {
     }
     
     func loadAudio() {
+        // Legacy bundled audio fallback
         guard let url = Bundle.main.url(forResource: "ai_wakeup_generic_voice1", withExtension: "mp3") else {
             print("Could not find ai_wakeup_generic_voice1.mp3")
             return
         }
-        
+        loadAudio(from: url)
+    }
+
+    func loadAudio(from url: URL, trackId: UUID? = nil) {
         do {
             audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer?.delegate = self
+            audioPlayer?.enableRate = true
             audioPlayer?.prepareToPlay()
             duration = audioPlayer?.duration ?? 0
+            currentTime = 0
+            currentTrackId = trackId
         } catch {
             print("Error loading audio: \(error)")
         }
     }
+
+    func loadAudio(for dayStart: DayStartData) {
+        if let path = dayStart.audioFilePath {
+            let url = URL(fileURLWithPath: path)
+            loadAudio(from: url, trackId: dayStart.id)
+        } else {
+            // Fallback to bundled sample if specific recording not available
+            currentTrackId = dayStart.id
+            loadAudio()
+        }
+    }
     
     func play() {
-        guard let player = audioPlayer else { 
-            loadAudio()
-            return
-        }
+        guard let player = audioPlayer else { return }
         
         player.play()
         isPlaying = true
@@ -95,6 +111,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
         audioPlayer?.currentTime = 0
         currentTime = 0
         isPlaying = false
+        currentTrackId = nil
         stopTimeObserver()
     }
 }

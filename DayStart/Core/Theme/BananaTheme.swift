@@ -2,43 +2,60 @@ import SwiftUI
 
 struct BananaTheme {
     enum ColorToken {
-        static let primary = Color("BananaPrimary")
-        static let secondary = Color("BananaSecondary") 
-        static let background = Color("BananaBackground")
-        static let text = Color("BananaText")
-        static let card = Color("BananaCard")
+        // Primary colors with light/dark variants
+        static let primary = Color.adaptive(light: Color(hex: 0xFFD23F), dark: Color(hex: 0xFFD23F))
+        static let secondary = Color.adaptive(light: Color(hex: 0x8B4513), dark: Color(hex: 0xD2691E))
+        
+        // Background and text colors for light/dark mode
+        static let background = Color.adaptive(light: .white, dark: .black)
+        static let text = Color.adaptive(light: .black, dark: .white)
+        static let card = Color.adaptive(light: Color(hex: 0xF5F5F5), dark: Color(hex: 0x1C1C1E))
         
         // Additional semantic colors
-        static let accent = primary
+        static let accent = Color.adaptive(light: Color(hex: 0xFFC857), dark: Color(hex: 0xFFC857))
         static let destructive = Color.red
         static let warning = Color.orange
         static let success = Color.green
         
         // Gradient colors that adapt to theme
-        static let gradientStart = Color("BananaGradientStart")
-        static let gradientEnd = Color("BananaGradientEnd")
+        static let gradientStart = Color.adaptive(light: Color(hex: 0xFFE59F), dark: Color(hex: 0xFFD23F))
+        static let gradientEnd = Color.adaptive(light: Color(hex: 0xFFD23F), dark: Color(hex: 0xFFA500))
         
         // Shadow and border colors
-        static let shadow = Color.black.opacity(0.1)
-        static let border = Color.gray.opacity(0.3)
+        static let shadow = Color.adaptive(light: Color.black.opacity(0.1), dark: Color.white.opacity(0.1))
+        static let border = Color.adaptive(light: Color.gray.opacity(0.3), dark: Color.gray.opacity(0.5))
         
         // Content colors
         static let primaryText = text
-        static let secondaryText = Color.gray
-        static let tertiaryText = Color.gray.opacity(0.6)
+        static let secondaryText = Color.adaptive(light: Color.gray, dark: Color.gray.opacity(0.8))
+        static let tertiaryText = Color.adaptive(light: Color.gray.opacity(0.6), dark: Color.gray.opacity(0.6))
     }
     
     enum Typography {
-        static let largeTitle = Font.largeTitle.weight(.bold)
-        static let title = Font.title.weight(.semibold)
-        static let title2 = Font.title2.weight(.medium)
-        static let headline = Font.headline.weight(.medium)
+        // Static fonts (non-adaptive)
         static let body = Font.body
         static let callout = Font.callout
         static let subheadline = Font.subheadline
         static let footnote = Font.footnote
         static let caption = Font.caption
         static let caption2 = Font.caption2
+        
+        // Adaptive fonts that change weight based on light/dark mode
+        static func largeTitle(colorScheme: ColorScheme) -> Font {
+            Font.largeTitle.weight(colorScheme == .dark ? .heavy : .bold)
+        }
+        
+        static func title(colorScheme: ColorScheme) -> Font {
+            Font.title.weight(colorScheme == .dark ? .bold : .semibold)
+        }
+        
+        static func title2(colorScheme: ColorScheme) -> Font {
+            Font.title2.weight(colorScheme == .dark ? .semibold : .medium)
+        }
+        
+        static func headline(colorScheme: ColorScheme) -> Font {
+            Font.headline.weight(colorScheme == .dark ? .semibold : .medium)
+        }
     }
     
     enum Spacing {
@@ -166,7 +183,7 @@ extension View {
     
     func bananaPrimaryButton() -> some View {
         self
-            .foregroundColor(.white)
+            .foregroundColor(Color.adaptive(light: .white, dark: .black))
             .padding(.horizontal, BananaTheme.Spacing.lg)
             .padding(.vertical, BananaTheme.Spacing.md)
             .background(BananaTheme.ColorToken.primary)
@@ -199,6 +216,10 @@ extension View {
     func adaptiveFontWeight(light: Font.Weight = .regular, dark: Font.Weight = .medium) -> some View {
         self.modifier(AdaptiveFontWeightModifier(lightWeight: light, darkWeight: dark))
     }
+    
+    func adaptiveFont(_ fontProvider: @escaping (ColorScheme) -> Font) -> some View {
+        self.modifier(AdaptiveFontModifier(fontProvider: fontProvider))
+    }
 }
 
 // MARK: - Custom View Modifiers
@@ -209,6 +230,15 @@ struct AdaptiveFontWeightModifier: ViewModifier {
     
     func body(content: Content) -> some View {
         content.fontWeight(colorScheme == .dark ? darkWeight : lightWeight)
+    }
+}
+
+struct AdaptiveFontModifier: ViewModifier {
+    let fontProvider: (ColorScheme) -> Font
+    @Environment(\.colorScheme) var colorScheme
+    
+    func body(content: Content) -> some View {
+        content.font(fontProvider(colorScheme))
     }
 }
 

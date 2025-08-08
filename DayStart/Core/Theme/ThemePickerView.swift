@@ -8,7 +8,7 @@ struct ThemePickerView: View {
         VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
             HStack {
                 Text("Appearance")
-                    .font(BananaTheme.Typography.headline)
+                    .adaptiveFont(BananaTheme.Typography.headline)
                     .foregroundColor(BananaTheme.ColorToken.primaryText)
                 
                 Spacer()
@@ -127,11 +127,11 @@ struct ThemePreviewIcon: View {
     private var previewBackgroundColor: Color {
         switch preference {
         case .system:
-            return systemColorScheme == .dark ? Color(hex: 0x1A1A2E) : Color(hex: 0xFFFDF0)
+            return systemColorScheme == .dark ? .black : .white
         case .light:
-            return Color(hex: 0xFFFDF0)
+            return .white
         case .dark:
-            return Color(hex: 0x1A1A2E)
+            return .black
         }
     }
     
@@ -194,8 +194,8 @@ struct ThemeToggleButton: View {
     var body: some View {
         Button(action: toggleTheme) {
             Image(systemName: themeIcon)
-                .font(.title2)
-                .foregroundColor(BananaTheme.ColorToken.primary)
+                .font(.title3)
+                .foregroundColor(BananaTheme.ColorToken.text)
         }
         .buttonStyle(PlainButtonStyle())
     }

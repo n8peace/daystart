@@ -95,7 +95,7 @@ struct OnboardingView: View {
                 // Title and description
                 VStack(spacing: BananaTheme.Spacing.sm) {
                     Text(page.title)
-                        .font(BananaTheme.Typography.title)
+                        .adaptiveFont(BananaTheme.Typography.title)
                         .foregroundColor(BananaTheme.ColorToken.primaryText)
                         .multilineTextAlignment(.center)
                         .adaptiveFontWeight(light: .semibold, dark: .medium)
@@ -146,7 +146,7 @@ struct OnboardingView: View {
                 .font(.system(size: 80))
             
             Text("Welcome to DayStart!")
-                .font(BananaTheme.Typography.title2)
+                .adaptiveFont(BananaTheme.Typography.title2)
                 .foregroundColor(BananaTheme.ColorToken.primaryText)
                 .multilineTextAlignment(.center)
             
@@ -164,7 +164,7 @@ struct OnboardingView: View {
     private var personalizationContent: some View {
         VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
             Text("What should we call you?")
-                .font(BananaTheme.Typography.headline)
+                .adaptiveFont(BananaTheme.Typography.headline)
                 .foregroundColor(BananaTheme.ColorToken.primaryText)
             
             TextField("Your name (optional)", text: $name)
@@ -182,7 +182,7 @@ struct OnboardingView: View {
     private var scheduleContent: some View {
         VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
             Text("When would you like your briefings?")
-                .font(BananaTheme.Typography.headline)
+                .adaptiveFont(BananaTheme.Typography.headline)
                 .foregroundColor(BananaTheme.ColorToken.primaryText)
             
             HStack {
@@ -194,7 +194,7 @@ struct OnboardingView: View {
                 
                 DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
                     .labelsHidden()
-                    .accentColor(BananaTheme.ColorToken.primary)
+                    .accentColor(BananaTheme.ColorToken.accent)
             }
             
             Divider()
@@ -225,7 +225,7 @@ struct OnboardingView: View {
     private var contentPreferencesContent: some View {
         VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
             Text("What would you like to hear about?")
-                .font(BananaTheme.Typography.headline)
+                .adaptiveFont(BananaTheme.Typography.headline)
                 .foregroundColor(BananaTheme.ColorToken.primaryText)
             
             VStack(spacing: BananaTheme.Spacing.sm) {
@@ -301,7 +301,7 @@ struct OnboardingView: View {
     private var voiceAndLengthContent: some View {
         VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
             Text("Customize your experience")
-                .font(BananaTheme.Typography.headline)
+                .adaptiveFont(BananaTheme.Typography.headline)
                 .foregroundColor(BananaTheme.ColorToken.primaryText)
             
             VStack(spacing: BananaTheme.Spacing.md) {
@@ -318,7 +318,7 @@ struct OnboardingView: View {
                         }
                     }
                     .pickerStyle(MenuPickerStyle())
-                    .accentColor(BananaTheme.ColorToken.primary)
+                    .accentColor(BananaTheme.ColorToken.accent)
                 }
                 
                 Divider()
@@ -344,7 +344,7 @@ struct OnboardingView: View {
                         in: 1...10,
                         step: 1
                     )
-                    .accentColor(BananaTheme.ColorToken.primary)
+                    .accentColor(BananaTheme.ColorToken.accent)
                 }
             }
         }
@@ -355,7 +355,7 @@ struct OnboardingView: View {
     private var themeSelectionContent: some View {
         VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
             Text("Choose your preferred appearance")
-                .font(BananaTheme.Typography.headline)
+                .adaptiveFont(BananaTheme.Typography.headline)
                 .foregroundColor(BananaTheme.ColorToken.primaryText)
             
             VStack(spacing: BananaTheme.Spacing.sm) {
@@ -377,7 +377,7 @@ struct OnboardingView: View {
     private var permissionsContent: some View {
         VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
             Text("Enable notifications")
-                .font(BananaTheme.Typography.headline)
+                .adaptiveFont(BananaTheme.Typography.headline)
                 .foregroundColor(BananaTheme.ColorToken.primaryText)
             
             VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
@@ -409,7 +409,7 @@ struct OnboardingView: View {
                 .font(.system(size: 80))
             
             Text("You're all set!")
-                .font(BananaTheme.Typography.title2)
+                .adaptiveFont(BananaTheme.Typography.title2)
                 .foregroundColor(BananaTheme.ColorToken.primaryText)
                 .multilineTextAlignment(.center)
             

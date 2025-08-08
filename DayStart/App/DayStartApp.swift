@@ -6,6 +6,7 @@ import UIKit
 @main
 struct DayStartApp: App {
     @StateObject private var userPreferences = UserPreferences.shared
+    @StateObject private var themeManager = ThemeManager.shared
     @State private var showOnboarding = false
     
     init() {
@@ -18,6 +19,8 @@ struct DayStartApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(userPreferences)
+                .environmentObject(themeManager)
+                .preferredColorScheme(themeManager.effectiveColorScheme)
                 .onAppear {
                     showOnboarding = !userPreferences.hasCompletedOnboarding
                 }
@@ -50,13 +53,13 @@ struct DayStartApp: App {
     private func configureNavigationAppearance() {
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
-        appearance.titleTextAttributes = [.foregroundColor: UIColor.label]
-        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.label]
+        appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
+        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
         
         UINavigationBar.appearance().standardAppearance = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
         UINavigationBar.appearance().compactAppearance = appearance
-        UINavigationBar.appearance().tintColor = UIColor(BananaTheme.ColorToken.primary)
+        UINavigationBar.appearance().tintColor = UIColor(BananaTheme.ColorToken.accent)
     }
 }
 

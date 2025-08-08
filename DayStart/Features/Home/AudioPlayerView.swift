@@ -29,7 +29,7 @@ struct AudioPlayerView: View {
                     isDragging = editing
                 }
             )
-            .accentColor(.yellow)
+            .accentColor(BananaTheme.ColorToken.accent)
             
             HStack {
                 Text(timeString(audioPlayer.currentTime))
@@ -61,7 +61,7 @@ struct AudioPlayerView: View {
                 Image(systemName: audioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 64))
             }
-            .foregroundColor(.yellow)
+            .foregroundColor(BananaTheme.ColorToken.accent)
             
             Button(action: { audioPlayer.skip(by: 10) }) {
                 VStack(spacing: 4) {
@@ -86,12 +86,12 @@ struct AudioPlayerView: View {
                     Text("\(speed, specifier: "%.2g")x")
                         .font(.caption)
                         .fontWeight(audioPlayer.playbackRate == Float(speed) ? .bold : .regular)
-                        .foregroundColor(audioPlayer.playbackRate == Float(speed) ? .yellow : .white)
+                        .foregroundColor(audioPlayer.playbackRate == Float(speed) ? BananaTheme.ColorToken.accent : .white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(
                             audioPlayer.playbackRate == Float(speed) ?
-                            Color.yellow.opacity(0.2) : Color.white.opacity(0.1)
+                            BananaTheme.ColorToken.accent.opacity(0.2) : Color.white.opacity(0.1)
                         )
                         .cornerRadius(8)
                 }
