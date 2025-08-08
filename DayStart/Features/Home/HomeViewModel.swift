@@ -3,6 +3,7 @@ import SwiftUI
 import Combine
 
 class HomeViewModel: ObservableObject {
+    private let logger = DebugLogger.shared
     enum AppState {
         case idle
         case countdown
@@ -25,6 +26,7 @@ class HomeViewModel: ObservableObject {
     private let mockService = MockDataService.shared
     
     init() {
+        logger.log("🏠 HomeViewModel initialized", level: .info)
         setupObservers()
         updateState()
         
@@ -52,8 +54,10 @@ class HomeViewModel: ObservableObject {
     
     private func updateState() {
         timer?.invalidate()
+        logger.log("🔄 Updating app state", level: .debug)
         
         guard let nextOccurrence = userPreferences.schedule.nextOccurrence else {
+            logger.log("📅 No schedule found, showing no schedule message", level: .info)
             state = .idle
             showNoScheduleMessage = true
             nextDayStartTime = nil
@@ -66,10 +70,13 @@ class HomeViewModel: ObservableObject {
         let timeUntil = nextOccurrence.timeIntervalSinceNow
         
         if timeUntil <= 0 {
+            logger.log("⏰ DayStart ready!", level: .info)
             state = .ready
         } else if timeUntil > 36000 {
+            logger.log("💤 Next DayStart > 10 hours away, idle state", level: .debug)
             state = .idle
         } else {
+            logger.log("⏳ Starting countdown: \(Int(timeUntil))s", level: .debug)
             startCountdown()
         }
     }
@@ -100,10 +107,12 @@ class HomeViewModel: ObservableObject {
     }
     
     func startDayStart() {
+        logger.logUserAction("Start DayStart", details: ["time": Date().description])
         let dayStart = mockService.fetchDayStart(for: userPreferences.settings)
         currentDayStart = dayStart
         userPreferences.addToHistory(dayStart)
         
+        logger.logAudioEvent("Loading audio for DayStart")
         audioPlayer.loadAudio()
         audioPlayer.play()
         state = .playing
@@ -112,6 +121,7 @@ class HomeViewModel: ObservableObject {
     }
     
     func replayDayStart(_ dayStart: DayStartData) {
+        logger.logUserAction("Replay DayStart", details: ["id": dayStart.id])
         currentDayStart = dayStart
         audioPlayer.loadAudio()
         audioPlayer.play()
@@ -119,6 +129,7 @@ class HomeViewModel: ObservableObject {
     }
     
     private func transitionToRecentlyPlayed() {
+        logger.log("✅ DayStart completed, transitioning to recently played", level: .info)
         state = .recentlyPlayed
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
@@ -129,6 +140,7 @@ class HomeViewModel: ObservableObject {
     }
     
     private func scheduleNotifications() {
+        logger.log("📬 Scheduling notifications", level: .debug)
         Task {
             await notificationScheduler.scheduleNotifications(for: userPreferences.schedule)
         }

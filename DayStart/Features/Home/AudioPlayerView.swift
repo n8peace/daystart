@@ -34,13 +34,13 @@ struct AudioPlayerView: View {
             HStack {
                 Text(timeString(audioPlayer.currentTime))
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(BananaTheme.ColorToken.text.opacity(0.8))
                 
                 Spacer()
                 
                 Text(timeString(audioPlayer.duration))
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(BananaTheme.ColorToken.text.opacity(0.8))
             }
         }
     }
@@ -55,7 +55,7 @@ struct AudioPlayerView: View {
                         .font(.caption2)
                 }
             }
-            .foregroundColor(.white)
+            .foregroundColor(BananaTheme.ColorToken.text)
             
             Button(action: { audioPlayer.togglePlayPause() }) {
                 Image(systemName: audioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
@@ -71,7 +71,7 @@ struct AudioPlayerView: View {
                         .font(.caption2)
                 }
             }
-            .foregroundColor(.white)
+            .foregroundColor(BananaTheme.ColorToken.text)
         }
     }
     
@@ -79,19 +79,19 @@ struct AudioPlayerView: View {
         HStack(spacing: 20) {
             Text("Speed")
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(BananaTheme.ColorToken.text.opacity(0.8))
             
             ForEach([0.75, 1.0, 1.25, 1.5], id: \.self) { speed in
                 Button(action: { audioPlayer.setPlaybackRate(Float(speed)) }) {
                     Text("\(speed, specifier: "%.2g")x")
                         .font(.caption)
                         .fontWeight(audioPlayer.playbackRate == Float(speed) ? .bold : .regular)
-                        .foregroundColor(audioPlayer.playbackRate == Float(speed) ? BananaTheme.ColorToken.accent : .white)
+                        .foregroundColor(audioPlayer.playbackRate == Float(speed) ? BananaTheme.ColorToken.accent : BananaTheme.ColorToken.text)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(
                             audioPlayer.playbackRate == Float(speed) ?
-                            BananaTheme.ColorToken.accent.opacity(0.2) : Color.white.opacity(0.1)
+                            BananaTheme.ColorToken.accent.opacity(0.2) : BananaTheme.ColorToken.text.opacity(0.1)
                         )
                         .cornerRadius(8)
                 }

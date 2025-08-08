@@ -5,6 +5,7 @@ import Combine
 
 class AudioPlayerManager: NSObject, ObservableObject {
     static let shared = AudioPlayerManager()
+    private let logger = DebugLogger.shared
     
     @Published var isPlaying = false
     @Published var currentTime: TimeInterval = 0
@@ -17,18 +18,29 @@ class AudioPlayerManager: NSObject, ObservableObject {
     
     override private init() {
         super.init()
+        logger.log("🎵 AudioPlayerManager initialized", level: .info)
     }
     
     func loadAudio() {
-        // Legacy bundled audio fallback
-        guard let url = Bundle.main.url(forResource: "ai_wakeup_generic_voice1", withExtension: "mp3") else {
-            print("Could not find ai_wakeup_generic_voice1.mp3")
+        // Get selected voice from preferences
+        let voiceIndex = UserPreferences.shared.settings.selectedVoice.rawValue + 1
+        let resourceName = "ai_wakeup_generic_voice\(voiceIndex)"
+        
+        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3") else {
+            logger.logError(NSError(domain: "AudioPlayer", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not find \(resourceName).mp3"]), context: "Loading bundled audio")
+            // Fallback to voice1 if selected voice not found
+            if let fallbackUrl = Bundle.main.url(forResource: "ai_wakeup_generic_voice1", withExtension: "mp3") {
+                logger.log("🔄 Falling back to voice1", level: .warning)
+                loadAudio(from: fallbackUrl)
+            }
             return
         }
+        logger.logAudioEvent("Loading bundled audio file", details: ["voice": "voice\(voiceIndex)"])
         loadAudio(from: url)
     }
 
     func loadAudio(from url: URL, trackId: UUID? = nil) {
+        logger.logAudioEvent("Loading audio from URL", details: ["url": url.lastPathComponent, "trackId": trackId?.uuidString ?? "none"])
         do {
             audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer?.delegate = self
@@ -37,31 +49,33 @@ class AudioPlayerManager: NSObject, ObservableObject {
             duration = audioPlayer?.duration ?? 0
             currentTime = 0
             currentTrackId = trackId
+            logger.logAudioEvent("Audio loaded successfully", details: ["duration": duration])
         } catch {
-            print("Error loading audio: \(error)")
+            logger.logError(error, context: "Failed to load audio from \(url.lastPathComponent)")
         }
     }
 
     func loadAudio(for dayStart: DayStartData) {
-        if let path = dayStart.audioFilePath {
-            let url = URL(fileURLWithPath: path)
-            loadAudio(from: url, trackId: dayStart.id)
-        } else {
-            // Fallback to bundled sample if specific recording not available
-            currentTrackId = dayStart.id
-            loadAudio()
-        }
+        guard let path = dayStart.audioFilePath else { return }
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        loadAudio(from: url, trackId: dayStart.id)
     }
     
     func play() {
-        guard let player = audioPlayer else { return }
+        guard let player = audioPlayer else {
+            logger.log("⚠️ Attempted to play with no audio loaded", level: .warning)
+            return
+        }
         
+        logger.logAudioEvent("Playing audio", details: ["rate": playbackRate])
         player.play()
         isPlaying = true
         startTimeObserver()
     }
     
     func pause() {
+        logger.logAudioEvent("Pausing audio")
         audioPlayer?.pause()
         isPlaying = false
         stopTimeObserver()
@@ -76,6 +90,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     }
     
     func seek(to time: TimeInterval) {
+        logger.logAudioEvent("Seeking audio", details: ["time": String(format: "%.1f", time)])
         audioPlayer?.currentTime = time
         currentTime = time
     }
@@ -87,6 +102,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     }
     
     func setPlaybackRate(_ rate: Float) {
+        logger.logAudioEvent("Changing playback rate", details: ["rate": rate])
         audioPlayer?.rate = rate
         playbackRate = rate
     }
@@ -107,6 +123,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     }
     
     func reset() {
+        logger.logAudioEvent("Resetting audio player")
         audioPlayer?.stop()
         audioPlayer?.currentTime = 0
         currentTime = 0
@@ -114,10 +131,51 @@ class AudioPlayerManager: NSObject, ObservableObject {
         currentTrackId = nil
         stopTimeObserver()
     }
+    
+    // MARK: - Voice Preview
+    func previewVoice(_ voice: VoiceOption) {
+        let voiceIndex = voice.rawValue + 1
+        let resourceName = "ai_wakeup_generic_voice\(voiceIndex)"
+        
+        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3") else {
+            logger.logError(NSError(domain: "AudioPlayer", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not find \(resourceName).mp3"]), context: "Previewing voice")
+            return
+        }
+        
+        logger.logUserAction("Preview voice", details: ["voice": voice.name])
+        
+        // Temporarily store current state
+        let wasPlaying = isPlaying
+        let currentAudioPlayer = audioPlayer
+        let currentTrack = currentTrackId
+        
+        // Load preview audio
+        do {
+            let previewPlayer = try AVAudioPlayer(contentsOf: url)
+            previewPlayer.prepareToPlay()
+            
+            // Play first 3 seconds as preview
+            previewPlayer.play()
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                previewPlayer.stop()
+                
+                // Restore original state if needed
+                if wasPlaying && currentAudioPlayer != nil {
+                    self.audioPlayer = currentAudioPlayer
+                    self.currentTrackId = currentTrack
+                    self.play()
+                }
+            }
+        } catch {
+            logger.logError(error, context: "Failed to preview voice \(voice.name)")
+        }
+    }
 }
 
 extension AudioPlayerManager: AVAudioPlayerDelegate {
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        logger.logAudioEvent("Audio playback finished", details: ["successful": flag])
         isPlaying = false
         stopTimeObserver()
         currentTime = 0

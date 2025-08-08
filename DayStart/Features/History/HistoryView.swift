@@ -30,7 +30,7 @@ struct HistoryView: View {
         VStack(spacing: 20) {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 60))
-                .foregroundColor(.gray)
+                .foregroundColor(BananaTheme.ColorToken.secondaryText)
             
             Text("No DayStarts Yet")
                 .adaptiveFont(BananaTheme.Typography.title2)
@@ -85,13 +85,15 @@ struct HistoryRow: View {
             
             Spacer()
             
-            Text(formattedDuration)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(BananaTheme.ColorToken.card)
-                .cornerRadius(8)
+            if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path), !dayStart.isDeleted {
+                Text(formattedDuration)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(BananaTheme.ColorToken.card)
+                    .cornerRadius(8)
+            }
         }
     }
     
@@ -109,35 +111,50 @@ struct HistoryRow: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding()
-        .background(Color.gray.opacity(0.05))
+        .background(BananaTheme.ColorToken.card)
         .cornerRadius(12)
     }
     
     private var actionButtons: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Button(action: {
-                    if audioPlayer.currentTrackId != dayStart.id {
-                        audioPlayer.loadAudio(for: dayStart)
+                if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path), !dayStart.isDeleted {
+                    // Play button (banana yellow)
+                    Button(action: {
+                        if audioPlayer.currentTrackId != dayStart.id {
+                            audioPlayer.loadAudio(for: dayStart)
+                        }
+                        audioPlayer.togglePlayPause()
+                    }) {
+                        Label(audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "Pause" : "Play",
+                              systemImage: audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "pause.circle.fill" : "play.circle.fill")
+                            .font(.subheadline)
+                            .foregroundColor(BananaTheme.ColorToken.accent)
                     }
-                    audioPlayer.togglePlayPause()
-                }) {
-                    Label(audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "Pause" : "Play",
-                          systemImage: audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "pause.circle.fill" : "play.circle.fill")
+                    .buttonStyle(.bordered)
+                } else if dayStart.isDeleted {
+                    // DayStart Deleted (red)
+                    Label("DayStart Deleted", systemImage: "trash")
                         .font(.subheadline)
-                        .foregroundColor(BananaTheme.ColorToken.accent)
+                        .foregroundColor(.red)
+                } else {
+                    // No DayStart (gray)
+                    Label("No DayStart", systemImage: "nosign")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
                 }
-                .buttonStyle(.bordered)
+
+                Spacer()
 
                 Button(action: { isExpanded.toggle() }) {
-                    Label(
-                        isExpanded ? "Hide Transcript" : "Show Transcript",
-                        systemImage: isExpanded ? "chevron.up" : "chevron.down"
-                    )
+                    HStack(spacing: 6) {
+                        Text("Transcript")
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .foregroundColor(BananaTheme.ColorToken.accent)
+                    }
                     .font(.subheadline)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.gray)
+                .buttonStyle(PlainButtonStyle())
             }
 
             if audioPlayer.currentTrackId == dayStart.id {

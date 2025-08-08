@@ -98,7 +98,7 @@ struct HomeView: View {
             if viewModel.showNoScheduleMessage {
                 Text("No DayStarts scheduled")
                     .adaptiveFont(BananaTheme.Typography.title2)
-                    .foregroundColor(.white)
+                    .foregroundColor(BananaTheme.ColorToken.text)
                 
                 Button(action: { showEditSchedule = true }) {
                     Label("Schedule DayStart", systemImage: "calendar.badge.plus")
@@ -116,7 +116,7 @@ struct HomeView: View {
                     
                     Text(nextTime, style: .time)
                         .font(.system(size: 42, weight: .medium, design: .rounded))
-                        .foregroundColor(.white)
+                        .foregroundColor(BananaTheme.ColorToken.text)
                     
                     Text(nextTime, style: .date)
                         .font(.subheadline)
@@ -130,11 +130,11 @@ struct HomeView: View {
         VStack(spacing: 20) {
             Text("Starting in")
                 .adaptiveFont(BananaTheme.Typography.headline)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(BananaTheme.ColorToken.text.opacity(0.8))
             
             Text(viewModel.countdownText)
                 .font(.system(size: 56, weight: .bold, design: .monospaced))
-                .foregroundColor(.white)
+                .foregroundColor(BananaTheme.ColorToken.text)
             
             if let nextTime = viewModel.nextDayStartTime {
                 Text(nextTime, style: .time)
@@ -153,13 +153,13 @@ struct HomeView: View {
                 
                 Text("Ready to start your day?")
                     .adaptiveFont(BananaTheme.Typography.title2)
-                    .foregroundColor(.white)
+                    .foregroundColor(BananaTheme.ColorToken.text)
             }
             
             Button(action: { viewModel.startDayStart() }) {
                 Text("DayStart")
                     .adaptiveFont(BananaTheme.Typography.title)
-                    .foregroundColor(.black)
+                    .foregroundColor(BananaTheme.ColorToken.background)
                     .frame(width: 200, height: 200)
                     .background(
                         Circle()
@@ -180,11 +180,11 @@ struct HomeView: View {
         VStack(spacing: 20) {
             Image(systemName: "waveform")
                 .font(.system(size: 48))
-                .foregroundColor(.white)
+                .foregroundColor(BananaTheme.ColorToken.text)
             
             Text("Playing your DayStart")
                 .adaptiveFont(BananaTheme.Typography.title2)
-                .foregroundColor(.white)
+                .foregroundColor(BananaTheme.ColorToken.text)
         }
     }
     
@@ -197,14 +197,14 @@ struct HomeView: View {
                 
                 Text("DayStart Complete!")
                     .adaptiveFont(BananaTheme.Typography.title2)
-                    .foregroundColor(.white)
+                    .foregroundColor(BananaTheme.ColorToken.text)
             }
             
             if let dayStart = viewModel.currentDayStart {
                 Button(action: { viewModel.replayDayStart(dayStart) }) {
                     Label("Replay", systemImage: "arrow.clockwise")
                         .adaptiveFont(BananaTheme.Typography.headline)
-                        .foregroundColor(.white)
+                        .foregroundColor(BananaTheme.ColorToken.text)
                         .padding()
                         .background(BananaTheme.ColorToken.card)
                         .cornerRadius(12)
@@ -219,7 +219,7 @@ struct HomeView: View {
                     
                     Text(nextTime, style: .time)
                         .font(.title3)
-                        .foregroundColor(.white)
+                        .foregroundColor(BananaTheme.ColorToken.text)
                 }
             }
         }

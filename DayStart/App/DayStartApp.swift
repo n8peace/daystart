@@ -2,6 +2,7 @@ import SwiftUI
 import AVFoundation
 import UserNotifications
 import UIKit
+import Combine
 
 @main
 struct DayStartApp: App {
@@ -12,7 +13,6 @@ struct DayStartApp: App {
     init() {
         configureAudioSession()
         requestNotificationPermissions()
-        configureNavigationAppearance()
     }
     
     var body: some Scene {
@@ -21,6 +21,10 @@ struct DayStartApp: App {
                 .environmentObject(userPreferences)
                 .environmentObject(themeManager)
                 .preferredColorScheme(themeManager.effectiveColorScheme)
+                .accentColor(BananaTheme.ColorToken.primary)
+                .onReceive(themeManager.$effectiveColorScheme) { colorScheme in
+                    configureNavigationAppearance(for: colorScheme)
+                }
                 .onAppear {
                     showOnboarding = !userPreferences.hasCompletedOnboarding
                 }
@@ -50,11 +54,14 @@ struct DayStartApp: App {
         }
     }
     
-    private func configureNavigationAppearance() {
+    private func configureNavigationAppearance(for colorScheme: ColorScheme? = nil) {
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
-        appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
-        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        
+        // Use adaptive colors based on current color scheme
+        let textColor = colorScheme == .dark ? UIColor.white : UIColor.black
+        appearance.titleTextAttributes = [.foregroundColor: textColor]
+        appearance.largeTitleTextAttributes = [.foregroundColor: textColor]
         
         UINavigationBar.appearance().standardAppearance = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance

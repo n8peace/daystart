@@ -249,7 +249,7 @@ class MockDataService {
         let calendar = Calendar.current
         let now = Date()
         
-        return (0..<count).compactMap { dayOffset in
+        var items: [DayStartData] = (0..<count).compactMap { dayOffset -> DayStartData? in
             guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: now) else { return nil }
             
             let mockSettings = UserSettings.default
@@ -259,6 +259,18 @@ class MockDataService {
             let stocks = generateMockStocks(symbols: ["AAPL", "TSLA", "SPY"])
             let quote = generateMockQuote(preference: .inspirational)
             
+            // Determine audio availability:
+            // - Most recent item (dayOffset == 0): attach bundled voice1 audio
+            // - Items older than 7 days: mark as deleted
+            // - Others: no audio
+            let bundledPath: String? = {
+                if dayOffset == 0 {
+                    return Bundle.main.path(forResource: "ai_wakeup_generic_voice1", ofType: "mp3")
+                }
+                return nil
+            }()
+            let isDeleted = dayOffset > 7
+
             return DayStartData(
                 date: date,
                 weather: weather,
@@ -278,8 +290,29 @@ class MockDataService {
                     settings: mockSettings
                 ),
                 duration: Double.random(in: 180...420), // 3-7 minutes
-                audioFilePath: nil
+                audioFilePath: bundledPath,
+                isDeleted: isDeleted
             )
         }
+
+        // Add a specific sample entry dated Aug 8, 2025 with bundled audio for testing
+        if let targetDate = Calendar.current.date(from: DateComponents(year: 2025, month: 8, day: 8)) {
+            let sample = DayStartData(
+                date: targetDate,
+                weather: generateMockWeather(),
+                news: generateMockNews(),
+                sports: generateMockSports(),
+                stocks: generateMockStocks(symbols: ["AAPL", "TSLA", "SPY"]),
+                quote: generateMockQuote(preference: .inspirational),
+                customPrompt: "",
+                transcript: "Sample DayStart audio for Aug 8, 2025.",
+                duration: 240,
+                audioFilePath: Bundle.main.path(forResource: "ai_wakeup_generic_voice1", ofType: "mp3"),
+                isDeleted: false
+            )
+            items.insert(sample, at: 0)
+        }
+
+        return items
     }
 }

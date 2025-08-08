@@ -312,13 +312,21 @@ struct OnboardingView: View {
                     
                     Spacer()
                     
-                    Picker("Voice", selection: $selectedVoice) {
-                        ForEach(VoiceOption.allCases, id: \.rawValue) { voice in
-                            Text(voice.name).tag(voice)
+                    VStack(alignment: .trailing, spacing: 8) {
+                        Text(selectedVoice.name)
+                            .foregroundColor(BananaTheme.ColorToken.primaryText)
+                        
+                        HStack(spacing: 8) {
+                            ForEach(VoiceOption.allCases, id: \.rawValue) { voice in
+                                VoicePreviewButton(
+                                    voice: voice,
+                                    isSelected: selectedVoice == voice
+                                ) {
+                                    selectedVoice = voice
+                                }
+                            }
                         }
                     }
-                    .pickerStyle(MenuPickerStyle())
-                    .accentColor(BananaTheme.ColorToken.accent)
                 }
                 
                 Divider()
@@ -738,6 +746,42 @@ struct OnboardingThemeOption: View {
 }
 
 // MARK: - Preview
+struct VoicePreviewButton: View {
+    let voice: VoiceOption
+    let isSelected: Bool
+    let onSelect: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Button(action: onSelect) {
+                VStack(spacing: 2) {
+                    Image(systemName: "person.wave.2")
+                        .font(.caption)
+                    Text(voice.name)
+                        .font(.caption2)
+                        .fontWeight(isSelected ? .bold : .regular)
+                }
+                .foregroundColor(isSelected ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.primaryText)
+                .frame(width: 50, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            Button(action: {
+                AudioPlayerManager.shared.previewVoice(voice)
+            }) {
+                Image(systemName: "play.circle.fill")
+                    .font(.caption2)
+                    .foregroundColor(BananaTheme.ColorToken.accent)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+    }
+}
+
 #if DEBUG
 struct OnboardingView_Previews: PreviewProvider {
     static var previews: some View {
