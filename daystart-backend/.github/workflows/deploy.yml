@@ -1,0 +1,72 @@
+name: Deploy to Supabase
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install Supabase CLI
+      run: |
+        npm install -g supabase
+        
+    - name: Verify Supabase installation
+      run: supabase --version
+      
+    - name: Link to Supabase project
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      run: |
+        supabase link --project-ref $SUPABASE_PROJECT_ID
+        
+    - name: Deploy database migrations
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      run: |
+        supabase db push
+        
+    - name: Set function secrets
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+        ALPHA_VANTAGE_KEY: ${{ secrets.ALPHA_VANTAGE_KEY }}
+        RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        HEALTH_CHECK_EMAIL: ${{ secrets.HEALTH_CHECK_EMAIL }}
+        CRON_JOB_SECRET: ${{ secrets.CRON_JOB_SECRET }}
+      run: |
+        supabase secrets set OPENAI_API_KEY="$OPENAI_API_KEY"
+        supabase secrets set ELEVENLABS_API_KEY="$ELEVENLABS_API_KEY"
+        supabase secrets set NEWSAPI_KEY="$NEWSAPI_KEY"
+        supabase secrets set ALPHA_VANTAGE_KEY="$ALPHA_VANTAGE_KEY"
+        supabase secrets set RESEND_API_KEY="$RESEND_API_KEY"
+        supabase secrets set HEALTH_CHECK_EMAIL="$HEALTH_CHECK_EMAIL"
+        supabase secrets set CRON_JOB_SECRET="$CRON_JOB_SECRET"
+        
+    - name: Deploy Edge Functions
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        supabase functions deploy --no-verify-jwt
+        
+    - name: Run function tests
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      run: |
+        # Add function tests here when ready
+        echo "Function tests would run here"
