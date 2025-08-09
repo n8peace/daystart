@@ -6,6 +6,7 @@ class NotificationScheduler {
     
     private let notificationCenter = UNUserNotificationCenter.current()
     private let mainIdentifierPrefix = "daystart_main_"
+    private let prefetchIdentifierPrefix = "daystart_prefetch_"
     private let reminderIdentifierPrefix = "daystart_reminder_"
     private let missedIdentifierPrefix = "daystart_missed_"
     
@@ -22,11 +23,12 @@ class NotificationScheduler {
             return
         }
         
-        // Schedule notifications for the next 30 days
+        // Schedule notifications for the next 48 hours (2 days max)
         let calendar = Calendar.current
         let now = Date()
+        let maxScheduleTime = now.addingTimeInterval(48 * 60 * 60) // 48 hours from now
         
-        for dayOffset in 0..<30 {
+        for dayOffset in 0..<3 { // Check today, tomorrow, day after (max 2 days out)
             guard let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
             
             // Skip tomorrow if skipTomorrow is enabled
@@ -51,12 +53,16 @@ class NotificationScheduler {
             notificationComponents.minute = timeComponents.minute
             
             guard let notificationDate = calendar.date(from: notificationComponents),
-                  notificationDate > now else {
+                  notificationDate > now,
+                  notificationDate <= maxScheduleTime else {
                 continue
             }
             
             // Schedule main notification
             await scheduleMainNotification(for: notificationDate, dayOffset: dayOffset)
+            
+            // Schedule prefetch notification (30 minutes before)
+            await schedulePrefetchNotification(for: notificationDate, dayOffset: dayOffset)
             
             // Schedule night-before reminder (10 hours before)
             if let reminderDate = calendar.date(byAdding: .hour, value: -10, to: notificationDate) {
@@ -71,7 +77,7 @@ class NotificationScheduler {
         
         // Log total scheduled notifications
         let pendingRequests = await notificationCenter.pendingNotificationRequests()
-        DebugLogger.shared.log("Total scheduled notifications: \(pendingRequests.count)", level: .info)
+        DebugLogger.shared.log("Total scheduled notifications (48hr window): \(pendingRequests.count)", level: .info)
     }
     
     func cancelAllNotifications() async {
@@ -247,6 +253,33 @@ class NotificationScheduler {
             DebugLogger.shared.log("Scheduled reminder notification for \(date)", level: .info)
         } catch {
             DebugLogger.shared.log("Failed to schedule reminder notification: \(error)", level: .error)
+        }
+    }
+    
+    private func schedulePrefetchNotification(for date: Date, dayOffset: Int) async {
+        let prefetchTime = date.addingTimeInterval(-30 * 60) // 30 minutes before
+        
+        // Only schedule if prefetch time is in the future
+        guard prefetchTime > Date() else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "" // Silent notification
+        content.body = ""
+        content.sound = nil
+        // This triggers background app refresh for audio download
+        
+        let calendar = Calendar.current
+        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: prefetchTime)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
+        
+        let identifier = "\(prefetchIdentifierPrefix)\(dayOffset)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        
+        do {
+            try await notificationCenter.add(request)
+            DebugLogger.shared.log("Scheduled prefetch notification for \(prefetchTime)", level: .info)
+        } catch {
+            DebugLogger.shared.log("Failed to schedule prefetch notification: \(error)", level: .error)
         }
     }
     

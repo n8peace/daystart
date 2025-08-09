@@ -72,6 +72,14 @@ struct EditScheduleView: View {
             }
             .navigationTitle("Edit & Schedule")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                logger.log("⚙️ Edit Schedule view appeared", level: .info)
+                logger.logUserAction("Settings opened", details: [
+                    "isLocked": isLocked,
+                    "nextOccurrence": userPreferences.schedule.nextOccurrence?.description ?? "none",
+                    "selectedVoice": selectedVoice.name
+                ])
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(action: {
@@ -330,7 +338,36 @@ struct EditScheduleView: View {
         presentationMode.wrappedValue.dismiss()
     }
     
+    private func getEnabledFeaturesCount() -> Int {
+        var count = 0
+        if includeWeather { count += 1 }
+        if includeNews { count += 1 }
+        if includeSports { count += 1 }
+        if includeStocks { count += 1 }
+        if includeCalendar { count += 1 }
+        if includeQuotes { count += 1 }
+        return count
+    }
+    
     private func saveChanges() {
+        let startTime = logger.startPerformanceTimer()
+        logger.log("💾 Saving settings changes", level: .info)
+        
+        // Log what changed
+        let voiceChanged = selectedVoice != userPreferences.settings.selectedVoice
+        let timeChanged = selectedTime != userPreferences.schedule.time 
+        let daysChanged = selectedDays != userPreferences.schedule.repeatDays
+        
+        logger.logUserAction("Save EditSchedule changes", details: [
+            "voiceChanged": voiceChanged,
+            "timeChanged": timeChanged, 
+            "daysChanged": daysChanged,
+            "newVoice": selectedVoice.name,
+            "newTime": DateFormatter.shortTime.string(from: selectedTime),
+            "selectedDaysCount": selectedDays.count,
+            "featuresEnabled": getEnabledFeaturesCount()
+        ])
+        
         DebugLogger.shared.logUserAction("Save EditSchedule changes")
         
         // Schedule
@@ -362,6 +399,7 @@ struct EditScheduleView: View {
         userPreferences.settings = settings
         
         DebugLogger.shared.log("✅ Settings saved successfully", level: .info)
+        logger.endPerformanceTimer(startTime, operation: "Settings save")
     }
 }
 
@@ -616,4 +654,14 @@ struct StockSymbolRow: View {
             }
         }
     }
+}
+
+
+// MARK: - Extensions  
+private extension DateFormatter {
+    static let shortTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }()
 }

@@ -32,7 +32,11 @@ class HomeViewModel: ObservableObject {
         updateState()
         
         if userPreferences.history.isEmpty {
+            logger.log("🎭 History empty, generating mock data", level: .debug)
             userPreferences.history = mockService.generateMockHistory()
+            logger.log("📊 Generated \(userPreferences.history.count) mock history items", level: .info)
+        } else {
+            logger.log("📚 Found existing history: \(userPreferences.history.count) items", level: .debug)
         }
     }
     

@@ -75,16 +75,16 @@ struct DayStartApp: App {
     
     private func requestNotificationPermissions() {
         logger.log("🔔 Requesting notification permissions", level: .debug)
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             DispatchQueue.main.async {
                 if let error = error {
-                    self?.logger.logError(error, context: "Notification permission request failed")
+                    DebugLogger.shared.logError(error, context: "Notification permission request failed")
                 } else {
-                    self?.logger.logUserAction("Notification permissions", details: ["granted": granted])
+                    DebugLogger.shared.logUserAction("Notification permissions", details: ["granted": granted])
                     if granted {
-                        self?.logger.log("✅ Notification permissions granted", level: .info)
+                        DebugLogger.shared.log("✅ Notification permissions granted", level: .info)
                     } else {
-                        self?.logger.log("⚠️ Notification permissions denied", level: .warning)
+                        DebugLogger.shared.log("⚠️ Notification permissions denied", level: .warning)
                     }
                 }
             }

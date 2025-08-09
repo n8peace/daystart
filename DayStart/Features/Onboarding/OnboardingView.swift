@@ -143,6 +143,7 @@ struct OnboardingView: View {
             
             // CTA Button
             Button(action: { 
+                logger.logUserAction("Pain point CTA tapped")
                 withAnimation { currentPage = 1 }
             }) {
                 Text("Let's Fix This")
@@ -228,10 +229,13 @@ struct OnboardingView: View {
                         HStack {
                             ForEach(WeekDay.allCases, id: \.id) { day in
                                 Button(action: {
-                                    if selectedDays.contains(day) {
+                                    let wasSelected = selectedDays.contains(day)
+                                    if wasSelected {
                                         selectedDays.remove(day)
+                                        logger.logUserAction("Day deselected", details: ["day": day.name])
                                     } else {
                                         selectedDays.insert(day)
+                                        logger.logUserAction("Day selected", details: ["day": day.name])
                                     }
                                 }) {
                                     Text(day.name)
@@ -524,6 +528,10 @@ struct OnboardingView: View {
                                 voice: voice,
                                 isSelected: selectedVoice == voice,
                                 onSelect: {
+                                    logger.logUserAction("Voice selected in onboarding", details: [
+                                        "voice": voice.name,
+                                        "voiceRawValue": voice.rawValue
+                                    ])
                                     selectedVoice = voice
                                     AudioPlayerManager.shared.previewVoice(voice)
                                 }
@@ -750,7 +758,48 @@ struct OnboardingView: View {
     }
     
     // MARK: - Helper Functions
+    
+    private func getPageName(for page: Int) -> String {
+        switch page {
+        case 0: return "Pain Point"
+        case 1: return "Personalization"
+        case 2: return "Content Selection"
+        case 3: return "Voice Experience"
+        case 4: return "Paywall"
+        default: return "Unknown"
+        }
+    }
+    
+    private func getButtonText(for page: Int) -> String {
+        switch page {
+        case 0: return "Let's Fix This"
+        case 1: return "Customize My Briefing"
+        case 2: return "Almost There!"
+        case 3: return "Finalize Setup"
+        default: return "Continue"
+        }
+    }
+    
     private func completeOnboarding() {
+        logger.log("🎓 Starting onboarding completion process", level: .info)
+        
+        // Log all collected settings
+        logger.logUserAction("Onboarding settings collected", details: [
+            "name": name.isEmpty ? "[empty]" : name,
+            "scheduledTime": DateFormatter.shortTime.string(from: selectedTime),
+            "selectedDays": selectedDays.map(\.name).joined(separator: ", "),
+            "includeWeather": includeWeather,
+            "includeNews": includeNews,
+            "includeSports": includeSports,
+            "includeStocks": includeStocks,
+            "stockSymbols": stockSymbols.isEmpty ? "[none]" : stockSymbols,
+            "includeCalendar": includeCalendar,
+            "includeQuotes": includeQuotes,
+            "selectedQuoteType": selectedQuoteType.name,
+            "selectedVoice": selectedVoice?.name ?? "[none]",
+            "dayStartLength": dayStartLength
+        ])
+        
         // Save settings
         let userPreferences = UserPreferences.shared
         
@@ -1070,3 +1119,13 @@ struct FeatureRow: View {
     }
 }
 
+
+
+// MARK: - Extensions
+private extension DateFormatter {
+    static let shortTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}

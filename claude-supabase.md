@@ -8,8 +8,12 @@
 1. **Job Creation**: App calls function 2hrs before scheduled time → creates job with user prefs
 2. **Script Generation**: Workers lease jobs via `FOR UPDATE SKIP LOCKED`, call GPT-4o with fresh content
 3. **Audio Generation**: Workers lease script-ready jobs, call ElevenLabs, store in private bucket  
-4. **Prefetch**: App gets notification when ready, downloads at T-30m for instant playback
-5. **Background**: Hourly cron jobs keep content fresh, cleanup removes old files
+4. **Hybrid Prefetch Strategy**: 
+   - **Primary**: App schedules local silent notification at T-30m → triggers download
+   - **Backup**: Local background refresh checks at T-20m, T-10m, T-5m
+   - **Fallback**: On-demand download at T-0 if no cached audio
+5. **Rolling Window**: App maintains 48-hour scheduling window locally (no server cron needed)
+6. **Background**: Hourly cron jobs keep content fresh, cleanup removes old files
 
 ## Database Schema
 
@@ -19,6 +23,13 @@
 ```sql
 -- Handled by Supabase Auth
 -- Additional columns can be added via profiles table if needed
+```
+
+#### `user_devices` (Optional - for future features)
+```sql
+-- Removed: No longer needed for prefetch system
+-- Push notifications are now handled locally by iOS app
+-- This table can be added later if needed for other features
 ```
 
 #### `user_schedule`
@@ -152,6 +163,7 @@ CREATE INDEX logs_event_idx ON logs(event, created_at DESC);
 
 ```sql
 -- Enable RLS on all tables
+-- ALTER TABLE user_devices ENABLE ROW LEVEL SECURITY; -- Removed
 ALTER TABLE user_schedule ENABLE ROW LEVEL SECURITY;
 ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE content_blocks ENABLE ROW LEVEL SECURITY;
@@ -159,6 +171,8 @@ ALTER TABLE quote_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 
 -- User access policies
+-- CREATE POLICY "Users can manage their own devices" ON user_devices -- Removed
+
 CREATE POLICY "Users can manage their own schedule" ON user_schedule
   FOR ALL USING (auth.uid() = user_id);
 
@@ -260,6 +274,7 @@ interface StocksResponse {
 // Endpoint: POST /functions/v1/job_upsert_next_run
 // Called by: iOS app 2 hours before scheduled time
 // Purpose: Create or update job with user preferences
+// Scheduling: Only creates jobs within 48-hour rolling window
 
 interface JobRequest {
   preferred_name: string;
@@ -290,6 +305,31 @@ interface JobResponse {
   status: string;
   estimated_ready_time: string;
 }
+```
+
+**Implementation Logic:**
+```typescript
+// Validate scheduling is within 48-hour window
+const scheduledAt = new Date(request.scheduled_at);
+const now = new Date();
+const maxScheduleTime = new Date(now.getTime() + (48 * 60 * 60 * 1000));
+
+if (scheduledAt > maxScheduleTime) {
+  return { 
+    success: false, 
+    error: "Cannot schedule beyond 48-hour window" 
+  };
+}
+
+// Upsert job (create or update existing for same user/date)
+const job = await supabase.from('jobs').upsert({
+  user_id: user.id,
+  local_date: request.local_date,
+  scheduled_at: request.scheduled_at,
+  window_start: new Date(scheduledAt.getTime() - (2 * 60 * 60 * 1000)), // 2hrs before
+  window_end: scheduledAt,
+  // ... user preferences
+}).select().single();
 ```
 
 **Example Request:**
@@ -377,11 +417,19 @@ interface AudioWorkerResponse {
 
 ### 4. Maintenance
 
+#### `cron_extend_scheduling_window`
+```typescript
+// REMOVED: No longer needed
+// Push notifications are now scheduled locally by the iOS app
+// The 48-hour rolling window is maintained automatically by the app
+// when it schedules notifications upon opening or schedule changes
+```
+
 #### `cron_cleanup_storage`
 ```typescript
 // Endpoint: POST /functions/v1/cron_cleanup_storage
-// Called by: cron-job.org daily
-// Purpose: Remove audio files older than 7 days
+// Called by: cron-job.org daily at 2 AM UTC
+// Purpose: Remove audio files older than 3 days (reduced from 7 for 48hr window)
 
 interface CleanupResponse {
   success: boolean;
@@ -409,7 +457,69 @@ interface HealthResponse {
 }
 ```
 
-### 5. Client API
+### 5. Local Prefetch System (iOS Only)
+
+**Note**: Prefetch notifications are now handled entirely within the iOS app using local `UNNotificationRequest` scheduling. No server-side push infrastructure required.
+
+**iOS Implementation in NotificationScheduler.swift:**
+```swift
+// Schedule prefetch notification 30 minutes before main notification
+private func schedulePrefetchNotification(for date: Date, dayOffset: Int) async {
+    let prefetchTime = date.addingTimeInterval(-30 * 60) // 30 minutes before
+    
+    // Only schedule if prefetch time is in the future
+    guard prefetchTime > Date() else { return }
+    
+    let content = UNMutableNotificationContent()
+    content.title = "" // Silent notification
+    content.body = ""
+    content.sound = nil
+    
+    // This triggers background app refresh for audio download
+    let trigger = UNTimeIntervalNotificationTrigger(
+        timeInterval: prefetchTime.timeIntervalSinceNow, 
+        repeats: false
+    )
+    
+    let identifier = "prefetch_\(dayOffset)"
+    let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+    
+    try await notificationCenter.add(request)
+    DebugLogger.shared.log("Scheduled prefetch notification for \(prefetchTime)", level: .info)
+}
+
+// Add to scheduleMainNotification function:
+await schedulePrefetchNotification(for: notificationDate, dayOffset: dayOffset)
+```
+
+**Background App Refresh (Backup Strategy):**
+```swift
+// BackgroundAudioFetcher.swift - same as before
+class BackgroundAudioFetcher {
+    static let shared = BackgroundAudioFetcher()
+    
+    func scheduleBackgroundChecks(for scheduledTime: Date) {
+        let checkTimes = [
+            scheduledTime.addingTimeInterval(-20 * 60), // T-20m
+            scheduledTime.addingTimeInterval(-10 * 60), // T-10m  
+            scheduledTime.addingTimeInterval(-5 * 60)   // T-5m
+        ]
+        
+        for checkTime in checkTimes {
+            scheduleBackgroundTask(at: checkTime)
+        }
+    }
+    
+    private func scheduleBackgroundTask(at date: Date) {
+        let identifier = "audio-check-\(date.timeIntervalSince1970)"
+        let request = BGAppRefreshTaskRequest(identifier: identifier)
+        request.earliestBeginDate = date
+        try? BGTaskScheduler.shared.submit(request)
+    }
+}
+```
+
+### 6. Client API
 
 #### `get_user_audio`
 ```typescript
@@ -483,7 +593,7 @@ queued → script_processing → script_ready → audio_processing → ready
 - **API key rotation**: Quarterly rotation schedule
 
 ### Privacy Compliance
-- **Data retention**: 7 days for audio, permanent for analytics
+- **Data retention**: 3 days for audio (aligned with 48hr window), permanent for analytics
 - **User deletion**: CASCADE deletes via foreign keys
 - **GDPR compliance**: Manual deletion process via Supabase dashboard
 

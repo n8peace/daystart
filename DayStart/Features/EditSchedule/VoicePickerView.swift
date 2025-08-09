@@ -6,6 +6,8 @@ struct VoicePickerView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var originalSelection: VoiceOption
     
+    private let logger = DebugLogger.shared
+    
     init(selectedVoice: Binding<VoiceOption>) {
         self._selectedVoice = selectedVoice
         self._originalSelection = State(initialValue: selectedVoice.wrappedValue)
@@ -46,9 +48,20 @@ struct VoicePickerView: View {
             .bananaBackground()
             .navigationTitle("Voice")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                logger.log("🎤 Voice picker appeared", level: .info)
+                logger.logUserAction("Voice picker opened", details: [
+                    "currentVoice": selectedVoice.name,
+                    "originalVoice": originalSelection.name
+                ])
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(action: {
+                        logger.logUserAction("Voice picker cancelled", details: [
+                            "originalVoice": originalSelection.name,
+                            "wasChanged": selectedVoice != originalSelection
+                        ])
                         AudioPlayerManager.shared.stopVoicePreview()
                         selectedVoice = originalSelection
                         dismiss()
@@ -58,6 +71,11 @@ struct VoicePickerView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action: {
+                        logger.logUserAction("Voice picker confirmed", details: [
+                            "selectedVoice": selectedVoice.name,
+                            "originalVoice": originalSelection.name,
+                            "wasChanged": selectedVoice != originalSelection
+                        ])
                         AudioPlayerManager.shared.stopVoicePreview()
                         dismiss()
                     }) {
@@ -72,6 +90,10 @@ struct VoicePickerView: View {
     }
     
     private func onSelect(_ voice: VoiceOption) {
+        logger.logUserAction("Voice tapped for preview", details: [
+            "voice": voice.name,
+            "wasAlreadySelected": selectedVoice == voice
+        ])
         if selectedVoice != voice { selectedVoice = voice }
         AudioPlayerManager.shared.previewVoice(voice)
     }

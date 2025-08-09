@@ -7,6 +7,8 @@ struct HistoryView: View {
     @State private var visibleCount: Int = 10
     @State private var searchQuery: String = ""
     
+    private let logger = DebugLogger.shared
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -18,6 +20,14 @@ struct HistoryView: View {
             }
             .navigationTitle("History")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                logger.log("📚 History view appeared", level: .info)
+                logger.logUserAction("History opened", details: [
+                    "totalItems": userPreferences.history.count,
+                    "isEmpty": userPreferences.history.isEmpty,
+                    "visibleCount": visibleCount
+                ])
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
