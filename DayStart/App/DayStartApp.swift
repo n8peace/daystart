@@ -10,9 +10,16 @@ struct DayStartApp: App {
     @StateObject private var themeManager = ThemeManager.shared
     @State private var showOnboarding = false
     
+    private let logger = DebugLogger.shared
+    
     init() {
+        logger.log("🚀 DayStart app initializing", level: .info)
+        logger.logMemoryUsage()
+        
         configureAudioSession()
         requestNotificationPermissions()
+        
+        logger.log("✅ App initialization complete", level: .info)
     }
     
     var body: some Scene {
@@ -26,35 +33,60 @@ struct DayStartApp: App {
                     configureNavigationAppearance(for: colorScheme)
                 }
                 .onAppear {
-                    showOnboarding = !userPreferences.hasCompletedOnboarding
+                    logger.log("📱 App appeared - checking onboarding status", level: .info)
+                    
+                    let shouldShowOnboarding = !userPreferences.hasCompletedOnboarding
+                    showOnboarding = shouldShowOnboarding
+                    
+                    logger.logUserAction("App launch", details: [
+                        "hasCompletedOnboarding": userPreferences.hasCompletedOnboarding,
+                        "showingOnboarding": shouldShowOnboarding,
+                        "historyCount": userPreferences.history.count
+                    ])
                     
                     // Clean up old audio files on app start
                     DispatchQueue.global(qos: .utility).async {
+                        logger.log("🧹 Starting audio file cleanup", level: .debug)
                         userPreferences.cleanupOldAudioFiles()
+                        logger.log("✅ Audio file cleanup complete", level: .debug)
                     }
                 }
                 .fullScreenCover(isPresented: $showOnboarding) {
                     OnboardingView {
+                        logger.logUserAction("Onboarding completed")
                         userPreferences.hasCompletedOnboarding = true
                         showOnboarding = false
+                        logger.log("🎓 User completed onboarding - transitioning to main app", level: .info)
                     }
                 }
         }
     }
     
     private func configureAudioSession() {
+        logger.log("🔊 Configuring audio session", level: .debug)
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
             try AVAudioSession.sharedInstance().setActive(true)
+            logger.log("✅ Audio session configured successfully", level: .info)
         } catch {
-            print("Failed to configure audio session: \(error)")
+            logger.logError(error, context: "Failed to configure audio session")
         }
     }
     
     private func requestNotificationPermissions() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if granted {
-                print("Notification permissions granted")
+        logger.log("🔔 Requesting notification permissions", level: .debug)
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    self?.logger.logError(error, context: "Notification permission request failed")
+                } else {
+                    self?.logger.logUserAction("Notification permissions", details: ["granted": granted])
+                    if granted {
+                        self?.logger.log("✅ Notification permissions granted", level: .info)
+                    } else {
+                        self?.logger.log("⚠️ Notification permissions denied", level: .warning)
+                    }
+                }
             }
         }
     }
@@ -77,8 +109,12 @@ struct DayStartApp: App {
 
 struct ContentView: View {
     @StateObject private var homeViewModel = HomeViewModel()
+    private let logger = DebugLogger.shared
     
     var body: some View {
         HomeView(viewModel: homeViewModel)
+            .onAppear {
+                logger.log("🏠 Main content view appeared", level: .debug)
+            }
     }
 }
