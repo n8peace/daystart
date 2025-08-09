@@ -19,6 +19,7 @@ struct DayStartGradientBackground: View {
             )
             .blur(radius: 30)
             .ignoresSafeArea()
+            .blendMode(colorScheme == .dark ? .screen : .normal)
             .opacity(reduceMotion ? 1.0 : (glowAnimation ? 1.0 : 0.9))
             .animation(reduceMotion ? .none : .easeInOut(duration: 4).repeatForever(autoreverses: true), value: glowAnimation)
             

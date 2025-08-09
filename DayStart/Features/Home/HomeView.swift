@@ -43,8 +43,8 @@ struct HomeView: View {
                         ThemeToggleButton()
                         
                         Button(action: { showEditSchedule = true }) {
-                            Image(systemName: "pin")
-                                .font(.title3)
+                            Text("Edit")
+                                .font(.title3.weight(.medium))
                                 .foregroundColor(BananaTheme.ColorToken.text)
                         }
                     }
@@ -157,7 +157,7 @@ struct HomeView: View {
             }
             
             Button(action: { viewModel.startDayStart() }) {
-                Text("DayStart")
+                Text(viewModel.hasCompletedCurrentOccurrence ? "Replay" : "DayStart")
                     .adaptiveFont(BananaTheme.Typography.title)
                     .foregroundColor(BananaTheme.ColorToken.background)
                     .frame(width: 200, height: 200)

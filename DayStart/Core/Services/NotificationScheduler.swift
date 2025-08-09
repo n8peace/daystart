@@ -5,7 +5,9 @@ class NotificationScheduler {
     static let shared = NotificationScheduler()
     
     private let notificationCenter = UNUserNotificationCenter.current()
-    private let notificationIdentifier = "DayStartNotification"
+    private let mainIdentifierPrefix = "daystart_main_"
+    private let reminderIdentifierPrefix = "daystart_reminder_"
+    private let missedIdentifierPrefix = "daystart_missed_"
     
     private init() {}
     
@@ -53,27 +55,17 @@ class NotificationScheduler {
                 continue
             }
             
-            // Create the notification
-            let content = UNMutableNotificationContent()
-            content.title = "🌅 Time for Your DayStart!"
-            content.body = "Your personalized morning briefing is ready."
-            content.sound = .default
-            content.categoryIdentifier = "DAYSTART_CATEGORY"
+            // Schedule main notification
+            await scheduleMainNotification(for: notificationDate, dayOffset: dayOffset)
             
-            // Create trigger
-            let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: notificationDate)
-            let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
+            // Schedule night-before reminder (10 hours before)
+            if let reminderDate = calendar.date(byAdding: .hour, value: -10, to: notificationDate) {
+                await scheduleReminderNotification(for: reminderDate, dayOffset: dayOffset)
+            }
             
-            // Create request
-            let identifier = "\(notificationIdentifier)_\(dayOffset)"
-            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-            
-            // Schedule notification
-            do {
-                try await notificationCenter.add(request)
-                DebugLogger.shared.log("Scheduled notification for \(notificationDate)", level: .info)
-            } catch {
-                DebugLogger.shared.log("Failed to schedule notification: \(error)", level: .error)
+            // Schedule missed notification (6 hours after)
+            if let missedDate = calendar.date(byAdding: .hour, value: 6, to: notificationDate) {
+                await scheduleMissedNotification(for: missedDate, dayOffset: dayOffset)
             }
         }
         
@@ -115,16 +107,36 @@ class NotificationScheduler {
             options: []
         )
         
-        // Define category
-        let category = UNNotificationCategory(
+        let editAction = UNNotificationAction(
+            identifier: "EDIT_ACTION",
+            title: "Edit Schedule",
+            options: [.foreground]
+        )
+        
+        // Define categories
+        let mainCategory = UNNotificationCategory(
             identifier: "DAYSTART_CATEGORY",
             actions: [listenAction, skipAction],
             intentIdentifiers: [],
             options: []
         )
         
+        let reminderCategory = UNNotificationCategory(
+            identifier: "DAYSTART_REMINDER_CATEGORY",
+            actions: [editAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        
+        let missedCategory = UNNotificationCategory(
+            identifier: "DAYSTART_MISSED_CATEGORY",
+            actions: [listenAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        
         // Set categories
-        notificationCenter.setNotificationCategories([category])
+        notificationCenter.setNotificationCategories([mainCategory, reminderCategory, missedCategory])
     }
     
     func handleNotificationAction(_ actionIdentifier: String, for notificationIdentifier: String) {
@@ -136,6 +148,10 @@ class NotificationScheduler {
         case "SKIP_ACTION":
             DebugLogger.shared.log("User chose to skip from notification", level: .info)
             // Mark today as skipped
+            
+        case "EDIT_ACTION":
+            DebugLogger.shared.log("User chose to edit schedule from notification", level: .info)
+            // This would typically open the edit schedule view
             
         default:
             break
@@ -156,5 +172,103 @@ class NotificationScheduler {
             .sorted()
         
         return sortedTimes.first
+    }
+    
+    func cancelMissedNotifications(forDayOffsets dayOffsets: [Int]) async {
+        let identifiers = dayOffsets.map { "\(missedIdentifierPrefix)\($0)" }
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
+        DebugLogger.shared.log("Cancelled missed notifications for day offsets: \(dayOffsets)", level: .info)
+    }
+    
+    func cancelTodaysMissedNotification() async {
+        // Calculate today's day offset from when notifications were scheduled
+        let calendar = Calendar.current
+        let now = Date()
+        
+        // Find today's missed notification by checking all pending notifications
+        let requests = await getScheduledNotifications()
+        let todaysIdentifiers = requests
+            .filter { request in
+                guard let trigger = request.trigger as? UNCalendarNotificationTrigger,
+                      let nextTriggerDate = trigger.nextTriggerDate() else {
+                    return false
+                }
+                
+                // Check if this is a missed notification scheduled for today
+                return request.identifier.hasPrefix(missedIdentifierPrefix) &&
+                       calendar.isDate(nextTriggerDate, inSameDayAs: now)
+            }
+            .map { $0.identifier }
+        
+        if !todaysIdentifiers.isEmpty {
+            notificationCenter.removePendingNotificationRequests(withIdentifiers: todaysIdentifiers)
+            DebugLogger.shared.log("Cancelled today's missed notifications: \(todaysIdentifiers)", level: .info)
+        }
+    }
+    
+    private func scheduleMainNotification(for date: Date, dayOffset: Int) async {
+        let content = UNMutableNotificationContent()
+        content.title = "🌅 Time for Your DayStart!"
+        content.body = "Your personalized morning briefing is ready."
+        content.sound = .default
+        content.categoryIdentifier = "DAYSTART_CATEGORY"
+        
+        let calendar = Calendar.current
+        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
+        
+        let identifier = "\(mainIdentifierPrefix)\(dayOffset)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        
+        do {
+            try await notificationCenter.add(request)
+            DebugLogger.shared.log("Scheduled main notification for \(date)", level: .info)
+        } catch {
+            DebugLogger.shared.log("Failed to schedule main notification: \(error)", level: .error)
+        }
+    }
+    
+    private func scheduleReminderNotification(for date: Date, dayOffset: Int) async {
+        let content = UNMutableNotificationContent()
+        content.title = "🌙 Your DayStart is Scheduled"
+        content.body = "Tomorrow's morning briefing is set. Click to edit."
+        content.sound = .default
+        content.categoryIdentifier = "DAYSTART_REMINDER_CATEGORY"
+        
+        let calendar = Calendar.current
+        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
+        
+        let identifier = "\(reminderIdentifierPrefix)\(dayOffset)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        
+        do {
+            try await notificationCenter.add(request)
+            DebugLogger.shared.log("Scheduled reminder notification for \(date)", level: .info)
+        } catch {
+            DebugLogger.shared.log("Failed to schedule reminder notification: \(error)", level: .error)
+        }
+    }
+    
+    private func scheduleMissedNotification(for date: Date, dayOffset: Int) async {
+        let content = UNMutableNotificationContent()
+        content.title = "⏰ Your DayStart is Waiting"
+        content.body = "Don't miss your personalized morning briefing!"
+        content.sound = .default
+        content.categoryIdentifier = "DAYSTART_MISSED_CATEGORY"
+        
+        let calendar = Calendar.current
+        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
+        
+        let identifier = "\(missedIdentifierPrefix)\(dayOffset)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        
+        do {
+            try await notificationCenter.add(request)
+            DebugLogger.shared.log("Scheduled missed notification for \(date)", level: .info)
+        } catch {
+            DebugLogger.shared.log("Failed to schedule missed notification: \(error)", level: .error)
+        }
     }
 }

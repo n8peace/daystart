@@ -23,7 +23,7 @@ struct VoicePickerView: View {
                             Text(voice.name)
                                 .font(BananaTheme.Typography.body)
                                 .foregroundColor(BananaTheme.ColorToken.primaryText)
-                            Text("Tap to preview")
+                            Text(voiceDescription(for: voice))
                                 .font(.caption)
                                 .foregroundColor(BananaTheme.ColorToken.secondaryText)
                         }
@@ -74,6 +74,17 @@ struct VoicePickerView: View {
     private func onSelect(_ voice: VoiceOption) {
         if selectedVoice != voice { selectedVoice = voice }
         AudioPlayerManager.shared.previewVoice(voice)
+    }
+    
+    private func voiceDescription(for voice: VoiceOption) -> String {
+        switch voice {
+        case .voice1:
+            return "Warm and smooth, perfect for gentle wake-ups"
+        case .voice2:
+            return "Clear and authoritative, great for headlines"
+        case .voice3:
+            return "Calm and composed, thoughtful delivery style"
+        }
     }
 }
 

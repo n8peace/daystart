@@ -383,7 +383,7 @@
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_OPTIMIZATION_LEVEL = s;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
@@ -402,6 +402,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Debug;
 		};
@@ -556,7 +557,7 @@
 				B350B74D2E45D78C009A6C78 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		B350B7492E45D78C009A6C78 /* Build configuration list for PBXNativeTarget "DayStart" */ = {
 			isa = XCConfigurationList;
@@ -565,7 +566,7 @@
 				B350B74B2E45D78C009A6C78 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		B350B74E2E45D78C009A6C78 /* Build configuration list for PBXNativeTarget "DayStartTests" */ = {
 			isa = XCConfigurationList;
@@ -574,7 +575,7 @@
 				B350B7502E45D78C009A6C78 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		B350B7512E45D78C009A6C78 /* Build configuration list for PBXNativeTarget "DayStartUITests" */ = {
 			isa = XCConfigurationList;
@@ -583,7 +584,7 @@
 				B350B7532E45D78C009A6C78 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
 	};

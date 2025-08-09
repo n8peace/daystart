@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 struct OnboardingView: View {
     let onComplete: () -> Void
@@ -7,507 +8,746 @@ struct OnboardingView: View {
     @State private var name = ""
     @State private var selectedTime = Calendar.current.date(from: DateComponents(hour: 7, minute: 0)) ?? Date()
     @State private var selectedDays: Set<WeekDay> = Set(WeekDay.allCases)
-    @State private var includeWeather = true
-    @State private var includeNews = true
+    @State private var includeWeather = false
+    @State private var includeNews = true  // Auto-selected
     @State private var includeSports = false
-    @State private var includeStocks = true
-    @State private var stockSymbols = "AAPL, TSLA, SPY"
+    @State private var includeStocks = false
+    @State private var stockSymbols = ""
+    @State private var includeCalendar = false
     @State private var includeQuotes = true
-    @State private var quotePreference: QuotePreference = .inspirational
-    @State private var selectedVoice: VoiceOption = .voice1
+    @State private var selectedQuoteType: QuotePreference = .inspirational
+    @State private var selectedVoice: VoiceOption? = nil
     @State private var dayStartLength = 5
-    @State private var themePreference: ThemePreference = .system
+    @State private var showingPaywall = false
+    @State private var selectedProduct: Product?
+    
+    // Permission states
+    @State private var isRequestingLocationPermission = false
+    @State private var isRequestingCalendarPermission = false
+    @State private var showingLocationPermissionDialog = false
+    @State private var showingCalendarPermissionDialog = false
     
     @StateObject private var themeManager = ThemeManager.shared
     @Environment(\.colorScheme) var colorScheme
     
-    private let pages = OnboardingPage.allPages
+    private let totalPages = 5
+    
+    var progressPercentage: Double {
+        Double(currentPage + 1) / Double(totalPages)
+    }
     
     var body: some View {
         ZStack {
-            // Background
-            OnboardingGradientBackground()
+            // Opaque background to prevent home screen showing through
+            BananaTheme.ColorToken.background
+                .ignoresSafeArea()
+            
+            // Gradient overlay
+            DayStartGradientBackground()
+                .opacity(0.15)
             
             VStack(spacing: 0) {
-                // Progress indicator
-                progressIndicator
+                // Progress bar
+                ProgressView(value: progressPercentage)
+                    .progressViewStyle(LinearProgressViewStyle(tint: BananaTheme.ColorToken.primary))
+                    .scaleEffect(x: 1, y: 2, anchor: .center)
+                    .padding(.horizontal)
+                    .padding(.top, BananaTheme.Spacing.md)
+                
+                // Progress text
+                Text("\(Int(progressPercentage * 100))% Complete")
+                    .font(BananaTheme.Typography.caption)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .padding(.top, BananaTheme.Spacing.sm)
                 
                 // Page content
                 TabView(selection: $currentPage) {
-                    ForEach(pages.indices, id: \.self) { index in
-                        pageView(for: pages[index], at: index)
-                            .tag(index)
-                    }
+                    painPointPage
+                        .tag(0)
+                    
+                    solutionPersonalizationPage
+                        .tag(1)
+                    
+                    contentSelectionPage
+                        .tag(2)
+                    
+                    voiceExperiencePage
+                        .tag(3)
+                    
+                    paywallPage
+                        .tag(4)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
-                
-                // Navigation buttons
-                navigationButtons
-            }
-        }
-        .onAppear {
-            setupInitialValues()
-        }
-    }
-    
-    // MARK: - Progress Indicator
-    private var progressIndicator: some View {
-        VStack(spacing: BananaTheme.Spacing.md) {
-            HStack {
-                ForEach(0..<pages.count, id: \.self) { index in
-                    Circle()
-                        .fill(index <= currentPage ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border)
-                        .frame(width: 8, height: 8)
-                        .scaleEffect(index == currentPage ? 1.2 : 1.0)
-                        .animation(.easeInOut(duration: 0.3), value: currentPage)
-                    
-                    if index < pages.count - 1 {
-                        Rectangle()
-                            .fill(index < currentPage ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border)
-                            .frame(height: 2)
-                            .animation(.easeInOut(duration: 0.3), value: currentPage)
-                    }
+                .onChange(of: currentPage) { _ in
+                    // Stop any playing voice preview when navigating between pages
+                    AudioPlayerManager.shared.stopVoicePreview()
                 }
             }
-            .padding(.horizontal, BananaTheme.Spacing.xl)
-            
-            Text("Step \(currentPage + 1) of \(pages.count)")
-                .font(BananaTheme.Typography.caption)
-                .foregroundColor(BananaTheme.ColorToken.secondaryText)
         }
-        .padding(.top, BananaTheme.Spacing.lg)
     }
     
-    // MARK: - Page View
-    @ViewBuilder
-    private func pageView(for page: OnboardingPage, at index: Int) -> some View {
-        ScrollView {
-            VStack(spacing: BananaTheme.Spacing.lg) {
-                Spacer(minLength: BananaTheme.Spacing.md)
-                
-                // Page icon
-                Image(systemName: page.icon)
-                    .font(.system(size: 60))
-                    .foregroundColor(BananaTheme.ColorToken.primary)
-                    .padding(.bottom, BananaTheme.Spacing.sm)
-                
-                // Title and description
-                VStack(spacing: BananaTheme.Spacing.sm) {
-                    Text(page.title)
-                        .adaptiveFont(BananaTheme.Typography.title)
-                        .foregroundColor(BananaTheme.ColorToken.primaryText)
-                        .multilineTextAlignment(.center)
-                        .adaptiveFontWeight(light: .semibold, dark: .medium)
+    // MARK: - Page 1: Pain Point Introduction
+    private var painPointPage: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            VStack(spacing: BananaTheme.Spacing.xl) {
+                // Animated emoji transition
+                VStack(spacing: BananaTheme.Spacing.md) {
+                    Text("😴")
+                        .font(.system(size: 100))
+                        .scaleEffect(1.2)
+                        .animation(
+                            Animation.easeInOut(duration: 2)
+                                .repeatForever(autoreverses: true),
+                            value: currentPage
+                        )
                     
-                    Text(page.description)
+                    Text("Mornings Suck. We Get It.")
+                        .adaptiveFont(BananaTheme.Typography.largeTitle)
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    
+                    Text("Most people are filled with unorganized dread in the morning.")
                         .font(BananaTheme.Typography.body)
                         .foregroundColor(BananaTheme.ColorToken.secondaryText)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, BananaTheme.Spacing.md)
+                        .padding(.horizontal, BananaTheme.Spacing.lg)
                 }
                 
-                // Page content
-                pageContent(for: page)
-                    .padding(.horizontal, BananaTheme.Spacing.md)
-                
+                // Pain points
+                VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
+                    PainPointRow(text: "Unsure where to start")
+                    PainPointRow(text: "Overwhelmed by the day ahead")
+                    PainPointRow(text: "No motivation to get up")
+                    PainPointRow(text: "Same boring routine")
+                }
+                .padding(.horizontal, BananaTheme.Spacing.xl)
+            }
+            
+            Spacer()
+            
+            // CTA Button
+            Button(action: { 
+                withAnimation { currentPage = 1 }
+            }) {
+                Text("Let's Fix This")
+                    .adaptiveFont(BananaTheme.Typography.headline)
+                    .frame(maxWidth: .infinity)
+            }
+            .bananaPrimaryButton()
+            .padding(.horizontal, BananaTheme.Spacing.xl)
+            .padding(.bottom, BananaTheme.Spacing.xl)
+        }
+    }
+    
+    // MARK: - Page 2: Solution & Personalization
+    private var solutionPersonalizationPage: some View {
+        ScrollView {
+            VStack(spacing: BananaTheme.Spacing.xl) {
                 Spacer(minLength: BananaTheme.Spacing.xl)
-            }
-        }
-    }
-    
-    // MARK: - Page Content
-    @ViewBuilder
-    private func pageContent(for page: OnboardingPage) -> some View {
-        switch page {
-        case .welcome:
-            welcomeContent
-        case .personalization:
-            personalizationContent
-        case .schedule:
-            scheduleContent
-        case .content:
-            contentPreferencesContent
-        case .voice:
-            voiceAndLengthContent
-        case .theme:
-            themeSelectionContent
-        case .permissions:
-            permissionsContent
-        case .complete:
-            completionContent
-        }
-    }
-    
-    // MARK: - Welcome Content
-    private var welcomeContent: some View {
-        VStack(spacing: BananaTheme.Spacing.lg) {
-            Text("🌅")
-                .font(.system(size: 80))
-            
-            Text("Welcome to DayStart!")
-                .adaptiveFont(BananaTheme.Typography.title2)
-                .foregroundColor(BananaTheme.ColorToken.primaryText)
-                .multilineTextAlignment(.center)
-            
-            Text("Your personalized morning briefing, tailored just for you")
-                .font(BananaTheme.Typography.body)
-                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-        }
-        .bananaCardStyle()
-        .padding(.horizontal)
-    }
-    
-    // MARK: - Personalization Content
-    private var personalizationContent: some View {
-        VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
-            Text("What should we call you?")
-                .adaptiveFont(BananaTheme.Typography.headline)
-                .foregroundColor(BananaTheme.ColorToken.primaryText)
-            
-            TextField("Your name (optional)", text: $name)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .font(BananaTheme.Typography.body)
-            
-            Text("We'll use this to personalize your briefings")
-                .font(BananaTheme.Typography.caption)
-                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-        }
-        .bananaCardStyle()
-    }
-    
-    // MARK: - Schedule Content
-    private var scheduleContent: some View {
-        VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
-            Text("When would you like your briefings?")
-                .adaptiveFont(BananaTheme.Typography.headline)
-                .foregroundColor(BananaTheme.ColorToken.primaryText)
-            
-            HStack {
-                Text("Time")
-                    .font(BananaTheme.Typography.body)
-                    .foregroundColor(BananaTheme.ColorToken.primaryText)
                 
-                Spacer()
-                
-                DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
-                    .labelsHidden()
-                    .accentColor(BananaTheme.ColorToken.accent)
-            }
-            
-            Divider()
-            
-            Text("Days")
-                .font(BananaTheme.Typography.body)
-                .foregroundColor(BananaTheme.ColorToken.primaryText)
-            
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: BananaTheme.Spacing.sm) {
-                ForEach(WeekDay.allCases, id: \.id) { weekDay in
-                    OnboardingDayButton(
-                        weekDay: weekDay,
-                        isSelected: selectedDays.contains(weekDay)
-                    ) {
-                        toggleDay(weekDay)
-                    }
+                // Animated phone with sound waves
+                ZStack {
+                    Image(systemName: "iphone")
+                        .font(.system(size: 80))
+                        .foregroundColor(BananaTheme.ColorToken.primary)
+                    
+                    Image(systemName: "speaker.wave.3.fill")
+                        .font(.system(size: 30))
+                        .foregroundColor(BananaTheme.ColorToken.accent)
+                        .offset(x: 50, y: -20)
+                        .scaleEffect(1.2)
+                        .animation(
+                            Animation.easeInOut(duration: 1)
+                                .repeatForever(autoreverses: true),
+                            value: currentPage
+                        )
                 }
-            }
-        }
-        .bananaCardStyle()
-    }
-    
-    // MARK: - Content Preferences Content
-    private var contentPreferencesContent: some View {
-        VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
-            Text("What would you like to hear about?")
-                .adaptiveFont(BananaTheme.Typography.headline)
-                .foregroundColor(BananaTheme.ColorToken.primaryText)
-            
-            VStack(spacing: BananaTheme.Spacing.sm) {
-                OnboardingToggleRow(
-                    title: "Weather",
-                    icon: "cloud.sun",
-                    description: "Local weather conditions",
-                    isOn: $includeWeather
-                )
+                .padding(.bottom)
                 
-                OnboardingToggleRow(
-                    title: "News",
-                    icon: "newspaper",
-                    description: "Top headlines and stories",
-                    isOn: $includeNews
-                )
-                
-                OnboardingToggleRow(
-                    title: "Sports",
-                    icon: "sportscourt",
-                    description: "Latest sports updates",
-                    isOn: $includeSports
-                )
-                
-                OnboardingToggleRow(
-                    title: "Stocks",
-                    icon: "chart.line.uptrend.xyaxis",
-                    description: "Market updates for your symbols",
-                    isOn: $includeStocks
-                )
-                
-                if includeStocks {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Stock Symbols")
-                            .font(BananaTheme.Typography.caption)
-                            .foregroundColor(BananaTheme.ColorToken.primaryText)
-                        
-                        TextField("AAPL, TSLA, SPY", text: $stockSymbols)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .font(BananaTheme.Typography.body)
-                    }
-                    .padding(.leading, BananaTheme.Spacing.lg)
-                }
-                
-                OnboardingToggleRow(
-                    title: "Daily Quote",
-                    icon: "quote.bubble",
-                    description: "Inspiration to start your day",
-                    isOn: $includeQuotes
-                )
-                
-                if includeQuotes {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Quote Style")
-                            .font(BananaTheme.Typography.caption)
-                            .foregroundColor(BananaTheme.ColorToken.primaryText)
-                        
-                        Picker("Quote Preference", selection: $quotePreference) {
-                            ForEach(QuotePreference.allCases, id: \.rawValue) { preference in
-                                Text(preference.name).tag(preference)
-                            }
-                        }
-                        .pickerStyle(MenuPickerStyle())
-                    }
-                    .padding(.leading, BananaTheme.Spacing.lg)
-                }
-            }
-        }
-        .bananaCardStyle()
-    }
-    
-    // MARK: - Voice and Length Content
-    private var voiceAndLengthContent: some View {
-        VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
-            Text("Customize your experience")
-                .adaptiveFont(BananaTheme.Typography.headline)
-                .foregroundColor(BananaTheme.ColorToken.primaryText)
-            
-            VStack(spacing: BananaTheme.Spacing.md) {
-                HStack {
-                    Text("Voice")
+                VStack(spacing: BananaTheme.Spacing.md) {
+                    Text("Your Personal Morning Briefing")
+                        .adaptiveFont(BananaTheme.Typography.title)
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("Have a personalized start to the day ready for you when you wake up.")
                         .font(BananaTheme.Typography.body)
-                        .foregroundColor(BananaTheme.ColorToken.primaryText)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, BananaTheme.Spacing.xl)
+                
+                // Personalization inputs
+                VStack(spacing: BananaTheme.Spacing.lg) {
+                    VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
+                        HStack {
+                            Text("Your Name")
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                            
+                            Spacer(minLength: BananaTheme.Spacing.md)
+                            
+                            TextField("Optional", text: $name)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .font(BananaTheme.Typography.body)
+                        }
+                    }
                     
-                    Spacer()
+                    VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
+                        HStack {
+                            Text("When should your personalized briefing be ready?")
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                            
+                            Spacer()
+                            
+                            DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                                .labelsHidden()
+                        }
+                    }
                     
-                    VStack(alignment: .trailing, spacing: 8) {
-                        Text(selectedVoice.name)
-                            .foregroundColor(BananaTheme.ColorToken.primaryText)
+                    VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
+                        Text("Which days?")
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         
-                        HStack(spacing: 8) {
-                            ForEach(VoiceOption.allCases, id: \.rawValue) { voice in
-                                VoicePreviewButton(
-                                    voice: voice,
-                                    isSelected: selectedVoice == voice
-                                ) {
-                                    selectedVoice = voice
+                        HStack {
+                            ForEach(WeekDay.allCases, id: \.id) { day in
+                                Button(action: {
+                                    if selectedDays.contains(day) {
+                                        selectedDays.remove(day)
+                                    } else {
+                                        selectedDays.insert(day)
+                                    }
+                                }) {
+                                    Text(day.name)
+                                        .font(.caption)
+                                        .fontWeight(selectedDays.contains(day) ? .bold : .regular)
+                                        .foregroundColor(selectedDays.contains(day) ? .white : BananaTheme.ColorToken.text)
+                                        .frame(width: 30, height: 30)
+                                        .background(selectedDays.contains(day) ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
+                                        .clipShape(Circle())
+                                }
+                                
+                                if day != WeekDay.allCases.last {
+                                    Spacer()
                                 }
                             }
                         }
                     }
                 }
+                .padding(.horizontal, BananaTheme.Spacing.xl)
                 
-                Divider()
+                Text("DayStart creates a personalized audio briefing just for you - like having a trusted friend catch you up on everything that matters")
+                    .font(BananaTheme.Typography.caption)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, BananaTheme.Spacing.xl)
                 
-                VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
-                    HStack {
-                        Text("Briefing Length")
-                            .font(BananaTheme.Typography.body)
-                            .foregroundColor(BananaTheme.ColorToken.primaryText)
-                        
+                Spacer(minLength: BananaTheme.Spacing.xl)
+                
+                // Bottom spacer for better scrolling  
+                Spacer(minLength: 60)
+            }
+        }
+        .overlay(
+            VStack {
+                Spacer()
+                
+                // Gradient backdrop for navigation buttons
+                VStack {
+                    LinearGradient(
+                        colors: [
+                            BananaTheme.ColorToken.background.opacity(0),
+                            BananaTheme.ColorToken.background.opacity(0.8),
+                            BananaTheme.ColorToken.background
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 120)
+                    .allowsHitTesting(false)
+                    
+                    Rectangle()
+                        .fill(BananaTheme.ColorToken.background)
+                        .frame(height: 40)
+                        .allowsHitTesting(false)
+                }
+                .overlay(
+                    VStack {
                         Spacer()
-                        
-                        Text("\(dayStartLength) minutes")
-                            .font(BananaTheme.Typography.body)
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        navigationButtons
+                    }
+                )
+            }
+        )
+    }
+    
+    // MARK: - Page 3: Content Selection
+    private var contentSelectionPage: some View {
+        ScrollView {
+            VStack(spacing: BananaTheme.Spacing.xl) {
+                Spacer(minLength: BananaTheme.Spacing.xl)
+                
+                // Animated content cards
+                HStack(spacing: BananaTheme.Spacing.sm) {
+                    ContentTypeIcon(icon: "sun.max.fill", color: .orange)
+                    ContentTypeIcon(icon: "newspaper.fill", color: .blue)
+                    ContentTypeIcon(icon: "sportscourt.fill", color: .green)
+                    ContentTypeIcon(icon: "chart.line.uptrend.xyaxis", color: .purple)
+                    ContentTypeIcon(icon: "quote.bubble.fill", color: .pink)
+                }
+                .padding(.bottom)
+                
+                VStack(spacing: BananaTheme.Spacing.md) {
+                    Text("What gets you started?")
+                        .adaptiveFont(BananaTheme.Typography.title)
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("Choose what to include in your personalized morning briefing.")
+                        .font(BananaTheme.Typography.body)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                
+                // Content toggles
+                VStack(spacing: BananaTheme.Spacing.md) {
+                    ContentToggleRow(
+                        icon: "sun.max.fill",
+                        title: "Weather",
+                        subtitle: "Start dressed for success",
+                        isOn: $includeWeather
+                    )
+                    .onChange(of: includeWeather) { enabled in
+                        if enabled {
+                            Task {
+                                await requestLocationPermission()
+                            }
+                        }
                     }
                     
-                    Slider(
-                        value: Binding(
-                            get: { Double(dayStartLength) },
-                            set: { dayStartLength = Int($0) }
-                        ),
-                        in: 1...10,
-                        step: 1
+                    ContentToggleRow(
+                        icon: "newspaper.fill",
+                        title: "News",
+                        subtitle: "Stay informed, not overwhelmed",
+                        isOn: $includeNews
                     )
-                    .accentColor(BananaTheme.ColorToken.accent)
-                }
-            }
-        }
-        .bananaCardStyle()
-    }
-    
-    // MARK: - Theme Selection Content
-    private var themeSelectionContent: some View {
-        VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
-            Text("Choose your preferred appearance")
-                .adaptiveFont(BananaTheme.Typography.headline)
-                .foregroundColor(BananaTheme.ColorToken.primaryText)
-            
-            VStack(spacing: BananaTheme.Spacing.sm) {
-                ForEach(ThemePreference.allCases, id: \.self) { preference in
-                    OnboardingThemeOption(
-                        preference: preference,
-                        isSelected: themePreference == preference
-                    ) {
-                        themePreference = preference
-                        themeManager.setTheme(preference)
+                    
+                    ContentToggleRow(
+                        icon: "sportscourt.fill",
+                        title: "Sports",
+                        subtitle: "Hot dog eating and others",
+                        isOn: $includeSports
+                    )
+                    
+                    ContentToggleRow(
+                        icon: "chart.line.uptrend.xyaxis",
+                        title: "Stocks",
+                        subtitle: "Your portfolio at a glance",
+                        isOn: $includeStocks
+                    )
+                    
+                    if includeStocks {
+                        VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
+                            TextField("Enter symbols: AAPL, TSLA, SPY", text: $stockSymbols)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .font(BananaTheme.Typography.body)
+                                .padding(.leading, BananaTheme.Spacing.xl)
+                        }
+                        .transition(.slide)
+                    }
+                    
+                    ContentToggleRow(
+                        icon: "calendar.circle.fill",
+                        title: "Calendar",
+                        subtitle: "Your events and meetings",
+                        isOn: $includeCalendar
+                    )
+                    .onChange(of: includeCalendar) { enabled in
+                        if enabled {
+                            Task {
+                                await requestCalendarPermission()
+                            }
+                        }
+                    }
+                    
+                    // Daily Wisdom with integrated Quote Style picker
+                    VStack(spacing: 0) {
+                        VStack(spacing: BananaTheme.Spacing.sm) {
+                            HStack {
+                                Image(systemName: "quote.bubble.fill")
+                                    .font(.title2)
+                                    .foregroundColor(BananaTheme.ColorToken.primary)
+                                    .frame(width: 40)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Daily Wisdom")
+                                        .adaptiveFont(BananaTheme.Typography.headline)
+                                        .foregroundColor(BananaTheme.ColorToken.text)
+                                    
+                                    Text("Motivation that actually helps")
+                                        .font(BananaTheme.Typography.caption)
+                                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                }
+                                
+                                Spacer()
+                                
+                                Toggle("", isOn: $includeQuotes)
+                                    .labelsHidden()
+                                    .tint(BananaTheme.ColorToken.primary)
+                            }
+                            
+                            if includeQuotes {
+                                HStack {
+                                    Spacer().frame(width: 40) // Align with content above
+                                    
+                                    Text("Quote Style")
+                                        .foregroundColor(BananaTheme.ColorToken.text)
+                                    
+                                    Spacer()
+                                    
+                                    Picker("Quote Style", selection: $selectedQuoteType) {
+                                        ForEach(QuotePreference.allCases, id: \.self) { preference in
+                                            Text(preference.name).tag(preference)
+                                        }
+                                    }
+                                    .pickerStyle(MenuPickerStyle())
+                                    .accentColor(BananaTheme.ColorToken.primary)
+                                }
+                                .transition(.slide)
+                            }
+                        }
+                        .padding(.vertical, BananaTheme.Spacing.sm)
+                        .padding(.horizontal, BananaTheme.Spacing.md)
+                        .background(BananaTheme.ColorToken.card)
+                        .cornerRadius(BananaTheme.CornerRadius.md)
                     }
                 }
+                .padding(.horizontal, BananaTheme.Spacing.lg)
+                
+                Spacer(minLength: BananaTheme.Spacing.xl)
+                
+                // Bottom spacer to prevent content being covered
+                Spacer(minLength: 110)
             }
         }
-        .bananaCardStyle()
+        .overlay(
+            VStack {
+                Spacer()
+                
+                // Gradient backdrop for navigation buttons
+                VStack {
+                    LinearGradient(
+                        colors: [
+                            BananaTheme.ColorToken.background.opacity(0),
+                            BananaTheme.ColorToken.background.opacity(0.8),
+                            BananaTheme.ColorToken.background
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 120)
+                    .allowsHitTesting(false)
+                    
+                    Rectangle()
+                        .fill(BananaTheme.ColorToken.background)
+                        .frame(height: 40)
+                        .allowsHitTesting(false)
+                }
+                .overlay(
+                    VStack {
+                        Spacer()
+                        navigationButtons
+                    }
+                )
+            }
+        )
     }
     
-    // MARK: - Permissions Content
-    private var permissionsContent: some View {
-        VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
-            Text("Enable notifications")
-                .adaptiveFont(BananaTheme.Typography.headline)
-                .foregroundColor(BananaTheme.ColorToken.primaryText)
-            
-            VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
-                Label("Get notified when your briefing is ready", systemImage: "bell")
-                    .font(BananaTheme.Typography.body)
-                    .foregroundColor(BananaTheme.ColorToken.primaryText)
+    // MARK: - Page 4: Voice & Experience
+    private var voiceExperiencePage: some View {
+        ScrollView {
+            VStack(spacing: BananaTheme.Spacing.xl) {
+                Spacer(minLength: BananaTheme.Spacing.xl)
                 
-                Label("Never miss your scheduled DayStart", systemImage: "clock")
-                    .font(BananaTheme.Typography.body)
-                    .foregroundColor(BananaTheme.ColorToken.primaryText)
+                // Voice waveform animation
+                Image(systemName: "waveform")
+                    .font(.system(size: 80))
+                    .foregroundColor(BananaTheme.ColorToken.primary)
+                    .scaleEffect(x: 1.2, y: 1, anchor: .center)
+                    .animation(
+                        Animation.easeInOut(duration: 1.5)
+                            .repeatForever(autoreverses: true),
+                        value: currentPage
+                    )
+                    .padding(.bottom)
                 
-                Label("Customize notification times", systemImage: "gear")
-                    .font(BananaTheme.Typography.body)
-                    .foregroundColor(BananaTheme.ColorToken.primaryText)
+                VStack(spacing: BananaTheme.Spacing.md) {
+                    Text("Your Perfect Morning Voice")
+                        .adaptiveFont(BananaTheme.Typography.title)
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("Choose how you want to start your day")
+                        .font(BananaTheme.Typography.body)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                
+                // Voice selection
+                VStack(spacing: BananaTheme.Spacing.lg) {
+                    Text("Select Voice")
+                        .adaptiveFont(BananaTheme.Typography.headline)
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    HStack(spacing: BananaTheme.Spacing.md) {
+                        ForEach(VoiceOption.allCases, id: \.rawValue) { voice in
+                            VoiceSelectionCard(
+                                voice: voice,
+                                isSelected: selectedVoice == voice,
+                                onSelect: {
+                                    selectedVoice = voice
+                                    AudioPlayerManager.shared.previewVoice(voice)
+                                }
+                            )
+                        }
+                    }
+                    
+                    // Briefing length
+                    VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
+                        HStack {
+                            Text("Briefing Length")
+                                .adaptiveFont(BananaTheme.Typography.headline)
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                            
+                            Spacer()
+                            
+                            Text("\(dayStartLength) minutes")
+                                .font(BananaTheme.Typography.body)
+                                .foregroundColor(BananaTheme.ColorToken.primary)
+                        }
+                        
+                        Slider(
+                            value: Binding(
+                                get: { Double(dayStartLength) },
+                                set: { dayStartLength = Int($0) }
+                            ),
+                            in: 2...10,
+                            step: 1
+                        )
+                        .accentColor(BananaTheme.ColorToken.primary)
+                    }
+                }
+                .padding(.horizontal, BananaTheme.Spacing.lg)
+                
+                Text("Our AI voices are designed to energize without jarring you awake")
+                    .font(BananaTheme.Typography.caption)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, BananaTheme.Spacing.xl)
+                
+                Spacer(minLength: BananaTheme.Spacing.xl)
+                
+                // Additional bottom spacing for voice page
+                Spacer(minLength: 20)
             }
-            
-            Text("You can change this later in Settings")
+        }
+        .overlay(
+            VStack {
+                Spacer()
+                
+                // Gradient backdrop for navigation buttons
+                VStack {
+                    LinearGradient(
+                        colors: [
+                            BananaTheme.ColorToken.background.opacity(0),
+                            BananaTheme.ColorToken.background.opacity(0.8),
+                            BananaTheme.ColorToken.background
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 120)
+                    .allowsHitTesting(false)
+                    
+                    Rectangle()
+                        .fill(BananaTheme.ColorToken.background)
+                        .frame(height: 40)
+                        .allowsHitTesting(false)
+                }
+                .overlay(
+                    VStack {
+                        Spacer()
+                        navigationButtons
+                    }
+                )
+            }
+        )
+    }
+    
+    // MARK: - Page 5: Paywall
+    private var paywallPage: some View {
+        ScrollView {
+            VStack(spacing: BananaTheme.Spacing.md) {
+                // Premium badge
+                VStack(spacing: BananaTheme.Spacing.md) {
+                    Image(systemName: "star.circle.fill")
+                        .font(.system(size: 80))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    
+                    Text("Unlock Your Better Mornings")
+                        .adaptiveFont(BananaTheme.Typography.title)
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("Join others who've transformed their mornings")
+                        .font(BananaTheme.Typography.body)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .padding(.top, BananaTheme.Spacing.xl)
+                
+                // Compact social proof - commented out until we have more reviews
+                // HStack {
+                //     ForEach(0..<5) { _ in
+                //         Image(systemName: "star.fill")
+                //             .foregroundColor(BananaTheme.ColorToken.primary)
+                //             .font(.caption)
+                //     }
+                //     Text("4.8 from 5,000+ reviews")
+                //         .font(BananaTheme.Typography.caption)
+                //         .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                // }
+                
+                // Compact pricing options
+                VStack(spacing: BananaTheme.Spacing.sm) {
+                    PricingOptionCard(
+                        title: "Annual Pass",
+                        price: "$39.99/year",
+                        subtitle: "Just $3.33/month",
+                        trialText: "7-day free trial",
+                        isMostPopular: true,
+                        isSelected: selectedProduct?.id == "annual",
+                        action: {
+                            // Select annual product
+                        }
+                    )
+                    
+                    PricingOptionCard(
+                        title: "Monthly Pass",
+                        price: "$4.99/month",
+                        subtitle: nil,
+                        trialText: "3-day free trial",
+                        isMostPopular: false,
+                        isSelected: selectedProduct?.id == "monthly",
+                        action: {
+                            // Select monthly product
+                        }
+                    )
+                }
+                .padding(.horizontal, BananaTheme.Spacing.lg)
+                
+                // CTA Button (moved higher)
+                Button(action: {
+                    // Start purchase flow
+                    completeOnboarding()
+                }) {
+                    Text("Start Free Trial")
+                        .adaptiveFont(BananaTheme.Typography.headline)
+                        .frame(maxWidth: .infinity)
+                }
+                .bananaPrimaryButton()
+                .padding(.horizontal, BananaTheme.Spacing.xl)
+                
+                // Compact features list
+                VStack(alignment: .leading, spacing: BananaTheme.Spacing.xs) {
+                    FeatureRow(text: "A personal briefing every day")
+                    FeatureRow(text: "High quality AI voices")
+                    FeatureRow(text: "Advanced AI customization")
+                    FeatureRow(text: "Better starts to the day, DayStarts")
+                }
+                .padding(.horizontal, BananaTheme.Spacing.xl)
+                
+                // Legal links
+                HStack(spacing: BananaTheme.Spacing.md) {
+                    Button("Terms") {
+                        // Open terms
+                    }
+                    Text("•")
+                    Button("Privacy") {
+                        // Open privacy
+                    }
+                    Text("•")
+                    Button("Restore") {
+                        // Restore purchases
+                    }
+                }
                 .font(BananaTheme.Typography.caption)
                 .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                .padding(.top, BananaTheme.Spacing.sm)
-        }
-        .bananaCardStyle()
-    }
-    
-    // MARK: - Completion Content
-    private var completionContent: some View {
-        VStack(spacing: BananaTheme.Spacing.lg) {
-            Text("🎉")
-                .font(.system(size: 80))
-            
-            Text("You're all set!")
-                .adaptiveFont(BananaTheme.Typography.title2)
-                .foregroundColor(BananaTheme.ColorToken.primaryText)
-                .multilineTextAlignment(.center)
-            
-            Text("Your personalized DayStart briefings will be delivered according to your schedule.")
-                .font(BananaTheme.Typography.body)
-                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            
-            VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
-                Text("Your Settings:")
-                    .font(BananaTheme.Typography.subheadline)
-                    .foregroundColor(BananaTheme.ColorToken.primaryText)
-                    .fontWeight(.medium)
-                
-                Text("• Time: \(formattedTime)")
-                Text("• Days: \(selectedDaysString)")
-                Text("• Voice: \(selectedVoice.name)")
-                Text("• Length: \(dayStartLength) minutes")
+                .padding(.bottom, BananaTheme.Spacing.xl)
             }
-            .font(BananaTheme.Typography.caption)
-            .foregroundColor(BananaTheme.ColorToken.secondaryText)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .bananaCardStyle()
     }
     
-    // MARK: - Navigation Buttons
+    // MARK: - Navigation
     private var navigationButtons: some View {
-        HStack(spacing: BananaTheme.Spacing.md) {
-            if currentPage > 0 {
-                Button("Back") {
+        HStack {
+            if currentPage > 0 && currentPage < totalPages - 1 {
+                Button(action: {
                     withAnimation {
                         currentPage -= 1
                     }
-                }
-                .bananaSecondaryButton()
-            }
-            
-            // Skip button on first few pages
-            if currentPage < 3 {
-                Button("Skip Setup") {
-                    completeOnboarding()
+                }) {
+                    Label("Back", systemImage: "chevron.left")
+                        .font(BananaTheme.Typography.body)
                 }
                 .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                .font(BananaTheme.Typography.body)
             }
             
             Spacer()
             
-            Button(currentPage == pages.count - 1 ? "Get Started" : "Next") {
-                if currentPage == pages.count - 1 {
-                    completeOnboarding()
-                } else {
+            if currentPage < totalPages - 1 {
+                Button(action: {
                     withAnimation {
                         currentPage += 1
                     }
+                }) {
+                    Text(currentPage == 0 ? "Let's Fix This" : currentPage == 3 ? "Finalize Setup" : currentPage == 2 ? "Almost There!" : "Customize My Briefing")
+                        .adaptiveFont(BananaTheme.Typography.headline)
                 }
+                .bananaPrimaryButton()
+                .disabled(currentPage == 3 && selectedVoice == nil)
+                .opacity(currentPage == 3 && selectedVoice == nil ? 0.5 : 1.0)
             }
-            .bananaPrimaryButton()
         }
-        .padding(.horizontal, BananaTheme.Spacing.lg)
-        .padding(.bottom, BananaTheme.Spacing.lg)
+        .padding(.horizontal, BananaTheme.Spacing.xl)
+        .padding(.bottom, BananaTheme.Spacing.xl)
     }
     
     // MARK: - Helper Functions
-    private func setupInitialValues() {
-        themePreference = themeManager.themePreference
-    }
-    
-    private func toggleDay(_ weekDay: WeekDay) {
-        if selectedDays.contains(weekDay) {
-            selectedDays.remove(weekDay)
-        } else {
-            selectedDays.insert(weekDay)
-        }
-    }
-    
     private func completeOnboarding() {
-        // Save all settings
+        // Save settings
         let userPreferences = UserPreferences.shared
         
-        // Create schedule
         userPreferences.schedule = DayStartSchedule(
             time: selectedTime,
             repeatDays: selectedDays,
             skipTomorrow: false
         )
         
-        // Create settings
         let processedStockSymbols = stockSymbols
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
@@ -520,140 +760,124 @@ struct OnboardingView: View {
             includeSports: includeSports,
             includeStocks: includeStocks,
             stockSymbols: processedStockSymbols,
-            includeCalendar: false,
+            includeCalendar: includeCalendar,
             includeQuotes: includeQuotes,
-            quotePreference: quotePreference,
-            selectedVoice: selectedVoice,
+            quotePreference: selectedQuoteType,
+            selectedVoice: selectedVoice ?? .voice1,
             dayStartLength: dayStartLength,
-            themePreference: themePreference
+            themePreference: .system
         )
-        
-        // Apply theme immediately
-        themeManager.setTheme(themePreference)
         
         // Schedule notifications
         Task {
             await NotificationScheduler.shared.scheduleNotifications(for: userPreferences.schedule)
         }
         
-        DebugLogger.shared.logUserAction("Complete Onboarding", details: [
-            "name": name,
-            "scheduledTime": selectedTime,
-            "selectedDays": selectedDays.count,
-            "contentOptions": [includeWeather, includeNews, includeSports, includeStocks, includeQuotes]
-        ])
+        // Request permissions for enabled features
+        Task {
+            await requestRequiredPermissions()
+            onComplete()
+        }
+    }
+    
+    // MARK: - Permission Handling
+    
+    private func requestRequiredPermissions() async {
+        var permissionsNeeded: [String] = []
         
-        onComplete()
-    }
-    
-    // MARK: - Computed Properties
-    private var formattedTime: String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: selectedTime)
-    }
-    
-    private var selectedDaysString: String {
-        selectedDays.sorted { $0.rawValue < $1.rawValue }
-            .map { $0.name }
-            .joined(separator: ", ")
-    }
-}
-
-// MARK: - Onboarding Page Definition
-enum OnboardingPage: CaseIterable {
-    case welcome
-    case personalization
-    case schedule
-    case content
-    case voice
-    case theme
-    case permissions
-    case complete
-    
-    var title: String {
-        switch self {
-        case .welcome:
-            return "Welcome to DayStart"
-        case .personalization:
-            return "Let's personalize your experience"
-        case .schedule:
-            return "Set your schedule"
-        case .content:
-            return "Choose your content"
-        case .voice:
-            return "Voice & timing"
-        case .theme:
-            return "Pick your style"
-        case .permissions:
-            return "Stay informed"
-        case .complete:
-            return "Ready to start!"
+        // Check what permissions we need based on selected features
+        if includeWeather {
+            permissionsNeeded.append("location for weather")
+        }
+        if includeCalendar {
+            permissionsNeeded.append("calendar access")
+        }
+        
+        // Request location permission if weather is enabled
+        if includeWeather {
+            await requestLocationPermission()
+        }
+        
+        // Request calendar permission if calendar is enabled
+        if includeCalendar {
+            await requestCalendarPermission()
         }
     }
     
-    var description: String {
-        switch self {
-        case .welcome:
-            return "Start every morning with a personalized briefing tailored to your interests"
-        case .personalization:
-            return "Help us make your briefings feel personal"
-        case .schedule:
-            return "When and how often would you like your briefings?"
-        case .content:
-            return "Select the topics that matter most to you"
-        case .voice:
-            return "Choose your preferred voice and briefing length"
-        case .theme:
-            return "Select the appearance that suits you best"
-        case .permissions:
-            return "Allow notifications so you never miss your briefing"
-        case .complete:
-            return "Everything is configured and ready to go"
+    private func requestLocationPermission() async {
+        let locationManager = LocationManager.shared
+        let granted = await locationManager.requestLocationPermission()
+        
+        if !granted {
+            // If permission denied, disable weather feature
+            await MainActor.run {
+                includeWeather = false
+            }
         }
     }
     
-    var icon: String {
-        switch self {
-        case .welcome:
-            return "sun.max"
-        case .personalization:
-            return "person.circle"
-        case .schedule:
-            return "clock"
-        case .content:
-            return "list.bullet"
-        case .voice:
-            return "speaker.wave.2"
-        case .theme:
-            return "paintbrush"
-        case .permissions:
-            return "bell"
-        case .complete:
-            return "checkmark.circle"
+    private func requestCalendarPermission() async {
+        let calendarManager = CalendarManager.shared
+        let granted = await calendarManager.requestCalendarAccess()
+        
+        if !granted {
+            // If permission denied, disable calendar feature
+            await MainActor.run {
+                includeCalendar = false
+            }
         }
-    }
-    
-    static var allPages: [OnboardingPage] {
-        return OnboardingPage.allCases
     }
 }
 
 // MARK: - Supporting Views
-struct OnboardingToggleRow: View {
-    let title: String
+
+struct PainPointRow: View {
+    let text: String
+    
+    var body: some View {
+        HStack(spacing: BananaTheme.Spacing.sm) {
+            Text("❌")
+                .font(.title3)
+            Text(text)
+                .font(BananaTheme.Typography.body)
+                .foregroundColor(BananaTheme.ColorToken.text)
+        }
+    }
+}
+
+struct ContentTypeIcon: View {
     let icon: String
-    let description: String
+    let color: Color
+    
+    var body: some View {
+        Image(systemName: icon)
+            .font(.title2)
+            .foregroundColor(color)
+            .frame(width: 50, height: 50)
+            .background(color.opacity(0.1))
+            .cornerRadius(BananaTheme.CornerRadius.sm)
+    }
+}
+
+struct ContentToggleRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
     @Binding var isOn: Bool
     
     var body: some View {
         HStack {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(BananaTheme.ColorToken.primary)
+                .frame(width: 40)
+            
             VStack(alignment: .leading, spacing: 2) {
-                Label(title, systemImage: icon)
-                    .font(BananaTheme.Typography.subheadline)
-                    .foregroundColor(BananaTheme.ColorToken.primaryText)
+                Text(title)
+                    .adaptiveFont(BananaTheme.Typography.headline)
+                    .foregroundColor(BananaTheme.ColorToken.text)
                 
-                Text(description)
+                Text(subtitle)
                     .font(BananaTheme.Typography.caption)
                     .foregroundColor(BananaTheme.ColorToken.secondaryText)
             }
@@ -664,22 +888,26 @@ struct OnboardingToggleRow: View {
                 .labelsHidden()
                 .tint(BananaTheme.ColorToken.primary)
         }
+        .padding(.vertical, BananaTheme.Spacing.sm)
+        .padding(.horizontal, BananaTheme.Spacing.md)
+        .background(BananaTheme.ColorToken.card)
+        .cornerRadius(BananaTheme.CornerRadius.md)
     }
 }
 
-struct OnboardingDayButton: View {
-    let weekDay: WeekDay
+struct DayToggleButton: View {
+    let day: WeekDay
     let isSelected: Bool
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            Text(weekDay.name)
-                .font(BananaTheme.Typography.subheadline)
+            Text(String(day.name.prefix(3)))
+                .font(BananaTheme.Typography.caption)
                 .fontWeight(.medium)
-                .foregroundColor(isSelected ? .white : BananaTheme.ColorToken.primary)
+                .foregroundColor(isSelected ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.primary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, BananaTheme.Spacing.sm)
+                .frame(height: 40)
                 .background(isSelected ? BananaTheme.ColorToken.primary : Color.clear)
                 .cornerRadius(BananaTheme.CornerRadius.sm)
                 .overlay(
@@ -691,109 +919,142 @@ struct OnboardingDayButton: View {
     }
 }
 
-struct OnboardingThemeOption: View {
-    let preference: ThemePreference
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: BananaTheme.Spacing.md) {
-                ThemePreviewIcon(preference: preference)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(preference.displayName)
-                        .font(BananaTheme.Typography.body)
-                        .foregroundColor(BananaTheme.ColorToken.primaryText)
-                    
-                    Text(themeDescription)
-                        .font(BananaTheme.Typography.caption)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                }
-                
-                Spacer()
-                
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(BananaTheme.ColorToken.primary)
-                }
-            }
-            .padding(.vertical, BananaTheme.Spacing.sm)
-            .padding(.horizontal, BananaTheme.Spacing.md)
-            .background(isSelected ? BananaTheme.ColorToken.primary.opacity(0.1) : Color.clear)
-            .cornerRadius(BananaTheme.CornerRadius.sm)
-            .overlay(
-                RoundedRectangle(cornerRadius: BananaTheme.CornerRadius.sm)
-                    .stroke(
-                        isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border,
-                        lineWidth: isSelected ? 2 : 1
-                    )
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-    
-    private var themeDescription: String {
-        switch preference {
-        case .system:
-            return "Follows your device settings"
-        case .light:
-            return "Always light appearance"
-        case .dark:
-            return "Always dark appearance"
-        }
-    }
-}
-
-// MARK: - Preview
-struct VoicePreviewButton: View {
+struct VoiceSelectionCard: View {
     let voice: VoiceOption
     let isSelected: Bool
     let onSelect: () -> Void
     
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: BananaTheme.Spacing.sm) {
             Button(action: onSelect) {
-                VStack(spacing: 2) {
-                    Image(systemName: "person.wave.2")
-                        .font(.caption)
+                VStack(spacing: BananaTheme.Spacing.sm) {
+                    Image(systemName: "person.wave.2.fill")
+                        .font(.title)
+                        .foregroundColor(isSelected ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.primary)
+                    
                     Text(voice.name)
-                        .font(.caption2)
+                        .font(BananaTheme.Typography.caption)
                         .fontWeight(isSelected ? .bold : .regular)
+                        .foregroundColor(isSelected ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.text)
                 }
-                .foregroundColor(isSelected ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.primaryText)
-                .frame(width: 50, height: 40)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
+                .frame(maxWidth: .infinity)
+                .frame(height: 100)
+                .background(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
+                .cornerRadius(BananaTheme.CornerRadius.md)
+                .overlay(
+                    RoundedRectangle(cornerRadius: BananaTheme.CornerRadius.md)
+                        .stroke(BananaTheme.ColorToken.primary, lineWidth: isSelected ? 0 : 1)
                 )
-            }
-            .buttonStyle(PlainButtonStyle())
-            
-            Button(action: {
-                AudioPlayerManager.shared.previewVoice(voice)
-            }) {
-                Image(systemName: "play.circle.fill")
-                    .font(.caption2)
-                    .foregroundColor(BananaTheme.ColorToken.accent)
             }
             .buttonStyle(PlainButtonStyle())
         }
     }
 }
 
-#if DEBUG
-struct OnboardingView_Previews: PreviewProvider {
-    static var previews: some View {
-        Group {
-            OnboardingView(onComplete: {})
-                .previewDisplayName("Light Mode")
-                .preferredColorScheme(.light)
+struct TestimonialCard: View {
+    let quote: String
+    let author: String
+    
+    var body: some View {
+        VStack(spacing: BananaTheme.Spacing.sm) {
+            Text("\"\(quote)\"")
+                .font(BananaTheme.Typography.caption)
+                .foregroundColor(BananaTheme.ColorToken.text)
+                .multilineTextAlignment(.center)
+                .italic()
             
-            OnboardingView(onComplete: {})
-                .previewDisplayName("Dark Mode")
-                .preferredColorScheme(.dark)
+            Text("— \(author)")
+                .font(BananaTheme.Typography.caption2)
+                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(BananaTheme.ColorToken.card)
+        .cornerRadius(BananaTheme.CornerRadius.md)
+    }
+}
+
+struct PricingOptionCard: View {
+    let title: String
+    let price: String
+    let subtitle: String?
+    let trialText: String
+    let isMostPopular: Bool
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: BananaTheme.Spacing.sm) {
+                if isMostPopular {
+                    Text("🔥 Most Popular")
+                        .font(BananaTheme.Typography.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(BananaTheme.ColorToken.background)
+                        .padding(.horizontal, BananaTheme.Spacing.md)
+                        .padding(.vertical, BananaTheme.Spacing.xs)
+                        .background(BananaTheme.ColorToken.primary)
+                        .cornerRadius(BananaTheme.CornerRadius.sm)
+                }
+                
+                VStack(spacing: 4) {
+                    Text(title)
+                        .adaptiveFont(BananaTheme.Typography.headline)
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                    
+                    Text(price)
+                        .adaptiveFont(BananaTheme.Typography.title2)
+                        .foregroundColor(BananaTheme.ColorToken.primary)
+                    
+                    if let subtitle = subtitle {
+                        Text(subtitle)
+                            .font(BananaTheme.Typography.caption)
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
+                    
+                    Text(trialText)
+                        .font(BananaTheme.Typography.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(BananaTheme.ColorToken.accent)
+                }
+                .padding(.vertical, BananaTheme.Spacing.md)
+            }
+            .frame(maxWidth: .infinity)
+            .background(isSelected ? BananaTheme.ColorToken.primary.opacity(0.4) : BananaTheme.ColorToken.card)
+            .cornerRadius(BananaTheme.CornerRadius.md)
+            .overlay(
+                RoundedRectangle(cornerRadius: BananaTheme.CornerRadius.md)
+                    .stroke(
+                        isSelected ? Color.blue : BananaTheme.ColorToken.border,
+                        lineWidth: isSelected ? 4 : 1
+                    )
+            )
+            .shadow(
+                color: isSelected ? Color.blue.opacity(0.5) : Color.clear,
+                radius: isSelected ? 8 : 0,
+                x: 0,
+                y: 0
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct FeatureRow: View {
+    let text: String
+    
+    var body: some View {
+        HStack(spacing: BananaTheme.Spacing.sm) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(BananaTheme.ColorToken.success)
+                .font(.body)
+            
+            Text(text)
+                .font(BananaTheme.Typography.body)
+                .foregroundColor(BananaTheme.ColorToken.text)
+            
+            Spacer()
         }
     }
 }
-#endif
+

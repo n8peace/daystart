@@ -3,6 +3,7 @@ import Foundation
 struct DayStartData: Identifiable, Codable {
     var id = UUID()
     var date: Date
+    var scheduledTime: Date? // Tracks which occurrence this DayStart was for
     var weather: String
     var news: [String]
     var sports: [String]
@@ -17,6 +18,7 @@ struct DayStartData: Identifiable, Codable {
     static var placeholder: DayStartData {
         DayStartData(
             date: Date(),
+            scheduledTime: nil,
             weather: "Loading...",
             news: [],
             sports: [],
@@ -34,17 +36,20 @@ struct DayStartData: Identifiable, Codable {
 struct DayStartSchedule: Codable {
     var time: Date
     var repeatDays: Set<WeekDay>
-    var skipTomorrow: Bool
+    var skipTomorrow: Bool // Note: UI shows inverted as "Next DayStart" toggle
     
     init(time: Date = Calendar.current.date(from: DateComponents(hour: 7, minute: 0)) ?? Date(),
          repeatDays: Set<WeekDay> = Set(WeekDay.allCases),
-         skipTomorrow: Bool = false) {
+         skipTomorrow: Bool = false) { // Note: skipTomorrow=false means "Next DayStart" toggle shows as ON
         self.time = time
         self.repeatDays = repeatDays
         self.skipTomorrow = skipTomorrow
     }
     
     var nextOccurrence: Date? {
+        // No DayStart if no days are selected
+        guard !repeatDays.isEmpty else { return nil }
+        
         let calendar = Calendar.current
         let now = Date()
         
@@ -112,9 +117,9 @@ enum VoiceOption: Int, CaseIterable, Codable {
     
     var name: String {
         switch self {
-        case .voice1: return "Alex"
-        case .voice2: return "Morgan"
-        case .voice3: return "Riley"
+        case .voice1: return "Grace"
+        case .voice2: return "Rachel"
+        case .voice3: return "Matthew"
         }
     }
 }

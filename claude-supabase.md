@@ -271,11 +271,13 @@ interface JobRequest {
   };
   weather_current: object;
   weather_forecast: object;
-  encouragement_preference: string;
+  encouragement_preference: string; // QuotePreference enum
   stock_symbols: string[];
   include_news: boolean;
   include_sports: boolean;
-  desired_voice: string;
+  include_calendar: boolean;
+  calendar_events?: string[]; // Today's events if calendar enabled
+  desired_voice: string; // "voice1", "voice2", "voice3"
   desired_length: number; // minutes
   scheduled_at: string; // ISO timestamp
   local_date: string; // YYYY-MM-DD
@@ -287,6 +289,59 @@ interface JobResponse {
   job_id: string;
   status: string;
   estimated_ready_time: string;
+}
+```
+
+**Example Request:**
+```bash
+POST https://your-project.supabase.co/functions/v1/job_upsert_next_run
+
+Headers:
+{
+  "Authorization": "Bearer YOUR_ANON_KEY",
+  "Content-Type": "application/json"
+}
+
+Body:
+{
+  "preferred_name": "Sarah",
+  "location": {
+    "city": "San Francisco", 
+    "state": "CA",
+    "country": "US",
+    "zip": "94102"
+  },
+  "weather_current": {
+    "temperature": 68,
+    "condition": "partly_cloudy",
+    "humidity": 65
+  },
+  "weather_forecast": {
+    "high": 75,
+    "low": 58,
+    "precipitation_chance": 10
+  },
+  "encouragement_preference": "inspirational",
+  "stock_symbols": ["AAPL", "TSLA", "SPY"],
+  "include_news": true,
+  "include_sports": false,
+  "include_calendar": true,
+  "calendar_events": ["9 AM Team standup", "2 PM Client call"],
+  "desired_voice": "voice1",
+  "desired_length": 5,
+  "scheduled_at": "2024-08-09T07:00:00-07:00",
+  "local_date": "2024-08-09",
+  "timezone": "America/Los_Angeles"
+}
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "job_id": "job_abc123",
+  "status": "queued",
+  "estimated_ready_time": "2024-08-09T06:45:00Z"
 }
 ```
 

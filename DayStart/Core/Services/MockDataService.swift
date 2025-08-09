@@ -27,6 +27,7 @@ class MockDataService {
         
         return DayStartData(
             date: Date(),
+            scheduledTime: nil, // Will be set by HomeViewModel when needed
             weather: weather,
             news: news,
             sports: sports,
@@ -58,6 +59,7 @@ class MockDataService {
         )
         return DayStartData(
             date: Date(),
+            scheduledTime: nil, // Will be set by HomeViewModel when needed
             weather: weather,
             news: news,
             sports: sports,
@@ -273,6 +275,7 @@ class MockDataService {
 
             return DayStartData(
                 date: date,
+                scheduledTime: nil, // Historical data doesn't track scheduled time
                 weather: weather,
                 news: news,
                 sports: sports,
@@ -299,6 +302,7 @@ class MockDataService {
         if let targetDate = Calendar.current.date(from: DateComponents(year: 2025, month: 8, day: 8)) {
             let sample = DayStartData(
                 date: targetDate,
+                scheduledTime: nil, // Historical sample data
                 weather: generateMockWeather(),
                 news: generateMockNews(),
                 sports: generateMockSports(),

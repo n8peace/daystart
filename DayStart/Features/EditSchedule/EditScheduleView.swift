@@ -68,7 +68,6 @@ struct EditScheduleView: View {
                 generalSettingsSection
                 scheduleSection
                 contentSection
-                appearanceSection
                 advancedSection
             }
             .navigationTitle("Edit & Schedule")
@@ -119,7 +118,7 @@ struct EditScheduleView: View {
     private var generalSettingsSection: some View {
         Section(header: Text("General Settings")) {
             HStack {
-                Text("Name")
+                Text("Your Name")
                 TextField("Your name", text: $preferredName)
                     .multilineTextAlignment(.trailing)
                     .disabled(isLocked)
@@ -197,7 +196,7 @@ struct EditScheduleView: View {
             }
             
             DatePicker(
-                "Wake Time",
+                "Scheduled DayStart",
                 selection: $selectedTime,
                 displayedComponents: .hourAndMinute
             )
@@ -281,8 +280,9 @@ struct EditScheduleView: View {
     }
     
     
-    private var appearanceSection: some View {
-        Section(header: Text("Appearance")) {
+    
+    private var advancedSection: some View {
+        Section(header: Text("Advanced")) {
             HStack {
                 Text("Theme")
                 Spacer()
@@ -294,11 +294,7 @@ struct EditScheduleView: View {
                 .pickerStyle(MenuPickerStyle())
                 .accentColor(BananaTheme.ColorToken.primary)
             }
-        }
-    }
-    
-    private var advancedSection: some View {
-        Section(header: Text("Advanced")) {
+            
             Button(action: {
                 showResetConfirmation = true
             }) {
@@ -448,7 +444,7 @@ struct StockSymbolsEditor: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Stock Symbols (up to 5)")
+            Text("Stock Symbols (\(stockSymbolItems.count) of 5)")
                 .font(.caption)
                 .foregroundColor(.secondary)
             
@@ -475,7 +471,9 @@ struct StockSymbolsEditor: View {
                         .font(.caption)
                         .foregroundColor(BananaTheme.ColorToken.primary)
                 }
+                .buttonStyle(BorderlessButtonStyle()) // Prevent Form from intercepting taps
                 .disabled(isDisabled)
+                .padding(.top, 16) // Add extra spacing to prevent overlap
             }
         }
     }
@@ -603,7 +601,10 @@ struct StockSymbolRow: View {
                         .foregroundColor(.red)
                         .font(.title2)
                 }
+                .buttonStyle(BorderlessButtonStyle()) // Prevent Form from intercepting taps
                 .disabled(isDisabled)
+                .contentShape(Rectangle()) // Constrain touch area to button bounds
+                .padding(.leading, 8) // Add some spacing from the text field
             }
             
             // Error message

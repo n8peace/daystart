@@ -134,10 +134,21 @@ class AudioPlayerManager: NSObject, ObservableObject {
         stopTimeObserver()
     }
     
+    // MARK: - Helper Methods
+    private func getVoicePreviewResourceName(for voice: VoiceOption) -> String {
+        switch voice {
+        case .voice1:
+            return "briefing_sample_grace_voice1"
+        case .voice2:
+            return "briefing_sample_rachel_voice2"
+        case .voice3:
+            return "briefing_sample_matthew_voice3"
+        }
+    }
+    
     // MARK: - Voice Preview
     func previewVoice(_ voice: VoiceOption) {
-        let voiceIndex = voice.rawValue + 1
-        let resourceName = "ai_wakeup_generic_voice\(voiceIndex)"
+        let resourceName = getVoicePreviewResourceName(for: voice)
         
         guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3") else {
             logger.logError(NSError(domain: "AudioPlayer", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not find \(resourceName).mp3"]), context: "Previewing voice")
@@ -154,15 +165,6 @@ class AudioPlayerManager: NSObject, ObservableObject {
             newPreviewPlayer.prepareToPlay()
             self.previewPlayer = newPreviewPlayer
             newPreviewPlayer.play()
-            
-            // Schedule auto-stop after 3 seconds
-            let workItem = DispatchWorkItem { [weak self] in
-                self?.previewPlayer?.stop()
-                self?.previewPlayer = nil
-                self?.previewStopWorkItem = nil
-            }
-            self.previewStopWorkItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: workItem)
         } catch {
             logger.logError(error, context: "Failed to preview voice \(voice.name)")
         }

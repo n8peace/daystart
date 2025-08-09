@@ -17,6 +17,7 @@ class HomeViewModel: ObservableObject {
     @Published var nextDayStartTime: Date?
     @Published var currentDayStart: DayStartData?
     @Published var showNoScheduleMessage = false
+    @Published var hasCompletedCurrentOccurrence = false
     
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
@@ -61,6 +62,7 @@ class HomeViewModel: ObservableObject {
             state = .idle
             showNoScheduleMessage = true
             nextDayStartTime = nil
+            hasCompletedCurrentOccurrence = false
             return
         }
         
@@ -68,16 +70,28 @@ class HomeViewModel: ObservableObject {
         nextDayStartTime = nextOccurrence
         
         let timeUntil = nextOccurrence.timeIntervalSinceNow
+        let sixHoursInSeconds: TimeInterval = 6 * 3600 // 6 hours
+        let tenHoursInSeconds: TimeInterval = 10 * 3600 // 10 hours
         
-        if timeUntil <= 0 {
-            logger.log("⏰ DayStart ready!", level: .info)
+        // Check if current occurrence has been completed
+        hasCompletedCurrentOccurrence = hasCompletedOccurrence(nextOccurrence)
+        
+        if timeUntil <= 0 && timeUntil >= -sixHoursInSeconds {
+            // Within 6 hours after scheduled time - show Ready with Play/Replay
+            logger.log("⏰ Within 6-hour ready window: \(Int(-timeUntil))s after scheduled time", level: .info)
             state = .ready
-        } else if timeUntil > 36000 {
-            logger.log("💤 Next DayStart > 10 hours away, idle state", level: .debug)
-            state = .idle
-        } else {
-            logger.log("⏳ Starting countdown: \(Int(timeUntil))s", level: .debug)
+        } else if timeUntil > 0 && timeUntil <= tenHoursInSeconds {
+            // Less than 10 hours before - show countdown
+            logger.log("⏳ Starting countdown: \(Int(timeUntil))s until DayStart", level: .debug)
             startCountdown()
+        } else {
+            // More than 10 hours before OR more than 6 hours after - show next scheduled time
+            if timeUntil < -sixHoursInSeconds {
+                logger.log("💤 More than 6 hours past scheduled time, showing next occurrence", level: .debug)
+            } else {
+                logger.log("💤 More than 10 hours until DayStart, idle state", level: .debug)
+            }
+            state = .idle
         }
     }
     
@@ -109,13 +123,25 @@ class HomeViewModel: ObservableObject {
     func startDayStart() {
         logger.logUserAction("Start DayStart", details: ["time": Date().description])
         let dayStart = mockService.fetchDayStart(for: userPreferences.settings)
-        currentDayStart = dayStart
-        userPreferences.addToHistory(dayStart)
+        
+        // Mark this occurrence with the scheduled time for tracking
+        var dayStartWithScheduledTime = dayStart
+        if let scheduledTime = nextDayStartTime {
+            dayStartWithScheduledTime.scheduledTime = scheduledTime
+        }
+        
+        currentDayStart = dayStartWithScheduledTime
+        userPreferences.addToHistory(dayStartWithScheduledTime)
         
         logger.logAudioEvent("Loading audio for DayStart")
         audioPlayer.loadAudio()
         audioPlayer.play()
         state = .playing
+        
+        // Cancel today's missed notification since user is now listening
+        Task {
+            await notificationScheduler.cancelTodaysMissedNotification()
+        }
         
         scheduleNextNotifications()
     }
@@ -130,6 +156,12 @@ class HomeViewModel: ObservableObject {
     
     private func transitionToRecentlyPlayed() {
         logger.log("✅ DayStart completed, transitioning to recently played", level: .info)
+        
+        // Update completion status for current occurrence
+        if let scheduledTime = nextDayStartTime {
+            hasCompletedCurrentOccurrence = hasCompletedOccurrence(scheduledTime)
+        }
+        
         state = .recentlyPlayed
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
@@ -150,5 +182,20 @@ class HomeViewModel: ObservableObject {
         var nextSchedule = userPreferences.schedule
         nextSchedule.skipTomorrow = false
         userPreferences.schedule = nextSchedule
+    }
+    
+    private func hasCompletedOccurrence(_ scheduledTime: Date) -> Bool {
+        let calendar = Calendar.current
+        
+        // Look for a completed DayStart with matching scheduled time
+        return userPreferences.history.contains { dayStart in
+            guard !dayStart.isDeleted,
+                  let dayStartScheduledTime = dayStart.scheduledTime else {
+                return false
+            }
+            
+            // Check if scheduled times match (within 1 minute tolerance for any scheduling drift)
+            return abs(dayStartScheduledTime.timeIntervalSince(scheduledTime)) < 60
+        }
     }
 }

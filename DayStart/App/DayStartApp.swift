@@ -27,6 +27,11 @@ struct DayStartApp: App {
                 }
                 .onAppear {
                     showOnboarding = !userPreferences.hasCompletedOnboarding
+                    
+                    // Clean up old audio files on app start
+                    DispatchQueue.global(qos: .utility).async {
+                        userPreferences.cleanupOldAudioFiles()
+                    }
                 }
                 .fullScreenCover(isPresented: $showOnboarding) {
                     OnboardingView {
@@ -58,10 +63,10 @@ struct DayStartApp: App {
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
         
-        // Use adaptive colors based on current color scheme
-        let textColor = colorScheme == .dark ? UIColor.white : UIColor.black
-        appearance.titleTextAttributes = [.foregroundColor: textColor]
-        appearance.largeTitleTextAttributes = [.foregroundColor: textColor]
+        // Use dynamic system label color so it adapts automatically
+        let labelColor = UIColor.label
+        appearance.titleTextAttributes = [.foregroundColor: labelColor]
+        appearance.largeTitleTextAttributes = [.foregroundColor: labelColor]
         
         UINavigationBar.appearance().standardAppearance = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance

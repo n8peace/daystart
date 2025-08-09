@@ -27,5 +27,9 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>DayStart needs your location to provide personalized weather updates in your morning briefing.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>DayStart needs access to your calendar to include upcoming events in your morning briefing.</string>
 </dict>
 </plist>

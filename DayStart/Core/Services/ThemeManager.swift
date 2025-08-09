@@ -1,5 +1,10 @@
 import SwiftUI
 import Combine
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 @MainActor
 class ThemeManager: ObservableObject {
@@ -7,7 +12,13 @@ class ThemeManager: ObservableObject {
     
     @Published var themePreference: ThemePreference = .system {
         didSet {
-            UserPreferences.shared.settings.themePreference = themePreference
+            // Properly update UserPreferences to trigger save
+            var updatedSettings = UserPreferences.shared.settings
+            updatedSettings.themePreference = themePreference
+            UserPreferences.shared.settings = updatedSettings
+            
+            // Update effective color scheme
+            updateEffectiveColorScheme()
         }
     }
     
@@ -20,6 +31,16 @@ class ThemeManager: ObservableObject {
         self.themePreference = UserPreferences.shared.settings.themePreference
         
         // Listen to system color scheme changes
+        #if os(iOS)
+        NotificationCenter.default
+            .publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in
+                self?.updateEffectiveColorScheme()
+            }
+            .store(in: &cancellables)
+        #endif
+        
+        // Also listen for trait collection changes if available
         NotificationCenter.default
             .publisher(for: NSNotification.Name("NSSystemColorsDidChangeNotification"))
             .sink { [weak self] _ in
@@ -32,31 +53,34 @@ class ThemeManager: ObservableObject {
     }
     
     private func updateEffectiveColorScheme() {
+        let newColorScheme: ColorScheme
+        
         switch themePreference {
         case .system:
-            // Get system appearance
+            // Get system appearance - improved detection
             #if os(iOS)
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let window = windowScene.windows.first {
-                effectiveColorScheme = window.traitCollection.userInterfaceStyle == .dark ? .dark : .light
-            } else {
-                effectiveColorScheme = .light
-            }
+            newColorScheme = UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light
             #elseif os(macOS)
             let appearance = NSApp.effectiveAppearance.name
-            effectiveColorScheme = (appearance == .darkAqua || appearance == .vibrantDark) ? .dark : .light
+            newColorScheme = (appearance == .darkAqua || appearance == .vibrantDark) ? .dark : .light
+            #else
+            newColorScheme = .light
             #endif
         case .light:
-            effectiveColorScheme = .light
+            newColorScheme = .light
         case .dark:
-            effectiveColorScheme = .dark
+            newColorScheme = .dark
+        }
+        
+        if effectiveColorScheme != newColorScheme {
+            effectiveColorScheme = newColorScheme
+            DebugLogger.shared.logThemeChange(from: effectiveColorScheme == .dark ? "dark" : "light", to: newColorScheme == .dark ? "dark" : "light")
         }
     }
     
     func setTheme(_ preference: ThemePreference) {
         withAnimation(.easeInOut(duration: 0.3)) {
             themePreference = preference
-            updateEffectiveColorScheme()
         }
     }
 }

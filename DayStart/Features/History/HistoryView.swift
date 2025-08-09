@@ -4,6 +4,8 @@ struct HistoryView: View {
     @Environment(\.presentationMode) var presentationMode
     @EnvironmentObject var userPreferences: UserPreferences
     let onReplay: (DayStartData) -> Void
+    @State private var visibleCount: Int = 10
+    @State private var searchQuery: String = ""
     
     var body: some View {
         NavigationView {
@@ -23,6 +25,13 @@ struct HistoryView: View {
                     }
                 }
             }
+            .overlay(alignment: .bottom) {
+                searchOverlay
+            }
+        }
+        .onChange(of: searchQuery) { _ in
+            // Reset pagination when search changes
+            visibleCount = 10
         }
     }
     
@@ -45,10 +54,53 @@ struct HistoryView: View {
     
     private var historyList: some View {
         List {
-            ForEach(userPreferences.history) { dayStart in
+            let items = displayedHistory
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, dayStart in
                 HistoryRow(dayStart: dayStart)
+                    .onAppear {
+                        // Infinite scroll: load 10 more when last visible appears
+                        if index == items.count - 1 {
+                            let total = filteredHistory.count
+                            if visibleCount < total {
+                                visibleCount = min(visibleCount + 10, total)
+                            }
+                        }
+                    }
             }
         }
+    }
+
+    // Filtered by transcript search
+    private var filteredHistory: [DayStartData] {
+        let all = userPreferences.history
+        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return all }
+        return all.filter { $0.transcript.localizedCaseInsensitiveContains(q) }
+    }
+
+    // Visible subset based on pagination
+    private var displayedHistory: [DayStartData] {
+        let source = filteredHistory
+        let count = min(visibleCount, source.count)
+        return Array(source.prefix(count))
+    }
+
+    // Bottom overlay search bar
+    private var searchOverlay: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+            TextField("Search transcripts", text: $searchQuery)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(BananaTheme.ColorToken.card)
+        .cornerRadius(14)
+        .shadow(color: BananaTheme.ColorToken.shadow, radius: 8, x: 0, y: 4)
+        .padding(.horizontal)
+        .padding(.bottom)
     }
 }
 
@@ -61,7 +113,8 @@ struct HistoryRow: View {
         VStack(alignment: .leading, spacing: 12) {
             headerView
             
-            if isExpanded {
+            // Show transcript only if audio exists or entry is marked deleted
+            if isExpanded && canShowTranscript {
                 transcriptView
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
@@ -95,6 +148,13 @@ struct HistoryRow: View {
                     .cornerRadius(8)
             }
         }
+    }
+
+    // Transcript is available when there is audio or the entry is marked deleted
+    private var canShowTranscript: Bool {
+        if dayStart.isDeleted { return true }
+        if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path) { return true }
+        return false
     }
     
     private var transcriptView: some View {
@@ -146,15 +206,17 @@ struct HistoryRow: View {
 
                 Spacer()
 
-                Button(action: { isExpanded.toggle() }) {
-                    HStack(spacing: 6) {
-                        Text("Transcript")
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .foregroundColor(BananaTheme.ColorToken.accent)
+                if canShowTranscript {
+                    Button(action: { isExpanded.toggle() }) {
+                        HStack(spacing: 6) {
+                            Text("Transcript")
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .foregroundColor(BananaTheme.ColorToken.accent)
+                        }
+                        .font(.subheadline)
                     }
-                    .font(.subheadline)
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .buttonStyle(PlainButtonStyle())
             }
 
             if audioPlayer.currentTrackId == dayStart.id {

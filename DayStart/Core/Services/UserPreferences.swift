@@ -73,7 +73,20 @@ class UserPreferences: ObservableObject {
                 updated.audioFilePath = Bundle.main.path(forResource: "ai_wakeup_generic_voice1", ofType: "mp3")
                 updated.isDeleted = false
             } else if item.date < sevenDaysAgo {
-                // Mark entries older than 7 days as deleted
+                // Mark entries older than 7 days as deleted and clean up audio files
+                if !item.isDeleted {
+                    // Delete the audio file if it exists and isn't bundled
+                    if let audioPath = item.audioFilePath, 
+                       !audioPath.contains("Bundle.main"),
+                       FileManager.default.fileExists(atPath: audioPath) {
+                        do {
+                            try FileManager.default.removeItem(atPath: audioPath)
+                            DebugLogger.shared.log("🗑️ Deleted audio file: \(URL(fileURLWithPath: audioPath).lastPathComponent)", level: .info)
+                        } catch {
+                            DebugLogger.shared.logError(error, context: "Failed to delete audio file: \(audioPath)")
+                        }
+                    }
+                }
                 updated.isDeleted = true
             }
             return updated
@@ -124,10 +137,63 @@ class UserPreferences: ObservableObject {
         if history.count > 30 {
             history.removeLast()
         }
+        
+        // Periodically clean up old audio files (every 5th addition)
+        if history.count % 5 == 0 {
+            DispatchQueue.global(qos: .utility).async {
+                self.cleanupOldAudioFiles()
+            }
+        }
     }
     
     func isWithinLockoutPeriod(of date: Date) -> Bool {
         let hoursUntil = date.timeIntervalSinceNow / 3600
         return hoursUntil < 4 && hoursUntil > 0
+    }
+    
+    // MARK: - Audio Cleanup
+    func cleanupOldAudioFiles() {
+        logger.log("🧹 Starting cleanup of old audio files", level: .info)
+        
+        let calendar = Calendar.current
+        let now = Date()
+        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+        
+        var updatedHistory = history
+        var deletedCount = 0
+        var errorCount = 0
+        
+        for i in 0..<updatedHistory.count {
+            let item = updatedHistory[i]
+            
+            // Skip if already marked as deleted or not old enough
+            guard !item.isDeleted && item.date < sevenDaysAgo else { continue }
+            
+            // Delete the audio file if it exists and isn't bundled
+            if let audioPath = item.audioFilePath,
+               !audioPath.contains("Bundle.main"),
+               !audioPath.contains(".app/"), // Skip bundled resources
+               FileManager.default.fileExists(atPath: audioPath) {
+                do {
+                    try FileManager.default.removeItem(atPath: audioPath)
+                    logger.log("🗑️ Deleted old audio file: \(URL(fileURLWithPath: audioPath).lastPathComponent)", level: .debug)
+                    deletedCount += 1
+                } catch {
+                    logger.logError(error, context: "Failed to delete audio file: \(audioPath)")
+                    errorCount += 1
+                }
+            }
+            
+            // Mark as deleted
+            updatedHistory[i].isDeleted = true
+        }
+        
+        // Update history if any changes were made
+        if deletedCount > 0 || history.contains(where: { !$0.isDeleted && $0.date < sevenDaysAgo }) {
+            history = updatedHistory
+            logger.log("✅ Audio cleanup completed: \(deletedCount) files deleted, \(errorCount) errors", level: .info)
+        } else {
+            logger.log("💫 No old audio files found to cleanup", level: .debug)
+        }
     }
 }
