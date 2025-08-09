@@ -5,6 +5,8 @@ struct OnboardingView: View {
     let onComplete: () -> Void
     
     @State private var currentPage = 0
+    
+    private let logger = DebugLogger.shared
     @State private var name = ""
     @State private var selectedTime = Calendar.current.date(from: DateComponents(hour: 7, minute: 0)) ?? Date()
     @State private var selectedDays: Set<WeekDay> = Set(WeekDay.allCases)
@@ -79,9 +81,19 @@ struct OnboardingView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
-                .onChange(of: currentPage) { _ in
+                .onAppear {
+                    logger.log("🎓 Onboarding view appeared", level: .info)
+                    logger.logUserAction("Onboarding started", details: ["initialPage": currentPage])
+                }
+                .onChange(of: currentPage) { newPage in
                     // Stop any playing voice preview when navigating between pages
                     AudioPlayerManager.shared.stopVoicePreview()
+                    
+                    logger.logUserAction("Onboarding page changed", details: [
+                        "fromPage": currentPage,
+                        "toPage": newPage,
+                        "pageName": getPageName(for: newPage)
+                    ])
                 }
             }
         }
