@@ -15,6 +15,8 @@ class AudioPlayerManager: NSObject, ObservableObject {
     
     private var audioPlayer: AVAudioPlayer?
     private var displayLink: Timer?
+    private var previewPlayer: AVAudioPlayer?
+    private var previewStopWorkItem: DispatchWorkItem?
     
     override private init() {
         super.init()
@@ -144,32 +146,36 @@ class AudioPlayerManager: NSObject, ObservableObject {
         
         logger.logUserAction("Preview voice", details: ["voice": voice.name])
         
-        // Temporarily store current state
-        let wasPlaying = isPlaying
-        let currentAudioPlayer = audioPlayer
-        let currentTrack = currentTrackId
+        // Stop any existing preview immediately
+        stopVoicePreview()
         
-        // Load preview audio
         do {
-            let previewPlayer = try AVAudioPlayer(contentsOf: url)
-            previewPlayer.prepareToPlay()
+            let newPreviewPlayer = try AVAudioPlayer(contentsOf: url)
+            newPreviewPlayer.prepareToPlay()
+            self.previewPlayer = newPreviewPlayer
+            newPreviewPlayer.play()
             
-            // Play first 3 seconds as preview
-            previewPlayer.play()
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                previewPlayer.stop()
-                
-                // Restore original state if needed
-                if wasPlaying && currentAudioPlayer != nil {
-                    self.audioPlayer = currentAudioPlayer
-                    self.currentTrackId = currentTrack
-                    self.play()
-                }
+            // Schedule auto-stop after 3 seconds
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.previewPlayer?.stop()
+                self?.previewPlayer = nil
+                self?.previewStopWorkItem = nil
             }
+            self.previewStopWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: workItem)
         } catch {
             logger.logError(error, context: "Failed to preview voice \(voice.name)")
         }
+    }
+
+    func stopVoicePreview() {
+        // Cancel any scheduled auto-stop
+        previewStopWorkItem?.cancel()
+        previewStopWorkItem = nil
+        
+        // Stop and release preview player
+        previewPlayer?.stop()
+        previewPlayer = nil
     }
 }
 

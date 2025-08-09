@@ -15,12 +15,12 @@ struct EditScheduleView: View {
     @State private var includeCalendar: Bool
     @State private var includeQuotes: Bool
     @State private var quotePreference: QuotePreference
-    @State private var stockSymbols: [String]
     @State private var stockSymbolItems: [StockSymbolItem] = []
     @State private var selectedVoice: VoiceOption
     @State private var dayStartLength: Int
     @State private var showResetConfirmation = false
     @StateObject private var themeManager = ThemeManager.shared
+    @State private var showVoicePicker = false
     
     private let logger = DebugLogger.shared
     
@@ -53,7 +53,6 @@ struct EditScheduleView: View {
         _includeCalendar = State(initialValue: prefs.settings.includeCalendar)
         _includeQuotes = State(initialValue: prefs.settings.includeQuotes)
         _quotePreference = State(initialValue: prefs.settings.quotePreference)
-        _stockSymbols = State(initialValue: prefs.settings.stockSymbols)
         _stockSymbolItems = State(initialValue: prefs.settings.stockSymbols.asStockSymbolItems)
         _selectedVoice = State(initialValue: prefs.settings.selectedVoice)
         _dayStartLength = State(initialValue: prefs.settings.dayStartLength)
@@ -95,6 +94,9 @@ struct EditScheduleView: View {
                 }
             }
         }
+        .sheet(isPresented: $showVoicePicker) {
+            VoicePickerView(selectedVoice: $selectedVoice)
+        }
     }
     
     private var lockoutBanner: some View {
@@ -123,26 +125,18 @@ struct EditScheduleView: View {
                     .disabled(isLocked)
             }
             
-            VStack(alignment: .leading, spacing: 8) {
+            Button(action: { showVoicePicker = true }) {
                 HStack {
                     Text("Voice")
                     Spacer()
                     Text(selectedVoice.name)
                         .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                }
-                
-                HStack(spacing: 12) {
-                    ForEach(VoiceOption.allCases, id: \.self) { voice in
-                        VoiceSelectionButton(
-                            voice: voice,
-                            isSelected: selectedVoice == voice,
-                            isDisabled: isLocked
-                        ) {
-                            selectedVoice = voice
-                        }
-                    }
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
                 }
             }
+            .buttonStyle(PlainButtonStyle())
+            .disabled(isLocked)
             
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -169,15 +163,8 @@ struct EditScheduleView: View {
     
     private var scheduleSection: some View {
         Section(header: Text("Schedule")) {
-            DatePicker(
-                "Wake Time",
-                selection: $selectedTime,
-                displayedComponents: .hourAndMinute
-            )
-            .disabled(isLocked)
-            
             VStack(alignment: .leading) {
-                Text("Repeat")
+                Text("Repeat Days")
                     .font(.subheadline)
                     .adaptiveFontWeight(light: .medium, dark: .semibold)
                 
@@ -200,13 +187,32 @@ struct EditScheduleView: View {
                     }
                 }
                 .padding(.vertical, 4)
+                
+                if selectedDays.isEmpty {
+                    Text("Select at least one day to enable DayStart")
+                        .font(.caption)
+                        .foregroundColor(BananaTheme.ColorToken.primary)
+                        .padding(.top, 4)
+                }
             }
             
-            Toggle("Skip Tomorrow", isOn: $skipTomorrow)
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked)
+            DatePicker(
+                "Wake Time",
+                selection: $selectedTime,
+                displayedComponents: .hourAndMinute
+            )
+            .disabled(isLocked || selectedDays.isEmpty)
+            .opacity(selectedDays.isEmpty ? 0.6 : 1.0)
             
-            if let nextTime = previewNextOccurrence {
+            Toggle("Next DayStart", isOn: Binding(
+                get: { !skipTomorrow },
+                set: { skipTomorrow = !$0 }
+            ))
+                .tint(BananaTheme.ColorToken.primary)
+                .disabled(isLocked || selectedDays.isEmpty)
+                .opacity(selectedDays.isEmpty ? 0.6 : 1.0)
+            
+            if !selectedDays.isEmpty, let nextTime = previewNextOccurrence {
                 HStack {
                     Text("Next DayStart")
                         .font(.caption)
@@ -215,6 +221,16 @@ struct EditScheduleView: View {
                     Text(nextTime, style: .relative)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+            } else if selectedDays.isEmpty {
+                HStack {
+                    Text("DayStart Disabled")
+                        .font(.caption)
+                        .foregroundColor(BananaTheme.ColorToken.primary)
+                    Spacer()
+                    Text("No days selected")
+                        .font(.caption)
+                        .foregroundColor(BananaTheme.ColorToken.primary)
                 }
             }
         }
@@ -270,7 +286,7 @@ struct EditScheduleView: View {
             HStack {
                 Text("Theme")
                 Spacer()
-                Picker("Theme", selection: $themeManager.themePreference) {
+                Picker("", selection: $themeManager.themePreference) {
                     ForEach(ThemePreference.allCases, id: \.self) { preference in
                         Text(preference.displayName).tag(preference)
                     }
@@ -425,8 +441,8 @@ struct StockSymbolsEditor: View {
     
     // 🔥 AWESOME VALIDATION SYSTEM - PRESERVED! 🔥
     @StateObject private var validationService = StockValidationService.shared
-    @State private var validationResults: [String: StockValidationResult] = [:]
-    @State private var isValidating: [String: Bool] = [:]
+    @State private var validationResultsById: [UUID: StockValidationResult] = [:]
+    @State private var isValidatingById: [UUID: Bool] = [:]
     
     private let logger = DebugLogger.shared
     
@@ -442,11 +458,11 @@ struct StockSymbolsEditor: View {
                     StockSymbolRow(
                         symbol: createBinding(for: item),
                         isDisabled: isDisabled,
-                        validationResult: validationResults[item.symbol],
-                        isValidating: isValidating[item.symbol] ?? false,
+                        validationResult: validationResultsById[item.id],
+                        isValidating: isValidatingById[item.id] ?? false,
                         onDelete: { removeSymbol(item) },
                         onValidationNeeded: { symbol in
-                            validateSymbol(symbol) // 🔍 Validation magic preserved!
+                            validateSymbol(symbol, for: item.id) // 🔍 Validation preserved!
                         }
                     )
                     .id(item.id) // 🎯 STABLE IDENTITY - No more UI confusion!
@@ -475,18 +491,11 @@ struct StockSymbolsEditor: View {
                 if let index = stockSymbolItems.firstIndex(where: { $0.id == item.id }) {
                     let formatted = String(newValue.uppercased().prefix(5))
                     
-                    // Clean up old validation state if symbol changed
-                    let oldSymbol = stockSymbolItems[index].symbol
-                    if oldSymbol != formatted && !oldSymbol.isEmpty {
-                        validationResults.removeValue(forKey: oldSymbol)
-                        isValidating.removeValue(forKey: oldSymbol)
-                    }
-                    
                     stockSymbolItems[index].symbol = formatted
                     
                     // 🔍 Trigger awesome validation!
                     if !formatted.isEmpty {
-                        validateSymbol(formatted)
+                        validateSymbol(formatted, for: item.id)
                     }
                 }
             }
@@ -496,6 +505,8 @@ struct StockSymbolsEditor: View {
     // 🎯 FIXED: Clean addition - no more UI confusion
     private func addSymbol() {
         guard stockSymbolItems.count < 5 else { return }
+        // Avoid multiple empty rows which cause confusing shared state
+        guard !stockSymbolItems.contains(where: { $0.symbol.isEmpty }) else { return }
         logger.logUserAction("Add stock symbol slot", details: ["currentCount": stockSymbolItems.count])
         let newItem = StockSymbolItem(symbol: "")
         stockSymbolItems.append(newItem)
@@ -505,27 +516,29 @@ struct StockSymbolsEditor: View {
     private func removeSymbol(_ item: StockSymbolItem) {
         logger.logUserAction("Remove stock symbol", details: ["symbol": item.symbol, "id": item.id.uuidString])
         
-        // Clean up validation state for this specific symbol
-        validationResults.removeValue(forKey: item.symbol)
-        isValidating.removeValue(forKey: item.symbol)
+        // Clean up validation state for this specific item id
+        validationResultsById.removeValue(forKey: item.id)
+        isValidatingById.removeValue(forKey: item.id)
         
         // Remove by ID, not index - bulletproof!
         stockSymbolItems.removeAll { $0.id == item.id }
     }
     
     // 🔥 AWESOME VALIDATION SYSTEM - COMPLETELY PRESERVED! 🔥
-    private func validateSymbol(_ symbol: String) {
+    private func validateSymbol(_ symbol: String, for id: UUID) {
         guard !symbol.isEmpty else {
-            validationResults.removeValue(forKey: symbol)
-            isValidating.removeValue(forKey: symbol)
+            validationResultsById.removeValue(forKey: id)
+            isValidatingById.removeValue(forKey: id)
             return
         }
         
-        isValidating[symbol] = true
+        isValidatingById[id] = true
         
         validationService.validateSymbolAsync(symbol) { result in
-            validationResults[symbol] = result
-            isValidating[symbol] = false
+            if let current = stockSymbolItems.first(where: { $0.id == id }), !current.symbol.isEmpty {
+                validationResultsById[id] = result
+            }
+            isValidatingById[id] = false
             
             if !result.isValid {
                 logger.log("❌ Invalid stock symbol: \(symbol) - \(result.error?.localizedDescription ?? "Unknown error")", level: .warning)
