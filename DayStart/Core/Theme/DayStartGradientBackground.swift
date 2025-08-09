@@ -19,7 +19,7 @@ struct DayStartGradientBackground: View {
             )
             .blur(radius: 30)
             .ignoresSafeArea()
-            .opacity(reduceMotion ? 0.9 : (glowAnimation ? 1.0 : 0.8))
+            .opacity(reduceMotion ? 1.0 : (glowAnimation ? 1.0 : 0.9))
             .animation(reduceMotion ? .none : .easeInOut(duration: 4).repeatForever(autoreverses: true), value: glowAnimation)
             
             // Radial sun gradient overlay
