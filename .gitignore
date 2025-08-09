@@ -109,3 +109,10 @@ node_modules/
 # Temporary files
 *.tmp
 *.temp
+
+# Audio files and resources
+DayStart/Resources/Sounds/
+*.mp3
+*.wav
+*.m4a
+*.aac
