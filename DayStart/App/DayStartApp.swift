@@ -45,9 +45,9 @@ struct DayStartApp: App {
                     ])
                     
                     // Clean up old audio files on app start
-                    DispatchQueue.global(qos: .utility).async {
+                    Task {
                         logger.log("🧹 Starting audio file cleanup", level: .debug)
-                        userPreferences.cleanupOldAudioFiles()
+                        await userPreferences.cleanupOldAudioFiles()
                         logger.log("✅ Audio file cleanup complete", level: .debug)
                     }
                 }

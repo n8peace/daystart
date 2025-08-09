@@ -40,6 +40,50 @@ struct EditScheduleView: View {
         return previewSchedule.nextOccurrence
     }
     
+    // Detect if there are unsaved changes compared to persisted preferences
+    private var hasUnsavedChanges: Bool {
+        // Compare schedule fields
+        let timeChanged = selectedTime != userPreferences.schedule.time
+        let daysChanged = selectedDays != userPreferences.schedule.repeatDays
+        let skipTomorrowChanged = skipTomorrow != userPreferences.schedule.skipTomorrow
+        
+        // Compare settings fields
+        let nameChanged = preferredName != userPreferences.settings.preferredName
+        let weatherChanged = includeWeather != userPreferences.settings.includeWeather
+        let newsChanged = includeNews != userPreferences.settings.includeNews
+        let sportsChanged = includeSports != userPreferences.settings.includeSports
+        let stocksChanged = includeStocks != userPreferences.settings.includeStocks
+        let calendarChanged = includeCalendar != userPreferences.settings.includeCalendar
+        let quotesChanged = includeQuotes != userPreferences.settings.includeQuotes
+        let quotePrefChanged = quotePreference != userPreferences.settings.quotePreference
+        let voiceChanged = selectedVoice != userPreferences.settings.selectedVoice
+        let lengthChanged = dayStartLength != userPreferences.settings.dayStartLength
+        
+        // Normalize stock symbols for comparison (uppercase, trimmed, no empties)
+        let currentSymbols = stockSymbolItems
+            .map { $0.symbol.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+            .filter { !$0.isEmpty }
+        let savedSymbols = userPreferences.settings.stockSymbols
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+            .filter { !$0.isEmpty }
+        let symbolsChanged = currentSymbols != savedSymbols
+        
+        return timeChanged
+            || daysChanged
+            || skipTomorrowChanged
+            || nameChanged
+            || weatherChanged
+            || newsChanged
+            || sportsChanged
+            || stocksChanged
+            || calendarChanged
+            || quotesChanged
+            || quotePrefChanged
+            || voiceChanged
+            || lengthChanged
+            || symbolsChanged
+    }
+    
     init() {
         let prefs = UserPreferences.shared
         _selectedTime = State(initialValue: prefs.schedule.time)
@@ -93,9 +137,13 @@ struct EditScheduleView: View {
                     Button(action: {
                         logger.logUserAction("Save EditSchedule - toolbar save button")
                         saveChanges()
-                        presentationMode.wrappedValue.dismiss()
+                        // Small delay to ensure UI updates propagate
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            presentationMode.wrappedValue.dismiss()
+                        }
                     }) {
                         Image(systemName: "checkmark")
+                            .foregroundColor(hasUnsavedChanges ? BananaTheme.ColorToken.accent : BananaTheme.ColorToken.text)
                     }
                     .disabled(isLocked)
                 }
@@ -397,6 +445,7 @@ struct EditScheduleView: View {
         settings.selectedVoice = selectedVoice
         settings.dayStartLength = dayStartLength
         userPreferences.settings = settings
+        userPreferences.saveSettings()
         
         DebugLogger.shared.log("✅ Settings saved successfully", level: .info)
         logger.endPerformanceTimer(startTime, operation: "Settings save")

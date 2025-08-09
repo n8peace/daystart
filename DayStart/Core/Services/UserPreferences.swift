@@ -2,11 +2,11 @@ import Foundation
 import SwiftUI
 import Combine
 
+@MainActor
 class UserPreferences: ObservableObject {
     static let shared = UserPreferences()
     
     private let userDefaults = UserDefaults.standard
-    private var saveCancellables = Set<AnyCancellable>()
     private let logger = DebugLogger.shared
     
     @Published var hasCompletedOnboarding: Bool {
@@ -21,11 +21,7 @@ class UserPreferences: ObservableObject {
         }
     }
     
-    @Published var settings: UserSettings {
-        didSet {
-            debouncedSaveSettings()
-        }
-    }
+    @Published var settings: UserSettings
     
     @Published var history: [DayStartData] {
         didSet {
@@ -100,7 +96,7 @@ class UserPreferences: ObservableObject {
         }
     }
     
-    private func saveSettings() {
+    func saveSettings() {
         logger.log("💾 Saving user settings", level: .debug)
         do {
             let data = try JSONEncoder().encode(settings)
@@ -111,20 +107,6 @@ class UserPreferences: ObservableObject {
         }
     }
     
-    private func debouncedSaveSettings() {
-        // Cancel any pending save
-        saveCancellables.forEach { $0.cancel() }
-        saveCancellables.removeAll()
-        
-        // Schedule a debounced save after 0.5 seconds of inactivity
-        Timer.publish(every: 0.5, on: .main, in: .default)
-            .autoconnect()
-            .first()
-            .sink { [weak self] _ in
-                self?.saveSettings()
-            }
-            .store(in: &saveCancellables)
-    }
     
     private func saveHistory() {
         if let data = try? JSONEncoder().encode(history) {
@@ -140,8 +122,8 @@ class UserPreferences: ObservableObject {
         
         // Periodically clean up old audio files (every 5th addition)
         if history.count % 5 == 0 {
-            DispatchQueue.global(qos: .utility).async {
-                self.cleanupOldAudioFiles()
+            Task {
+                await self.cleanupOldAudioFiles()
             }
         }
     }
@@ -152,14 +134,18 @@ class UserPreferences: ObservableObject {
     }
     
     // MARK: - Audio Cleanup
-    func cleanupOldAudioFiles() {
-        logger.log("🧹 Starting cleanup of old audio files", level: .info)
+    nonisolated func cleanupOldAudioFiles() async {
+        await MainActor.run {
+            logger.log("🧹 Starting cleanup of old audio files", level: .info)
+        }
         
         let calendar = Calendar.current
         let now = Date()
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
         
-        var updatedHistory = history
+        // Work with a copy to avoid concurrent modifications
+        let currentHistory = await history
+        var updatedHistory = currentHistory
         var deletedCount = 0
         var errorCount = 0
         
@@ -176,10 +162,14 @@ class UserPreferences: ObservableObject {
                FileManager.default.fileExists(atPath: audioPath) {
                 do {
                     try FileManager.default.removeItem(atPath: audioPath)
-                    logger.log("🗑️ Deleted old audio file: \(URL(fileURLWithPath: audioPath).lastPathComponent)", level: .debug)
+                    await MainActor.run {
+                        logger.log("🗑️ Deleted old audio file: \(URL(fileURLWithPath: audioPath).lastPathComponent)", level: .debug)
+                    }
                     deletedCount += 1
                 } catch {
-                    logger.logError(error, context: "Failed to delete audio file: \(audioPath)")
+                    await MainActor.run {
+                        logger.logError(error, context: "Failed to delete audio file: \(audioPath)")
+                    }
                     errorCount += 1
                 }
             }
@@ -188,12 +178,16 @@ class UserPreferences: ObservableObject {
             updatedHistory[i].isDeleted = true
         }
         
-        // Update history if any changes were made
-        if deletedCount > 0 || history.contains(where: { !$0.isDeleted && $0.date < sevenDaysAgo }) {
-            history = updatedHistory
-            logger.log("✅ Audio cleanup completed: \(deletedCount) files deleted, \(errorCount) errors", level: .info)
+        // Update history on main thread if any changes were made
+        if deletedCount > 0 || updatedHistory.contains(where: { !$0.isDeleted && $0.date < sevenDaysAgo }) {
+            await MainActor.run {
+                history = updatedHistory
+                logger.log("✅ Audio cleanup completed: \(deletedCount) files deleted, \(errorCount) errors", level: .info)
+            }
         } else {
-            logger.log("💫 No old audio files found to cleanup", level: .debug)
+            await MainActor.run {
+                logger.log("💫 No old audio files found to cleanup", level: .debug)
+            }
         }
     }
 }

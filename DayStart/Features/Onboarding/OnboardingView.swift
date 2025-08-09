@@ -9,11 +9,11 @@ struct OnboardingView: View {
     private let logger = DebugLogger.shared
     @State private var name = ""
     @State private var selectedTime = Calendar.current.date(from: DateComponents(hour: 7, minute: 0)) ?? Date()
-    @State private var selectedDays: Set<WeekDay> = Set(WeekDay.allCases)
+    @State private var selectedDays: Set<WeekDay> = Set([.monday, .tuesday, .wednesday, .thursday, .friday])
     @State private var includeWeather = false
     @State private var includeNews = true  // Auto-selected
-    @State private var includeSports = false
-    @State private var includeStocks = false
+    @State private var includeSports = true  // Auto-selected
+    @State private var includeStocks = true  // Auto-selected
     @State private var stockSymbols = ""
     @State private var includeCalendar = false
     @State private var includeQuotes = true
@@ -36,6 +36,26 @@ struct OnboardingView: View {
     
     var progressPercentage: Double {
         Double(currentPage + 1) / Double(totalPages)
+    }
+    
+    var selectedDaysSummary: String {
+        let sortedDays = selectedDays.sorted { $0.rawValue < $1.rawValue }
+        
+        // Check for common patterns
+        if selectedDays.count == 7 {
+            return "All days"
+        } else if selectedDays.count == 0 {
+            return "No days selected"
+        } else if selectedDays == Set([.monday, .tuesday, .wednesday, .thursday, .friday]) {
+            return "Weekdays"
+        } else if selectedDays == Set([.saturday, .sunday]) {
+            return "Weekends"
+        } else if selectedDays.count == 1 {
+            return sortedDays.first!.name
+        } else {
+            // For custom selections, list the days
+            return sortedDays.map { $0.name }.joined(separator: ", ")
+        }
     }
     
     var body: some View {
@@ -252,6 +272,19 @@ struct OnboardingView: View {
                                 }
                             }
                         }
+                        
+                        // Days Selected summary
+                        HStack {
+                            Text("Days Selected:")
+                                .font(BananaTheme.Typography.caption)
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            
+                            Text(selectedDaysSummary)
+                                .font(BananaTheme.Typography.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(BananaTheme.ColorToken.primary)
+                        }
+                        .padding(.top, BananaTheme.Spacing.xs)
                     }
                 }
                 .padding(.horizontal, BananaTheme.Spacing.xl)
@@ -273,7 +306,7 @@ struct OnboardingView: View {
                 Spacer()
                 
                 // Gradient backdrop for navigation buttons
-                VStack {
+                VStack(spacing: 0) {
                     LinearGradient(
                         colors: [
                             BananaTheme.ColorToken.background.opacity(0),
@@ -283,14 +316,11 @@ struct OnboardingView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 120)
+                    .frame(height: 160)
                     .allowsHitTesting(false)
-                    
-                    Rectangle()
-                        .fill(BananaTheme.ColorToken.background)
-                        .frame(height: 40)
-                        .allowsHitTesting(false)
                 }
+                .frame(maxWidth: .infinity)
+                .ignoresSafeArea(edges: .bottom)
                 .overlay(
                     VStack {
                         Spacer()
@@ -307,15 +337,6 @@ struct OnboardingView: View {
             VStack(spacing: BananaTheme.Spacing.xl) {
                 Spacer(minLength: BananaTheme.Spacing.xl)
                 
-                // Animated content cards
-                HStack(spacing: BananaTheme.Spacing.sm) {
-                    ContentTypeIcon(icon: "sun.max.fill", color: .orange)
-                    ContentTypeIcon(icon: "newspaper.fill", color: .blue)
-                    ContentTypeIcon(icon: "sportscourt.fill", color: .green)
-                    ContentTypeIcon(icon: "chart.line.uptrend.xyaxis", color: .purple)
-                    ContentTypeIcon(icon: "quote.bubble.fill", color: .pink)
-                }
-                .padding(.bottom)
                 
                 VStack(spacing: BananaTheme.Spacing.md) {
                     Text("What gets you started?")
@@ -456,7 +477,7 @@ struct OnboardingView: View {
                 Spacer()
                 
                 // Gradient backdrop for navigation buttons
-                VStack {
+                VStack(spacing: 0) {
                     LinearGradient(
                         colors: [
                             BananaTheme.ColorToken.background.opacity(0),
@@ -466,14 +487,11 @@ struct OnboardingView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 120)
+                    .frame(height: 160)
                     .allowsHitTesting(false)
-                    
-                    Rectangle()
-                        .fill(BananaTheme.ColorToken.background)
-                        .frame(height: 40)
-                        .allowsHitTesting(false)
                 }
+                .frame(maxWidth: .infinity)
+                .ignoresSafeArea(edges: .bottom)
                 .overlay(
                     VStack {
                         Spacer()
@@ -566,11 +584,7 @@ struct OnboardingView: View {
                 }
                 .padding(.horizontal, BananaTheme.Spacing.lg)
                 
-                Text("Our AI voices are designed to energize without jarring you awake")
-                    .font(BananaTheme.Typography.caption)
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, BananaTheme.Spacing.xl)
+                
                 
                 Spacer(minLength: BananaTheme.Spacing.xl)
                 
@@ -583,7 +597,7 @@ struct OnboardingView: View {
                 Spacer()
                 
                 // Gradient backdrop for navigation buttons
-                VStack {
+                VStack(spacing: 0) {
                     LinearGradient(
                         colors: [
                             BananaTheme.ColorToken.background.opacity(0),
@@ -593,14 +607,11 @@ struct OnboardingView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 120)
+                    .frame(height: 160)
                     .allowsHitTesting(false)
-                    
-                    Rectangle()
-                        .fill(BananaTheme.ColorToken.background)
-                        .frame(height: 40)
-                        .allowsHitTesting(false)
                 }
+                .frame(maxWidth: .infinity)
+                .ignoresSafeArea(edges: .bottom)
                 .overlay(
                     VStack {
                         Spacer()
@@ -828,6 +839,7 @@ struct OnboardingView: View {
             dayStartLength: dayStartLength,
             themePreference: .system
         )
+        userPreferences.saveSettings()
         
         // Schedule notifications
         Task {

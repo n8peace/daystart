@@ -27,7 +27,7 @@ struct HomeView: View {
                 }
                 .padding()
             }
-            .navigationTitle("☀️ DayStart")
+            .navigationTitle("DayStart")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -39,14 +39,10 @@ struct HomeView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 16) {
-                        ThemeToggleButton()
-                        
-                        Button(action: { showEditSchedule = true }) {
-                            Text("Edit")
-                                .font(.title3.weight(.medium))
-                                .foregroundColor(BananaTheme.ColorToken.text)
-                        }
+                    Button(action: { showEditSchedule = true }) {
+                        Text("Edit")
+                            .font(.title3.weight(.medium))
+                            .foregroundColor(BananaTheme.ColorToken.text)
                     }
                 }
             }
@@ -110,17 +106,18 @@ struct HomeView: View {
                 }
             } else if let nextTime = viewModel.nextDayStartTime {
                 VStack(spacing: 12) {
-                    Text("Next DayStart")
+                    Text("Tomorrow's DayStart")
                         .adaptiveFont(BananaTheme.Typography.headline)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .foregroundColor(viewModel.isNextDayStartTomorrow ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
                     
                     Text(nextTime, style: .time)
                         .font(.system(size: 42, weight: .medium, design: .rounded))
-                        .foregroundColor(BananaTheme.ColorToken.text)
+                        .foregroundColor(viewModel.isNextDayStartTomorrow ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
                     
                     Text(nextTime, style: .date)
                         .font(.subheadline)
                         .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                        .opacity(viewModel.isNextDayStartTomorrow ? 1.0 : 0.7)
                 }
             }
         }
@@ -213,13 +210,13 @@ struct HomeView: View {
             
             if let nextTime = viewModel.nextDayStartTime {
                 VStack(spacing: 8) {
-                    Text("Next DayStart")
+                    Text("Tomorrow's DayStart")
                         .font(.subheadline)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .foregroundColor(viewModel.isNextDayStartTomorrow ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
                     
                     Text(nextTime, style: .time)
                         .font(.title3)
-                        .foregroundColor(BananaTheme.ColorToken.text)
+                        .foregroundColor(viewModel.isNextDayStartTomorrow ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
                 }
             }
         }

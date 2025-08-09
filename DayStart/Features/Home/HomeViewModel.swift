@@ -18,6 +18,7 @@ class HomeViewModel: ObservableObject {
     @Published var currentDayStart: DayStartData?
     @Published var showNoScheduleMessage = false
     @Published var hasCompletedCurrentOccurrence = false
+    @Published var isNextDayStartTomorrow = false
     
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
@@ -31,20 +32,32 @@ class HomeViewModel: ObservableObject {
         setupObservers()
         updateState()
         
-        if userPreferences.history.isEmpty {
-            logger.log("🎭 History empty, generating mock data", level: .debug)
-            userPreferences.history = mockService.generateMockHistory()
-            logger.log("📊 Generated \(userPreferences.history.count) mock history items", level: .info)
-        } else {
-            logger.log("📚 Found existing history: \(userPreferences.history.count) items", level: .debug)
+        // Defer mock data generation to avoid "Publishing changes from within view updates"
+        Task { @MainActor in
+            if userPreferences.history.isEmpty {
+                logger.log("🎭 History empty, generating mock data", level: .debug)
+                userPreferences.history = mockService.generateMockHistory()
+                logger.log("📊 Generated \(userPreferences.history.count) mock history items", level: .info)
+            } else {
+                logger.log("📚 Found existing history: \(userPreferences.history.count) items", level: .debug)
+            }
         }
     }
     
     private func setupObservers() {
         userPreferences.$schedule
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateState()
                 self?.scheduleNotifications()
+            }
+            .store(in: &cancellables)
+        
+        userPreferences.$settings
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                // Force UI update when settings change
+                self?.objectWillChange.send()
             }
             .store(in: &cancellables)
         
@@ -67,11 +80,17 @@ class HomeViewModel: ObservableObject {
             showNoScheduleMessage = true
             nextDayStartTime = nil
             hasCompletedCurrentOccurrence = false
+            isNextDayStartTomorrow = false
             return
         }
         
         showNoScheduleMessage = false
         nextDayStartTime = nextOccurrence
+        
+        // Check if next DayStart is tomorrow
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date())!
+        isNextDayStartTomorrow = calendar.isDate(nextOccurrence, inSameDayAs: tomorrow)
         
         let timeUntil = nextOccurrence.timeIntervalSinceNow
         let sixHoursInSeconds: TimeInterval = 6 * 3600 // 6 hours
