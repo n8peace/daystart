@@ -143,7 +143,7 @@ struct EditScheduleView: View {
                         }
                     }) {
                         Image(systemName: "checkmark")
-                            .foregroundColor(hasUnsavedChanges ? BananaTheme.ColorToken.accent : BananaTheme.ColorToken.text)
+                            .foregroundColor(BananaTheme.ColorToken.text)
                     }
                     .disabled(isLocked)
                 }
@@ -237,7 +237,8 @@ struct EditScheduleView: View {
                                     }
                                 }
                             ),
-                            isDisabled: isLocked
+                            isDisabled: isLocked,
+                            hasUnsavedChanges: hasUnsavedChanges
                         )
                     }
                 }
@@ -456,6 +457,7 @@ struct DayToggleChip: View {
     let day: WeekDay
     @Binding var isSelected: Bool
     let isDisabled: Bool
+    let hasUnsavedChanges: Bool
     
     var body: some View {
         Button(action: { isSelected.toggle() }) {
@@ -470,6 +472,11 @@ struct DayToggleChip: View {
                 .background(
                     Circle()
                         .fill(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
+                        .overlay(
+                            hasUnsavedChanges ? Circle()
+                                .stroke(BananaTheme.ColorToken.accent, lineWidth: 2)
+                            : nil
+                        )
                 )
         }
         .buttonStyle(PlainButtonStyle())
