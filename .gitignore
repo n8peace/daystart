@@ -116,3 +116,25 @@ DayStart/Resources/Sounds/
 *.wav
 *.m4a
 *.aac
+
+# Claude agent configurations and AI documentation
+claude-*.md
+BANANA-INTELLIGENCE-THEME.md
+
+# Internal documentation and reviews
+review_docs/
+*-review.md
+gpt5-*.md
+
+# Backend documentation with sensitive information
+daystart-backend/ElevenLabs-TTS.md
+daystart-backend/SECURITY.md
+
+# Setup and configuration docs (keep README.md but exclude detailed setup)
+SETUP-GUIDE.md
+
+# Any additional internal docs
+*-INTERNAL.md
+*-PRIVATE.md
+docs/internal/
+docs/private/
