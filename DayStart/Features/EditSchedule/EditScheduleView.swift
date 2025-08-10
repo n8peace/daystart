@@ -21,6 +21,8 @@ struct EditScheduleView: View {
     @State private var showResetConfirmation = false
     @StateObject private var themeManager = ThemeManager.shared
     @State private var showVoicePicker = false
+    @State private var dismissTask: Task<Void, Never>?
+    @State private var textInputTask: Task<Void, Never>?
     
     private let logger = DebugLogger.shared
     
@@ -155,7 +157,10 @@ struct EditScheduleView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(action: {
-                        presentationMode.wrappedValue.dismiss()
+                        dismissTask?.cancel()
+                        dismissTask = Task {
+                            presentationMode.wrappedValue.dismiss()
+                        }
                     }) {
                         Image(systemName: "xmark")
                             .foregroundColor(BananaTheme.ColorToken.text)
@@ -166,9 +171,13 @@ struct EditScheduleView: View {
                     Button(action: {
                         logger.logUserAction("Save EditSchedule - toolbar save button")
                         saveChanges()
-                        // Small delay to ensure UI updates propagate
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            presentationMode.wrappedValue.dismiss()
+                        dismissTask?.cancel()
+                        dismissTask = Task {
+                            // Small delay to ensure UI updates propagate
+                            try? await Task.sleep(for: .milliseconds(100))
+                            await MainActor.run {
+                                presentationMode.wrappedValue.dismiss()
+                            }
                         }
                     }) {
                         Image(systemName: "checkmark")
@@ -181,6 +190,10 @@ struct EditScheduleView: View {
         }
         .sheet(isPresented: $showVoicePicker) {
             VoicePickerView(selectedVoice: $selectedVoice)
+        }
+        .onDisappear {
+            dismissTask?.cancel()
+            textInputTask?.cancel()
         }
     }
     
@@ -205,7 +218,14 @@ struct EditScheduleView: View {
         Section(header: Text("General Settings")) {
             HStack {
                 Text("Your Name")
-                TextField("Your name", text: $preferredName)
+                TextField("Your name", text: Binding(
+                    get: { preferredName },
+                    set: { newValue in
+                        textInputTask?.cancel()
+                        let sanitized = String(newValue.prefix(50)).trimmingCharacters(in: .whitespacesAndNewlines)
+                        preferredName = sanitized
+                    }
+                ))
                     .multilineTextAlignment(.trailing)
                     .disabled(isLocked)
             }
@@ -414,7 +434,10 @@ struct EditScheduleView: View {
         themeManager.setTheme(.system)
         
         // Dismiss this view
-        presentationMode.wrappedValue.dismiss()
+        dismissTask?.cancel()
+        dismissTask = Task {
+            presentationMode.wrappedValue.dismiss()
+        }
     }
     
     private func getEnabledFeaturesCount() -> Int {
@@ -468,7 +491,6 @@ struct EditScheduleView: View {
         let validSymbols = stockSymbolItems.asStringArray.filter { UserSettings.isValidStockSymbol($0) }
         
         settings.stockSymbols = validSymbols
-        DebugLogger.shared.log("📊 Stock symbols saved: \(validSymbols.count) symbols [\(validSymbols.joined(separator: ", "))]", level: .debug)
         
         settings.includeCalendar = includeCalendar
         settings.includeQuotes = includeQuotes
@@ -665,7 +687,6 @@ struct StockSymbolsEditor: View {
             if !result.isValid {
                 logger.log("❌ Invalid stock symbol: \(symbol) - \(result.error?.localizedDescription ?? "Unknown error")", level: .warning)
             } else {
-                logger.log("✅ Valid stock symbol: \(symbol)", level: .debug)
             }
         }
     }

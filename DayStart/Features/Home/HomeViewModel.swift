@@ -24,6 +24,7 @@ class HomeViewModel: ObservableObject {
     @Published var isNextDayStartToday = false
     
     private var timer: Timer?
+    private var pauseTimeoutTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private let userPreferences = UserPreferences.shared
     private let audioPlayer = AudioPlayerManager.shared
@@ -37,13 +38,12 @@ class HomeViewModel: ObservableObject {
         updateState()
         
         // Defer mock data generation to avoid "Publishing changes from within view updates"
-        Task { @MainActor in
-            if userPreferences.history.isEmpty {
-                logger.log("🎭 History empty, generating mock data", level: .debug)
-                userPreferences.history = mockService.generateMockHistory()
-                logger.log("📊 Generated \(userPreferences.history.count) mock history items", level: .info)
-            } else {
-                logger.log("📚 Found existing history: \(userPreferences.history.count) items", level: .debug)
+        // Use asyncAfter to ensure this happens outside the current view update cycle
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+            if self.userPreferences.history.isEmpty {
+                self.userPreferences.history = self.mockService.generateMockHistory()
+                self.logger.log("📊 Generated \(self.userPreferences.history.count) mock history items", level: .info)
             }
         }
     }
@@ -60,15 +60,30 @@ class HomeViewModel: ObservableObject {
         userPreferences.$settings
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                // Force UI update when settings change
-                self?.objectWillChange.send()
+                // Force UI update when settings change - defer to avoid publishing during view updates
+                DispatchQueue.main.async {
+                    self?.objectWillChange.send()
+                }
             }
             .store(in: &cancellables)
         
+        audioPlayer.$didFinishPlaying
+            .sink { [weak self] didFinish in
+                if self?.state == .playing && didFinish {
+                    self?.transitionToRecentlyPlayed()
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Monitor play/pause state to handle pause timeouts
         audioPlayer.$isPlaying
             .sink { [weak self] isPlaying in
-                if self?.state == .playing && !isPlaying {
-                    self?.transitionToRecentlyPlayed()
+                if self?.state == .playing {
+                    if isPlaying {
+                        self?.stopPauseTimeoutTimer()
+                    } else {
+                        self?.startPauseTimeoutTimer()
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -87,7 +102,7 @@ class HomeViewModel: ObservableObject {
     
     private func updateState() {
         timer?.invalidate()
-        logger.log("🔄 Updating app state", level: .debug)
+        pauseTimeoutTimer?.invalidate()
         
         // Check for welcome DayStart first
         if welcomeScheduler.isWelcomePending {
@@ -121,7 +136,6 @@ class HomeViewModel: ObservableObject {
         isNextDayStartToday = nextOccurrenceDay == today
         isNextDayStartTomorrow = nextOccurrenceDay == tomorrow
         
-        logger.log("📅 Date check - Today: \(today), Tomorrow: \(tomorrow), NextOccurrence: \(nextOccurrenceDay), IsToday: \(isNextDayStartToday), IsTomorrow: \(isNextDayStartTomorrow)", level: .debug)
         
         let timeUntil = nextOccurrence.timeIntervalSinceNow
         let sixHoursInSeconds: TimeInterval = 6 * 3600 // 6 hours
@@ -136,14 +150,11 @@ class HomeViewModel: ObservableObject {
             state = .ready
         } else if timeUntil > 0 && timeUntil <= tenHoursInSeconds {
             // Less than 10 hours before - show countdown
-            logger.log("⏳ Starting countdown: \(Int(timeUntil))s until DayStart", level: .debug)
             startCountdown()
         } else {
             // More than 10 hours before OR more than 6 hours after - show next scheduled time
             if timeUntil < -sixHoursInSeconds {
-                logger.log("💤 More than 6 hours past scheduled time, showing next occurrence", level: .debug)
             } else {
-                logger.log("💤 More than 10 hours until DayStart, idle state", level: .debug)
             }
             state = .idle
         }
@@ -191,6 +202,7 @@ class HomeViewModel: ObservableObject {
         audioPlayer.loadAudio()
         audioPlayer.play()
         state = .playing
+        stopPauseTimeoutTimer()
         
         // Cancel today's missed notification since user is now listening
         Task {
@@ -215,6 +227,7 @@ class HomeViewModel: ObservableObject {
         audioPlayer.loadAudio()
         audioPlayer.play()
         state = .playing
+        stopPauseTimeoutTimer()
         
         welcomeScheduler.cancelWelcomeDayStart()
     }
@@ -225,6 +238,7 @@ class HomeViewModel: ObservableObject {
         audioPlayer.loadAudio()
         audioPlayer.play()
         state = .playing
+        stopPauseTimeoutTimer()
     }
     
     private func transitionToRecentlyPlayed() {
@@ -236,6 +250,7 @@ class HomeViewModel: ObservableObject {
         }
         
         state = .recentlyPlayed
+        stopPauseTimeoutTimer()
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
             if self?.state == .recentlyPlayed {
@@ -245,7 +260,6 @@ class HomeViewModel: ObservableObject {
     }
     
     private func scheduleNotifications() {
-        logger.log("📬 Scheduling notifications", level: .debug)
         Task {
             await notificationScheduler.scheduleNotifications(for: userPreferences.schedule)
         }
@@ -269,6 +283,51 @@ class HomeViewModel: ObservableObject {
             
             // Check if scheduled times match (within 1 minute tolerance for any scheduling drift)
             return abs(dayStartScheduledTime.timeIntervalSince(scheduledTime)) < 60
+        }
+    }
+    
+    // MARK: - Pause Timeout Management
+    private func startPauseTimeoutTimer() {
+        stopPauseTimeoutTimer()
+        
+        // Check every 30 seconds if we should exit playing state due to time passing
+        pauseTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            self?.checkIfShouldExitPlayingState()
+        }
+    }
+    
+    private func stopPauseTimeoutTimer() {
+        pauseTimeoutTimer?.invalidate()
+        pauseTimeoutTimer = nil
+    }
+    
+    private func checkIfShouldExitPlayingState() {
+        guard state == .playing, !audioPlayer.isPlaying else { return }
+        
+        // Check if we're still within a reasonable window to be in playing state
+        guard let nextOccurrence = userPreferences.schedule.nextOccurrence else {
+            // No schedule - transition out of playing state
+            logger.log("No schedule found while paused, exiting playing state", level: .info)
+            audioPlayer.reset()
+            updateState()
+            return
+        }
+        
+        let timeUntil = nextOccurrence.timeIntervalSinceNow
+        let sixHoursInSeconds: TimeInterval = 6 * 3600
+        let tenHoursInSeconds: TimeInterval = 10 * 3600
+        
+        // If we're outside the normal "ready" window (more than 6 hours past scheduled time)
+        // or if it's time for the next countdown/ready period, exit playing state
+        if timeUntil < -sixHoursInSeconds {
+            logger.log("Paused too long past scheduled time, transitioning to next state", level: .info)
+            audioPlayer.reset()
+            updateState()
+        } else if timeUntil > 0 && timeUntil <= tenHoursInSeconds {
+            // Next DayStart countdown should start
+            logger.log("Time for next DayStart countdown, exiting playing state", level: .info)
+            audioPlayer.reset()
+            updateState()
         }
     }
 }

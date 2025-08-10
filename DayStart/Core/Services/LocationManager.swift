@@ -117,7 +117,6 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             self.currentLocation = location
         }
         
-        logger.log("Location updated: \(location.coordinate)", level: .debug)
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {

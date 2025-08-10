@@ -179,7 +179,6 @@ class StockValidationService: ObservableObject {
         // This would make a request to a Supabase Edge Function that validates stocks
         // using a financial API like Alpha Vantage, Yahoo Finance, or Polygon.io
         
-        logger.log("🔍 Would validate stock symbol with API: \(symbol)", level: .debug)
         
         // For now, just use local validation
         completion(validateSymbol(symbol))
@@ -188,6 +187,5 @@ class StockValidationService: ObservableObject {
     
     func clearCache() {
         validationCache.removeAll()
-        logger.log("🗑️ Stock validation cache cleared", level: .debug)
     }
 }

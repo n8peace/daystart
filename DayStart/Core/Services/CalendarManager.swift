@@ -123,7 +123,6 @@ class CalendarManager: NSObject, ObservableObject {
         logger.log("Found \(calendars.count) available calendars", level: .info)
         
         for calendar in calendars {
-            logger.log("Calendar: \(calendar.title) (Source: \(calendar.source.title))", level: .debug)
         }
         
         return calendars

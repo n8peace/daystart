@@ -8,6 +8,7 @@ struct OnboardingView: View {
     
     private let logger = DebugLogger.shared
     @State private var name = ""
+    @State private var textInputTask: Task<Void, Never>?
     @State private var selectedTime = Calendar.current.date(from: DateComponents(hour: 7, minute: 0)) ?? Date()
     @State private var selectedDays: Set<WeekDay> = Set([.monday, .tuesday, .wednesday, .thursday, .friday])
     @State private var includeWeather = false
@@ -101,6 +102,9 @@ struct OnboardingView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
+                .sensoryFeedback(.selection, trigger: currentPage) { _, _ in
+                    false // Disable all haptic feedback during page transitions
+                }
                 .onAppear {
                     logger.log("🎓 Onboarding view appeared", level: .info)
                     logger.logUserAction("Onboarding started", details: ["initialPage": currentPage])
@@ -223,7 +227,14 @@ struct OnboardingView: View {
                             
                             Spacer(minLength: BananaTheme.Spacing.md)
                             
-                            TextField("Optional", text: $name)
+                            TextField("Optional", text: Binding(
+                                get: { name },
+                                set: { newValue in
+                                    textInputTask?.cancel()
+                                    let sanitized = String(newValue.prefix(50)).trimmingCharacters(in: .whitespacesAndNewlines)
+                                    name = sanitized
+                                }
+                            ))
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .font(BananaTheme.Typography.body)
                         }
@@ -390,7 +401,14 @@ struct OnboardingView: View {
                     
                     if includeStocks {
                         VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
-                            TextField("Enter symbols: SPY, DIA, BTC-USD", text: $stockSymbols)
+                            TextField("Enter symbols: SPY, DIA, BTC-USD", text: Binding(
+                                get: { stockSymbols },
+                                set: { newValue in
+                                    textInputTask?.cancel()
+                                    let sanitized = String(newValue.prefix(100)).trimmingCharacters(in: .whitespacesAndNewlines)
+                                    stockSymbols = sanitized
+                                }
+                            ))
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .font(BananaTheme.Typography.body)
                                 .padding(.leading, BananaTheme.Spacing.xl)
@@ -880,6 +898,10 @@ struct OnboardingView: View {
         if includeCalendar {
             await requestCalendarPermission()
         }
+    }
+    
+    func cleanup() {
+        textInputTask?.cancel()
     }
     
     private func requestLocationPermission() async {

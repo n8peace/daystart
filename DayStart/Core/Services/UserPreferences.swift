@@ -126,11 +126,9 @@ class UserPreferences: ObservableObject {
     }
     
     func saveSettings() {
-        logger.log("💾 Saving user settings", level: .debug)
         do {
             let data = try JSONEncoder().encode(settings)
             userDefaults.set(data, forKey: "settings")
-            logger.log("✅ Settings saved successfully", level: .debug)
         } catch {
             logger.logError(error, context: "Failed to save user settings")
         }
@@ -192,7 +190,6 @@ class UserPreferences: ObservableObject {
                 do {
                     try FileManager.default.removeItem(atPath: audioPath)
                     await MainActor.run {
-                        logger.log("🗑️ Deleted old audio file: \(URL(fileURLWithPath: audioPath).lastPathComponent)", level: .debug)
                     }
                     deletedCount += 1
                 } catch {
@@ -215,7 +212,6 @@ class UserPreferences: ObservableObject {
             }
         } else {
             await MainActor.run {
-                logger.log("💫 No old audio files found to cleanup", level: .debug)
             }
         }
     }

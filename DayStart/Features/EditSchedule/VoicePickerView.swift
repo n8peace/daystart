@@ -5,6 +5,7 @@ struct VoicePickerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @State private var originalSelection: VoiceOption
+    @State private var dismissTask: Task<Void, Never>?
     
     private let logger = DebugLogger.shared
     
@@ -61,9 +62,14 @@ struct VoicePickerView: View {
                             "originalVoice": originalSelection.name,
                             "wasChanged": selectedVoice != originalSelection
                         ])
-                        AudioPlayerManager.shared.stopVoicePreview()
-                        selectedVoice = originalSelection
-                        dismiss()
+                        dismissTask?.cancel()
+                        dismissTask = Task {
+                            AudioPlayerManager.shared.stopVoicePreview()
+                            selectedVoice = originalSelection
+                            await MainActor.run {
+                                dismiss()
+                            }
+                        }
                     }) {
                         Image(systemName: "xmark")
                             .foregroundColor(BananaTheme.ColorToken.text)
@@ -76,8 +82,13 @@ struct VoicePickerView: View {
                             "originalVoice": originalSelection.name,
                             "wasChanged": selectedVoice != originalSelection
                         ])
-                        AudioPlayerManager.shared.stopVoicePreview()
-                        dismiss()
+                        dismissTask?.cancel()
+                        dismissTask = Task {
+                            AudioPlayerManager.shared.stopVoicePreview()
+                            await MainActor.run {
+                                dismiss()
+                            }
+                        }
                     }) {
                         Image(systemName: "checkmark")
                             .foregroundColor(hasUnsavedChanges ? BananaTheme.ColorToken.accent : BananaTheme.ColorToken.text)
@@ -86,6 +97,7 @@ struct VoicePickerView: View {
                 }
             }
             .onDisappear {
+                dismissTask?.cancel()
                 AudioPlayerManager.shared.stopVoicePreview()
             }
         }

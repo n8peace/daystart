@@ -46,9 +46,7 @@ struct DayStartApp: App {
                     
                     // Clean up old audio files on app start
                     Task {
-                        logger.log("🧹 Starting audio file cleanup", level: .debug)
                         await userPreferences.cleanupOldAudioFiles()
-                        logger.log("✅ Audio file cleanup complete", level: .debug)
                     }
                 }
                 .fullScreenCover(isPresented: $showOnboarding) {
@@ -63,18 +61,44 @@ struct DayStartApp: App {
     }
     
     private func configureAudioSession() {
-        logger.log("🔊 Configuring audio session", level: .debug)
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
-            try AVAudioSession.sharedInstance().setActive(true)
+            let audioSession = AVAudioSession.sharedInstance()
+            
+            // Configure category and mode with fallback options
+            try audioSession.setCategory(.playback, 
+                                       mode: .spokenAudio, 
+                                       options: [.allowBluetooth, .allowBluetoothA2DP])
+            
+            // Set preferred sample rate and buffer duration to prevent system lookups
+            try audioSession.setPreferredSampleRate(44100.0)
+            try audioSession.setPreferredIOBufferDuration(0.02)
+            
+            // Activate session with error handling for system resource conflicts
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            
             logger.log("✅ Audio session configured successfully", level: .info)
-        } catch {
-            logger.logError(error, context: "Failed to configure audio session")
+            
+        } catch let error as NSError {
+            // Handle specific audio session errors gracefully
+            logger.log("⚠️ Audio session configuration failed: \(error.localizedDescription)", level: .warning)
+            
+            // Check for specific error codes we can handle
+            if error.code == AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue {
+                logger.log("⚠️ Cannot interrupt other audio apps", level: .warning)
+            } else if error.domain == NSOSStatusErrorDomain {
+                // Handle media services issues with OSStatus errors
+                logger.log("🔄 Media services issue detected, attempting reconfiguration", level: .warning)
+                // Retry configuration after brief delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.configureAudioSession()
+                }
+            } else {
+                logger.logError(error, context: "Failed to configure audio session")
+            }
         }
     }
     
     private func requestNotificationPermissions() {
-        logger.log("🔔 Requesting notification permissions", level: .debug)
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             DispatchQueue.main.async {
                 if let error = error {
@@ -114,7 +138,6 @@ struct ContentView: View {
     var body: some View {
         HomeView(viewModel: homeViewModel)
             .onAppear {
-                logger.log("🏠 Main content view appeared", level: .debug)
             }
     }
 }

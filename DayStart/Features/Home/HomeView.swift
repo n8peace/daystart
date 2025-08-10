@@ -5,6 +5,7 @@ struct HomeView: View {
     @State private var showEditSchedule = false
     @State private var showHistory = false
     @EnvironmentObject var userPreferences: UserPreferences
+    @ObservedObject private var welcomeScheduler = WelcomeDayStartScheduler.shared
     
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
@@ -164,7 +165,7 @@ struct HomeView: View {
                     .font(.headline)
                     .foregroundColor(BananaTheme.ColorToken.text.opacity(0.8))
                 
-                Text(WelcomeDayStartScheduler.shared.welcomeCountdownText)
+                Text(welcomeScheduler.welcomeCountdownText)
                     .font(.system(size: 48, weight: .bold, design: .monospaced))
                     .foregroundColor(BananaTheme.ColorToken.primary)
             }
@@ -228,19 +229,54 @@ struct HomeView: View {
                         .cornerRadius(12)
                 }
             } else if let nextTime = viewModel.nextDayStartTime {
-                VStack(spacing: 12) {
-                    Text("Next DayStart")
-                        .adaptiveFont(BananaTheme.Typography.headline)
-                        .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
-                    
-                    Text(nextTime, style: .time)
-                        .font(.system(size: 42, weight: .semibold, design: .rounded))
-                        .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
-                    
-                    Text(formattedDate(for: nextTime))
-                        .font(.subheadline)
-                        .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                        .opacity(viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday ? 1.0 : 0.7)
+                // Check if today's DayStart is available and not completed
+                if viewModel.isNextDayStartToday && !viewModel.hasCompletedCurrentOccurrence {
+                    VStack(spacing: 30) {
+                        VStack(spacing: 12) {
+                            Text("Today's DayStart")
+                                .adaptiveFont(BananaTheme.Typography.headline)
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            
+                            Text(nextTime, style: .time)
+                                .font(.system(size: 42, weight: .semibold, design: .rounded))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                
+                            Text("Available Now")
+                                .font(.subheadline)
+                                .foregroundColor(BananaTheme.ColorToken.primary)
+                                .fontWeight(.medium)
+                        }
+                        
+                        Button(action: { viewModel.startDayStart() }) {
+                            Text("DayStart")
+                                .adaptiveFont(BananaTheme.Typography.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(BananaTheme.ColorToken.background)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 80)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 25)
+                                        .fill(BananaTheme.ColorToken.primary)
+                                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+                                )
+                        }
+                        .padding(.horizontal, 40)
+                    }
+                } else {
+                    VStack(spacing: 12) {
+                        Text("Next DayStart")
+                            .adaptiveFont(BananaTheme.Typography.headline)
+                            .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
+                        
+                        Text(nextTime, style: .time)
+                            .font(.system(size: 42, weight: .semibold, design: .rounded))
+                            .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
+                        
+                        Text(formattedDate(for: nextTime))
+                            .font(.subheadline)
+                            .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                            .opacity(viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday ? 1.0 : 0.7)
+                    }
                 }
             }
         }

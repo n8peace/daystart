@@ -7,6 +7,8 @@ struct HistoryView: View {
     @State private var visibleCount: Int = 10
     @State private var searchQuery: String = ""
     @StateObject private var streakManager = StreakManager.shared
+    @State private var dismissTask: Task<Void, Never>?
+    @State private var textInputTask: Task<Void, Never>?
     
     private let logger = DebugLogger.shared
     
@@ -32,7 +34,10 @@ struct HistoryView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
-                        presentationMode.wrappedValue.dismiss()
+                        dismissTask?.cancel()
+                        dismissTask = Task {
+                            presentationMode.wrappedValue.dismiss()
+                        }
                     }
                     .foregroundColor(BananaTheme.ColorToken.text)
                 }
@@ -44,6 +49,10 @@ struct HistoryView: View {
         .onChange(of: searchQuery) { _ in
             // Reset pagination when search changes
             visibleCount = 10
+        }
+        .onDisappear {
+            dismissTask?.cancel()
+            textInputTask?.cancel()
         }
     }
     
@@ -173,7 +182,14 @@ struct HistoryView: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(BananaTheme.ColorToken.secondaryText)
-            TextField("Search transcripts", text: $searchQuery)
+            TextField("Search transcripts", text: Binding(
+                get: { searchQuery },
+                set: { newValue in
+                    textInputTask?.cancel()
+                    let sanitized = String(newValue.prefix(100)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    searchQuery = sanitized
+                }
+            ))
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
         }

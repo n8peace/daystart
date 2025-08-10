@@ -12,6 +12,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     @Published var duration: TimeInterval = 0
     @Published var playbackRate: Float = 1.0
     @Published var currentTrackId: UUID?
+    @Published var didFinishPlaying = false
     
     private var audioPlayer: AVAudioPlayer?
     private var displayLink: Timer?
@@ -50,6 +51,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
             audioPlayer?.prepareToPlay()
             duration = audioPlayer?.duration ?? 0
             currentTime = 0
+            didFinishPlaying = false
             currentTrackId = trackId
             logger.logAudioEvent("Audio loaded successfully", details: ["duration": duration])
         } catch {
@@ -73,6 +75,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
         logger.logAudioEvent("Playing audio", details: ["rate": playbackRate])
         player.play()
         isPlaying = true
+        didFinishPlaying = false
         startTimeObserver()
     }
     
@@ -130,6 +133,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
         audioPlayer?.currentTime = 0
         currentTime = 0
         isPlaying = false
+        didFinishPlaying = false
         currentTrackId = nil
         stopTimeObserver()
     }
@@ -185,6 +189,7 @@ extension AudioPlayerManager: AVAudioPlayerDelegate {
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         logger.logAudioEvent("Audio playback finished", details: ["successful": flag])
         isPlaying = false
+        didFinishPlaying = true
         stopTimeObserver()
         currentTime = 0
     }
