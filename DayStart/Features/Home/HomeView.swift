@@ -6,6 +6,32 @@ struct HomeView: View {
     @State private var showHistory = false
     @EnvironmentObject var userPreferences: UserPreferences
     
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        return formatter
+    }
+    
+    private func formattedDate(for date: Date) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
+        let sevenDaysFromToday = calendar.date(byAdding: .day, value: 7, to: today) ?? now
+        
+        if viewModel.isNextDayStartToday {
+            return "Today, \(dateFormatter.string(from: date))"
+        } else if viewModel.isNextDayStartTomorrow {
+            return "Tomorrow, \(dateFormatter.string(from: date))"
+        } else if date < sevenDaysFromToday {
+            // Within next 7 days - add day name
+            let dayFormatter = DateFormatter()
+            dayFormatter.dateFormat = "EEEE" // Full day name
+            return "\(dayFormatter.string(from: date)), \(dateFormatter.string(from: date))"
+        } else {
+            return dateFormatter.string(from: date)
+        }
+    }
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -21,8 +47,7 @@ struct HomeView: View {
                     Spacer()
                     
                     if viewModel.state == .playing {
-                        AudioPlayerView()
-                            .padding(.horizontal)
+                        AudioPlayerView(dayStart: viewModel.currentDayStart)
                     }
                 }
                 .padding()
@@ -36,6 +61,7 @@ struct HomeView: View {
                             .font(.title3)
                             .foregroundColor(BananaTheme.ColorToken.text)
                     }
+                    .tint(BananaTheme.ColorToken.primary)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -44,6 +70,7 @@ struct HomeView: View {
                             .font(.title3.weight(.medium))
                             .foregroundColor(BananaTheme.ColorToken.text)
                     }
+                    .tint(BananaTheme.ColorToken.primary)
                 }
             }
             .sheet(isPresented: $showEditSchedule) {
@@ -66,10 +93,26 @@ struct HomeView: View {
         VStack(spacing: 8) {
             let name = userPreferences.settings.preferredName
             if !name.isEmpty {
-                Text("Good morning, \(name)")
+                Text("\(timeBasedGreeting), \(name)")
                     .adaptiveFont(BananaTheme.Typography.title2)
                     .foregroundColor(BananaTheme.ColorToken.secondaryText)
             }
+        }
+    }
+    
+    private var timeBasedGreeting: String {
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: Date())
+        
+        switch hour {
+        case 4..<12:
+            return "Good morning"
+        case 12..<17:
+            return "Good afternoon"
+        case 17..<20:
+            return "Good evening"
+        default:
+            return "Rest well"
         }
     }
     
@@ -78,6 +121,10 @@ struct HomeView: View {
         switch viewModel.state {
         case .idle:
             idleView
+        case .welcomeCountdown:
+            welcomeCountdownView
+        case .welcomeReady:
+            welcomeReadyView
         case .countdown:
             countdownView
         case .ready:
@@ -89,6 +136,82 @@ struct HomeView: View {
         }
     }
     
+    private var welcomeCountdownView: some View {
+        VStack(spacing: 30) {
+            VStack(spacing: 12) {
+                Text("🎉")
+                    .font(.system(size: 80))
+                    .scaleEffect(1.2)
+                    .animation(
+                        Animation.easeInOut(duration: 1.5)
+                            .repeatForever(autoreverses: true),
+                        value: viewModel.state
+                    )
+                
+                Text("Welcome to DayStart!")
+                    .adaptiveFont(BananaTheme.Typography.title2)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                    .multilineTextAlignment(.center)
+                
+                Text("Your first DayStart is preparing...")
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+            
+            VStack(spacing: 8) {
+                Text("Ready in")
+                    .font(.headline)
+                    .foregroundColor(BananaTheme.ColorToken.text.opacity(0.8))
+                
+                Text(WelcomeDayStartScheduler.shared.welcomeCountdownText)
+                    .font(.system(size: 48, weight: .bold, design: .monospaced))
+                    .foregroundColor(BananaTheme.ColorToken.primary)
+            }
+        }
+    }
+    
+    private var welcomeReadyView: some View {
+        VStack(spacing: 30) {
+            VStack(spacing: 12) {
+                Image(systemName: "gift.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(BananaTheme.ColorToken.primary)
+                
+                Text("Your Welcome DayStart is Ready!")
+                    .adaptiveFont(BananaTheme.Typography.title2)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                    .multilineTextAlignment(.center)
+                
+                Text("Experience what your mornings will be like")
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+            
+            Button(action: { viewModel.startWelcomeDayStart() }) {
+                Text("DayStart")
+                    .adaptiveFont(BananaTheme.Typography.title)
+                    .fontWeight(.bold)
+                    .foregroundColor(BananaTheme.ColorToken.background)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 80)
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .fill(BananaTheme.ColorToken.primary)
+                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+                    )
+            }
+            .padding(.horizontal, 40)
+            .scaleEffect(1.0)
+            .animation(
+                Animation.easeInOut(duration: 1.5)
+                    .repeatForever(autoreverses: true),
+                value: viewModel.state
+            )
+        }
+    }
+
     private var idleView: some View {
         VStack(spacing: 20) {
             if viewModel.showNoScheduleMessage {
@@ -106,18 +229,18 @@ struct HomeView: View {
                 }
             } else if let nextTime = viewModel.nextDayStartTime {
                 VStack(spacing: 12) {
-                    Text("Tomorrow's DayStart")
+                    Text("Next DayStart")
                         .adaptiveFont(BananaTheme.Typography.headline)
-                        .foregroundColor(viewModel.isNextDayStartTomorrow ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
+                        .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
                     
                     Text(nextTime, style: .time)
-                        .font(.system(size: 42, weight: .medium, design: .rounded))
-                        .foregroundColor(viewModel.isNextDayStartTomorrow ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
+                        .font(.system(size: 42, weight: .semibold, design: .rounded))
+                        .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
                     
-                    Text(nextTime, style: .date)
+                    Text(formattedDate(for: nextTime))
                         .font(.subheadline)
                         .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                        .opacity(viewModel.isNextDayStartTomorrow ? 1.0 : 0.7)
+                        .opacity(viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday ? 1.0 : 0.7)
                 }
             }
         }
@@ -134,9 +257,15 @@ struct HomeView: View {
                 .foregroundColor(BananaTheme.ColorToken.text)
             
             if let nextTime = viewModel.nextDayStartTime {
-                Text(nextTime, style: .time)
-                    .font(.title3)
-                    .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                VStack(spacing: 4) {
+                    Text(nextTime, style: .time)
+                        .font(.title3.weight(.semibold))
+                        .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                    
+                    Text(formattedDate(for: nextTime))
+                        .font(.caption)
+                        .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                }
             }
         }
     }
@@ -156,14 +285,17 @@ struct HomeView: View {
             Button(action: { viewModel.startDayStart() }) {
                 Text(viewModel.hasCompletedCurrentOccurrence ? "Replay" : "DayStart")
                     .adaptiveFont(BananaTheme.Typography.title)
+                    .fontWeight(.bold)
                     .foregroundColor(BananaTheme.ColorToken.background)
-                    .frame(width: 200, height: 200)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 80)
                     .background(
-                        Circle()
+                        RoundedRectangle(cornerRadius: 25)
                             .fill(BananaTheme.ColorToken.primary)
                             .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
                     )
             }
+            .padding(.horizontal, 40)
             .scaleEffect(1.0)
             .animation(
                 Animation.easeInOut(duration: 1.5)
@@ -210,13 +342,19 @@ struct HomeView: View {
             
             if let nextTime = viewModel.nextDayStartTime {
                 VStack(spacing: 8) {
-                    Text("Tomorrow's DayStart")
+                    Text("Next DayStart")
                         .font(.subheadline)
-                        .foregroundColor(viewModel.isNextDayStartTomorrow ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
+                        .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
                     
-                    Text(nextTime, style: .time)
-                        .font(.title3)
-                        .foregroundColor(viewModel.isNextDayStartTomorrow ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
+                    VStack(spacing: 2) {
+                        Text(nextTime, style: .time)
+                            .font(.title3.weight(.semibold))
+                            .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
+                        
+                        Text(formattedDate(for: nextTime))
+                            .font(.caption2)
+                            .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                    }
                 }
             }
         }

@@ -87,7 +87,36 @@ class UserPreferences: ObservableObject {
             }
             return updated
         }
-        return patched
+        
+        // Deduplicate the patched history to remove any duplicate dates
+        var deduplicatedHistory: [DayStartData] = []
+        var seenDates: Set<DateComponents> = []
+        
+        for item in patched {
+            let dateComponents = calendar.dateComponents([.year, .month, .day], from: item.date)
+            
+            if !seenDates.contains(dateComponents) {
+                seenDates.insert(dateComponents)
+                deduplicatedHistory.append(item)
+            } else {
+                // Find the existing item for this date
+                if let existingIndex = deduplicatedHistory.firstIndex(where: { 
+                    let existingComponents = calendar.dateComponents([.year, .month, .day], from: $0.date)
+                    return existingComponents == dateComponents 
+                }) {
+                    let existing = deduplicatedHistory[existingIndex]
+                    
+                    // Keep the one with more data (audio) or the most recent
+                    let shouldReplace = item.audioFilePath != nil && (existing.audioFilePath == nil || item.date > existing.date)
+                    
+                    if shouldReplace {
+                        deduplicatedHistory[existingIndex] = item
+                    }
+                }
+            }
+        }
+        
+        return deduplicatedHistory
     }
     
     private func saveSchedule() {

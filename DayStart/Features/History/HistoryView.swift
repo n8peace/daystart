@@ -6,6 +6,7 @@ struct HistoryView: View {
     let onReplay: (DayStartData) -> Void
     @State private var visibleCount: Int = 10
     @State private var searchQuery: String = ""
+    @StateObject private var streakManager = StreakManager.shared
     
     private let logger = DebugLogger.shared
     
@@ -33,6 +34,7 @@ struct HistoryView: View {
                     Button("Done") {
                         presentationMode.wrappedValue.dismiss()
                     }
+                    .foregroundColor(BananaTheme.ColorToken.text)
                 }
             }
             .overlay(alignment: .bottom) {
@@ -64,20 +66,91 @@ struct HistoryView: View {
     
     private var historyList: some View {
         List {
-            let items = displayedHistory
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, dayStart in
-                HistoryRow(dayStart: dayStart)
+            Section(header: sectionHeader("DayStart Streak")) {
+                streakHeader
+            }
+
+            Section(header: sectionHeader("Your history")) {
+                let items = displayedHistory
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, dayStart in
+                    VStack(alignment: .leading, spacing: 0) {
+                        HistoryRow(dayStart: dayStart)
+                    }
+                    .padding(12)
+                    .background(BananaTheme.ColorToken.card)
+                    .cornerRadius(12)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+                    .listRowSeparator(.hidden)
                     .onAppear {
-                        // Infinite scroll: load 10 more when last visible appears
-                        if index == items.count - 1 {
-                            let total = filteredHistory.count
-                            if visibleCount < total {
-                                visibleCount = min(visibleCount + 10, total)
+                            // Infinite scroll: load 10 more when last visible appears
+                            if index == items.count - 1 {
+                                let total = filteredHistory.count
+                                if visibleCount < total {
+                                    visibleCount = min(visibleCount + 10, total)
+                                }
                             }
                         }
-                    }
+                }
             }
         }
+    }
+
+    // Header card that summarizes streaks
+    private var streakHeader: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 12) {
+                        Label("\(streakManager.currentStreak)", systemImage: "flame.fill")
+                            .foregroundColor(BananaTheme.ColorToken.accent)
+                            .adaptiveFont(BananaTheme.Typography.title2)
+                        Text("Best: \(streakManager.bestStreak)")
+                            .adaptiveFont(BananaTheme.Typography.headline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
+            // Mini 7-day strip
+            let days = streakManager.lastNDaysStatuses(7)
+            HStack(spacing: 8) {
+                ForEach(0..<days.count, id: \.self) { i in
+                    let entry = days[i]
+                    VStack(spacing: 4) {
+                        Text(weekdayAbbrev(entry.date))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Circle()
+                            .fill(color(for: entry.status))
+                            .frame(width: 14, height: 14)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .padding(12)
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .adaptiveFont(BananaTheme.Typography.headline)
+            .foregroundColor(.primary)
+            .textCase(nil)
+    }
+
+    private func color(for status: StreakManager.DayStatus) -> Color {
+        switch status {
+        case .completedSameDay: return BananaTheme.ColorToken.accent
+        case .completedLate: return .gray
+        case .inProgress: return BananaTheme.ColorToken.secondaryText
+        case .notStarted: return BananaTheme.ColorToken.secondaryText.opacity(0.3)
+        }
+    }
+
+    private func weekdayAbbrev(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "E"
+        return f.string(from: date)
     }
 
     // Filtered by transcript search
@@ -118,18 +191,19 @@ struct HistoryRow: View {
     let dayStart: DayStartData
     @State private var isExpanded = false
     @StateObject private var audioPlayer = AudioPlayerManager.shared
+    @StateObject private var streakManager = StreakManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             headerView
-            
+
+            actionButtons
+
             // Show transcript only if audio exists or entry is marked deleted
             if isExpanded && canShowTranscript {
                 transcriptView
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            
-            actionButtons
         }
         .padding(.vertical, 8)
         .animation(.easeInOut(duration: 0.3), value: isExpanded)
@@ -148,15 +222,7 @@ struct HistoryRow: View {
             
             Spacer()
             
-            if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path), !dayStart.isDeleted {
-                Text(formattedDuration)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(BananaTheme.ColorToken.card)
-                    .cornerRadius(8)
-            }
+            statusChip
         }
     }
 
@@ -251,6 +317,65 @@ struct HistoryRow: View {
                             .foregroundColor(.secondary)
                     }
                 }
+            }
+        }
+    }
+
+    private var statusChip: some View {
+        let s = streakManager.status(for: dayStart.scheduledTime ?? dayStart.date)
+        switch s {
+        case .completedSameDay:
+            return AnyView(
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.seal.fill").foregroundColor(.green)
+                    Text(formattedDuration)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(BananaTheme.ColorToken.card)
+                .cornerRadius(8)
+            )
+        case .completedLate:
+            return AnyView(
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.badge.exclamationmark").foregroundColor(.orange)
+                    Text(formattedDuration)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(BananaTheme.ColorToken.card)
+                .cornerRadius(8)
+            )
+        case .inProgress:
+            return AnyView(
+                HStack(spacing: 6) {
+                    Image(systemName: "bolt.fill").foregroundColor(BananaTheme.ColorToken.accent)
+                    Text("In progress")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(BananaTheme.ColorToken.card)
+                .cornerRadius(8)
+            )
+        case .notStarted:
+            if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path), !dayStart.isDeleted {
+                return AnyView(
+                    Text(formattedDuration)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(BananaTheme.ColorToken.card)
+                        .cornerRadius(8)
+                )
+            } else {
+                return AnyView(EmptyView())
             }
         }
     }

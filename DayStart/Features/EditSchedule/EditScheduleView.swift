@@ -40,6 +40,30 @@ struct EditScheduleView: View {
         return previewSchedule.nextOccurrence
     }
     
+    private var isTomorrowInSchedule: Bool {
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))!
+        let tomorrowWeekday = calendar.component(.weekday, from: tomorrow)
+        guard let tomorrowWeekDay = WeekDay(weekday: tomorrowWeekday) else { return false }
+        return selectedDays.contains(tomorrowWeekDay)
+    }
+    
+    private func previewDescription(for nextTime: Date) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+        let nextOccurrenceDay = calendar.startOfDay(for: nextTime)
+        
+        if nextOccurrenceDay == today {
+            return "Today's DayStart"
+        } else if nextOccurrenceDay == tomorrow {
+            return "Tomorrow's DayStart"
+        } else {
+            return "Next DayStart"
+        }
+    }
+    
     // Detect if there are unsaved changes compared to persisted preferences
     private var hasUnsavedChanges: Bool {
         // Compare schedule fields
@@ -82,6 +106,10 @@ struct EditScheduleView: View {
             || voiceChanged
             || lengthChanged
             || symbolsChanged
+    }
+    
+    private var shouldHighlightSave: Bool {
+        return hasUnsavedChanges && !isLocked
     }
     
     init() {
@@ -130,6 +158,7 @@ struct EditScheduleView: View {
                         presentationMode.wrappedValue.dismiss()
                     }) {
                         Image(systemName: "xmark")
+                            .foregroundColor(BananaTheme.ColorToken.text)
                     }
                 }
                 
@@ -143,8 +172,9 @@ struct EditScheduleView: View {
                         }
                     }) {
                         Image(systemName: "checkmark")
-                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .foregroundColor(shouldHighlightSave ? BananaTheme.ColorToken.accent : BananaTheme.ColorToken.text)
                     }
+                    .tint(BananaTheme.ColorToken.primary)
                     .disabled(isLocked)
                 }
             }
@@ -260,17 +290,17 @@ struct EditScheduleView: View {
             .disabled(isLocked || selectedDays.isEmpty)
             .opacity(selectedDays.isEmpty ? 0.6 : 1.0)
             
-            Toggle("Next DayStart", isOn: Binding(
+            Toggle("Tomorrow's DayStart", isOn: Binding(
                 get: { !skipTomorrow },
                 set: { skipTomorrow = !$0 }
             ))
                 .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked || selectedDays.isEmpty)
-                .opacity(selectedDays.isEmpty ? 0.6 : 1.0)
+                .disabled(isLocked || selectedDays.isEmpty || !isTomorrowInSchedule)
+                .opacity(selectedDays.isEmpty || !isTomorrowInSchedule ? 0.6 : 1.0)
             
             if !selectedDays.isEmpty, let nextTime = previewNextOccurrence {
                 HStack {
-                    Text("Next DayStart")
+                    Text(previewDescription(for: nextTime))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()

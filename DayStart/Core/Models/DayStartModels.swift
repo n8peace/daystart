@@ -169,9 +169,11 @@ struct UserSettings: Codable {
     
     static func isValidStockSymbol(_ symbol: String) -> Bool {
         let trimmed = symbol.trimmingCharacters(in: .whitespaces).uppercased()
+        // Allow letters, numbers, hyphens, and dots for crypto pairs (BTC-USD) and some ETFs
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-.$"))
         return trimmed.count >= 1 && 
-               trimmed.count <= 5 && 
-               trimmed.allSatisfy { $0.isLetter && $0.isASCII }
+               trimmed.count <= 10 && 
+               trimmed.unicodeScalars.allSatisfy { allowedCharacters.contains($0) }
     }
 }
 

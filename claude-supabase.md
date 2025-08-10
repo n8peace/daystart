@@ -40,11 +40,109 @@ CREATE TABLE user_schedule (
   repeat_days INTEGER[] NOT NULL, -- Array of weekday numbers [1-7]
   wake_time_local TIME NOT NULL,
   timezone TEXT NOT NULL, -- IANA timezone (e.g., 'America/New_York')
+  skip_tomorrow BOOLEAN DEFAULT FALSE,
   last_scheduled_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id)
 );
+```
+
+#### `user_preferences`
+```sql
+CREATE TABLE user_preferences (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  
+  -- Profile
+  preferred_name TEXT,
+  has_completed_onboarding BOOLEAN DEFAULT FALSE,
+  theme_preference TEXT DEFAULT 'system' CHECK (theme_preference IN ('system', 'light', 'dark')),
+  
+  -- Content preferences
+  include_weather BOOLEAN DEFAULT TRUE,
+  include_news BOOLEAN DEFAULT TRUE,
+  include_sports BOOLEAN DEFAULT TRUE,
+  include_stocks BOOLEAN DEFAULT TRUE,
+  include_calendar BOOLEAN DEFAULT FALSE,
+  include_quotes BOOLEAN DEFAULT TRUE,
+  
+  -- Content details
+  quote_preference TEXT DEFAULT 'inspirational' CHECK (quote_preference IN (
+    'buddhist', 'christian', 'good_feelings', 'hindu', 'inspirational', 
+    'jewish', 'mindfulness', 'muslim', 'philosophical', 'stoic', 'success', 'zen'
+  )),
+  stock_symbols TEXT[] DEFAULT ARRAY['SPY', 'DIA', 'BTC-USD'],
+  selected_voice TEXT DEFAULT 'grace' CHECK (selected_voice IN ('grace', 'rachel', 'matthew')),
+  daystart_length INTEGER DEFAULT 5, -- minutes
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id)
+);
+```
+
+#### `streak_tracking`
+```sql
+CREATE TABLE streak_tracking (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  
+  -- Streak data
+  same_day_completion_dates DATE[] DEFAULT ARRAY[]::DATE[],
+  late_completion_dates DATE[] DEFAULT ARRAY[]::DATE[],
+  current_streak INTEGER DEFAULT 0,
+  best_streak INTEGER DEFAULT 0,
+  
+  -- Last update tracking
+  last_completed_date DATE,
+  last_update_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id)
+);
+
+-- Index for fast lookups
+CREATE INDEX streak_tracking_user_idx ON streak_tracking(user_id);
+```
+
+#### `daystart_history`
+```sql
+CREATE TABLE daystart_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  job_id UUID REFERENCES jobs(job_id) ON DELETE SET NULL,
+  
+  -- DayStart data
+  date DATE NOT NULL,
+  scheduled_time TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  
+  -- Content snapshot
+  weather TEXT,
+  news TEXT[],
+  sports TEXT[],
+  stocks TEXT[],
+  quote TEXT,
+  custom_prompt TEXT,
+  transcript TEXT NOT NULL,
+  
+  -- Audio info
+  duration INTEGER NOT NULL, -- seconds
+  audio_file_path TEXT, -- Path in storage
+  is_deleted BOOLEAN DEFAULT FALSE,
+  
+  -- Playback tracking
+  play_count INTEGER DEFAULT 0,
+  last_played_at TIMESTAMPTZ,
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, date)
+);
+
+-- Indexes for performance
+CREATE INDEX daystart_history_user_date_idx ON daystart_history(user_id, date DESC);
+CREATE INDEX daystart_history_cleanup_idx ON daystart_history(created_at) WHERE is_deleted = FALSE;
 ```
 
 #### `jobs` (Main job queue)
@@ -57,11 +155,18 @@ CREATE TABLE jobs (
   window_start TIMESTAMPTZ NOT NULL, -- When job can start processing (2hrs before)
   window_end TIMESTAMPTZ NOT NULL, -- Latest acceptable completion time
   
-  -- Job processing
+  -- Job processing with priority system
   status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'script_processing', 'script_ready', 'audio_processing', 'ready', 'failed', 'failed_missed')),
+  priority INTEGER DEFAULT 50, -- 100: Welcome/First DayStart, 75: Same-day urgent, 50: Regular, 25: Bulk/background
   attempt_count INTEGER DEFAULT 0,
   worker_id UUID, -- Which worker is processing
   lease_until TIMESTAMPTZ, -- FOR UPDATE SKIP LOCKED leasing
+  
+  -- DayStart context
+  daystart_type TEXT DEFAULT 'regular' CHECK (daystart_type IN ('regular', 'welcome', 'makeup', 'test')),
+  is_first_daystart BOOLEAN DEFAULT FALSE,
+  day_of_week TEXT, -- 'Monday', 'Tuesday', etc.
+  day_date DATE, -- '2025-08-09' for script context
   
   -- User preferences (captured at job creation)
   preferred_name TEXT,
@@ -69,8 +174,13 @@ CREATE TABLE jobs (
   weather_data JSONB, -- Current and forecast from WeatherKit
   encouragement_preference TEXT,
   stock_symbols TEXT[],
+  include_weather BOOLEAN DEFAULT true,
   include_news BOOLEAN DEFAULT true,
   include_sports BOOLEAN DEFAULT true,
+  include_stocks BOOLEAN DEFAULT true,
+  include_calendar BOOLEAN DEFAULT false,
+  include_quotes BOOLEAN DEFAULT true,
+  calendar_events TEXT[], -- Today's calendar events if enabled
   desired_voice TEXT NOT NULL,
   desired_length INTEGER NOT NULL, -- minutes
   
@@ -91,9 +201,10 @@ CREATE TABLE jobs (
 );
 
 -- Indexes for performance
-CREATE INDEX jobs_worker_queue_idx ON jobs(status, scheduled_at) WHERE status IN ('queued', 'script_ready');
+CREATE INDEX jobs_worker_queue_idx ON jobs(priority DESC, status, scheduled_at) WHERE status IN ('queued', 'script_ready');
 CREATE INDEX jobs_user_date_idx ON jobs(user_id, local_date);
 CREATE INDEX jobs_cleanup_idx ON jobs(audio_ready_at) WHERE audio_path IS NOT NULL;
+CREATE INDEX jobs_priority_created_idx ON jobs(priority DESC, created_at ASC);
 ```
 
 #### `content_blocks`
@@ -165,6 +276,9 @@ CREATE INDEX logs_event_idx ON logs(event, created_at DESC);
 -- Enable RLS on all tables
 -- ALTER TABLE user_devices ENABLE ROW LEVEL SECURITY; -- Removed
 ALTER TABLE user_schedule ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE streak_tracking ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daystart_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE content_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quote_history ENABLE ROW LEVEL SECURITY;
@@ -174,6 +288,15 @@ ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 -- CREATE POLICY "Users can manage their own devices" ON user_devices -- Removed
 
 CREATE POLICY "Users can manage their own schedule" ON user_schedule
+  FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage their own preferences" ON user_preferences
+  FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage their own streaks" ON streak_tracking
+  FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view their own daystart history" ON daystart_history
   FOR ALL USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can view their own jobs" ON jobs
@@ -193,6 +316,18 @@ CREATE POLICY "Service role full access logs" ON logs
   FOR ALL TO service_role USING (true);
 
 CREATE POLICY "Service role full access quotes" ON quote_history
+  FOR ALL TO service_role USING (true);
+
+CREATE POLICY "Service role full access preferences" ON user_preferences
+  FOR ALL TO service_role USING (true);
+
+CREATE POLICY "Service role full access streaks" ON streak_tracking
+  FOR ALL TO service_role USING (true);
+
+CREATE POLICY "Service role full access history" ON daystart_history
+  FOR ALL TO service_role USING (true);
+
+CREATE POLICY "Service role full access schedule" ON user_schedule
   FOR ALL TO service_role USING (true);
 ```
 
@@ -272,9 +407,9 @@ interface StocksResponse {
 #### `job_upsert_next_run`
 ```typescript
 // Endpoint: POST /functions/v1/job_upsert_next_run
-// Called by: iOS app 2 hours before scheduled time
+// Called by: iOS app 2 hours before scheduled time OR immediately for welcome DayStart
 // Purpose: Create or update job with user preferences
-// Scheduling: Only creates jobs within 48-hour rolling window
+// Scheduling: Only creates jobs within 48-hour rolling window (except welcome DayStart)
 
 interface JobRequest {
   preferred_name: string;
@@ -288,15 +423,29 @@ interface JobRequest {
   weather_forecast: object;
   encouragement_preference: string; // QuotePreference enum
   stock_symbols: string[];
+  include_weather: boolean;
   include_news: boolean;
   include_sports: boolean;
+  include_stocks: boolean;
   include_calendar: boolean;
+  include_quotes: boolean;
   calendar_events?: string[]; // Today's events if calendar enabled
-  desired_voice: string; // "voice1", "voice2", "voice3"
+  desired_voice: string; // "grace", "rachel", "matthew"
   desired_length: number; // minutes
   scheduled_at: string; // ISO timestamp
   local_date: string; // YYYY-MM-DD
   timezone: string; // IANA timezone
+  
+  // New fields for enhanced context
+  daystart_type?: 'regular' | 'welcome' | 'makeup' | 'test'; // Default: 'regular'
+  is_first_daystart?: boolean; // Default: false
+  priority?: number; // Default: 50, Welcome: 100
+  day_context: {
+    day_of_week: string; // 'Monday', 'Tuesday', etc.
+    date: string; // '2025-08-09'
+    is_today: boolean;
+    is_tomorrow: boolean;
+  };
 }
 
 interface JobResponse {
@@ -332,7 +481,7 @@ const job = await supabase.from('jobs').upsert({
 }).select().single();
 ```
 
-**Example Request:**
+**Example Request (Regular DayStart):**
 ```bash
 POST https://your-project.supabase.co/functions/v1/job_upsert_next_run
 
@@ -371,7 +520,47 @@ Body:
   "desired_length": 5,
   "scheduled_at": "2024-08-09T07:00:00-07:00",
   "local_date": "2024-08-09",
-  "timezone": "America/Los_Angeles"
+  "timezone": "America/Los_Angeles",
+  "day_context": {
+    "day_of_week": "Friday",
+    "date": "2024-08-09",
+    "is_today": false,
+    "is_tomorrow": true
+  }
+}
+```
+
+**Example Request (Welcome DayStart):**
+```bash
+POST https://your-project.supabase.co/functions/v1/job_upsert_next_run
+
+Body:
+{
+  "preferred_name": "Sarah",
+  "location": { /* ... */ },
+  "weather_current": { /* ... */ },
+  "weather_forecast": { /* ... */ },
+  "encouragement_preference": "inspirational",
+  "stock_symbols": ["AAPL", "TSLA", "SPY"],
+  "include_news": true,
+  "include_sports": true,
+  "include_calendar": false,
+  "desired_voice": "voice1",
+  "desired_length": 5,
+  "scheduled_at": "2024-08-09T10:15:00-07:00", // +10 minutes from onboarding
+  "local_date": "2024-08-09",
+  "timezone": "America/Los_Angeles",
+  
+  // Welcome DayStart specific fields
+  "daystart_type": "welcome",
+  "is_first_daystart": true,
+  "priority": 100,
+  "day_context": {
+    "day_of_week": "Friday",
+    "date": "2024-08-09",
+    "is_today": true,
+    "is_tomorrow": false
+  }
 }
 ```
 
@@ -533,6 +722,118 @@ interface AudioResponse {
   status: 'ready' | 'processing' | 'failed' | 'not_found';
   estimated_ready_time?: string;
   error_message?: string;
+}
+```
+
+#### `update_user_preferences`
+```typescript
+// Endpoint: POST /functions/v1/update_user_preferences
+// Called by: iOS app when user changes settings
+// Purpose: Update user preferences
+
+interface PreferencesRequest {
+  preferred_name?: string;
+  theme_preference?: 'system' | 'light' | 'dark';
+  include_weather?: boolean;
+  include_news?: boolean;
+  include_sports?: boolean;
+  include_stocks?: boolean;
+  include_calendar?: boolean;
+  include_quotes?: boolean;
+  quote_preference?: string;
+  stock_symbols?: string[];
+  selected_voice?: string;
+  daystart_length?: number;
+}
+
+interface PreferencesResponse {
+  success: boolean;
+  updated_at: string;
+}
+```
+
+#### `update_user_schedule`
+```typescript
+// Endpoint: POST /functions/v1/update_user_schedule
+// Called by: iOS app when user changes schedule
+// Purpose: Update wake time and repeat days
+
+interface ScheduleRequest {
+  wake_time_local: string; // "HH:MM" format
+  repeat_days: number[]; // [1-7] where 1=Sunday
+  timezone: string; // IANA timezone
+  skip_tomorrow?: boolean;
+}
+
+interface ScheduleResponse {
+  success: boolean;
+  updated_at: string;
+  next_scheduled_date?: string;
+}
+```
+
+#### `get_daystart_history`
+```typescript
+// Endpoint: GET /functions/v1/get_daystart_history?limit=10&offset=0
+// Called by: iOS app history view
+// Purpose: Get paginated history of completed DayStarts
+
+interface HistoryResponse {
+  success: boolean;
+  dayStarts: DayStartHistoryItem[];
+  total_count: number;
+  has_more: boolean;
+}
+
+interface DayStartHistoryItem {
+  id: string;
+  date: string;
+  scheduled_time?: string;
+  weather: string;
+  news: string[];
+  sports: string[];
+  stocks: string[];
+  quote: string;
+  transcript: string;
+  duration: number;
+  audio_url?: string; // Signed URL if audio exists
+  is_deleted: boolean;
+}
+```
+
+#### `update_streak_tracking`
+```typescript
+// Endpoint: POST /functions/v1/update_streak_tracking
+// Called by: iOS app when DayStart is played
+// Purpose: Update streak data
+
+interface StreakUpdateRequest {
+  date: string; // YYYY-MM-DD
+  completed_at: string; // ISO timestamp
+  is_same_day: boolean; // Whether completed on scheduled day
+}
+
+interface StreakUpdateResponse {
+  success: boolean;
+  current_streak: number;
+  best_streak: number;
+  status: 'same_day' | 'late' | 'already_completed';
+}
+```
+
+#### `mark_audio_downloaded`
+```typescript
+// Endpoint: POST /functions/v1/mark_audio_downloaded
+// Called by: iOS app after successful prefetch/download
+// Purpose: Track successful downloads for analytics
+
+interface DownloadRequest {
+  job_id: string;
+  downloaded_at: string; // ISO timestamp
+}
+
+interface DownloadResponse {
+  success: boolean;
 }
 ```
 
@@ -745,6 +1046,126 @@ CRON_JOB_SECRET= # For webhook authentication
 - **Alpha Vantage**: $50/month (Standard plan)
 
 ### **Total Estimated**: ~$900/month for 10K daily active users
+
+## iOS App Integration
+
+### Authentication Setup
+The iOS app currently uses local UserDefaults for data storage. Backend integration will require:
+
+1. **Supabase Auth SDK Integration**
+   ```swift
+   import Supabase
+   
+   let supabase = SupabaseClient(
+     supabaseURL: URL(string: "YOUR_SUPABASE_URL")!,
+     supabaseKey: "YOUR_ANON_KEY"
+   )
+   ```
+
+2. **Migration from Local Storage**
+   - Migrate existing UserPreferences to Supabase
+   - Migrate DayStart history to backend
+   - Migrate streak data to server
+   - Keep local backup during transition
+
+3. **API Service Layer**
+   ```swift
+   class DayStartAPIService {
+     static let shared = DayStartAPIService()
+     
+     func createJob(request: JobRequest) async throws -> JobResponse
+     func getUserAudio(date: Date) async throws -> AudioResponse
+     func updatePreferences(_ preferences: PreferencesRequest) async throws
+     func updateSchedule(_ schedule: ScheduleRequest) async throws
+     func getHistory(limit: Int, offset: Int) async throws -> HistoryResponse
+     func updateStreak(_ update: StreakUpdateRequest) async throws
+   }
+   ```
+
+### Data Sync Strategy
+1. **Offline-First Approach**: Keep local caching for reliability
+2. **Background Sync**: Upload changes when app becomes active
+3. **Conflict Resolution**: Server data takes precedence
+4. **Graceful Degradation**: Fall back to local data if API unavailable
+
+### Audio Prefetch Integration
+The iOS app already has sophisticated prefetch logic. Backend integration:
+
+1. **Job Creation**: Call `job_upsert_next_run` 2 hours before scheduled time
+2. **Status Polling**: Check job status via `get_user_audio` endpoint
+3. **Download**: Use signed URLs to download audio files
+4. **Caching**: Store in iOS app's Documents directory
+5. **Cleanup**: Remove old files after 7 days
+
+### Voice Selection Mapping
+iOS app uses different voice names than ElevenLabs:
+
+```typescript
+// Voice mapping in backend
+const VOICE_MAPPING = {
+  'grace': 'ELEVENLABS_VOICE_ID_1',
+  'rachel': 'ELEVENLABS_VOICE_ID_2', 
+  'matthew': 'ELEVENLABS_VOICE_ID_3'
+};
+```
+
+### Stock Symbol Validation
+The iOS app's updated stock validation supports crypto and longer symbols:
+
+```swift
+// iOS validation (already implemented)
+static func isValidStockSymbol(_ symbol: String) -> Bool {
+  let trimmed = symbol.trimmingCharacters(in: .whitespaces).uppercased()
+  let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-.$"))
+  return trimmed.count >= 1 && 
+         trimmed.count <= 10 && 
+         trimmed.unicodeScalars.allSatisfy { allowedCharacters.contains($0) }
+}
+```
+
+Backend should use similar validation in API endpoints.
+
+### Error Handling & Retry Logic
+iOS app should implement exponential backoff for API calls:
+
+```swift
+class APIRetryManager {
+  func retryWithBackoff<T>(
+    maxAttempts: Int = 3,
+    operation: @escaping () async throws -> T
+  ) async throws -> T {
+    // Implement exponential backoff with jitter
+  }
+}
+```
+
+### Notification Integration
+The iOS app handles notifications locally. Backend should:
+1. Not send push notifications (iOS handles scheduling)
+2. Provide job status API for iOS to check readiness
+3. Support immediate job creation for Welcome DayStarts
+
+### Development Phases
+
+#### Phase 1: Backend Setup (No iOS Changes)
+- Set up Supabase project and database
+- Implement Edge Functions for job processing
+- Test with Postman/curl
+
+#### Phase 2: iOS Integration Layer
+- Add Supabase SDK to iOS project
+- Create API service layer
+- Implement authentication flow
+
+#### Phase 3: Feature Migration
+- Migrate user preferences to backend
+- Implement job creation API calls
+- Add audio download logic
+
+#### Phase 4: Data Sync & Polish
+- Implement history sync
+- Add streak tracking sync
+- Performance optimization
 
 ## Implementation Timeline
 

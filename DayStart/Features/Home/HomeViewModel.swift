@@ -6,6 +6,8 @@ class HomeViewModel: ObservableObject {
     private let logger = DebugLogger.shared
     enum AppState {
         case idle
+        case welcomeCountdown
+        case welcomeReady
         case countdown
         case ready
         case playing
@@ -19,6 +21,7 @@ class HomeViewModel: ObservableObject {
     @Published var showNoScheduleMessage = false
     @Published var hasCompletedCurrentOccurrence = false
     @Published var isNextDayStartTomorrow = false
+    @Published var isNextDayStartToday = false
     
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
@@ -26,6 +29,7 @@ class HomeViewModel: ObservableObject {
     private let audioPlayer = AudioPlayerManager.shared
     private let notificationScheduler = NotificationScheduler.shared
     private let mockService = MockDataService.shared
+    private let welcomeScheduler = WelcomeDayStartScheduler.shared
     
     init() {
         logger.log("🏠 HomeViewModel initialized", level: .info)
@@ -68,11 +72,28 @@ class HomeViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+        
+        welcomeScheduler.$isWelcomePending
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isPending in
+                if isPending {
+                    self?.state = .welcomeCountdown
+                } else if self?.state == .welcomeCountdown {
+                    self?.state = .welcomeReady
+                }
+            }
+            .store(in: &cancellables)
     }
     
     private func updateState() {
         timer?.invalidate()
         logger.log("🔄 Updating app state", level: .debug)
+        
+        // Check for welcome DayStart first
+        if welcomeScheduler.isWelcomePending {
+            state = .welcomeCountdown
+            return
+        }
         
         guard let nextOccurrence = userPreferences.schedule.nextOccurrence else {
             logger.log("📅 No schedule found, showing no schedule message", level: .info)
@@ -81,16 +102,26 @@ class HomeViewModel: ObservableObject {
             nextDayStartTime = nil
             hasCompletedCurrentOccurrence = false
             isNextDayStartTomorrow = false
+            isNextDayStartToday = false
             return
         }
         
         showNoScheduleMessage = false
         nextDayStartTime = nextOccurrence
         
-        // Check if next DayStart is tomorrow
+        // Check if next DayStart is today or tomorrow
         let calendar = Calendar.current
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date())!
-        isNextDayStartTomorrow = calendar.isDate(nextOccurrence, inSameDayAs: tomorrow)
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+        let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: today)!
+        
+        let nextOccurrenceDay = calendar.startOfDay(for: nextOccurrence)
+        
+        isNextDayStartToday = nextOccurrenceDay == today
+        isNextDayStartTomorrow = nextOccurrenceDay == tomorrow
+        
+        logger.log("📅 Date check - Today: \(today), Tomorrow: \(tomorrow), NextOccurrence: \(nextOccurrenceDay), IsToday: \(isNextDayStartToday), IsTomorrow: \(isNextDayStartTomorrow)", level: .debug)
         
         let timeUntil = nextOccurrence.timeIntervalSinceNow
         let sixHoursInSeconds: TimeInterval = 6 * 3600 // 6 hours
@@ -164,9 +195,28 @@ class HomeViewModel: ObservableObject {
         // Cancel today's missed notification since user is now listening
         Task {
             await notificationScheduler.cancelTodaysMissedNotification()
+            await notificationScheduler.cancelTodaysEveningReminder()
         }
         
         scheduleNextNotifications()
+    }
+    
+    func startWelcomeDayStart() {
+        logger.logUserAction("Start Welcome DayStart", details: ["time": Date().description])
+        let dayStart = mockService.fetchDayStart(for: userPreferences.settings)
+        
+        var welcomeDayStart = dayStart
+        welcomeDayStart.id = UUID() // Generate new UUID for welcome DayStart
+        
+        currentDayStart = welcomeDayStart
+        userPreferences.addToHistory(welcomeDayStart)
+        
+        logger.logAudioEvent("Loading audio for Welcome DayStart")
+        audioPlayer.loadAudio()
+        audioPlayer.play()
+        state = .playing
+        
+        welcomeScheduler.cancelWelcomeDayStart()
     }
     
     func replayDayStart(_ dayStart: DayStartData) {

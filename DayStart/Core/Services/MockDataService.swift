@@ -314,9 +314,51 @@ class MockDataService {
                 audioFilePath: Bundle.main.path(forResource: "ai_wakeup_generic_voice1", ofType: "mp3"),
                 isDeleted: false
             )
-            items.insert(sample, at: 0)
+            
+            // Find if we already have an entry for Aug 8
+            if let existingIndex = items.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: targetDate) }) {
+                let existing = items[existingIndex]
+                
+                // Upsert logic: keep the one with data, or the most recent if both have data
+                let shouldReplace = sample.audioFilePath != nil && (existing.audioFilePath == nil || sample.date > existing.date)
+                
+                if shouldReplace {
+                    items[existingIndex] = sample
+                }
+            } else {
+                // No existing entry for this date, add it
+                items.insert(sample, at: 0)
+            }
         }
 
-        return items
+        // Deduplicate the entire array to ensure no duplicate dates
+        var deduplicatedItems: [DayStartData] = []
+        var seenDates: Set<DateComponents> = []
+        
+        for item in items {
+            let dateComponents = calendar.dateComponents([.year, .month, .day], from: item.date)
+            
+            if !seenDates.contains(dateComponents) {
+                seenDates.insert(dateComponents)
+                deduplicatedItems.append(item)
+            } else {
+                // Find the existing item for this date
+                if let existingIndex = deduplicatedItems.firstIndex(where: { 
+                    let existingComponents = calendar.dateComponents([.year, .month, .day], from: $0.date)
+                    return existingComponents == dateComponents 
+                }) {
+                    let existing = deduplicatedItems[existingIndex]
+                    
+                    // Keep the one with more data (audio) or the most recent
+                    let shouldReplace = item.audioFilePath != nil && (existing.audioFilePath == nil || item.date > existing.date)
+                    
+                    if shouldReplace {
+                        deduplicatedItems[existingIndex] = item
+                    }
+                }
+            }
+        }
+        
+        return deduplicatedItems
     }
 }

@@ -8,6 +8,10 @@ struct VoicePickerView: View {
     
     private let logger = DebugLogger.shared
     
+    private var hasUnsavedChanges: Bool {
+        return selectedVoice != originalSelection
+    }
+    
     init(selectedVoice: Binding<VoiceOption>) {
         self._selectedVoice = selectedVoice
         self._originalSelection = State(initialValue: selectedVoice.wrappedValue)
@@ -15,37 +19,32 @@ struct VoicePickerView: View {
     
     var body: some View {
         NavigationStack {
-            List(VoiceOption.allCases, id: \.self) { voice in
-                Button(action: { onSelect(voice) }) {
-                    HStack(spacing: BananaTheme.Spacing.md) {
-                        Image(systemName: "person.wave.2")
-                            .foregroundColor(BananaTheme.ColorToken.text)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(voice.name)
-                                .font(BananaTheme.Typography.body)
-                                .foregroundColor(BananaTheme.ColorToken.primaryText)
-                            Text(voiceDescription(for: voice))
-                                .font(.caption)
-                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                        }
-                        Spacer()
-                        if selectedVoice == voice {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(BananaTheme.ColorToken.primary)
-                                .font(.title2)
+            Form {
+                Section {
+                    ForEach(VoiceOption.allCases, id: \.self) { voice in
+                        Button(action: { onSelect(voice) }) {
+                            HStack(spacing: BananaTheme.Spacing.md) {
+                                Image(systemName: "person.wave.2")
+                                    .foregroundColor(.primary)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(voice.name)
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                    Text(voiceDescription(for: voice))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                if selectedVoice == voice {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(BananaTheme.ColorToken.primary)
+                                }
+                            }
                         }
                     }
                 }
-                .listRowBackground(
-                    selectedVoice == voice
-                    ? BananaTheme.ColorToken.primary.opacity(0.1)
-                    : BananaTheme.ColorToken.background
-                )
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .bananaBackground()
             .navigationTitle("Voice")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
@@ -67,6 +66,7 @@ struct VoicePickerView: View {
                         dismiss()
                     }) {
                         Image(systemName: "xmark")
+                            .foregroundColor(BananaTheme.ColorToken.text)
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -80,7 +80,9 @@ struct VoicePickerView: View {
                         dismiss()
                     }) {
                         Image(systemName: "checkmark")
+                            .foregroundColor(hasUnsavedChanges ? BananaTheme.ColorToken.accent : BananaTheme.ColorToken.text)
                     }
+                    .tint(BananaTheme.ColorToken.primary)
                 }
             }
             .onDisappear {

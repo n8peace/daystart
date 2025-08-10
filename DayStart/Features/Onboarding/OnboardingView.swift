@@ -14,7 +14,7 @@ struct OnboardingView: View {
     @State private var includeNews = true  // Auto-selected
     @State private var includeSports = true  // Auto-selected
     @State private var includeStocks = true  // Auto-selected
-    @State private var stockSymbols = ""
+    @State private var stockSymbols = "SPY, DIA, BTC-USD"
     @State private var includeCalendar = false
     @State private var includeQuotes = true
     @State private var selectedQuoteType: QuotePreference = .inspirational
@@ -339,7 +339,7 @@ struct OnboardingView: View {
                 
                 
                 VStack(spacing: BananaTheme.Spacing.md) {
-                    Text("What gets you started?")
+                    Text("What gets you started ☕")
                         .adaptiveFont(BananaTheme.Typography.title)
                         .foregroundColor(BananaTheme.ColorToken.text)
                         .multilineTextAlignment(.center)
@@ -390,7 +390,7 @@ struct OnboardingView: View {
                     
                     if includeStocks {
                         VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
-                            TextField("Enter symbols: AAPL, TSLA, SPY", text: $stockSymbols)
+                            TextField("Enter symbols: SPY, DIA, BTC-USD", text: $stockSymbols)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .font(BananaTheme.Typography.body)
                                 .padding(.leading, BananaTheme.Spacing.xl)
@@ -849,6 +849,11 @@ struct OnboardingView: View {
         // Request permissions for enabled features
         Task {
             await requestRequiredPermissions()
+            
+            // Schedule welcome DayStart for 10 minutes from now
+            WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
+            logger.log("🎉 Welcome DayStart scheduled for new user", level: .info)
+            
             onComplete()
         }
     }

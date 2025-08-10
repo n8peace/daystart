@@ -9,6 +9,7 @@ class NotificationScheduler {
     private let prefetchIdentifierPrefix = "daystart_prefetch_"
     private let reminderIdentifierPrefix = "daystart_reminder_"
     private let missedIdentifierPrefix = "daystart_missed_"
+    private let streakEveningIdentifierPrefix = "daystart_streak_evening_"
     
     private init() {}
     
@@ -69,9 +70,21 @@ class NotificationScheduler {
                 await scheduleReminderNotification(for: reminderDate, dayOffset: dayOffset)
             }
             
-            // Schedule missed notification (6 hours after)
-            if let missedDate = calendar.date(byAdding: .hour, value: 6, to: notificationDate) {
-                await scheduleMissedNotification(for: missedDate, dayOffset: dayOffset)
+            // Notifications to encourage listening without duplicates:
+            // - Today (dayOffset == 0): schedule ONLY the evening streak reminder (8 PM), skip the 6-hour "missed" to avoid overlap
+            // - Future days: schedule the standard 6-hour missed notification; do NOT schedule evening reminders in advance
+            if dayOffset == 0 {
+                if var eveningComponents = calendar.dateComponents([.year, .month, .day], from: targetDate) as DateComponents? {
+                    eveningComponents.hour = 20
+                    eveningComponents.minute = 0
+                    if let eveningDate = calendar.date(from: eveningComponents), eveningDate > now, eveningDate <= maxScheduleTime {
+                        await scheduleStreakEveningReminder(for: eveningDate, dayOffset: dayOffset)
+                    }
+                }
+            } else {
+                if let missedDate = calendar.date(byAdding: .hour, value: 6, to: notificationDate) {
+                    await scheduleMissedNotification(for: missedDate, dayOffset: dayOffset)
+                }
             }
         }
         
@@ -211,6 +224,27 @@ class NotificationScheduler {
             DebugLogger.shared.log("Cancelled today's missed notifications: \(todaysIdentifiers)", level: .info)
         }
     }
+
+    func cancelTodaysEveningReminder() async {
+        let calendar = Calendar.current
+        let now = Date()
+        let requests = await getScheduledNotifications()
+        let todaysIdentifiers = requests
+            .filter { request in
+                guard let trigger = request.trigger as? UNCalendarNotificationTrigger,
+                      let nextTriggerDate = trigger.nextTriggerDate() else {
+                    return false
+                }
+                return request.identifier.hasPrefix(streakEveningIdentifierPrefix) &&
+                       calendar.isDate(nextTriggerDate, inSameDayAs: now)
+            }
+            .map { $0.identifier }
+
+        if !todaysIdentifiers.isEmpty {
+            notificationCenter.removePendingNotificationRequests(withIdentifiers: todaysIdentifiers)
+            DebugLogger.shared.log("Cancelled today's streak evening reminders: \(todaysIdentifiers)", level: .info)
+        }
+    }
     
     private func scheduleMainNotification(for date: Date, dayOffset: Int) async {
         let content = UNMutableNotificationContent()
@@ -302,6 +336,28 @@ class NotificationScheduler {
             DebugLogger.shared.log("Scheduled missed notification for \(date)", level: .info)
         } catch {
             DebugLogger.shared.log("Failed to schedule missed notification: \(error)", level: .error)
+        }
+    }
+
+    private func scheduleStreakEveningReminder(for date: Date, dayOffset: Int) async {
+        let content = UNMutableNotificationContent()
+        content.title = "🔥 Keep Your Streak Alive"
+        content.body = "You’ve got time today. Listen to keep the streak going."
+        content.sound = .default
+        content.categoryIdentifier = "DAYSTART_MISSED_CATEGORY" // Reuse listen action
+
+        let calendar = Calendar.current
+        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
+
+        let identifier = "\(streakEveningIdentifierPrefix)\(dayOffset)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+
+        do {
+            try await notificationCenter.add(request)
+            DebugLogger.shared.log("Scheduled streak evening reminder for \(date)", level: .info)
+        } catch {
+            DebugLogger.shared.log("Failed to schedule streak evening reminder: \(error)", level: .error)
         }
     }
 }
