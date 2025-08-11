@@ -19,10 +19,22 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Log deployment start
+      run: |
+        echo "🚀 Starting Supabase deployment"
+        echo "📅 Deployment time: $(date)"
+        echo "🔧 Triggered by: ${{ github.event_name }}"
+        echo "📦 Commit: ${{ github.sha }}"
+        
     - name: Setup Deno
       uses: denoland/setup-deno@v1
       with:
         deno-version: v1.x
+        
+    - name: Verify Deno installation
+      run: |
+        echo "📌 Deno version:"
+        deno --version
         
     - name: Setup Supabase CLI
       uses: supabase/setup-cli@v1
@@ -30,30 +42,103 @@ jobs:
         version: latest
         
     - name: Verify Supabase CLI
-      run: supabase --version
-      
+      run: |
+        echo "📌 Supabase CLI version:"
+        supabase --version
+        
     - name: Link Supabase project
-      run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+      run: |
+        echo "🔗 Linking to Supabase project..."
+        echo "📍 Project Reference: ${{ secrets.SUPABASE_PROJECT_REF }}"
+        echo "📍 Full URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co"
+        echo "📍 Using access token: ${SUPABASE_ACCESS_TOKEN:0:10}..."
+        echo "📍 Current directory: $(pwd)"
+        echo "📍 Checking for existing supabase directory:"
+        ls -la | grep supabase || echo "No existing supabase directory found"
+        
+        echo "🔧 Running link command..."
+        supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --debug || {
+          echo "❌ Link failed with exit code: $?"
+          echo "📋 Current directory contents:"
+          ls -la
+          exit 1
+        }
+        echo "✅ Project linked successfully"
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        
+    - name: List migration files
+      run: |
+        echo "📋 Migration files to be applied:"
+        ls -la supabase/migrations/
         
     - name: Run database migrations
-      run: supabase db push
+      run: |
+        echo "🗄️ Running database migrations..."
+        supabase db push --debug
+        echo "✅ Migrations completed"
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         
+    - name: List Edge Functions
+      run: |
+        echo "📋 Edge Functions to deploy:"
+        ls -la supabase/functions/
+        
     - name: Deploy Edge Functions
-      run: supabase functions deploy --no-verify-jwt
+      run: |
+        echo "⚡ Deploying Edge Functions..."
+        supabase functions deploy --no-verify-jwt --debug
+        echo "✅ Functions deployed successfully"
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         
     - name: Set function secrets
       run: |
-        supabase secrets set OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
-        supabase secrets set ELEVENLABS_API_KEY="${{ secrets.ELEVENLABS_API_KEY }}"
-        supabase secrets set WORKER_AUTH_TOKEN="${{ secrets.WORKER_AUTH_TOKEN }}"
+        echo "🔐 Setting function environment variables..."
+        
+        if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+          echo "  - Setting OPENAI_API_KEY"
+          supabase secrets set OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
+        else
+          echo "  ⚠️ OPENAI_API_KEY not found in secrets"
+        fi
+        
+        if [ -n "${{ secrets.ELEVENLABS_API_KEY }}" ]; then
+          echo "  - Setting ELEVENLABS_API_KEY"
+          supabase secrets set ELEVENLABS_API_KEY="${{ secrets.ELEVENLABS_API_KEY }}"
+        else
+          echo "  ⚠️ ELEVENLABS_API_KEY not found in secrets"
+        fi
+        
+        if [ -n "${{ secrets.WORKER_AUTH_TOKEN }}" ]; then
+          echo "  - Setting WORKER_AUTH_TOKEN"
+          supabase secrets set WORKER_AUTH_TOKEN="${{ secrets.WORKER_AUTH_TOKEN }}"
+        else
+          echo "  ⚠️ WORKER_AUTH_TOKEN not found in secrets"
+        fi
+        
+        echo "✅ Secrets configuration completed"
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        
+    - name: List deployed functions
+      run: |
+        echo "📊 Verifying deployed functions:"
+        supabase functions list
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        
+    - name: Deployment summary
+      if: always()
+      run: |
+        echo "📝 Deployment Summary"
+        echo "===================="
+        echo "Project: ${{ secrets.SUPABASE_PROJECT_REF }}"
+        echo "Status: ${{ job.status }}"
+        echo "Duration: ${{ job.duration }}"
+        echo "Commit: ${{ github.sha }}"
+        echo "===================="
 
   test:
     runs-on: ubuntu-latest
@@ -66,11 +151,15 @@ jobs:
       
     - name: Test Edge Functions
       run: |
-        # Test create_job endpoint
-        curl -X POST \
+        echo "🧪 Testing deployed Edge Functions..."
+        echo "📍 Base URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1"
+        echo "📍 Using anon key: ${{ secrets.SUPABASE_ANON_KEY | substr(0, 20) }}..."
+        
+        echo "📝 Testing create_job endpoint..."
+        CREATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
           -H "Content-Type: application/json" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "x-client-info: test-client" \
+          -H "x-client-info: github-actions-test" \
           -d '{
             "local_date": "2025-08-12",
             "scheduled_at": "2025-08-12T07:00:00Z",
@@ -87,10 +176,18 @@ jobs:
             "daystart_length": 180,
             "timezone": "America/New_York"
           }' \
-          "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/create_job"
+          "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/create_job")
           
-        # Test get_audio_status endpoint
-        curl -X GET \
+        echo "📄 Create job response:"
+        echo "$CREATE_RESPONSE"
+        
+        echo -e "\n📝 Testing get_audio_status endpoint..."
+        STATUS_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "x-client-info: test-client" \
-          "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/get_audio_status?date=2025-08-12"
+          -H "x-client-info: github-actions-test" \
+          "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/get_audio_status?date=2025-08-12")
+          
+        echo "📄 Get status response:"
+        echo "$STATUS_RESPONSE"
+        
+        echo "✅ Function testing completed"
