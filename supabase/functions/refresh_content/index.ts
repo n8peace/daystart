@@ -185,16 +185,19 @@ async function fetchGNews(): Promise<any> {
   }
 }
 
-// Yahoo Finance fetch function 
+// Yahoo Finance fetch function (via RapidAPI)
 async function fetchYahooFinance(): Promise<any> {
-  // Using Yahoo Finance API (free tier available)
+  const rapidApiKey = Deno.env.get('RAPIDAPI_KEY')
+  if (!rapidApiKey) throw new Error('RAPIDAPI_KEY not configured')
+
   const symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX']
-  const symbolString = symbols.join(',')
+  const symbolString = symbols.join('%2C') // URL encode commas
   
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbolString}`
+  const url = `https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes?region=US&symbols=${symbolString}`
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; DayStart/1.0)'
+      'x-rapidapi-host': 'apidojo-yahoo-finance-v1.p.rapidapi.com',
+      'x-rapidapi-key': rapidApiKey
     }
   })
   
@@ -219,7 +222,7 @@ async function fetchYahooFinance(): Promise<any> {
     })),
     market_summary: {
       market_time: data.quoteResponse.result[0]?.regularMarketTime,
-      trading_session: 'regular' // Could be enhanced with session detection
+      trading_session: 'regular'
     },
     fetched_at: new Date().toISOString(),
     source: 'yahoo_finance'
@@ -259,8 +262,9 @@ async function fetchESPN(): Promise<any> {
 
 // TheSportDB API fetch function
 async function fetchTheSportDB(): Promise<any> {
-  // Free API for additional sports data
-  const url = 'https://www.thesportsdb.com/api/v1/json/3/latestscore.php?s=Soccer&l=English%20Premier%20League'
+  // Get today's date in YYYY-MM-DD format
+  const today = new Date().toISOString().split('T')[0]
+  const url = `https://www.thesportsdb.com/api/v1/json/123/eventsday.php?d=${today}`
   const response = await fetch(url)
   
   if (!response.ok) {
@@ -270,18 +274,19 @@ async function fetchTheSportDB(): Promise<any> {
   const data = await response.json()
   
   return {
-    latest_scores: data.results?.slice(0, 10).map((result: any) => ({
-      event: result.strEvent,
-      date: result.dateEvent,
-      home_team: result.strHomeTeam,
-      away_team: result.strAwayTeam,
-      home_score: result.intHomeScore,
-      away_score: result.intAwayScore,
-      status: result.strStatus,
-      league: result.strLeague
+    events: data.events?.slice(0, 10).map((event: any) => ({
+      event: event.strEvent,
+      date: event.dateEvent,
+      time: event.strTime,
+      home_team: event.strHomeTeam,
+      away_team: event.strAwayTeam,
+      home_score: event.intHomeScore,
+      away_score: event.intAwayScore,
+      status: event.strStatus,
+      league: event.strLeague,
+      sport: event.strSport
     })) || [],
-    league: 'English Premier League',
-    sport: 'Soccer',
+    date: today,
     fetched_at: new Date().toISOString(),
     source: 'thesportdb'
   }

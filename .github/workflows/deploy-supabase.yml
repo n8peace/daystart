@@ -138,6 +138,13 @@ jobs:
           echo "  ⚠️ GNEWS_API_KEY not found in secrets"
         fi
         
+        if [ -n "${{ secrets.RAPIDAPI_KEY }}" ]; then
+          echo "  - Setting RAPIDAPI_KEY"
+          supabase secrets set RAPIDAPI_KEY="${{ secrets.RAPIDAPI_KEY }}"
+        else
+          echo "  ⚠️ RAPIDAPI_KEY not found in secrets"
+        fi
+        
         echo "✅ Secrets configuration completed"
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
