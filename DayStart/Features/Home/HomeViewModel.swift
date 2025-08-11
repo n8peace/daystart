@@ -10,6 +10,7 @@ class HomeViewModel: ObservableObject {
         case welcomeReady
         case countdown
         case ready
+        case audioLoading
         case playing
         case recentlyPlayed
     }
@@ -25,6 +26,8 @@ class HomeViewModel: ObservableObject {
     
     private var timer: Timer?
     private var pauseTimeoutTimer: Timer?
+    private var loadingDelayTimer: Timer?
+    private var loadingTimeoutTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private let userPreferences = UserPreferences.shared
     private let audioPlayer = AudioPlayerManager.shared
@@ -33,6 +36,7 @@ class HomeViewModel: ObservableObject {
     private let welcomeScheduler = WelcomeDayStartScheduler.shared
     private let audioPrefetchManager = AudioPrefetchManager.shared
     private let audioCache = AudioCache.shared
+    private let loadingMessages = LoadingMessagesService.shared
     
     // Debouncing
     private var updateStateWorkItem: DispatchWorkItem?
@@ -125,6 +129,7 @@ class HomeViewModel: ObservableObject {
         
         timer?.invalidate()
         pauseTimeoutTimer?.invalidate()
+        stopLoadingTimers()
         
         // Check for welcome DayStart first
         if welcomeScheduler.isWelcomePending {
@@ -304,35 +309,86 @@ class HomeViewModel: ObservableObject {
     }
     
     private func streamAudio(from url: URL) async {
-        logger.logAudioEvent("Streaming audio from CDN")
+        logger.logAudioEvent("Starting smart audio loading from CDN")
         
-        // Try to load and play audio
-        do {
-            // Create a simple test request to check if URL is valid before loading into player
-            let (_, response) = try await URLSession.shared.data(from: url)
-            
-            if let httpResponse = response as? HTTPURLResponse {
-                if httpResponse.statusCode == 403 {
-                    // URL likely expired, try to refresh
-                    logger.log("CDN URL expired (403), attempting to refresh", level: .warning)
-                    await handleExpiredUrl(originalUrl: url)
-                    return
+        // Start loading delay timer - if audio doesn't load within 1 second, show loading screen
+        startLoadingDelayTimer()
+        
+        // Start timeout timer - if audio doesn't load within 30 seconds, fall back to mock
+        startLoadingTimeoutTimer()
+        
+        // Load audio with completion callback
+        audioPlayer.loadAudio(from: url) { [weak self] success, error in
+            Task { @MainActor in
+                guard let self = self else { return }
+                
+                // Stop all loading timers
+                self.stopLoadingTimers()
+                
+                if success {
+                    self.logger.logAudioEvent("Audio loaded successfully, starting playback")
+                    self.audioPlayer.play()
+                    self.state = .playing
+                    self.stopPauseTimeoutTimer()
+                    
+                    await self.cancelTodaysNotifications()
+                    self.scheduleNextNotifications()
+                } else {
+                    if let error = error {
+                        self.logger.logError(error, context: "Smart audio loading failed")
+                        
+                        // Check if this is an expired URL error
+                        if (error as NSError).code == 403 {
+                            self.logger.log("CDN URL expired (403), attempting to refresh", level: .warning)
+                            await self.handleExpiredUrl(originalUrl: url)
+                            return
+                        }
+                    }
+                    
+                    self.logger.log("Audio loading failed, falling back to mock", level: .warning)
+                    await self.playMockAudio()
                 }
             }
-            
-            // URL is valid, proceed with streaming
-            audioPlayer.loadAudio(from: url)
-            audioPlayer.play()
-            state = .playing
-            stopPauseTimeoutTimer()
-            
-            await cancelTodaysNotifications()
-            scheduleNextNotifications()
-            
-        } catch {
-            logger.logError(error, context: "Failed to stream audio from CDN, falling back to mock")
-            await playMockAudio()
         }
+    }
+    
+    private func startLoadingDelayTimer() {
+        stopLoadingTimers()
+        
+        loadingDelayTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                
+                // Only show loading screen if we're not already playing
+                if self.state != .playing {
+                    self.logger.log("Audio taking longer than 1s, showing loading screen", level: .info)
+                    self.state = .audioLoading
+                    self.loadingMessages.startRotatingMessages()
+                }
+            }
+        }
+    }
+    
+    private func startLoadingTimeoutTimer() {
+        loadingTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                
+                self.logger.log("Audio loading timeout after 30s, falling back to mock", level: .warning)
+                self.stopLoadingTimers()
+                await self.playMockAudio()
+            }
+        }
+    }
+    
+    private func stopLoadingTimers() {
+        loadingDelayTimer?.invalidate()
+        loadingDelayTimer = nil
+        
+        loadingTimeoutTimer?.invalidate()
+        loadingTimeoutTimer = nil
+        
+        loadingMessages.stopRotatingMessages()
     }
     
     private func handleExpiredUrl(originalUrl: URL) async {

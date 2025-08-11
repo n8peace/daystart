@@ -7,6 +7,7 @@ struct HomeView: View {
     @EnvironmentObject var userPreferences: UserPreferences
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject private var welcomeScheduler = WelcomeDayStartScheduler.shared
+    @ObservedObject private var loadingMessages = LoadingMessagesService.shared
     @ObservedObject private var streakManager = StreakManager.shared
     @State private var previousState: HomeViewModel.AppState = .idle
     @State private var showStreakCelebration = false
@@ -128,7 +129,7 @@ struct HomeView: View {
                     .environmentObject(userPreferences)
             }
             .sheet(isPresented: $showHistory) {
-                HistoryView(onReplay: viewModel.replayDayStart)
+                HistoryView()
                     .environmentObject(userPreferences)
             }
         }
@@ -142,6 +143,8 @@ struct HomeView: View {
         case (_, .welcomeReady), (_, .ready):
             hapticManager.impact(style: .medium)
         case (_, .countdown):
+            hapticManager.impact(style: .light)
+        case (_, .audioLoading):
             hapticManager.impact(style: .light)
         case (_, .playing):
             hapticManager.impact(style: .heavy)
@@ -298,6 +301,8 @@ struct HomeView: View {
             countdownView
         case .ready:
             readyViewContent
+        case .audioLoading:
+            audioLoadingView
         case .playing:
             playingView
         case .recentlyPlayed:
@@ -352,6 +357,32 @@ struct HomeView: View {
                 Text(welcomeScheduler.welcomeCountdownText)
                     .font(.system(size: 48, weight: .bold, design: .monospaced))
                     .foregroundColor(BananaTheme.ColorToken.primary)
+            }
+        }
+    }
+    
+    private var audioLoadingView: some View {
+        VStack(spacing: 30) {
+            VStack(spacing: 12) {
+                Text("🎵")
+                    .font(.system(size: 80))
+                    .scaleEffect(1.2)
+                    .animation(
+                        Animation.easeInOut(duration: 1.5)
+                            .repeatForever(autoreverses: true),
+                        value: viewModel.state
+                    )
+                
+                Text("Getting ready...")
+                    .adaptiveFont(BananaTheme.Typography.title2)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                    .multilineTextAlignment(.center)
+                
+                Text(loadingMessages.currentMessage)
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .animation(.easeInOut(duration: 0.3), value: loadingMessages.currentMessage)
             }
         }
     }

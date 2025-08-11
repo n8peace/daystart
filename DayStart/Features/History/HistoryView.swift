@@ -3,13 +3,11 @@ import SwiftUI
 struct HistoryView: View {
     @Environment(\.presentationMode) var presentationMode
     @EnvironmentObject var userPreferences: UserPreferences
-    let onReplay: (DayStartData) -> Void
     @State private var visibleCount: Int = 10
     @State private var searchQuery: String = ""
     @ObservedObject private var streakManager = StreakManager.shared
     @State private var dismissTask: Task<Void, Never>?
     @State private var textInputTask: Task<Void, Never>?
-    @State private var shouldDismissAfterReplay = false
     
     private let logger = DebugLogger.shared
     
@@ -84,19 +82,7 @@ struct HistoryView: View {
                 let items = displayedHistory
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, dayStart in
                     VStack(alignment: .leading, spacing: 0) {
-                        HistoryRow(dayStart: dayStart, onPlay: {
-                            logger.log("🎵 History: Calling onReplay for DayStart \(dayStart.id)", level: .info)
-                            onReplay(dayStart)
-                            
-                            // Dismiss history view after starting replay
-                            shouldDismissAfterReplay = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                if shouldDismissAfterReplay {
-                                    logger.log("🎵 History: Dismissing history view after replay", level: .info)
-                                    presentationMode.wrappedValue.dismiss()
-                                }
-                            }
-                        })
+                        HistoryRow(dayStart: dayStart)
                     }
                     .padding(12)
                     .background(BananaTheme.ColorToken.card)
@@ -293,20 +279,14 @@ struct HistoryRow: View {
                         logger.log("🎵 History: Play button tapped for DayStart \(dayStart.id)", level: .info)
                         logger.log("🎵 History: Audio path exists: \(path)", level: .debug)
                         
-                        if let onPlay = onPlay {
-                            // Use the replay callback to go through HomeViewModel
-                            logger.log("🎵 History: Using onPlay callback for proper replay", level: .info)
-                            onPlay()
-                        } else {
-                            // Fallback to direct audio player control (for standalone use)
-                            logger.log("🎵 History: Using direct AudioPlayerManager control", level: .info)
-                            if audioPlayer.currentTrackId != dayStart.id {
-                                logger.log("🎵 History: Loading new audio for DayStart", level: .info)
-                                audioPlayer.loadAudio(for: dayStart)
-                            }
-                            audioPlayer.togglePlayPause()
-                            logger.log("🎵 History: Toggle play/pause called, isPlaying: \(audioPlayer.isPlaying)", level: .info)
+                        // Always use direct audio player control for compact history playback
+                        logger.log("🎵 History: Using direct AudioPlayerManager control for compact playback", level: .info)
+                        if audioPlayer.currentTrackId != dayStart.id {
+                            logger.log("🎵 History: Loading new audio for DayStart", level: .info)
+                            audioPlayer.loadAudio(for: dayStart)
                         }
+                        audioPlayer.togglePlayPause()
+                        logger.log("🎵 History: Toggle play/pause called, isPlaying: \(audioPlayer.isPlaying)", level: .info)
                     }) {
                         Label(audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "Pause" : "Play",
                               systemImage: audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "pause.circle.fill" : "play.circle.fill")

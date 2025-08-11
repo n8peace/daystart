@@ -67,6 +67,61 @@ class AudioPlayerManager: NSObject, ObservableObject {
             logger.logError(error, context: "Failed to load audio from \(url.lastPathComponent)")
         }
     }
+    
+    func loadAudio(from url: URL, trackId: UUID? = nil, completion: @escaping (Bool, Error?) -> Void) {
+        logger.logAudioEvent("Loading audio from URL with completion", details: ["url": url.lastPathComponent, "trackId": trackId?.uuidString ?? "none"])
+        
+        Task.detached { [weak self] in
+            do {
+                // Test the URL first to check for network issues
+                let (_, response) = try await URLSession.shared.data(from: url)
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 403 {
+                        await MainActor.run {
+                            completion(false, NSError(domain: "AudioLoadError", code: 403, userInfo: [NSLocalizedDescriptionKey: "Audio URL expired"]))
+                        }
+                        return
+                    } else if httpResponse.statusCode != 200 {
+                        await MainActor.run {
+                            completion(false, NSError(domain: "AudioLoadError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP error: \(httpResponse.statusCode)"]))
+                        }
+                        return
+                    }
+                }
+                
+                // URL is valid, now load into audio player on main thread
+                await MainActor.run { [weak self] in
+                    guard let self = self else {
+                        completion(false, NSError(domain: "AudioLoadError", code: -1, userInfo: [NSLocalizedDescriptionKey: "AudioPlayerManager deallocated"]))
+                        return
+                    }
+                    
+                    do {
+                        self.audioPlayer = try AVAudioPlayer(contentsOf: url)
+                        self.audioPlayer?.delegate = self
+                        self.audioPlayer?.enableRate = true
+                        self.audioPlayer?.prepareToPlay()
+                        self.duration = self.audioPlayer?.duration ?? 0
+                        self.currentTime = 0
+                        self.didFinishPlaying = false
+                        self.currentTrackId = trackId
+                        self.logger.logAudioEvent("Audio loaded successfully with completion", details: ["duration": self.duration])
+                        completion(true, nil)
+                    } catch {
+                        self.logger.logError(error, context: "Failed to load audio from \(url.lastPathComponent)")
+                        completion(false, error)
+                    }
+                }
+                
+            } catch {
+                await MainActor.run {
+                    self?.logger.logError(error, context: "Failed to validate audio URL \(url.lastPathComponent)")
+                    completion(false, error)
+                }
+            }
+        }
+    }
 
     func loadAudio(for dayStart: DayStartData) {
         guard let path = dayStart.audioFilePath else { return }
