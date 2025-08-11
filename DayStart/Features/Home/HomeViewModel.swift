@@ -396,28 +396,19 @@ class HomeViewModel: ObservableObject {
         
         // Try to use Supabase for welcome DayStart
         do {
-            // First check if audio exists
+            // Check if audio exists (should have been created during onboarding)
             let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: Date())
             
             if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
-                logger.log("Welcome DayStart audio ready from Supabase, streaming...", level: .info)
+                logger.log("✅ Welcome DayStart audio ready from Supabase, streaming...", level: .info)
                 await streamAudio(from: audioUrl)
-            } else if audioStatus.status == "not_found" {
-                // Create job for welcome DayStart
-                logger.log("Creating welcome DayStart job in Supabase...", level: .info)
-                
-                try await SupabaseClient.shared.createJob(
-                    for: Date(),
-                    with: userPreferences.settings,
-                    schedule: userPreferences.schedule
-                )
-                
-                // Fall back to mock audio while job processes
-                logger.log("Welcome DayStart job created, using mock audio", level: .info)
+            } else if audioStatus.status == "processing" {
+                // Audio still processing, show status
+                logger.log("⏳ Welcome DayStart audio still processing (status: \(audioStatus.status))", level: .info)
                 await playMockAudio()
             } else {
-                // Audio exists but not ready, use mock
-                logger.log("Welcome DayStart audio processing, using mock audio", level: .info)
+                // Something went wrong, fall back to mock
+                logger.log("⚠️ Welcome DayStart audio not ready (status: \(audioStatus.status)), using mock", level: .warning)
                 await playMockAudio()
             }
         } catch {

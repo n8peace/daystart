@@ -872,6 +872,21 @@ struct OnboardingView: View {
             WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
             logger.log("🎉 Welcome DayStart scheduled for new user", level: .info)
             
+            // Create Supabase job immediately for welcome DayStart
+            Task {
+                do {
+                    logger.log("🎵 Creating welcome DayStart audio job", level: .info)
+                    let jobResponse = try await SupabaseClient.shared.createJob(
+                        for: Date(),
+                        with: userPreferences.settings,
+                        schedule: userPreferences.schedule
+                    )
+                    logger.log("✅ Welcome DayStart job created: \(jobResponse.jobId ?? "unknown")", level: .info)
+                } catch {
+                    logger.logError(error, context: "Failed to create welcome DayStart job")
+                }
+            }
+            
             onComplete()
         }
     }

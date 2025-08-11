@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 @MainActor
 class SupabaseClient {
@@ -112,7 +113,7 @@ class SupabaseClient {
             include_calendar: preferences.includeCalendar,
             include_quotes: preferences.includeQuotes,
             quote_preference: preferences.quotePreference.rawValue,
-            voice_option: preferences.selectedVoice.name.lowercased(),
+            voice_option: "voice\(preferences.selectedVoice.rawValue + 1)",
             daystart_length: preferences.dayStartLength,
             timezone: TimeZone.current.identifier
         )
