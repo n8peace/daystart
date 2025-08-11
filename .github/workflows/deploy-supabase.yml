@@ -153,7 +153,7 @@ jobs:
       run: |
         echo "🧪 Testing deployed Edge Functions..."
         echo "📍 Base URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1"
-        echo "📍 Using anon key: ${{ secrets.SUPABASE_ANON_KEY | substr(0, 20) }}..."
+        echo "📍 Using anon key: [REDACTED]..."
         
         echo "📝 Testing create_job endpoint..."
         CREATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
