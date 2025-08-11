@@ -75,6 +75,24 @@ class AudioPrefetchManager {
             if response.status == "ready", let audioUrl = response.audioUrl {
                 logger.log("Audio ready for \(date), downloading...", level: .info)
                 return await AudioDownloader.shared.download(from: audioUrl, for: date)
+            } else if response.status == "not_found" {
+                // Audio doesn't exist yet, create a job for it
+                logger.log("Audio not found for \(date), creating job...", level: .info)
+                
+                // Create job for this scheduled time
+                let userPreferences = UserPreferences.shared
+                do {
+                    let jobResponse = try await SupabaseClient.shared.createJob(
+                        for: date,
+                        with: userPreferences.settings,
+                        schedule: userPreferences.schedule
+                    )
+                    logger.log("Created job \(jobResponse.jobId ?? "unknown") for \(date)", level: .info)
+                } catch {
+                    logger.logError(error, context: "Failed to create job for \(date)")
+                }
+                
+                return false
             } else {
                 logger.log("Audio not ready for \(date), status: \(response.status)", level: .debug)
                 return false
