@@ -1,6 +1,148 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
+// Helper: ~145 wpm is natural TTS; adjust as needed
+function targetWords(seconds: number, wpm = 145): number {
+  return Math.round((seconds / 60) * wpm);
+}
+
+// Dynamic token allocation based on script length
+function getTokenLimits(seconds: number): { maxTokens: number; targetWords: number } {
+  const words = targetWords(seconds);
+  // Rule of thumb: ~0.75 tokens per word for output, plus buffer for complex content
+  const baseTokens = Math.round(words * 1.2);
+  const maxTokens = Math.max(300, Math.min(2000, baseTokens)); // Reasonable bounds
+  
+  return { maxTokens, targetWords: words };
+}
+
+// Dynamic story count based on duration
+function getStoryLimits(seconds: number): { news: number; sports: number; stocks: number } {
+  if (seconds <= 60) {
+    // 1 minute: bare minimum
+    return { news: 1, sports: 1, stocks: 1 };
+  } else if (seconds <= 180) {
+    // 3 minutes: light coverage
+    return { news: 2, sports: 1, stocks: 1 };
+  } else if (seconds <= 300) {
+    // 5 minutes: standard coverage
+    return { news: 3, sports: 1, stocks: 2 };
+  } else {
+    // 5+ minutes: comprehensive coverage
+    return { news: 4, sports: 2, stocks: 2 };
+  }
+}
+
+// Prioritize news by geography and impact
+function prioritizeNews(newsData: any[]): any[] {
+  if (!newsData || newsData.length === 0) return [];
+  
+  // Flatten all articles with source info
+  const allArticles: any[] = [];
+  newsData.forEach(source => {
+    if (source.data?.articles) {
+      source.data.articles.forEach((article: any) => {
+        allArticles.push({
+          ...article,
+          sourceName: source.source,
+          priority: calculateNewsPriority(article, source.source)
+        });
+      });
+    }
+  });
+  
+  // Sort by priority (higher = more important)
+  return allArticles.sort((a, b) => b.priority - a.priority);
+}
+
+// Calculate news priority score
+function calculateNewsPriority(article: any, source: string): number {
+  let score = 0;
+  const title = (article.title || '').toLowerCase();
+  const content = (article.description || article.content || '').toLowerCase();
+  const text = title + ' ' + content;
+  
+  // Geographic relevance (highest priority)
+  if (containsLocalKeywords(text)) score += 100;
+  else if (containsRegionalKeywords(text)) score += 80;
+  else if (containsNationalKeywords(text)) score += 60;
+  else score += 40; // international baseline
+  
+  // Breaking/urgent news boost
+  if (isBreakingNews(text)) score += 50;
+  
+  // High-impact story boost
+  if (isHighImpactStory(text)) score += 30;
+  
+  // Recency boost (if available)
+  if (article.publishedAt) {
+    const hoursOld = (Date.now() - new Date(article.publishedAt).getTime()) / (1000 * 60 * 60);
+    if (hoursOld < 2) score += 20;
+    else if (hoursOld < 6) score += 10;
+  }
+  
+  return score;
+}
+
+function containsLocalKeywords(text: string): boolean {
+  const localKeywords = [
+    'san francisco', 'sf', 'bay area', 'oakland', 'san jose', 'silicon valley',
+    'california', 'ca', 'palo alto', 'mountain view', 'berkeley', 'marin'
+  ];
+  return localKeywords.some(keyword => text.includes(keyword));
+}
+
+function containsRegionalKeywords(text: string): boolean {
+  const regionalKeywords = [
+    'california', 'west coast', 'pacific', 'los angeles', 'san diego',
+    'sacramento', 'fresno', 'nevada', 'oregon', 'washington'
+  ];
+  return regionalKeywords.some(keyword => text.includes(keyword));
+}
+
+function containsNationalKeywords(text: string): boolean {
+  const nationalKeywords = [
+    'united states', 'america', 'us', 'federal', 'congress', 'senate',
+    'white house', 'washington dc', 'supreme court', 'fda', 'cdc'
+  ];
+  return nationalKeywords.some(keyword => text.includes(keyword));
+}
+
+function isBreakingNews(text: string): boolean {
+  const breakingKeywords = [
+    'breaking', 'urgent', 'developing', 'just in', 'alert', 'emergency',
+    'major', 'massive', 'huge', 'crisis', 'disaster', 'accident'
+  ];
+  return breakingKeywords.some(keyword => text.includes(keyword));
+}
+
+function isHighImpactStory(text: string): boolean {
+  const impactKeywords = [
+    'economy', 'market crash', 'election', 'earthquake', 'fire', 'storm',
+    'security', 'data breach', 'layoffs', 'merger', 'acquisition', 'ipo',
+    'inflation', 'recession', 'rate', 'tech', 'ai', 'climate'
+  ];
+  return impactKeywords.some(keyword => text.includes(keyword));
+}
+
+// Sanitize script output for TTS
+function sanitizeForTTS(raw: string): string {
+  let s = raw.trim();
+
+  // Remove obvious stage directions / markdown
+  s = s.replace(/\[.*?\]/g, '');       // [INTRO MUSIC], [OUTRO], etc.
+  s = s.replace(/[*_#`>]+/g, '');      // markdown artifacts
+  s = s.replace(/\s{2,}/g, ' ');       // collapse whitespace
+
+  // Remove label-y lines (e.g., "Weather:", "News:")
+  s = s.replace(/^(weather|news|sports|stocks|quote|calendar)\s*:\s*/gim, '');
+  
+  // Remove any "Good morning" duplicates if model adds extras
+  s = s.replace(/^(good morning[^.]*\.\s*){2,}/gi, (match, group) => group);
+
+  return s.trim();
+}
+
 // This is a background job processor that can be triggered by:
 // 1. Cron job every 5 minutes
 // 2. Manual webhook call
@@ -230,8 +372,34 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     contentData: contentData
   };
 
+  // Get dynamic limits based on user's duration
+  const duration = context.dayStartLength || 90;
+  const { maxTokens } = getTokenLimits(duration);
+  
   // Create prompt for GPT-4
   const prompt = buildScriptPrompt(context);
+
+  // Few-shot example to lock in the style
+  const fewShotExample = {
+    role: 'system',
+    content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts):
+Good morning, Sam. Happy Tuesday. Skies are clear and you'll hit the mid-70s by lunch, so a light layer is perfect.
+Your 9 a.m. product sync has shifted to 9:15—worth skimming the brief on the train.
+Overnight, regulators approved the chip deal; markets are cautious, but futures are flat. Keep an eye on NVDA and your QQQ position after the open.
+The Sparks edged Phoenix by two; Dodgers host the Giants tonight.
+"Discipline is remembering what you want." One focused block this morning will carry the day.
+You've got this.`
+  };
+
+  const systemMessage = {
+    role: 'system',
+    content: 'You are a professional morning briefing writer for a TTS wake-up app. Follow the user instructions exactly and obey the output contract.'
+  };
+
+  const userMessage = {
+    role: 'user',
+    content: prompt
+  };
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -241,18 +409,10 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini', // Cost-effective for script generation
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a professional morning briefing writer. Create engaging, personalized audio scripts for busy professionals.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: 1500,
-      temperature: 0.7,
+      messages: [fewShotExample, systemMessage, userMessage],
+      max_tokens: maxTokens,    // Dynamic based on user's duration
+      temperature: 0.5,         // tighter adherence
+      top_p: 1,
     }),
   });
 
@@ -261,10 +421,17 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   }
 
   const data = await response.json();
-  const script = data.choices?.[0]?.message?.content;
+  const rawScript = data.choices?.[0]?.message?.content;
 
-  if (!script) {
+  if (!rawScript) {
     throw new Error('No script generated by OpenAI');
+  }
+
+  // Sanitize the script for TTS
+  const script = sanitizeForTTS(rawScript);
+  
+  if (!script) {
+    throw new Error('Script was empty after sanitization');
   }
 
   // Calculate cost based on token usage
@@ -274,9 +441,11 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   const totalCost = Number((inputCost + outputCost).toFixed(5));
 
   console.log(`OpenAI usage: ${usage.prompt_tokens} input + ${usage.completion_tokens} output tokens = $${totalCost}`);
+  console.log(`Script length: ${script.split(' ').length} words (sanitized from ${rawScript.split(' ').length} words)`);
+  console.log(`Dynamic scaling: ${Math.round(context.dayStartLength/60)}min → ${getTokenLimits(context.dayStartLength).targetWords} word target, ${maxTokens} max tokens`);
 
   return {
-    content: script.trim(),
+    content: script,
     cost: totalCost
   };
 }
@@ -314,8 +483,8 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
       model_id: 'eleven_monolingual_v1',
       voice_settings: {
         stability: 0.5,
-        similarity_boost: 0.5,
-        style: 0.0,
+        similarity_boost: 0.7,
+        style: 0.3,
         use_speaker_boost: true
       }
     }),
@@ -351,79 +520,83 @@ function buildScriptPrompt(context: any): string {
     month: 'long', 
     day: 'numeric' 
   });
+  
+  const duration = context.dayStartLength || 90;
+  const { targetWords } = getTokenLimits(duration);
+  const storyLimits = getStoryLimits(duration);
+  
+  // Prioritize and limit news based on duration
+  const prioritizedNews = prioritizeNews(context.contentData?.news || []);
+  const topNews = prioritizedNews.slice(0, storyLimits.news);
 
-  let prompt = `Create a personalized morning briefing script for ${context.preferredName} for ${date}.\n\n`;
-  
-  const durationMinutes = Math.round(context.dayStartLength / 60);
-  
-  prompt += `Requirements:
-- ${durationMinutes} minutes when spoken naturally
-- Warm, conversational tone
-- Start with a personal greeting
-- Include relevant sections based on preferences
-- End with motivation for the day
-- Write for audio delivery (no visual elements)\n\n`;
+  // Provide machine-readable context so the model can cite specifics cleanly
+  const data = {
+    user: {
+      preferredName: context.preferredName || "there",
+      timezone: context.timezone,
+      location: context.locationData || null,
+    },
+    date: { iso: context.date, friendly: date },
+    duration: { seconds: duration, targetWords },
+    limits: storyLimits,
+    include: {
+      weather: !!context.includeWeather,
+      news: !!context.includeNews,
+      sports: !!context.includeSports,
+      stocks: !!context.includeStocks,
+      quotes: !!context.includeQuotes,
+      calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0
+    },
+    weather: context.weatherData || null,
+    news: topNews,
+    sports: (context.contentData?.sports || []).slice(0, storyLimits.sports),
+    stocks: {
+      sources: (context.contentData?.stocks || []).slice(0, storyLimits.stocks),
+      focusSymbols: context.stockSymbols || []
+    },
+    quotePreference: context.quotePreference || null,
+    calendarEvents: context.calendarEvents || []
+  };
 
-  prompt += `Include these sections if requested:\n`;
-  
-  if (context.includeWeather) {
-    prompt += `- Weather: ${context.weatherData ? JSON.stringify(context.weatherData) : 'Current weather and forecast'}\n`;
-  }
-  
-  if (context.includeNews) {
-    const newsContent = context.contentData?.news;
-    if (newsContent && newsContent.length > 0) {
-      prompt += `- News: Use these current headlines and summarize the top 2-3:\n`;
-      newsContent.forEach((source: any, index: number) => {
-        prompt += `  ${source.source.toUpperCase()}: ${JSON.stringify(source.data.articles?.slice(0, 3))}\n`;
-      });
-    } else {
-      prompt += `- News: General news summary (content cache unavailable)\n`;
-    }
-  }
-  
-  if (context.includeSports) {
-    const sportsContent = context.contentData?.sports;
-    if (sportsContent && sportsContent.length > 0) {
-      prompt += `- Sports: Use this current sports data:\n`;
-      sportsContent.forEach((source: any) => {
-        prompt += `  ${source.source.toUpperCase()}: ${JSON.stringify(source.data)}\n`;
-      });
-    } else {
-      prompt += `- Sports: General sports update (content cache unavailable)\n`;
-    }
-  }
-  
-  if (context.includeStocks) {
-    const stocksContent = context.contentData?.stocks;
-    if (stocksContent && stocksContent.length > 0) {
-      prompt += `- Stocks: Use this current market data:\n`;
-      stocksContent.forEach((source: any) => {
-        prompt += `  ${source.source.toUpperCase()}: ${JSON.stringify(source.data)}\n`;
-      });
-      if (context.stockSymbols?.length > 0) {
-        prompt += `  Focus on these symbols if available: ${context.stockSymbols.join(', ')}\n`;
-      }
-    } else if (context.stockSymbols?.length > 0) {
-      prompt += `- Stocks: Brief update on these symbols: ${context.stockSymbols.join(', ')} (live data unavailable)\n`;
-    } else {
-      prompt += `- Stocks: General market update (content cache unavailable)\n`;
-    }
-  }
-  
-  if (context.includeQuotes) {
-    prompt += `- Quote: ${context.quotePreference} quote to inspire the day\n`;
-  }
+  return `
+You are a professional morning briefing writer for a TTS wake-up app. Your job: write a concise, warm, highly-personalized script that sounds natural when spoken aloud.
 
-  if (context.calendarEvents?.length > 0) {
-    prompt += `- Calendar: Mention these upcoming events: ${JSON.stringify(context.calendarEvents)}\n`;
-  }
+STYLE
+- Warm, conversational, confident; no filler.
+- Use short sentences and varied rhythm.
+- Prefer specifics over generalities. If a section has no data, gracefully skip it.
+- Sprinkle one light, human moment max (a nudge, not a joke barrage).
 
-  prompt += `\nLocation context: ${context.locationData ? JSON.stringify(context.locationData) : 'General'}\n`;
-  prompt += `Timezone: ${context.timezone}\n\n`;
-  prompt += `Write the complete script ready for text-to-speech conversion.`;
+LENGTH & PACING
+- Target ${targetWords} words total (±10%). Duration: ${Math.round(duration/60)} minutes.
+- Adjust depth based on time: shorter = headlines only, longer = more context.
 
-  return prompt;
+CONTENT PRIORITIZATION
+- News: Use exactly ${storyLimits.news} stories max. The provided news is pre-sorted by relevance (local > regional > national > international, with breaking news boosted).
+- Sports: ${storyLimits.sports} update(s) max. Focus on local/regional teams when possible.
+- Stocks: ${storyLimits.stocks} market point(s) max. Prioritize user's focus symbols if provided.
+
+CONTENT ORDER (adapt if sections are missing)
+1) One-line greeting using the user's name and day (no headings).
+2) Weather (only if include.weather): actionable and hyper-relevant to the user's day.
+3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
+4) News (if include.news): Use the prioritized news provided. Lead with most relevant (local/breaking first).
+5) Sports (if include.sports): Brief, focused update. Mention major local teams or significant national stories.
+6) Stocks (if include.stocks): Market pulse. Call out focusSymbols prominently when present.
+7) Quote (if include.quotes): 1 line, then a one-line tie-back to today's vibe.
+8) Close with a crisp, motivating line.
+
+STRICT OUTPUT RULES — DO NOT BREAK
+- Output: PLAIN TEXT ONLY.
+- No markdown. No asterisks. No headings. No brackets. No stage directions. No emojis.
+- No labels like "Weather:" or "News:". Just speak naturally.
+- No meta-commentary ("here's your script", "as an AI", etc.).
+
+DATA YOU CAN USE (JSON):
+${JSON.stringify(data, null, 2)}
+
+Write the final script now, obeying all rules above. Return ONLY the script text, nothing else.
+`.trim();
 }
 
 function createResponse(success: boolean, processedCount: number, failedCount: number, message: string, requestId: string, status: number = 200): Response {

@@ -88,7 +88,6 @@ struct HomeView: View {
                     let logger = DebugLogger.shared
                     logger.log("🎵 HomeView: State changed from \(previousState) to \(newState)", level: .info)
                     logger.log("🎵 HomeView: currentDayStart is \(viewModel.currentDayStart?.id.uuidString ?? "nil")", level: .info)
-                    logger.log("🎵 HomeView: AudioPlayer isPlaying: \(viewModel.audioPlayer.isPlaying)", level: .info)
                     handleStateTransition(from: previousState, to: newState)
                     previousState = newState
                 }
