@@ -14,8 +14,8 @@ CREATE TABLE content_cache (
 
 -- Indexes for efficient content retrieval
 CREATE INDEX content_cache_type_date_idx ON content_cache(content_type, created_at DESC);
-CREATE INDEX content_cache_expires_idx ON content_cache(expires_at) WHERE expires_at > NOW();
-CREATE INDEX content_cache_cleanup_idx ON content_cache(created_at) WHERE expires_at < NOW();
+CREATE INDEX content_cache_expires_idx ON content_cache(expires_at);
+CREATE INDEX content_cache_cleanup_idx ON content_cache(created_at);
 
 -- RLS policies for content cache
 ALTER TABLE content_cache ENABLE ROW LEVEL SECURITY;
