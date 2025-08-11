@@ -52,20 +52,24 @@ jobs:
         echo "📍 Project Reference: ${{ secrets.SUPABASE_PROJECT_REF }}"
         echo "📍 Full URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co"
         echo "📍 Using access token: ${SUPABASE_ACCESS_TOKEN:0:10}..."
+        echo "📍 Using database password: ${SUPABASE_DB_PASSWORD:0:5}..."
         echo "📍 Current directory: $(pwd)"
         echo "📍 Checking for existing supabase directory:"
         ls -la | grep supabase || echo "No existing supabase directory found"
         
-        echo "🔧 Running link command..."
-        supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --debug || {
+        echo "🔧 Running link command with database password..."
+        supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }} --debug || {
           echo "❌ Link failed with exit code: $?"
           echo "📋 Current directory contents:"
           ls -la
+          echo "📋 Checking if .supabase directory was created:"
+          ls -la .supabase/ 2>/dev/null || echo "No .supabase directory found"
           exit 1
         }
         echo "✅ Project linked successfully"
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         
     - name: List migration files
       run: |
@@ -75,10 +79,12 @@ jobs:
     - name: Run database migrations
       run: |
         echo "🗄️ Running database migrations..."
+        echo "📍 Using database password: ${SUPABASE_DB_PASSWORD:0:5}..."
         supabase db push --debug
         echo "✅ Migrations completed"
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         
     - name: List Edge Functions
       run: |
