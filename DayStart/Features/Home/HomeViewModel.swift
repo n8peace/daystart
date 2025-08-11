@@ -428,7 +428,11 @@ class HomeViewModel: ObservableObject {
         stopPauseTimeoutTimer()
         
         await cancelTodaysNotifications()
-        scheduleNextNotifications()
+        
+        // Delay scheduling to prevent immediate observer-triggered state change
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.scheduleNextNotifications()
+        }
     }
     
     private func cancelTodaysNotifications() async {
