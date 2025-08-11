@@ -378,19 +378,53 @@ class HomeViewModel: ObservableObject {
     
     func startWelcomeDayStart() {
         logger.logUserAction("Start Welcome DayStart", details: ["time": Date().description])
+        
+        Task {
+            await startWelcomeDayStartWithSupabase()
+        }
+    }
+    
+    private func startWelcomeDayStartWithSupabase() async {
         let dayStart = mockService.fetchDayStart(for: userPreferences.settings)
         
         var welcomeDayStart = dayStart
         welcomeDayStart.id = UUID() // Generate new UUID for welcome DayStart
+        welcomeDayStart.scheduledTime = Date() // Use current time as scheduled time
         
         currentDayStart = welcomeDayStart
         userPreferences.addToHistory(welcomeDayStart)
         
-        logger.logAudioEvent("Loading audio for Welcome DayStart")
-        audioPlayer.loadAudio()
-        audioPlayer.play()
-        state = .playing
-        stopPauseTimeoutTimer()
+        // Try to use Supabase for welcome DayStart
+        do {
+            // First check if audio exists
+            let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: Date())
+            
+            if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
+                logger.log("Welcome DayStart audio ready from Supabase, streaming...", level: .info)
+                await streamAudio(from: audioUrl)
+            } else if audioStatus.status == "not_found" {
+                // Create job for welcome DayStart
+                logger.log("Creating welcome DayStart job in Supabase...", level: .info)
+                
+                try await SupabaseClient.shared.createJob(
+                    for: Date(),
+                    with: userPreferences.settings,
+                    schedule: userPreferences.schedule
+                )
+                
+                // Fall back to mock audio while job processes
+                logger.log("Welcome DayStart job created, using mock audio", level: .info)
+                await playMockAudio()
+            } else {
+                // Audio exists but not ready, use mock
+                logger.log("Welcome DayStart audio processing, using mock audio", level: .info)
+                await playMockAudio()
+            }
+        } catch {
+            // Supabase failed, fall back to mock audio
+            logger.logError(error, context: "Welcome DayStart Supabase failed, using mock audio")
+            await playMockAudio()
+        }
         
         welcomeScheduler.cancelWelcomeDayStart()
     }

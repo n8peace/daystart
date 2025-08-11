@@ -29,13 +29,24 @@ class SupabaseClient {
         let url = baseURL.appendingPathComponent("get_audio_status")
             .appendingQueryItem(name: "date", value: String(dateString))
         
+        logger.log("🔍 Supabase API: GET audio_status for date: \(dateString)", level: .info)
+        logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        
         let request = createRequest(for: url, method: "GET")
         
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
+                logger.log("❌ Supabase API: Invalid response type", level: .error)
                 throw SupabaseError.invalidResponse
+            }
+            
+            logger.log("📥 Supabase API: Response status: \(httpResponse.statusCode)", level: .info)
+            
+            // Log response body for debugging
+            if let responseString = String(data: data, encoding: .utf8) {
+                logger.log("📄 Response body: \(responseString)", level: .debug)
             }
             
             // Always expect 200 per GPT-5 review - check success field instead
@@ -47,11 +58,17 @@ class SupabaseClient {
             
             let audioResponse = try JSONDecoder().decode(AudioStatusAPIResponse.self, from: data)
             
+            logger.log("✅ Supabase API: Audio status = \(audioResponse.status), success = \(audioResponse.success)", level: .info)
+            
             // Check success field per GPT-5 API contract
             if !audioResponse.success {
                 let error = SupabaseError.apiError(audioResponse.error_code, audioResponse.error_message ?? "Unknown error")
                 logger.logError(error, context: "API error in getAudioStatus: \(audioResponse.error_code ?? "unknown")")
                 throw error
+            }
+            
+            if let audioUrl = audioResponse.audio_url {
+                logger.log("🎵 Audio URL received: \(audioUrl)", level: .info)
             }
             
             return AudioStatusResponse(
@@ -77,6 +94,10 @@ class SupabaseClient {
     
     func createJob(for date: Date, with preferences: UserSettings, schedule: DayStartSchedule) async throws -> JobResponse {
         let url = baseURL.appendingPathComponent("create_job")
+        
+        logger.log("📤 Supabase API: POST create_job", level: .info)
+        logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        
         var request = createRequest(for: url, method: "POST")
         
         let jobRequest = CreateJobRequest(
@@ -99,11 +120,24 @@ class SupabaseClient {
         let jsonData = try JSONEncoder().encode(jobRequest)
         request.httpBody = jsonData
         
+        // Log request payload
+        if let requestString = String(data: jsonData, encoding: .utf8) {
+            logger.log("📝 Request payload: \(requestString)", level: .debug)
+        }
+        
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
+                logger.log("❌ Supabase API: Invalid response type", level: .error)
                 throw SupabaseError.invalidResponse
+            }
+            
+            logger.log("📥 Supabase API: Response status: \(httpResponse.statusCode)", level: .info)
+            
+            // Log response body for debugging
+            if let responseString = String(data: data, encoding: .utf8) {
+                logger.log("📄 Response body: \(responseString)", level: .debug)
             }
             
             // Always expect 200 per GPT-5 review - check success field instead
@@ -114,6 +148,8 @@ class SupabaseClient {
             }
             
             let jobResponse = try JSONDecoder().decode(CreateJobAPIResponse.self, from: data)
+            
+            logger.log("✅ Supabase API: Job created = \(jobResponse.job_id ?? "nil"), status = \(jobResponse.status ?? "nil")", level: .info)
             
             // Check success field per GPT-5 API contract
             if !jobResponse.success {
@@ -161,6 +197,13 @@ class SupabaseClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("DayStart-iOS/1.0", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 30
+        
+        // Add device ID as client info for tracking
+        if let deviceId = UIDevice.current.identifierForVendor?.uuidString {
+            request.setValue(deviceId, forHTTPHeaderField: "x-client-info")
+        }
+        
+        logger.log("🔑 Auth headers set, timeout: 30s", level: .debug)
         
         return request
     }
