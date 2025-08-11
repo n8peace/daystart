@@ -6,7 +6,7 @@ struct HistoryView: View {
     let onReplay: (DayStartData) -> Void
     @State private var visibleCount: Int = 10
     @State private var searchQuery: String = ""
-    @StateObject private var streakManager = StreakManager.shared
+    @ObservedObject private var streakManager = StreakManager.shared
     @State private var dismissTask: Task<Void, Never>?
     @State private var textInputTask: Task<Void, Never>?
     
@@ -121,10 +121,9 @@ struct HistoryView: View {
             }
 
             // Mini 7-day strip
-            let days = streakManager.lastNDaysStatuses(7)
+            let days = streakManager.lastNDaysStatuses(7).reversed()
             HStack(spacing: 8) {
-                ForEach(0..<days.count, id: \.self) { i in
-                    let entry = days[i]
+                ForEach(Array(days.enumerated()), id: \.offset) { i, entry in
                     VStack(spacing: 4) {
                         Text(weekdayAbbrev(entry.date))
                             .font(.caption2)
@@ -157,9 +156,7 @@ struct HistoryView: View {
     }
 
     private func weekdayAbbrev(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "E"
-        return f.string(from: date)
+        return FormatterCache.shared.weekdayAbbrevFormatter.string(from: date)
     }
 
     // Filtered by transcript search
@@ -207,7 +204,7 @@ struct HistoryRow: View {
     let dayStart: DayStartData
     @State private var isExpanded = false
     @StateObject private var audioPlayer = AudioPlayerManager.shared
-    @StateObject private var streakManager = StreakManager.shared
+    @ObservedObject private var streakManager = StreakManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

@@ -117,6 +117,9 @@ DayStart/Resources/Sounds/
 *.m4a
 *.aac
 
+# iOS Info.plist (contains sensitive app configuration)
+DayStart/Info.plist
+
 # Claude agent configurations and AI documentation
 claude-*.md
 BANANA-INTELLIGENCE-THEME.md

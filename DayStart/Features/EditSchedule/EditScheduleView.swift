@@ -166,25 +166,25 @@ struct EditScheduleView: View {
                             .foregroundColor(BananaTheme.ColorToken.text)
                     }
                 }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(action: {
-                        logger.logUserAction("Save EditSchedule - toolbar save button")
-                        saveChanges()
-                        dismissTask?.cancel()
-                        dismissTask = Task {
-                            // Small delay to ensure UI updates propagate
-                            try? await Task.sleep(for: .milliseconds(100))
-                            await MainActor.run {
-                                presentationMode.wrappedValue.dismiss()
+                if shouldHighlightSave {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(action: {
+                            logger.logUserAction("Save EditSchedule - toolbar save button")
+                            saveChanges()
+                            dismissTask?.cancel()
+                            dismissTask = Task {
+                                // Small delay to ensure UI updates propagate
+                                try? await Task.sleep(for: .milliseconds(100))
+                                await MainActor.run {
+                                    presentationMode.wrappedValue.dismiss()
+                                }
                             }
+                        }) {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(BananaTheme.ColorToken.accent)
                         }
-                    }) {
-                        Image(systemName: "checkmark")
-                            .foregroundColor(shouldHighlightSave ? BananaTheme.ColorToken.accent : BananaTheme.ColorToken.text)
+                        .tint(BananaTheme.ColorToken.primary)
                     }
-                    .tint(BananaTheme.ColorToken.primary)
-                    .disabled(isLocked)
                 }
             }
         }
@@ -633,7 +633,7 @@ struct StockSymbolsEditor: View {
             set: { newValue in
                 // 🎯 FIXED: Find item by ID, not index
                 if let index = stockSymbolItems.firstIndex(where: { $0.id == item.id }) {
-                    let formatted = String(newValue.uppercased().prefix(5))
+                    let formatted = String(newValue.uppercased().prefix(16))
                     
                     stockSymbolItems[index].symbol = formatted
                     

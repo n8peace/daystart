@@ -7,6 +7,7 @@ class UserPreferences: ObservableObject {
     static let shared = UserPreferences()
     
     private let userDefaults = UserDefaults.standard
+    private let keychain = KeychainManager.shared
     private let logger = DebugLogger.shared
     
     @Published var hasCompletedOnboarding: Bool {
@@ -25,9 +26,11 @@ class UserPreferences: ObservableObject {
     
     @Published var history: [DayStartData] {
         didSet {
-            saveHistory()
+            debouncedSaveHistory()
         }
     }
+    
+    private var saveHistoryWorkItem: DispatchWorkItem?
     
     private init() {
         self.hasCompletedOnboarding = userDefaults.bool(forKey: "hasCompletedOnboarding")
@@ -37,6 +40,12 @@ class UserPreferences: ObservableObject {
     }
     
     private static func loadSchedule() -> DayStartSchedule {
+        // Try Keychain first (secure storage)
+        if let schedule = KeychainManager.shared.retrieve(DayStartSchedule.self, forKey: KeychainManager.Keys.schedule) {
+            return schedule
+        }
+        
+        // Fallback to UserDefaults for backward compatibility
         guard let data = UserDefaults.standard.data(forKey: "schedule"),
               let schedule = try? JSONDecoder().decode(DayStartSchedule.self, from: data) else {
             return DayStartSchedule()
@@ -45,6 +54,12 @@ class UserPreferences: ObservableObject {
     }
     
     private static func loadSettings() -> UserSettings {
+        // Try Keychain first (secure storage)
+        if let settings = KeychainManager.shared.retrieve(UserSettings.self, forKey: KeychainManager.Keys.userSettings) {
+            return settings
+        }
+        
+        // Fallback to UserDefaults for backward compatibility
         guard let data = UserDefaults.standard.data(forKey: "settings"),
               let settings = try? JSONDecoder().decode(UserSettings.self, from: data) else {
             return UserSettings.default
@@ -53,11 +68,20 @@ class UserPreferences: ObservableObject {
     }
     
     private static func loadHistory() -> [DayStartData] {
+        // Try Keychain first (secure storage)
+        if let history = KeychainManager.shared.retrieve([DayStartData].self, forKey: KeychainManager.Keys.history) {
+            return Self.processHistory(history)
+        }
+        
+        // Fallback to UserDefaults for backward compatibility
         guard let data = UserDefaults.standard.data(forKey: "history"),
               let decoded = try? JSONDecoder().decode([DayStartData].self, from: data) else {
             return []
         }
-        // Patch existing history to ensure our test case is present and aging rules are reflected
+        return Self.processHistory(decoded)
+    }
+    
+    private static func processHistory(_ decoded: [DayStartData]) -> [DayStartData] {
         let calendar = Calendar.current
         let now = Date()
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
@@ -120,24 +144,49 @@ class UserPreferences: ObservableObject {
     }
     
     private func saveSchedule() {
-        if let data = try? JSONEncoder().encode(schedule) {
-            userDefaults.set(data, forKey: "schedule")
+        let scheduleToSave = schedule
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+            // Save to Keychain (secure storage)
+            _ = self.keychain.store(scheduleToSave, forKey: KeychainManager.Keys.schedule)
         }
     }
     
     func saveSettings() {
-        do {
-            let data = try JSONEncoder().encode(settings)
-            userDefaults.set(data, forKey: "settings")
-        } catch {
-            logger.logError(error, context: "Failed to save user settings")
+        let settingsToSave = settings
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+            // Save to Keychain (secure storage)
+            let success = self.keychain.store(settingsToSave, forKey: KeychainManager.Keys.userSettings)
+            if !success {
+                await MainActor.run {
+                    self.logger.logError(NSError(domain: "KeychainError", code: 1), context: "Failed to save user settings to Keychain")
+                }
+            }
         }
     }
     
     
+    private func debouncedSaveHistory() {
+        // Cancel any pending save
+        saveHistoryWorkItem?.cancel()
+        
+        // Schedule new save with 0.5s delay to batch rapid changes
+        saveHistoryWorkItem = DispatchWorkItem { [weak self] in
+            self?.saveHistory()
+        }
+        
+        if let workItem = saveHistoryWorkItem {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
+        }
+    }
+    
     private func saveHistory() {
-        if let data = try? JSONEncoder().encode(history) {
-            userDefaults.set(data, forKey: "history")
+        let historyToSave = history
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+            // Save to Keychain (secure storage)
+            _ = self.keychain.store(historyToSave, forKey: KeychainManager.Keys.history)
         }
     }
     

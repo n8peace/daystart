@@ -16,6 +16,11 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     private var locationContinuation: CheckedContinuation<Bool, Never>?
     
+    // Weather cache
+    private var weatherCache: (weather: Weather, timestamp: Date)?
+    private var forecastCache: (forecast: String, timestamp: Date)?
+    private let cacheExpiration: TimeInterval = 3600 // 1 hour
+    
     override init() {
         super.init()
         locationManager.delegate = self
@@ -73,6 +78,13 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     
     @available(iOS 16.0, *)
     func getCurrentWeather() async -> Weather? {
+        // Check cache first
+        if let cached = weatherCache,
+           Date().timeIntervalSince(cached.timestamp) < cacheExpiration {
+            logger.log("Using cached weather data", level: .info)
+            return cached.weather
+        }
+        
         guard let location = await getCurrentLocation() else {
             logger.log("Cannot get weather: location unavailable", level: .warning)
             return nil
@@ -80,6 +92,10 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         do {
             let weather = try await weatherService.weather(for: location)
+            
+            // Update cache
+            weatherCache = (weather, Date())
+            
             await MainActor.run {
                 self.currentWeather = weather
             }
@@ -106,6 +122,28 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             // Fallback for iOS 15 and below
             return "Weather requires iOS 16 or later"
         }
+    }
+    
+    @available(iOS 16.0, *)
+    func getTomorrowForecast() async -> String? {
+        // Check cache first
+        if let cached = forecastCache,
+           Date().timeIntervalSince(cached.timestamp) < cacheExpiration {
+            logger.log("Using cached forecast data", level: .info)
+            return cached.forecast
+        }
+        
+        guard hasLocationAccess() else { return nil }
+        guard let location = await getCurrentLocation() else { return nil }
+        
+        let forecast = await weatherService.getTomorrowForecastDescription(for: location)
+        
+        // Update cache if we got a forecast
+        if let forecast = forecast {
+            forecastCache = (forecast, Date())
+        }
+        
+        return forecast
     }
     
     // MARK: - CLLocationManagerDelegate

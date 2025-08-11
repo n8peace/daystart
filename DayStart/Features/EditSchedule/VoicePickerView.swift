@@ -75,25 +75,27 @@ struct VoicePickerView: View {
                             .foregroundColor(BananaTheme.ColorToken.text)
                     }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(action: {
-                        logger.logUserAction("Voice picker confirmed", details: [
-                            "selectedVoice": selectedVoice.name,
-                            "originalVoice": originalSelection.name,
-                            "wasChanged": selectedVoice != originalSelection
-                        ])
-                        dismissTask?.cancel()
-                        dismissTask = Task {
-                            AudioPlayerManager.shared.stopVoicePreview()
-                            await MainActor.run {
-                                dismiss()
+                if hasUnsavedChanges {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(action: {
+                            logger.logUserAction("Voice picker confirmed", details: [
+                                "selectedVoice": selectedVoice.name,
+                                "originalVoice": originalSelection.name,
+                                "wasChanged": selectedVoice != originalSelection
+                            ])
+                            dismissTask?.cancel()
+                            dismissTask = Task {
+                                AudioPlayerManager.shared.stopVoicePreview()
+                                await MainActor.run {
+                                    dismiss()
+                                }
                             }
+                        }) {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(BananaTheme.ColorToken.accent)
                         }
-                    }) {
-                        Image(systemName: "checkmark")
-                            .foregroundColor(hasUnsavedChanges ? BananaTheme.ColorToken.accent : BananaTheme.ColorToken.text)
+                        .tint(BananaTheme.ColorToken.primary)
                     }
-                    .tint(BananaTheme.ColorToken.primary)
                 }
             }
             .onDisappear {

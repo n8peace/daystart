@@ -1,0 +1,96 @@
+name: Deploy Supabase Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Deno
+      uses: denoland/setup-deno@v1
+      with:
+        deno-version: v1.x
+        
+    - name: Setup Supabase CLI
+      uses: supabase/setup-cli@v1
+      with:
+        version: latest
+        
+    - name: Verify Supabase CLI
+      run: supabase --version
+      
+    - name: Link Supabase project
+      run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        
+    - name: Run database migrations
+      run: supabase db push
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        
+    - name: Deploy Edge Functions
+      run: supabase functions deploy --no-verify-jwt
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        
+    - name: Set function secrets
+      run: |
+        supabase secrets set OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
+        supabase secrets set ELEVENLABS_API_KEY="${{ secrets.ELEVENLABS_API_KEY }}"
+        supabase secrets set WORKER_AUTH_TOKEN="${{ secrets.WORKER_AUTH_TOKEN }}"
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+  test:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Test Edge Functions
+      run: |
+        # Test create_job endpoint
+        curl -X POST \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+          -H "x-client-info: test-client" \
+          -d '{
+            "local_date": "2025-08-12",
+            "scheduled_at": "2025-08-12T07:00:00Z",
+            "preferred_name": "Test User",
+            "include_weather": true,
+            "include_news": true,
+            "include_sports": false,
+            "include_stocks": false,
+            "stock_symbols": [],
+            "include_calendar": false,
+            "include_quotes": true,
+            "quote_preference": "motivational",
+            "voice_option": "voice1",
+            "daystart_length": 180,
+            "timezone": "America/New_York"
+          }' \
+          "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/create_job"
+          
+        # Test get_audio_status endpoint
+        curl -X GET \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+          -H "x-client-info: test-client" \
+          "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/get_audio_status?date=2025-08-12"

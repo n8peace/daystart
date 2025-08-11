@@ -43,34 +43,22 @@ class HapticManager {
     func impact(style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
         guard shouldAllowHaptic() else { return }
         
-        do {
-            let generator = UIImpactFeedbackGenerator(style: style)
-            generator.prepare()
-            generator.impactOccurred()
-        } catch {
-            logger.logError(error, context: "Haptic impact feedback failed")
-        }
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.prepare()
+        generator.impactOccurred()
     }
     
     func selection() {
         guard shouldAllowHaptic() else { return }
         
-        do {
-            selectionFeedback.prepare()
-            selectionFeedback.selectionChanged()
-        } catch {
-            logger.logError(error, context: "Haptic selection feedback failed")
-        }
+        selectionFeedback.prepare()
+        selectionFeedback.selectionChanged()
     }
     
     func notification(type: UINotificationFeedbackGenerator.FeedbackType) {
         guard shouldAllowHaptic() else { return }
         
-        do {
-            notificationFeedback.prepare()
-            notificationFeedback.notificationOccurred(type)
-        } catch {
-            logger.logError(error, context: "Haptic notification feedback failed")
-        }
+        notificationFeedback.prepare()
+        notificationFeedback.notificationOccurred(type)
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import Darwin.Mach
 
 class DebugLogger {
     static let shared = DebugLogger()

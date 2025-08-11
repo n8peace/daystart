@@ -6,7 +6,6 @@ class NotificationScheduler {
     
     private let notificationCenter = UNUserNotificationCenter.current()
     private let mainIdentifierPrefix = "daystart_main_"
-    private let prefetchIdentifierPrefix = "daystart_prefetch_"
     private let reminderIdentifierPrefix = "daystart_reminder_"
     private let missedIdentifierPrefix = "daystart_missed_"
     private let streakEveningIdentifierPrefix = "daystart_streak_evening_"
@@ -62,8 +61,7 @@ class NotificationScheduler {
             // Schedule main notification
             await scheduleMainNotification(for: notificationDate, dayOffset: dayOffset)
             
-            // Schedule prefetch notification (30 minutes before)
-            await schedulePrefetchNotification(for: notificationDate, dayOffset: dayOffset)
+            // Note: Prefetch functionality removed - local notifications cannot trigger background fetch
             
             // Schedule night-before reminder (10 hours before)
             if let reminderDate = calendar.date(byAdding: .hour, value: -10, to: notificationDate) {
@@ -290,32 +288,8 @@ class NotificationScheduler {
         }
     }
     
-    private func schedulePrefetchNotification(for date: Date, dayOffset: Int) async {
-        let prefetchTime = date.addingTimeInterval(-30 * 60) // 30 minutes before
-        
-        // Only schedule if prefetch time is in the future
-        guard prefetchTime > Date() else { return }
-        
-        let content = UNMutableNotificationContent()
-        content.title = "" // Silent notification
-        content.body = ""
-        content.sound = nil
-        // This triggers background app refresh for audio download
-        
-        let calendar = Calendar.current
-        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: prefetchTime)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
-        
-        let identifier = "\(prefetchIdentifierPrefix)\(dayOffset)"
-        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-        
-        do {
-            try await notificationCenter.add(request)
-            DebugLogger.shared.log("Scheduled prefetch notification for \(prefetchTime)", level: .info)
-        } catch {
-            DebugLogger.shared.log("Failed to schedule prefetch notification: \(error)", level: .error)
-        }
-    }
+    // Removed: schedulePrefetchNotification - local notifications cannot trigger background fetch
+    // If background processing is needed in future, use BGTaskScheduler or remote silent pushes
     
     private func scheduleMissedNotification(for date: Date, dayOffset: Int) async {
         let content = UNMutableNotificationContent()

@@ -31,6 +31,11 @@ class HomeViewModel: ObservableObject {
     private let notificationScheduler = NotificationScheduler.shared
     private let mockService = MockDataService.shared
     private let welcomeScheduler = WelcomeDayStartScheduler.shared
+    private let audioPrefetchManager = AudioPrefetchManager.shared
+    private let audioCache = AudioCache.shared
+    
+    // Debouncing
+    private var updateStateWorkItem: DispatchWorkItem?
     
     init() {
         logger.log("🏠 HomeViewModel initialized", level: .info)
@@ -52,7 +57,7 @@ class HomeViewModel: ObservableObject {
         userPreferences.$schedule
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.updateState()
+                self?.debouncedUpdateState()
                 self?.scheduleNotifications()
             }
             .store(in: &cancellables)
@@ -100,6 +105,20 @@ class HomeViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    private func debouncedUpdateState() {
+        // Cancel any pending update
+        updateStateWorkItem?.cancel()
+        
+        // Schedule new update with 0.1s delay
+        updateStateWorkItem = DispatchWorkItem { [weak self] in
+            self?.updateState()
+        }
+        
+        if let workItem = updateStateWorkItem {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
+        }
+    }
+    
     private func updateState() {
         timer?.invalidate()
         pauseTimeoutTimer?.invalidate()
@@ -112,17 +131,23 @@ class HomeViewModel: ObservableObject {
         
         guard let nextOccurrence = userPreferences.schedule.nextOccurrence else {
             logger.log("📅 No schedule found, showing no schedule message", level: .info)
-            state = .idle
-            showNoScheduleMessage = true
-            nextDayStartTime = nil
-            hasCompletedCurrentOccurrence = false
-            isNextDayStartTomorrow = false
-            isNextDayStartToday = false
+            // Batch all updates together
+            withAnimation(.none) {
+                state = .idle
+                showNoScheduleMessage = true
+                nextDayStartTime = nil
+                hasCompletedCurrentOccurrence = false
+                isNextDayStartTomorrow = false
+                isNextDayStartToday = false
+            }
             return
         }
         
-        showNoScheduleMessage = false
-        nextDayStartTime = nextOccurrence
+        // Batch updates together
+        withAnimation(.none) {
+            showNoScheduleMessage = false
+            nextDayStartTime = nextOccurrence
+        }
         
         // Check if next DayStart is today or tomorrow
         let calendar = Calendar.current
@@ -133,8 +158,11 @@ class HomeViewModel: ObservableObject {
         
         let nextOccurrenceDay = calendar.startOfDay(for: nextOccurrence)
         
-        isNextDayStartToday = nextOccurrenceDay == today
-        isNextDayStartTomorrow = nextOccurrenceDay == tomorrow
+        // Batch these related updates
+        withAnimation(.none) {
+            isNextDayStartToday = nextOccurrenceDay == today
+            isNextDayStartTomorrow = nextOccurrenceDay == tomorrow
+        }
         
         
         let timeUntil = nextOccurrence.timeIntervalSinceNow
@@ -182,11 +210,23 @@ class HomeViewModel: ObservableObject {
         let minutes = (Int(timeInterval) % 3600) / 60
         let seconds = Int(timeInterval) % 60
         
-        countdownText = String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        let newText = String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        
+        // Only update if text actually changed (prevents unnecessary redraws)
+        if newText != countdownText {
+            countdownText = newText
+        }
     }
     
     func startDayStart() {
         logger.logUserAction("Start DayStart", details: ["time": Date().description])
+        
+        Task {
+            await startDayStartWithAudio()
+        }
+    }
+    
+    private func startDayStartWithAudio() async {
         let dayStart = mockService.fetchDayStart(for: userPreferences.settings)
         
         // Mark this occurrence with the scheduled time for tracking
@@ -198,19 +238,142 @@ class HomeViewModel: ObservableObject {
         currentDayStart = dayStartWithScheduledTime
         userPreferences.addToHistory(dayStartWithScheduledTime)
         
-        logger.logAudioEvent("Loading audio for DayStart")
+        guard let scheduledTime = nextDayStartTime else {
+            // Fallback to mock audio if no scheduled time
+            await playMockAudio()
+            return
+        }
+        
+        // Check if audio is already cached locally
+        if audioCache.hasAudio(for: scheduledTime) {
+            logger.log("Audio already cached, playing from local file", level: .info)
+            await playCachedAudio(for: scheduledTime)
+        } else {
+            // Stream from CDN while downloading in background
+            do {
+                let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: scheduledTime)
+                
+                if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
+                    logger.log("Streaming audio from CDN: \(audioUrl.absoluteString)", level: .info)
+                    
+                    // Stream immediately
+                    await streamAudio(from: audioUrl)
+                    
+                    // Download in background for future replays (no user waiting)
+                    Task.detached {
+                        let success = await AudioDownloader.shared.download(from: audioUrl, for: scheduledTime)
+                        if success {
+                            DebugLogger.shared.log("Background download completed for \(scheduledTime)", level: .info)
+                        }
+                    }
+                } else {
+                    // Audio not ready, create job and fall back to mock
+                    logger.log("Audio not ready (status: \(audioStatus.status)), falling back to mock", level: .warning)
+                    
+                    // Create job for future
+                    try? await SupabaseClient.shared.createJob(
+                        for: scheduledTime,
+                        with: userPreferences.settings,
+                        schedule: userPreferences.schedule
+                    )
+                    
+                    await playMockAudio()
+                }
+            } catch {
+                logger.logError(error, context: "Failed to check audio status")
+                await playMockAudio()
+            }
+        }
+    }
+    
+    private func playCachedAudio(for date: Date) async {
+        let audioUrl = audioCache.getAudioPath(for: date)
+        
+        logger.logAudioEvent("Loading cached audio for DayStart")
+        audioPlayer.loadAudio(from: audioUrl)
+        audioPlayer.play()
+        state = .playing
+        stopPauseTimeoutTimer()
+        
+        await cancelTodaysNotifications()
+        scheduleNextNotifications()
+    }
+    
+    private func streamAudio(from url: URL) async {
+        logger.logAudioEvent("Streaming audio from CDN")
+        
+        // Try to load and play audio
+        do {
+            // Create a simple test request to check if URL is valid before loading into player
+            let (_, response) = try await URLSession.shared.data(from: url)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 403 {
+                    // URL likely expired, try to refresh
+                    logger.log("CDN URL expired (403), attempting to refresh", level: .warning)
+                    await handleExpiredUrl(originalUrl: url)
+                    return
+                }
+            }
+            
+            // URL is valid, proceed with streaming
+            audioPlayer.loadAudio(from: url)
+            audioPlayer.play()
+            state = .playing
+            stopPauseTimeoutTimer()
+            
+            await cancelTodaysNotifications()
+            scheduleNextNotifications()
+            
+        } catch {
+            logger.logError(error, context: "Failed to stream audio from CDN, falling back to mock")
+            await playMockAudio()
+        }
+    }
+    
+    private func handleExpiredUrl(originalUrl: URL) async {
+        guard let scheduledTime = nextDayStartTime else {
+            await playMockAudio()
+            return
+        }
+        
+        do {
+            // Re-fetch audio status to get fresh signed URL
+            let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: scheduledTime)
+            
+            if audioStatus.success && audioStatus.status == "ready", let freshUrl = audioStatus.audioUrl {
+                logger.log("Successfully refreshed signed URL", level: .info)
+                // Recursive call with fresh URL (avoid infinite loops by checking if URL changed)
+                if freshUrl.absoluteString != originalUrl.absoluteString {
+                    await streamAudio(from: freshUrl)
+                } else {
+                    logger.logError(NSError(domain: "URLRefresh", code: 1), context: "Refreshed URL is same as expired URL")
+                    await playMockAudio()
+                }
+            } else {
+                logger.log("Audio not ready after URL refresh, falling back to mock", level: .warning)
+                await playMockAudio()
+            }
+        } catch {
+            logger.logError(error, context: "Failed to refresh expired URL")
+            await playMockAudio()
+        }
+    }
+    
+    private func playMockAudio() async {
+        logger.logAudioEvent("Loading mock audio for DayStart")
         audioPlayer.loadAudio()
         audioPlayer.play()
         state = .playing
         stopPauseTimeoutTimer()
         
-        // Cancel today's missed notification since user is now listening
-        Task {
-            await notificationScheduler.cancelTodaysMissedNotification()
-            await notificationScheduler.cancelTodaysEveningReminder()
-        }
-        
+        await cancelTodaysNotifications()
         scheduleNextNotifications()
+    }
+    
+    private func cancelTodaysNotifications() async {
+        await notificationScheduler.cancelTodaysMissedNotification()
+        await notificationScheduler.cancelTodaysEveningReminder()
     }
     
     func startWelcomeDayStart() {
@@ -235,7 +398,25 @@ class HomeViewModel: ObservableObject {
     func replayDayStart(_ dayStart: DayStartData) {
         logger.logUserAction("Replay DayStart", details: ["id": dayStart.id])
         currentDayStart = dayStart
-        audioPlayer.loadAudio()
+        
+        Task {
+            await replayDayStartWithAudio(dayStart)
+        }
+    }
+    
+    private func replayDayStartWithAudio(_ dayStart: DayStartData) async {
+        // Check if we have cached audio for this DayStart
+        if let scheduledTime = dayStart.scheduledTime,
+           audioCache.hasAudio(for: scheduledTime) {
+            let audioUrl = audioCache.getAudioPath(for: scheduledTime)
+            logger.logAudioEvent("Loading cached audio for replay")
+            audioPlayer.loadAudio(from: audioUrl)
+        } else {
+            // Fall back to mock audio for replay
+            logger.logAudioEvent("Loading mock audio for replay")
+            audioPlayer.loadAudio()
+        }
+        
         audioPlayer.play()
         state = .playing
         stopPauseTimeoutTimer()

@@ -14,6 +14,7 @@ class HistoryAudioPlayer: NSObject, ObservableObject {
     private var timer: Timer?
     
     deinit {
+        NotificationCenter.default.removeObserver(self)
         timer?.invalidate()
         timer = nil
         audioPlayer?.stop()
@@ -22,6 +23,9 @@ class HistoryAudioPlayer: NSObject, ObservableObject {
     func loadAudio(from path: String) {
         isLoading = true
         errorMessage = nil
+        
+        // Set up coordination with main audio player
+        setupPlayerCoordination()
         
         let url = URL(fileURLWithPath: path)
         
@@ -45,6 +49,24 @@ class HistoryAudioPlayer: NSObject, ObservableObject {
         }
     }
     
+    private func setupPlayerCoordination() {
+        // Listen for main player events
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(mainPlayerWillStart),
+            name: AudioPlayerManager.willStartPlayingNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func mainPlayerWillStart() {
+        // Pause this history player if main player starts
+        if isPlaying {
+            DebugLogger.shared.logAudioEvent("History player paused due to main player starting")
+            pause()
+        }
+    }
+    
     func togglePlayback() {
         guard let player = audioPlayer else {
             errorMessage = "No audio file loaded"
@@ -60,6 +82,13 @@ class HistoryAudioPlayer: NSObject, ObservableObject {
     
     private func play() {
         guard let player = audioPlayer else { return }
+        
+        // Pause main player if it's playing
+        let mainPlayer = AudioPlayerManager.shared
+        if mainPlayer.isPlaying {
+            DebugLogger.shared.logAudioEvent("Pausing main player for history playback")
+            mainPlayer.pause()
+        }
         
         if player.play() {
             isPlaying = true
@@ -95,7 +124,7 @@ class HistoryAudioPlayer: NSObject, ObservableObject {
     
     private func startTimer() {
         stopTimer()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.updateTime()
             }

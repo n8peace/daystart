@@ -3,9 +3,11 @@ import AVFoundation
 import UserNotifications
 import UIKit
 import Combine
+import BackgroundTasks
 
 @main
 struct DayStartApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var userPreferences = UserPreferences.shared
     @StateObject private var themeManager = ThemeManager.shared
     @State private var showOnboarding = false
@@ -69,9 +71,10 @@ struct DayStartApp: App {
                                        mode: .spokenAudio, 
                                        options: [.allowBluetooth, .allowBluetoothA2DP])
             
-            // Set preferred sample rate and buffer duration to prevent system lookups
+            // Set preferred sample rate and buffer duration for stable playback
             try audioSession.setPreferredSampleRate(44100.0)
-            try audioSession.setPreferredIOBufferDuration(0.02)
+            // Use larger buffer (256 samples ≈ 5.8ms at 44.1kHz) to prevent dropouts
+            try audioSession.setPreferredIOBufferDuration(256.0 / 44100.0)
             
             // Activate session with error handling for system resource conflicts
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
@@ -139,5 +142,48 @@ struct ContentView: View {
         HomeView(viewModel: homeViewModel)
             .onAppear {
             }
+    }
+}
+
+// MARK: - App Delegate for Background Tasks
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    private let logger = DebugLogger.shared
+    
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Register background tasks for audio prefetch
+        AudioPrefetchManager.shared.registerBackgroundTasks()
+        logger.log("🔄 Registered background tasks", level: .info)
+        
+        return true
+    }
+    
+    func applicationWillEnterForeground(_ application: UIApplication) {
+        logger.log("📱 App entering foreground - checking for upcoming DayStarts", level: .info)
+        
+        Task { @MainActor in
+            await AudioPrefetchManager.shared.checkForUpcomingDayStarts()
+        }
+    }
+    
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        logger.log("🌙 App entered background", level: .debug)
+        
+        // Clean up old cache when app goes to background
+        Task {
+            AudioCache.shared.clearOldCache()
+        }
+    }
+    
+    func applicationWillTerminate(_ application: UIApplication) {
+        logger.log("❌ App terminating - cancelling downloads", level: .info)
+        
+        Task { @MainActor in
+            AudioDownloader.shared.cancelAllDownloads()
+            AudioPrefetchManager.shared.cancelAllBackgroundTasks()
+        }
     }
 }

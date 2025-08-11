@@ -21,11 +21,11 @@ enum StockValidationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .tooShort:
-            return "Symbol must be 1-5 characters"
+            return "Symbol must be 1-16 characters"
         case .tooLong:
-            return "Symbol must be 1-5 characters"
+            return "Symbol must be 1-16 characters"
         case .invalidCharacters:
-            return "Only letters allowed"
+            return "Invalid characters (letters, numbers, -.=$^ allowed)"
         case .notFound:
             return "Stock symbol not found"
         case .apiError(let message):
@@ -48,7 +48,7 @@ class StockValidationService: ObservableObject {
     private var lastAPICall: Date = .distantPast
     private let apiCooldown: TimeInterval = 1.0 // 1 second between API calls
     
-    // Known valid symbols for offline validation
+    // Known valid symbols for offline validation (including crypto pairs and forex)
     private let knownValidSymbols: Set<String> = [
         "AAPL", "GOOGL", "GOOG", "MSFT", "AMZN", "TSLA", "META", "NVDA", 
         "JPM", "JNJ", "V", "PG", "UNH", "HD", "DIS", "MA", "PYPL", "BAC",
@@ -57,7 +57,11 @@ class StockValidationService: ObservableObject {
         "AVGO", "DHR", "TXN", "LLY", "ACN", "NEE", "UPS", "PM", "BMY",
         "QCOM", "HON", "LIN", "UNP", "ORCL", "AMD", "COP", "WFC", "SPGI",
         "GS", "BLK", "LOW", "C", "MS", "CAT", "RTX", "IBM", "AMGN", "AXP",
-        "SPY", "QQQ", "IWM", "VTI", "VOO", "VEA", "IEFA", "AGG", "LQD"
+        "SPY", "QQQ", "IWM", "VTI", "VOO", "VEA", "IEFA", "AGG", "LQD",
+        // Crypto pairs
+        "BTC-USD", "ETH-USD", "ADA-USD", "DOT-USD", "SOL-USD",
+        // Forex pairs  
+        "EUR=X", "GBP=X", "JPY=X", "AUD=X", "CAD=X"
     ]
     
     private init() {}
@@ -136,11 +140,13 @@ class StockValidationService: ObservableObject {
             return .tooShort
         }
         
-        if symbol.count > 5 {
+        if symbol.count > 16 {
             return .tooLong
         }
         
-        if !symbol.allSatisfy({ $0.isLetter && $0.isASCII }) {
+        // Use the same validation as UserSettings.isValidStockSymbol
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-.$=^"))
+        if !symbol.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) {
             return .invalidCharacters
         }
         
@@ -158,7 +164,10 @@ class StockValidationService: ObservableObject {
             "META": "Meta Platforms Inc.",
             "NVDA": "NVIDIA Corp.",
             "SPY": "SPDR S&P 500 ETF",
-            "QQQ": "Invesco QQQ ETF"
+            "QQQ": "Invesco QQQ ETF",
+            "BTC-USD": "Bitcoin",
+            "ETH-USD": "Ethereum",
+            "EUR=X": "Euro/USD"
         ]
         return companyNames[symbol]
     }

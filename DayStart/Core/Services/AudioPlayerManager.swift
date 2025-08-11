@@ -19,8 +19,17 @@ class AudioPlayerManager: NSObject, ObservableObject {
     private var previewPlayer: AVAudioPlayer?
     private var previewStopWorkItem: DispatchWorkItem?
     
+    // Player coordination state
+    private var wasPlayingBeforePreview = false
+    private var playbackPositionBeforePreview: TimeInterval = 0
+    
+    // Notification names for player coordination
+    static let willStartPlayingNotification = Notification.Name("AudioPlayerManager.willStartPlaying")
+    static let didStopPlayingNotification = Notification.Name("AudioPlayerManager.didStopPlaying")
+    
     override private init() {
         super.init()
+        setupAudioSessionObservers()
         logger.log("🎵 AudioPlayerManager initialized", level: .info)
     }
     
@@ -72,7 +81,11 @@ class AudioPlayerManager: NSObject, ObservableObject {
             return
         }
         
+        // Notify other players that main player is starting
+        NotificationCenter.default.post(name: Self.willStartPlayingNotification, object: self)
+        
         logger.logAudioEvent("Playing audio", details: ["rate": playbackRate])
+        player.rate = playbackRate
         player.play()
         isPlaying = true
         didFinishPlaying = false
@@ -84,6 +97,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
         audioPlayer?.pause()
         isPlaying = false
         stopTimeObserver()
+        
+        // Notify other players that main player stopped
+        NotificationCenter.default.post(name: Self.didStopPlayingNotification, object: self)
     }
     
     func togglePlayPause() {
@@ -113,7 +129,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     }
     
     private func startTimeObserver() {
-        displayLink = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        displayLink = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             self?.updateTime()
         }
     }
@@ -150,6 +166,110 @@ class AudioPlayerManager: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - Audio Session Management
+    private func setupAudioSessionObservers() {
+        // Interruption handling
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+        
+        // Route change handling (headphones, Bluetooth, etc.)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioRouteChange),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+        
+        logger.log("🔊 Audio session observers configured", level: .info)
+    }
+    
+    @objc private func handleAudioInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        switch type {
+        case .began:
+            // Interruption began - pause playback
+            logger.logAudioEvent("Audio interruption began - pausing playback")
+            if isPlaying {
+                pause()
+            }
+            // Also pause any preview that might be playing
+            stopVoicePreview()
+            
+        case .ended:
+            // Interruption ended - check if we should resume
+            logger.logAudioEvent("Audio interruption ended")
+            
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                if options.contains(.shouldResume) {
+                    // System says we should resume - but let user decide
+                    logger.logAudioEvent("System suggests resuming audio")
+                    reactivateAudioSession()
+                }
+            }
+            
+        @unknown default:
+            logger.log("⚠️ Unknown audio interruption type: \(typeValue)", level: .warning)
+        }
+    }
+    
+    @objc private func handleAudioRouteChange(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+            return
+        }
+        
+        switch reason {
+        case .oldDeviceUnavailable:
+            // Headphones unplugged or Bluetooth disconnected - pause playback
+            logger.logAudioEvent("Audio device disconnected - pausing playback")
+            if isPlaying {
+                pause()
+            }
+            stopVoicePreview()
+            
+        case .newDeviceAvailable:
+            // New device connected - just log it
+            logger.logAudioEvent("New audio device connected")
+            
+        case .categoryChange, .override:
+            // Audio category changed - reactivate session
+            logger.logAudioEvent("Audio category changed - reactivating session")
+            reactivateAudioSession()
+            
+        default:
+            logger.logAudioEvent("Audio route changed", details: ["reason": reason.rawValue])
+        }
+    }
+    
+    private func reactivateAudioSession() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            logger.logAudioEvent("Audio session reactivated successfully")
+        } catch {
+            logger.logError(error, context: "Failed to reactivate audio session")
+        }
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        stopTimeObserver()
+        audioPlayer?.stop()
+        previewPlayer?.stop()
+        logger.log("🎵 AudioPlayerManager deinitialized", level: .info)
+    }
+    
     // MARK: - Voice Preview
     func previewVoice(_ voice: VoiceOption) {
         let resourceName = getVoicePreviewResourceName(for: voice)
@@ -164,13 +284,44 @@ class AudioPlayerManager: NSObject, ObservableObject {
         // Stop any existing preview immediately
         stopVoicePreview()
         
+        // Coordinate with main player - pause if playing and save state
+        if isPlaying {
+            wasPlayingBeforePreview = true
+            playbackPositionBeforePreview = currentTime
+            logger.logAudioEvent("Pausing main player for voice preview", details: [
+                "currentTime": playbackPositionBeforePreview
+            ])
+            pause()
+        } else {
+            wasPlayingBeforePreview = false
+            playbackPositionBeforePreview = 0
+        }
+        
         do {
             let newPreviewPlayer = try AVAudioPlayer(contentsOf: url)
+            newPreviewPlayer.delegate = self
             newPreviewPlayer.prepareToPlay()
             self.previewPlayer = newPreviewPlayer
-            newPreviewPlayer.play()
+            
+            if newPreviewPlayer.play() {
+                logger.logAudioEvent("Voice preview started successfully")
+                
+                // Auto-stop preview after the audio finishes naturally or after 10 seconds max
+                let previewDuration = min(newPreviewPlayer.duration, 10.0)
+                previewStopWorkItem = DispatchWorkItem { [weak self] in
+                    self?.stopVoicePreview()
+                }
+                
+                if let workItem = previewStopWorkItem {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + previewDuration + 0.5, execute: workItem)
+                }
+            } else {
+                logger.logAudioEvent("Failed to start voice preview")
+                restoreMainPlayerAfterPreview()
+            }
         } catch {
             logger.logError(error, context: "Failed to preview voice \(voice.name)")
+            restoreMainPlayerAfterPreview()
         }
     }
 
@@ -182,15 +333,61 @@ class AudioPlayerManager: NSObject, ObservableObject {
         // Stop and release preview player
         previewPlayer?.stop()
         previewPlayer = nil
+        
+        // Restore main player if it was playing before preview
+        restoreMainPlayerAfterPreview()
+    }
+    
+    private func restoreMainPlayerAfterPreview() {
+        if wasPlayingBeforePreview && audioPlayer != nil {
+            logger.logAudioEvent("Restoring main player after voice preview", details: [
+                "resumePosition": playbackPositionBeforePreview
+            ])
+            
+            // Restore position if it was saved
+            if playbackPositionBeforePreview > 0 {
+                seek(to: playbackPositionBeforePreview)
+            }
+            
+            // Resume playback
+            play()
+        }
+        
+        // Reset coordination state
+        wasPlayingBeforePreview = false
+        playbackPositionBeforePreview = 0
     }
 }
 
 extension AudioPlayerManager: AVAudioPlayerDelegate {
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        logger.logAudioEvent("Audio playback finished", details: ["successful": flag])
-        isPlaying = false
-        didFinishPlaying = true
-        stopTimeObserver()
-        currentTime = 0
+        // Check if this is the main player or preview player
+        if player === audioPlayer {
+            // Main player finished
+            logger.logAudioEvent("Main audio playback finished", details: ["successful": flag])
+            isPlaying = false
+            didFinishPlaying = true
+            stopTimeObserver()
+            currentTime = 0
+        } else if player === previewPlayer {
+            // Preview player finished - restore main player if needed
+            logger.logAudioEvent("Voice preview finished", details: ["successful": flag])
+            stopVoicePreview() // This will call restoreMainPlayerAfterPreview()
+        }
+    }
+    
+    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        let errorDesc = error?.localizedDescription ?? "Unknown decode error"
+        
+        if player === audioPlayer {
+            logger.logError(error ?? NSError(domain: "AudioDecodeError", code: -1), 
+                          context: "Main audio player decode error")
+            isPlaying = false
+            stopTimeObserver()
+        } else if player === previewPlayer {
+            logger.logError(error ?? NSError(domain: "AudioDecodeError", code: -1), 
+                          context: "Preview audio player decode error")
+            stopVoicePreview()
+        }
     }
 }

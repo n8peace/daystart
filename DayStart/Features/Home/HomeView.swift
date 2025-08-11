@@ -7,17 +7,17 @@ struct HomeView: View {
     @EnvironmentObject var userPreferences: UserPreferences
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject private var welcomeScheduler = WelcomeDayStartScheduler.shared
-    @StateObject private var streakManager = StreakManager.shared
+    @ObservedObject private var streakManager = StreakManager.shared
     @State private var previousState: HomeViewModel.AppState = .idle
     @State private var showStreakCelebration = false
     @State private var celebrationStreak = 0
+    @State private var tomorrowWeatherForecast: String?
+    @State private var isLoadingForecast = false
+    @State private var isViewVisible = true
+    @Environment(\.scenePhase) var scenePhase
     private let hapticManager = HapticManager.shared
-    
-    private var dateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM d"
-        return formatter
-    }
+    private let locationManager = LocationManager.shared
+    private let formatters = FormatterCache.shared
     
     private func formattedDate(for date: Date) -> String {
         let calendar = Calendar.current
@@ -26,16 +26,14 @@ struct HomeView: View {
         let sevenDaysFromToday = calendar.date(byAdding: .day, value: 7, to: today) ?? now
         
         if viewModel.isNextDayStartToday {
-            return "Today, \(dateFormatter.string(from: date))"
+            return "Today, \(formatters.monthDayFormatter.string(from: date))"
         } else if viewModel.isNextDayStartTomorrow {
-            return "Tomorrow, \(dateFormatter.string(from: date))"
+            return "Tomorrow, \(formatters.monthDayFormatter.string(from: date))"
         } else if date < sevenDaysFromToday {
             // Within next 7 days - add day name
-            let dayFormatter = DateFormatter()
-            dayFormatter.dateFormat = "EEEE" // Full day name
-            return "\(dayFormatter.string(from: date)), \(dateFormatter.string(from: date))"
+            return "\(formatters.fullDayFormatter.string(from: date)), \(formatters.monthDayFormatter.string(from: date))"
         } else {
-            return dateFormatter.string(from: date)
+            return formatters.monthDayFormatter.string(from: date)
         }
     }
     
@@ -53,7 +51,7 @@ struct HomeView: View {
                         Spacer(minLength: 40)
                         
                         mainContentView
-                            .animation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0), value: viewModel.state)
+                            .animation(isViewVisible ? .spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0) : .none, value: viewModel.state)
                         
                         Spacer(minLength: 60)
                     }
@@ -61,7 +59,7 @@ struct HomeView: View {
                     // Primary actions in thumb-friendly bottom zone
                     VStack(spacing: 20) {
                         primaryActionView
-                            .animation(.spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0), value: viewModel.state)
+                            .animation(isViewVisible ? .spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0) : .none, value: viewModel.state)
                         
                         if viewModel.state == .playing {
                             AudioPlayerView(dayStart: viewModel.currentDayStart)
@@ -86,6 +84,9 @@ struct HomeView: View {
                 }
                 .onAppear {
                     previousState = viewModel.state
+                }
+                .onChange(of: scenePhase) { phase in
+                    isViewVisible = phase == .active
                 }
                 .overlay(
                     // Streak celebration overlay
@@ -417,19 +418,35 @@ struct HomeView: View {
                             .fontWeight(.medium)
                     }
                 } else {
-                    VStack(spacing: 12) {
-                        Text("Next DayStart")
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
+                    VStack(spacing: 16) {
+                        VStack(spacing: 12) {
+                            Text("Next DayStart")
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
+                            
+                            Text(nextTime, style: .time)
+                                .font(.system(size: 48, weight: .bold, design: .rounded))
+                                .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
+                            
+                            Text(formattedDate(for: nextTime))
+                                .font(.system(size: 16, weight: .regular))
+                                .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                                .opacity(viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday ? 1.0 : 0.7)
+                        }
                         
-                        Text(nextTime, style: .time)
-                            .font(.system(size: 48, weight: .bold, design: .rounded))
-                            .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
-                        
-                        Text(formattedDate(for: nextTime))
-                            .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                            .opacity(viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday ? 1.0 : 0.7)
+                        // Tomorrow's lineup preview
+                        if viewModel.isNextDayStartTomorrow {
+                            Button(action: {
+                                hapticManager.impact(style: .light)
+                                showEditSchedule = true
+                            }) {
+                                tomorrowsLineupPreview
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .task {
+                                await loadTomorrowForecast()
+                            }
+                        }
                     }
                 }
             }
@@ -497,6 +514,9 @@ struct HomeView: View {
                         .foregroundColor(BananaTheme.ColorToken.tertiaryText)
                 }
             }
+            
+            // Progressive anticipation reveal
+            countdownAnticipationView
         }
     }
     
@@ -585,8 +605,9 @@ struct HomeView: View {
     }
     
     private var recentlyPlayedViewAction: some View {
-        VStack {
+        VStack(spacing: 16) {
             if let dayStart = viewModel.currentDayStart {
+                // Primary Replay button
                 Button(action: { 
                     hapticManager.impact(style: .light)
                     viewModel.replayDayStart(dayStart) 
@@ -602,6 +623,23 @@ struct HomeView: View {
                 .padding(.horizontal, 40)
                 .accessibilityLabel("Replay DayStart")
                 .accessibilityHint("Tap to replay the audio briefing you just completed")
+                
+                // Secondary Share button
+                Button(action: { 
+                    hapticManager.impact(style: .light)
+                    shareDayStart(dayStart) 
+                }) {
+                    Label("Share Achievement", systemImage: "square.and.arrow.up")
+                        .font(.subheadline)
+                        .foregroundColor(BananaTheme.ColorToken.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(BananaTheme.ColorToken.primary.opacity(0.15))
+                        .cornerRadius(16)
+                }
+                .padding(.horizontal, 40)
+                .accessibilityLabel("Share DayStart achievement")
+                .accessibilityHint("Tap to share your morning briefing completion")
             }
         }
     }
@@ -708,63 +746,69 @@ struct HomeView: View {
     }
     
     private var streakCounterView: some View {
-        HStack(spacing: 8) {
-            Text("🔥")
-                .font(.title2)
-                .scaleEffect(streakManager.currentStreak >= 7 ? 1.3 : 1.0)
-                .rotationEffect(.degrees(streakManager.currentStreak >= 14 ? 10 : 0))
-                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: streakManager.currentStreak >= 7)
-            
-            Text("\(streakManager.currentStreak) day streak")
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(streakTextColor)
-                .scaleEffect(showStreakCelebration && celebrationStreak == streakManager.currentStreak ? 1.1 : 1.0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showStreakCelebration)
-            
-            // Enhanced streak milestone celebrations
-            Group {
-                if streakManager.currentStreak >= 100 {
-                    Text("🏆✨🎊")
-                        .font(.caption)
-                        .scaleEffect(1.2)
-                        .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: streakManager.currentStreak)
-                } else if streakManager.currentStreak >= 50 {
-                    Text("👑🎆✨")
-                        .font(.caption)
-                        .scaleEffect(1.1)
-                        .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: streakManager.currentStreak)
-                } else if streakManager.currentStreak >= 30 {
-                    Text("💪🎆")
-                        .font(.caption)
-                        .scaleEffect(1.05)
-                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: streakManager.currentStreak)
-                } else if streakManager.currentStreak >= 14 {
-                    Text("⭐️🎆")
-                        .font(.caption)
-                        .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: streakManager.currentStreak)
-                } else if streakManager.currentStreak >= 7 {
-                    Text("🎆")
-                        .font(.caption)
+        Button(action: {
+            hapticManager.impact(style: .light)
+            showHistory = true
+        }) {
+            HStack(spacing: 8) {
+                Text("🔥")
+                    .font(.title2)
+                    .scaleEffect(streakManager.currentStreak >= 7 ? 1.3 : 1.0)
+                    .rotationEffect(.degrees(streakManager.currentStreak >= 14 ? 10 : 0))
+                    .animation(isViewVisible && streakManager.currentStreak >= 7 ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .none, value: streakManager.currentStreak >= 7)
+                
+                Text("\(streakManager.currentStreak) day streak")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(streakTextColor)
+                    .scaleEffect(showStreakCelebration && celebrationStreak == streakManager.currentStreak ? 1.1 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showStreakCelebration)
+                
+                // Enhanced streak milestone celebrations
+                Group {
+                    if streakManager.currentStreak >= 100 {
+                        Text("🏆✨🎊")
+                            .font(.caption)
+                            .scaleEffect(1.2)
+                            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: streakManager.currentStreak)
+                    } else if streakManager.currentStreak >= 50 {
+                        Text("👑🎆✨")
+                            .font(.caption)
+                            .scaleEffect(1.1)
+                            .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: streakManager.currentStreak)
+                    } else if streakManager.currentStreak >= 30 {
+                        Text("💪🎆")
+                            .font(.caption)
+                            .scaleEffect(1.05)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: streakManager.currentStreak)
+                    } else if streakManager.currentStreak >= 14 {
+                        Text("⭐️🎆")
+                            .font(.caption)
+                            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: streakManager.currentStreak)
+                    } else if streakManager.currentStreak >= 7 {
+                        Text("🎆")
+                            .font(.caption)
+                    }
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(streakBackgroundColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(BananaTheme.ColorToken.primary.opacity(streakBorderOpacity(for: streakManager.currentStreak)), lineWidth: streakBorderWidth(for: streakManager.currentStreak))
+                    )
+            )
+            .shadow(
+                color: streakShadowColor, 
+                radius: streakShadowRadius(for: streakManager.currentStreak)
+            )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(streakBackgroundColor)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(BananaTheme.ColorToken.primary.opacity(streakBorderOpacity(for: streakManager.currentStreak)), lineWidth: streakBorderWidth(for: streakManager.currentStreak))
-                )
-        )
-        .shadow(
-            color: streakShadowColor, 
-            radius: streakShadowRadius(for: streakManager.currentStreak)
-        )
+        .buttonStyle(PlainButtonStyle())
         .accessibilityLabel("Current streak: \(streakManager.currentStreak) days")
-        .accessibilityHint("Your consecutive daily completion streak")
+        .accessibilityHint("Tap to view your streak history")
         .onChange(of: streakManager.currentStreak) { newStreak in
             // Trigger celebration for milestone streaks
             let isMilestone = [7, 14, 21, 30, 50, 75, 100].contains(newStreak)
@@ -858,6 +902,260 @@ struct HomeView: View {
             return BananaTheme.ColorToken.primary.opacity(0.8)
         case .notStarted:
             return BananaTheme.ColorToken.primary.opacity(0.2)
+        }
+    }
+    
+    // MARK: - Share Functionality
+    
+    private func shareDayStart(_ dayStart: DayStartData) {
+        let duration = Int(dayStart.duration / 60) // Convert to minutes
+        let shareText = "📈 Just got my personalized morning brief - market insights, weather, and productivity tips in \(duration) minutes! #DayStart"
+        
+        let items: [Any] = [shareText]
+        
+        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        
+        // Configure for iPad
+        if let popover = activityVC.popoverPresentationController {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = windowScene.windows.first {
+                popover.sourceView = window
+                popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+        }
+        
+        // Present the share sheet
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootViewController = window.rootViewController {
+            
+            // Find the topmost presented view controller
+            var topController = rootViewController
+            while let presented = topController.presentedViewController {
+                topController = presented
+            }
+            
+            topController.present(activityVC, animated: true)
+        }
+    }
+    
+    // MARK: - Anticipation Design Components
+    
+    private var tomorrowsLineupPreview: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Tomorrow's Lineup")
+                    .font(.caption.bold())
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                Spacer()
+                Image(systemName: "eye")
+                    .font(.caption)
+                    .foregroundColor(BananaTheme.ColorToken.primary.opacity(0.7))
+            }
+            
+            LazyVStack(spacing: 8) {
+                ForEach(previewTopics, id: \.self) { topic in
+                    HStack(spacing: 12) {
+                        Circle()
+                            .fill(BananaTheme.ColorToken.primary.opacity(0.6))
+                            .frame(width: 6, height: 6)
+                        
+                        Text(topic)
+                            .font(.caption)
+                            .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                            .multilineTextAlignment(.leading)
+                        
+                        Spacer()
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(colorScheme == .light ? 
+                    BananaTheme.ColorToken.primary.opacity(0.08) : 
+                    BananaTheme.ColorToken.card.opacity(0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(BananaTheme.ColorToken.primary.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
+    private var countdownAnticipationView: some View {
+        VStack(spacing: 8) {
+            // Personality-driven teaser message
+            Text(anticipationMessage)
+                .font(.caption)
+                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            // Progressive content reveal based on countdown
+            if shouldShowContentPreview {
+                HStack(spacing: 16) {
+                    ForEach(revealedContentTypes, id: \.self) { contentType in
+                        VStack(spacing: 4) {
+                            Image(systemName: contentType.icon)
+                                .font(.title3)
+                                .foregroundColor(BananaTheme.ColorToken.primary)
+                            
+                            Text(contentType.name)
+                                .font(.caption2)
+                                .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                        }
+                        .scaleEffect(1.0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(Double(contentType.rawValue) * 0.1), value: shouldShowContentPreview)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+    
+    // MARK: - Forecast Loading
+    
+    private func loadTomorrowForecast() async {
+        guard userPreferences.settings.includeWeather,
+              locationManager.hasLocationAccess(),
+              tomorrowWeatherForecast == nil else { return }
+        
+        isLoadingForecast = true
+        
+        if #available(iOS 16.0, *) {
+            tomorrowWeatherForecast = await locationManager.getTomorrowForecast()
+        }
+        
+        isLoadingForecast = false
+    }
+    
+    // MARK: - Anticipation Data & Logic
+    
+    private var previewTopics: [String] {
+        var topics: [String] = []
+        
+        // Weather forecast if enabled and available
+        if userPreferences.settings.includeWeather {
+            if let forecast = tomorrowWeatherForecast {
+                topics.append("Weather: \(forecast)")
+            } else if locationManager.hasLocationAccess() {
+                topics.append("Weather forecast for your location")
+            }
+        }
+        
+        // Stocks if enabled
+        if userPreferences.settings.includeStocks && !userPreferences.settings.stockSymbols.isEmpty {
+            let symbols = userPreferences.settings.stockSymbols.prefix(3).joined(separator: ", ")
+            let remaining = userPreferences.settings.stockSymbols.count - 3
+            if remaining > 0 {
+                topics.append("Stocks: \(symbols) and \(remaining) more")
+            } else {
+                topics.append("Stocks: \(symbols)")
+            }
+        }
+        
+        // News if enabled
+        if userPreferences.settings.includeNews {
+            topics.append("Personalized news brief")
+        }
+        
+        // Sports if enabled
+        if userPreferences.settings.includeSports {
+            topics.append("Sports highlights and scores")
+        }
+        
+        // Calendar if enabled
+        if userPreferences.settings.includeCalendar {
+            topics.append("Your schedule and reminders")
+        }
+        
+        // Quotes if enabled
+        if userPreferences.settings.includeQuotes {
+            topics.append("\(userPreferences.settings.quotePreference.name) inspiration")
+        }
+        
+        // If nothing is enabled, show a generic message
+        if topics.isEmpty {
+            topics.append("Customize your DayStart in settings")
+        }
+        
+        return topics
+    }
+    
+    private var anticipationMessage: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let timeUntilStart = timeUntilNextDayStart
+        
+        switch timeUntilStart {
+        case 0..<300: // < 5 minutes
+            return "Your personalized morning brief is ready to go! ☀️"
+        case 300..<900: // 5-15 minutes
+            return "Almost time! Your daily insights are being fine-tuned..."
+        case 900..<1800: // 15-30 minutes
+            return "Your morning intelligence is brewing ☕️"
+        default:
+            switch hour {
+            case 6..<12:
+                return "Tomorrow's briefing will be crafted with fresh insights 🌅"
+            case 12..<18:
+                return "Your next DayStart is being personalized for you ⚡️"
+            case 18..<22:
+                return "While you rest, we're preparing tomorrow's perfect start 🌙"
+            default:
+                return "Sweet dreams! Your morning briefing awaits 💫"
+            }
+        }
+    }
+    
+    private var timeUntilNextDayStart: TimeInterval {
+        guard let nextTime = viewModel.nextDayStartTime else { return 86400 }
+        return nextTime.timeIntervalSince(Date())
+    }
+    
+    private var shouldShowContentPreview: Bool {
+        timeUntilNextDayStart <= 1800 // Show preview in last 30 minutes
+    }
+    
+    private enum ContentType: Int, CaseIterable {
+        case news = 0
+        case weather = 1
+        case calendar = 2
+        case insights = 3
+        
+        var name: String {
+            switch self {
+            case .news: return "News"
+            case .weather: return "Weather"
+            case .calendar: return "Schedule"
+            case .insights: return "Insights"
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .news: return "newspaper"
+            case .weather: return "cloud.sun"
+            case .calendar: return "calendar"
+            case .insights: return "lightbulb"
+            }
+        }
+    }
+    
+    private var revealedContentTypes: [ContentType] {
+        let timeUntil = timeUntilNextDayStart
+        
+        switch timeUntil {
+        case 0..<300: // < 5 minutes - show all
+            return Array(ContentType.allCases)
+        case 300..<900: // 5-15 minutes - show 3
+            return Array(ContentType.allCases.prefix(3))
+        case 900..<1800: // 15-30 minutes - show 2
+            return Array(ContentType.allCases.prefix(2))
+        default:
+            return []
         }
     }
 }
