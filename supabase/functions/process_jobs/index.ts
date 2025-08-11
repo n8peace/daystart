@@ -168,6 +168,25 @@ async function generateScript(job: any): Promise<string> {
     throw new Error('OpenAI API key not configured');
   }
 
+  // Initialize Supabase client to get fresh content
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Get fresh content from cache
+  const contentTypes = [];
+  if (job.include_news) contentTypes.push('news');
+  if (job.include_stocks) contentTypes.push('stocks');
+  if (job.include_sports) contentTypes.push('sports');
+
+  let contentData = {};
+  if (contentTypes.length > 0) {
+    const { data: freshContent } = await supabase.rpc('get_fresh_content', {
+      requested_types: contentTypes
+    });
+    contentData = freshContent || {};
+  }
+
   // Build context for the script
   const context = {
     preferredName: job.preferred_name,
@@ -182,7 +201,8 @@ async function generateScript(job: any): Promise<string> {
     quotePreference: job.quote_preference,
     locationData: job.location_data,
     weatherData: job.weather_data,
-    calendarEvents: job.calendar_events
+    calendarEvents: job.calendar_events,
+    contentData: contentData
   };
 
   // Create prompt for GPT-4
@@ -300,15 +320,44 @@ function buildScriptPrompt(context: any): string {
   }
   
   if (context.includeNews) {
-    prompt += `- News: 2-3 top headlines (focus on business/tech if possible)\n`;
+    const newsContent = context.contentData?.news;
+    if (newsContent && newsContent.length > 0) {
+      prompt += `- News: Use these current headlines and summarize the top 2-3:\n`;
+      newsContent.forEach((source: any, index: number) => {
+        prompt += `  ${source.source.toUpperCase()}: ${JSON.stringify(source.data.articles?.slice(0, 3))}\n`;
+      });
+    } else {
+      prompt += `- News: General news summary (content cache unavailable)\n`;
+    }
   }
   
   if (context.includeSports) {
-    prompt += `- Sports: Brief update on major sports news\n`;
+    const sportsContent = context.contentData?.sports;
+    if (sportsContent && sportsContent.length > 0) {
+      prompt += `- Sports: Use this current sports data:\n`;
+      sportsContent.forEach((source: any) => {
+        prompt += `  ${source.source.toUpperCase()}: ${JSON.stringify(source.data)}\n`;
+      });
+    } else {
+      prompt += `- Sports: General sports update (content cache unavailable)\n`;
+    }
   }
   
-  if (context.includeStocks && context.stockSymbols?.length > 0) {
-    prompt += `- Stocks: Brief update on these symbols: ${context.stockSymbols.join(', ')}\n`;
+  if (context.includeStocks) {
+    const stocksContent = context.contentData?.stocks;
+    if (stocksContent && stocksContent.length > 0) {
+      prompt += `- Stocks: Use this current market data:\n`;
+      stocksContent.forEach((source: any) => {
+        prompt += `  ${source.source.toUpperCase()}: ${JSON.stringify(source.data)}\n`;
+      });
+      if (context.stockSymbols?.length > 0) {
+        prompt += `  Focus on these symbols if available: ${context.stockSymbols.join(', ')}\n`;
+      }
+    } else if (context.stockSymbols?.length > 0) {
+      prompt += `- Stocks: Brief update on these symbols: ${context.stockSymbols.join(', ')} (live data unavailable)\n`;
+    } else {
+      prompt += `- Stocks: General market update (content cache unavailable)\n`;
+    }
   }
   
   if (context.includeQuotes) {

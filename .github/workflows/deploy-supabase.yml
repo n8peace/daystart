@@ -124,6 +124,20 @@ jobs:
           echo "  ⚠️ WORKER_AUTH_TOKEN not found in secrets"
         fi
         
+        if [ -n "${{ secrets.NEWSAPI_KEY }}" ]; then
+          echo "  - Setting NEWSAPI_KEY"
+          supabase secrets set NEWSAPI_KEY="${{ secrets.NEWSAPI_KEY }}"
+        else
+          echo "  ⚠️ NEWSAPI_KEY not found in secrets"
+        fi
+        
+        if [ -n "${{ secrets.GNEWS_API_KEY }}" ]; then
+          echo "  - Setting GNEWS_API_KEY"
+          supabase secrets set GNEWS_API_KEY="${{ secrets.GNEWS_API_KEY }}"
+        else
+          echo "  ⚠️ GNEWS_API_KEY not found in secrets"
+        fi
+        
         echo "✅ Secrets configuration completed"
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
