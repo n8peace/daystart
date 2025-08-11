@@ -114,7 +114,7 @@ class SupabaseClient {
             include_quotes: preferences.includeQuotes,
             quote_preference: preferences.quotePreference.rawValue,
             voice_option: "voice\(preferences.selectedVoice.rawValue + 1)",
-            daystart_length: preferences.dayStartLength,
+            daystart_length: preferences.dayStartLength * 60, // Convert minutes to seconds
             timezone: TimeZone.current.identifier
         )
         
