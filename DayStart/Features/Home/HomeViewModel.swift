@@ -120,11 +120,15 @@ class HomeViewModel: ObservableObject {
     }
     
     private func updateState() {
+        logger.log("🎵 HomeViewModel: updateState() called", level: .debug)
+        logger.log("🎵 HomeViewModel: Current state: \(state), currentDayStart: \(currentDayStart?.id.uuidString ?? "nil")", level: .debug)
+        
         timer?.invalidate()
         pauseTimeoutTimer?.invalidate()
         
         // Check for welcome DayStart first
         if welcomeScheduler.isWelcomePending {
+            logger.log("🎵 HomeViewModel: Welcome pending, setting state to .welcomeCountdown", level: .debug)
             state = .welcomeCountdown
             return
         }
@@ -422,28 +426,42 @@ class HomeViewModel: ObservableObject {
     
     func replayDayStart(_ dayStart: DayStartData) {
         logger.logUserAction("Replay DayStart", details: ["id": dayStart.id])
+        logger.log("🎵 HomeViewModel: replayDayStart called for \(dayStart.id)", level: .info)
+        logger.log("🎵 HomeViewModel: Setting currentDayStart to \(dayStart.id)", level: .info)
+        logger.log("🎵 HomeViewModel: Current state before replay: \(state)", level: .info)
+        
         currentDayStart = dayStart
         
         Task {
+            logger.log("🎵 HomeViewModel: Starting async audio replay", level: .info)
             await replayDayStartWithAudio(dayStart)
         }
     }
     
     private func replayDayStartWithAudio(_ dayStart: DayStartData) async {
+        logger.log("🎵 HomeViewModel: replayDayStartWithAudio started", level: .info)
+        
         // Check if we have cached audio for this DayStart
         if let scheduledTime = dayStart.scheduledTime,
            audioCache.hasAudio(for: scheduledTime) {
             let audioUrl = audioCache.getAudioPath(for: scheduledTime)
             logger.logAudioEvent("Loading cached audio for replay")
+            logger.log("🎵 HomeViewModel: Loading cached audio from \(audioUrl)", level: .info)
             audioPlayer.loadAudio(from: audioUrl)
         } else {
             // Fall back to mock audio for replay
             logger.logAudioEvent("Loading mock audio for replay")
+            logger.log("🎵 HomeViewModel: No cached audio, loading mock audio", level: .info)
             audioPlayer.loadAudio()
         }
         
+        logger.log("🎵 HomeViewModel: Calling audioPlayer.play()", level: .info)
         audioPlayer.play()
+        
+        logger.log("🎵 HomeViewModel: Setting state to .playing", level: .info)
         state = .playing
+        
+        logger.log("🎵 HomeViewModel: Stopping pause timeout timer", level: .info)
         stopPauseTimeoutTimer()
     }
     

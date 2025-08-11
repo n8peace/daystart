@@ -9,6 +9,7 @@ struct HistoryView: View {
     @ObservedObject private var streakManager = StreakManager.shared
     @State private var dismissTask: Task<Void, Never>?
     @State private var textInputTask: Task<Void, Never>?
+    @State private var shouldDismissAfterReplay = false
     
     private let logger = DebugLogger.shared
     
@@ -83,7 +84,19 @@ struct HistoryView: View {
                 let items = displayedHistory
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, dayStart in
                     VStack(alignment: .leading, spacing: 0) {
-                        HistoryRow(dayStart: dayStart)
+                        HistoryRow(dayStart: dayStart, onPlay: {
+                            logger.log("🎵 History: Calling onReplay for DayStart \(dayStart.id)", level: .info)
+                            onReplay(dayStart)
+                            
+                            // Dismiss history view after starting replay
+                            shouldDismissAfterReplay = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                if shouldDismissAfterReplay {
+                                    logger.log("🎵 History: Dismissing history view after replay", level: .info)
+                                    presentationMode.wrappedValue.dismiss()
+                                }
+                            }
+                        })
                     }
                     .padding(12)
                     .background(BananaTheme.ColorToken.card)
@@ -202,9 +215,15 @@ struct HistoryView: View {
 
 struct HistoryRow: View {
     let dayStart: DayStartData
+    let onPlay: (() -> Void)?
     @State private var isExpanded = false
     @StateObject private var audioPlayer = AudioPlayerManager.shared
     @ObservedObject private var streakManager = StreakManager.shared
+    
+    init(dayStart: DayStartData, onPlay: (() -> Void)? = nil) {
+        self.dayStart = dayStart
+        self.onPlay = onPlay
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -270,10 +289,24 @@ struct HistoryRow: View {
                 if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path), !dayStart.isDeleted {
                     // Play button (banana yellow)
                     Button(action: {
-                        if audioPlayer.currentTrackId != dayStart.id {
-                            audioPlayer.loadAudio(for: dayStart)
+                        let logger = DebugLogger.shared
+                        logger.log("🎵 History: Play button tapped for DayStart \(dayStart.id)", level: .info)
+                        logger.log("🎵 History: Audio path exists: \(path)", level: .debug)
+                        
+                        if let onPlay = onPlay {
+                            // Use the replay callback to go through HomeViewModel
+                            logger.log("🎵 History: Using onPlay callback for proper replay", level: .info)
+                            onPlay()
+                        } else {
+                            // Fallback to direct audio player control (for standalone use)
+                            logger.log("🎵 History: Using direct AudioPlayerManager control", level: .info)
+                            if audioPlayer.currentTrackId != dayStart.id {
+                                logger.log("🎵 History: Loading new audio for DayStart", level: .info)
+                                audioPlayer.loadAudio(for: dayStart)
+                            }
+                            audioPlayer.togglePlayPause()
+                            logger.log("🎵 History: Toggle play/pause called, isPlaying: \(audioPlayer.isPlaying)", level: .info)
                         }
-                        audioPlayer.togglePlayPause()
                     }) {
                         Label(audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "Pause" : "Play",
                               systemImage: audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "pause.circle.fill" : "play.circle.fill")
