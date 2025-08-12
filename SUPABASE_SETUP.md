@@ -184,7 +184,7 @@ Set up external cron job at [cron-job.org](https://cron-job.org) to trigger job 
 Authorization: Bearer YOUR_WORKER_AUTH_TOKEN
 Content-Type: application/json
 ```
-**Schedule:** Every 5 minutes
+**Schedule:** Every 1 minute (`*/1 * * * *`)
 **Body:** `{}`
 
 ### Manual Job Processing

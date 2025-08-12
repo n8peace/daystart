@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 interface CreateJobRequest {
   local_date: string; // YYYY-MM-DD
   scheduled_at: string; // ISO timestamp
-  preferred_name: string;
+  preferred_name?: string;
   include_weather: boolean;
   include_news: boolean;
   include_sports: boolean;
@@ -93,8 +93,8 @@ serve(async (req: Request): Promise<Response> => {
       user_id = clientInfo || `anonymous_${crypto.randomUUID()}`;
     }
 
-    // Calculate estimated ready time (2-5 minutes from now)
-    const estimated_ready_time = new Date(Date.now() + (3 * 60 * 1000)).toISOString();
+    // Calculate estimated ready time (1-2 minutes from now with 1-minute cron schedule)
+    const estimated_ready_time = new Date(Date.now() + (1.5 * 60 * 1000)).toISOString();
 
     // Insert or update job (upsert for idempotency)
     const { data: job, error: jobError } = await supabase
@@ -169,7 +169,7 @@ serve(async (req: Request): Promise<Response> => {
 });
 
 function validateRequest(body: any): { valid: boolean; error?: string } {
-  const required = ['local_date', 'scheduled_at', 'preferred_name', 'timezone'];
+  const required = ['local_date', 'scheduled_at', 'timezone'];
   
   for (const field of required) {
     if (!body[field]) {

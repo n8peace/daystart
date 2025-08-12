@@ -102,7 +102,12 @@ class SupabaseClient {
         var request = createRequest(for: url, method: "POST")
         
         let jobRequest = CreateJobRequest(
-            local_date: ISO8601DateFormatter().string(from: date).prefix(10).description,
+            local_date: {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                formatter.timeZone = TimeZone.current
+                return formatter.string(from: date)
+            }(),
             scheduled_at: ISO8601DateFormatter().string(from: date),
             preferred_name: preferences.preferredName,
             include_weather: preferences.includeWeather,
