@@ -567,6 +567,8 @@ function buildScriptPrompt(context: any): string {
   
   const duration = context.dayStartLength || 90;
   const { targetWords } = getTokenLimits(duration);
+  const lowerBound = Math.round(targetWords * 0.9);
+  const upperBound = Math.round(targetWords * 1.1);
   const storyLimits = getStoryLimits(duration);
   
   // Prioritize and limit news based on duration
@@ -612,8 +614,9 @@ STYLE
 - Sprinkle one light, human moment max (a nudge, not a joke barrage).
 
 LENGTH & PACING
-- Target ${targetWords} words total (±10%). Duration: ${Math.round(duration/60)} minutes.
+  - Target ${targetWords} words total (±10%). Keep between ${lowerBound}–${upperBound} words. Duration: ${Math.round(duration/60)} minutes.
 - Adjust depth based on time: shorter = headlines only, longer = more context.
+  - If the draft is shorter than ${lowerBound}, expand by adding one concrete, relevant detail in the highest-priority sections (weather, calendar, top news) until within range. If longer than ${upperBound}, tighten by removing the least important detail. No filler.
 
 CONTENT PRIORITIZATION
 - News: Use exactly ${storyLimits.news} stories max. The provided news is pre-sorted by relevance (local > regional > national > international, with breaking news boosted).
@@ -635,6 +638,7 @@ STRICT OUTPUT RULES — DO NOT BREAK
 - No markdown. No asterisks. No headings. No brackets. No stage directions. No emojis.
 - No labels like "Weather:" or "News:". Just speak naturally.
 - No meta-commentary ("here's your script", "as an AI", etc.).
+  - Before returning, quickly self-check that the script is within ${lowerBound}–${upperBound} words.
 
 DATA YOU CAN USE (JSON):
 ${JSON.stringify(data, null, 2)}
