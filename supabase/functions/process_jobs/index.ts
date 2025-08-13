@@ -62,12 +62,14 @@ function flattenAndDedupeNews(newsData: any[] = []): any[] {
 }
 
 // Filter sports items to today's fixtures/results and valid statuses
-function filterValidSportsItems(sports: any[] = [], dateISO: string): any[] {
-  const today = new Date(dateISO).toISOString().slice(0, 10);
+function filterValidSportsItems(sports: any[] = [], dateISO: string, tz?: string): any[] {
+  const target = tz ? new Date(new Date(dateISO + 'T00:00:00').toLocaleString('en-US', { timeZone: tz }))
+                    : new Date(dateISO + 'T00:00:00');
+  const yyyyMmDd = target.toISOString().slice(0, 10);
   return (sports || []).filter((ev: any) => {
     const d = String(ev?.date || '').slice(0, 10);
     const status = String(ev?.status || '').toUpperCase();
-    return d === today && (status === 'FT' || status === 'NS' || status === 'LIVE');
+    return d === yyyyMmDd && (status === 'FT' || status === 'NS' || status === 'LIVE');
   });
 }
 
@@ -520,7 +522,7 @@ You've got this.`
     // Build a conservative context JSON for the adjust step
     const storyLimits = getStoryLimits(duration);
     const flattenedNews = flattenAndDedupeNews(context.contentData?.news || []).slice(0, 80);
-    const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date).slice(0, storyLimits.sports);
+    const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date, context.timezone).slice(0, storyLimits.sports);
     const sportsTeamWhitelist = teamWhitelistFromSports(sportsToday);
     const dataForBand = {
       user: {
@@ -692,7 +694,8 @@ function buildScriptPrompt(context: any): string {
   const date = new Date(context.date).toLocaleDateString('en-US', { 
     weekday: 'long', 
     month: 'long', 
-    day: 'numeric' 
+    day: 'numeric',
+    timeZone: context.timezone
   });
   
   const duration = context.dayStartLength || 240;
@@ -712,7 +715,7 @@ function buildScriptPrompt(context: any): string {
   });
 
   // Enforce valid, present-day sports items only
-  const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date).slice(0, storyLimits.sports);
+  const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date, context.timezone).slice(0, storyLimits.sports);
 
   // Provide machine-readable context so the model can cite specifics cleanly
   const data = {
