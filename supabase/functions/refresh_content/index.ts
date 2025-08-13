@@ -77,7 +77,7 @@ serve(async (req) => {
 
   // Bearer auth guard
   const authHeader = req.headers.get('authorization') || ''
-  const expected = Deno.env.get('REFRESH_BEARER') || ''
+  const expected = Deno.env.get('WORKER_AUTH_TOKEN') || ''
   if (!expected || !safeEq(authHeader, `Bearer ${expected}`)) {
     return new Response('Unauthorized', { status: 401, headers: corsHeaders })
   }
