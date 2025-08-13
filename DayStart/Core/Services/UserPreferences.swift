@@ -90,7 +90,7 @@ class UserPreferences: ObservableObject {
             var updated = item
             if let targetDate = targetDate, calendar.isDate(item.date, inSameDayAs: targetDate) {
                 // Attach bundled sample audio for the Aug 8, 2025 entry
-                updated.audioFilePath = Bundle.main.path(forResource: "ai_wakeup_generic_voice1", ofType: "mp3")
+                updated.audioFilePath = Bundle.main.path(forResource: "voice1_fallback", ofType: "mp3", inDirectory: "Audio/Fallbacks")
                 updated.isDeleted = false
             } else if item.date < sevenDaysAgo {
                 // Mark entries older than 7 days as deleted and clean up audio files

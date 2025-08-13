@@ -8,8 +8,8 @@ This document outlines all scheduled tasks (cron jobs) used by the DayStart appl
 |----------|----------|-----------|---------|
 | Process Jobs | `*/1 * * * *` | Every 1 minute | Process audio generation queue |
 | Refresh Content | `0 * * * *` | Every hour | Refresh news, stocks, sports cache |
-| Cleanup Audio | `0 2 * * *` | Daily at 2 AM UTC | Delete old audio files |
-| Healthcheck | `0 7 * * *` | Daily at 7 AM UTC | Run system health checks and email report |
+| Cleanup Audio | `5 1 * * *` | Daily at 1:05 AM UTC | Delete old audio files |
+| Healthcheck | `5 2 * * *` | Daily at 2:05 AM UTC | Run system health checks and email report |
 
 ## 1. Process Jobs
 
@@ -18,11 +18,11 @@ Processes the job queue for audio generation. Picks up queued jobs, generates au
 
 ### Configuration
 - **URL**: `https://[PROJECT_REF].supabase.co/functions/v1/process_jobs`
-- **Method**: GET
+- **Method**: POST
 - **Schedule**: `*/1 * * * *` (every minute)
 - **Headers**: 
   ```
-  Authorization: Bearer [SUPABASE_ANON_KEY]
+  Authorization: Bearer [WORKER_AUTH_TOKEN]
   ```
 
 ### Setup Instructions (cron-job.org)
@@ -81,7 +81,7 @@ Deletes audio files from storage that are older than 10 days to manage storage c
 ### Configuration
 - **URL**: `https://[PROJECT_REF].supabase.co/functions/v1/cleanup-audio`
 - **Method**: GET
-- **Schedule**: `0 2 * * *` (daily at 2 AM UTC)
+- **Schedule**: `5 1 * * *` (daily at 1:05 AM UTC)
 - **Headers**:
   ```
   Authorization: Bearer [SUPABASE_SERVICE_ROLE_KEY]
@@ -118,7 +118,7 @@ Runs a comprehensive application healthcheck across DB, cache freshness, job que
 ### Configuration
 - **URL**: `https://[PROJECT_REF].supabase.co/functions/v1/healthcheck`
 - **Method**: POST
-- **Schedule**: `0 7 * * *` (daily at 7 AM UTC)
+- **Schedule**: `5 2 * * *` (daily at 2:05 AM UTC)
 - **Headers**:
   ```
   Authorization: Bearer [WORKER_AUTH_TOKEN]

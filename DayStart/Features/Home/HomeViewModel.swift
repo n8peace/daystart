@@ -32,7 +32,7 @@ class HomeViewModel: ObservableObject {
     private let userPreferences = UserPreferences.shared
     private let audioPlayer = AudioPlayerManager.shared
     private let notificationScheduler = NotificationScheduler.shared
-    private let mockService = MockDataService.shared
+    // Removed MockDataService - using bundled audio files instead
     private let welcomeScheduler = WelcomeDayStartScheduler.shared
     private let audioPrefetchManager = AudioPrefetchManager.shared
     private let audioCache = AudioCache.shared
@@ -41,20 +41,39 @@ class HomeViewModel: ObservableObject {
     // Debouncing
     private var updateStateWorkItem: DispatchWorkItem?
     
+    // MARK: - Bundled Audio Helpers
+    private func getSampleAudioPath(for voice: VoiceOption) -> String? {
+        let fileName = "voice\(voice.rawValue + 1)_sample"
+        return Bundle.main.path(forResource: fileName, ofType: "mp3", inDirectory: "Audio/Samples")
+    }
+    
+    private func getFallbackAudioPath(for voice: VoiceOption) -> String? {
+        let fileName = "voice\(voice.rawValue + 1)_fallback"
+        return Bundle.main.path(forResource: fileName, ofType: "mp3", inDirectory: "Audio/Fallbacks")
+    }
+    
+    private func generateBasicDayStart(for settings: UserSettings) -> DayStartData {
+        return DayStartData(
+            date: Date(),
+            scheduledTime: nil,
+            weather: "Weather information will be available when connected",
+            news: ["News updates will be available when connected"],
+            sports: ["Sports updates will be available when connected"],
+            stocks: settings.stockSymbols.map { "\($0): Data unavailable offline" },
+            quote: "Stay positive and have a great day!",
+            customPrompt: "",
+            transcript: "Welcome to your DayStart! Please connect to the internet for full content.",
+            duration: Double(settings.dayStartLength * 60),
+            audioFilePath: nil
+        )
+    }
+    
     init() {
         logger.log("🏠 HomeViewModel initialized", level: .info)
         setupObservers()
         updateState()
         
-        // Defer mock data generation to avoid "Publishing changes from within view updates"
-        // Use asyncAfter to ensure this happens outside the current view update cycle
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self = self else { return }
-            if self.userPreferences.history.isEmpty {
-                self.userPreferences.history = self.mockService.generateMockHistory()
-                self.logger.log("📊 Generated \(self.userPreferences.history.count) mock history items", level: .info)
-            }
-        }
+        // New users start with empty history - no mock data needed
     }
     
     private func setupObservers() {
@@ -239,7 +258,7 @@ class HomeViewModel: ObservableObject {
     }
     
     private func startDayStartWithAudio() async {
-        let dayStart = mockService.fetchDayStart(for: userPreferences.settings)
+        let dayStart = generateBasicDayStart(for: userPreferences.settings)
         
         // Mark this occurrence with the scheduled time for tracking
         var dayStartWithScheduledTime = dayStart
@@ -251,8 +270,8 @@ class HomeViewModel: ObservableObject {
         userPreferences.addToHistory(dayStartWithScheduledTime)
         
         guard let scheduledTime = nextDayStartTime else {
-            // Fallback to mock audio if no scheduled time
-            await playMockAudio()
+            // Fallback to bundled audio if no scheduled time
+            await playFallbackAudio()
             return
         }
         
@@ -289,11 +308,11 @@ class HomeViewModel: ObservableObject {
                         schedule: userPreferences.schedule
                     )
                     
-                    await playMockAudio()
+                    await playFallbackAudio()
                 }
             } catch {
                 logger.logError(error, context: "Failed to check audio status")
-                await playMockAudio()
+                await playFallbackAudio()
             }
         }
     }
@@ -396,7 +415,7 @@ class HomeViewModel: ObservableObject {
     
     private func handleExpiredUrl(originalUrl: URL) async {
         guard let scheduledTime = nextDayStartTime else {
-            await playMockAudio()
+            await playFallbackAudio()
             return
         }
         
@@ -411,22 +430,34 @@ class HomeViewModel: ObservableObject {
                     await streamAudio(from: freshUrl)
                 } else {
                     logger.logError(NSError(domain: "URLRefresh", code: 1), context: "Refreshed URL is same as expired URL")
-                    await playMockAudio()
+                    await playFallbackAudio()
                 }
             } else {
                 logger.log("Audio not ready after URL refresh, falling back to mock", level: .warning)
-                await playMockAudio()
+                await playFallbackAudio()
             }
         } catch {
             logger.logError(error, context: "Failed to refresh expired URL")
-            await playMockAudio()
+            await playFallbackAudio()
         }
     }
     
-    private func playMockAudio() async {
-        logger.logAudioEvent("Loading mock audio for DayStart")
+    private func playFallbackAudio() async {
+        logger.logAudioEvent("Loading fallback audio for DayStart")
         logger.log("[DEBUG] User's selected voice: \(userPreferences.settings.selectedVoice.name)", level: .debug)
-        audioPlayer.loadAudio()
+        
+        let selectedVoice = userPreferences.settings.selectedVoice
+        
+        if let fallbackPath = getFallbackAudioPath(for: selectedVoice),
+           let audioUrl = URL(string: "file://\(fallbackPath)") {
+            logger.log("Loading fallback audio from: \(fallbackPath)", level: .info)
+            audioPlayer.loadAudio(from: audioUrl)
+        } else {
+            // Ultimate fallback - use the old method if bundled files aren't found
+            logger.log("Bundled fallback audio not found, using AudioPlayerManager default", level: .warning)
+            audioPlayer.loadAudio()
+        }
+        
         audioPlayer.play()
         state = .playing
         stopPauseTimeoutTimer()
@@ -453,7 +484,7 @@ class HomeViewModel: ObservableObject {
     }
     
     private func startWelcomeDayStartWithSupabase() async {
-        let dayStart = mockService.fetchDayStart(for: userPreferences.settings)
+        let dayStart = generateBasicDayStart(for: userPreferences.settings)
         
         var welcomeDayStart = dayStart
         welcomeDayStart.id = UUID() // Generate new UUID for welcome DayStart
@@ -465,7 +496,16 @@ class HomeViewModel: ObservableObject {
         // Try to use Supabase for welcome DayStart
         do {
             // Check if audio exists (should have been created during onboarding)
-            let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: Date())
+            // Use the same local date calculation as createJob to ensure consistency
+            let localDate: Date = {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                formatter.timeZone = TimeZone.current
+                let localDateString = formatter.string(from: Date())
+                formatter.timeZone = TimeZone(secondsFromGMT: 0) // UTC
+                return formatter.date(from: localDateString) ?? Date()
+            }()
+            let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: localDate)
             
             if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
                 logger.log("✅ Welcome DayStart audio ready from Supabase, streaming...", level: .info)
@@ -473,16 +513,16 @@ class HomeViewModel: ObservableObject {
             } else if audioStatus.status == "processing" {
                 // Audio still processing, show status
                 logger.log("⏳ Welcome DayStart audio still processing (status: \(audioStatus.status))", level: .info)
-                await playMockAudio()
+                await playFallbackAudio()
             } else {
                 // Something went wrong, fall back to mock
                 logger.log("⚠️ Welcome DayStart audio not ready (status: \(audioStatus.status)), using mock", level: .warning)
-                await playMockAudio()
+                await playFallbackAudio()
             }
         } catch {
             // Supabase failed, fall back to mock audio
             logger.logError(error, context: "Welcome DayStart Supabase failed, using mock audio")
-            await playMockAudio()
+            await playFallbackAudio()
         }
         
         welcomeScheduler.cancelWelcomeDayStart()
@@ -513,10 +553,20 @@ class HomeViewModel: ObservableObject {
             logger.log("🎵 HomeViewModel: Loading cached audio from \(audioUrl)", level: .info)
             audioPlayer.loadAudio(from: audioUrl)
         } else {
-            // Fall back to mock audio for replay
-            logger.logAudioEvent("Loading mock audio for replay")
-            logger.log("🎵 HomeViewModel: No cached audio, loading mock audio", level: .info)
-            audioPlayer.loadAudio()
+            // Fall back to bundled fallback audio for replay
+            logger.logAudioEvent("Loading fallback audio for replay")
+            logger.log("🎵 HomeViewModel: No cached audio, loading fallback audio", level: .info)
+            
+            let selectedVoice = userPreferences.settings.selectedVoice
+            if let fallbackPath = getFallbackAudioPath(for: selectedVoice),
+               let audioUrl = URL(string: "file://\(fallbackPath)") {
+                logger.log("Loading fallback audio from: \(fallbackPath)", level: .info)
+                audioPlayer.loadAudio(from: audioUrl)
+            } else {
+                // Ultimate fallback
+                logger.log("Bundled fallback audio not found, using AudioPlayerManager default", level: .warning)
+                audioPlayer.loadAudio()
+            }
         }
         
         logger.log("🎵 HomeViewModel: Calling audioPlayer.play()", level: .info)

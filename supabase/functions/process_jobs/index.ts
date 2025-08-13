@@ -33,112 +33,153 @@ function getStoryLimits(seconds: number): { news: number; sports: number; stocks
   }
 }
 
-// Prioritize news by geography and impact
-function prioritizeNews(newsData: any[]): any[] {
-  if (!newsData || newsData.length === 0) return [];
-  
-  // Flatten all articles with source info
-  const allArticles: any[] = [];
-  newsData.forEach(source => {
-    if (source.data?.articles) {
-      source.data.articles.forEach((article: any) => {
-        allArticles.push({
-          ...article,
-          sourceName: source.source,
-          priority: calculateNewsPriority(article, source.source)
-        });
-      });
+// (Removed keyword-based news prioritization helpers; model will choose relevance based on user.location)
+
+// Light trust weighting for sources and dedupe across feeds
+const TRUSTED = ['ap','associated press','reuters','bbc','npr','la times','bloomberg','cbs news','axios','arstechnica','the verge'];
+function trustScore(name: string = ''): number {
+  const n = name.toLowerCase();
+  return TRUSTED.some(s => n.includes(s)) ? 2 : 1;
+}
+
+function flattenAndDedupeNews(newsData: any[] = []): any[] {
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const src of newsData || []) {
+    for (const a of src?.data?.articles || []) {
+      const key = String(a.url || a.title || '').toLowerCase().slice(0, 180);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ...a, sourceName: src.source, trust: trustScore(src.source) });
     }
-  });
-  
-  // Sort by priority (higher = more important)
-  return allArticles.sort((a, b) => b.priority - a.priority);
-}
-
-// Calculate news priority score
-function calculateNewsPriority(article: any, source: string): number {
-  let score = 0;
-  const title = (article.title || '').toLowerCase();
-  const content = (article.description || article.content || '').toLowerCase();
-  const text = title + ' ' + content;
-  
-  // Geographic relevance (highest priority)
-  if (containsLocalKeywords(text)) score += 100;
-  else if (containsRegionalKeywords(text)) score += 80;
-  else if (containsNationalKeywords(text)) score += 60;
-  else score += 40; // international baseline
-  
-  // Breaking/urgent news boost
-  if (isBreakingNews(text)) score += 50;
-  
-  // High-impact story boost
-  if (isHighImpactStory(text)) score += 30;
-  
-  // Recency boost (if available)
-  if (article.publishedAt) {
-    const hoursOld = (Date.now() - new Date(article.publishedAt).getTime()) / (1000 * 60 * 60);
-    if (hoursOld < 2) score += 20;
-    else if (hoursOld < 6) score += 10;
   }
-  
-  return score;
+  // Newer + trusted first (light, non-opinionated ordering)
+  return out.sort((a, b) => {
+    const ta = new Date(a.publishedAt || 0).getTime();
+    const tb = new Date(b.publishedAt || 0).getTime();
+    return (tb - ta) || (b.trust - a.trust);
+  });
 }
 
-function containsLocalKeywords(text: string): boolean {
-  const localKeywords = [
-    'san francisco', 'sf', 'bay area', 'oakland', 'san jose', 'silicon valley',
-    'california', 'ca', 'palo alto', 'mountain view', 'berkeley', 'marin'
+// Filter sports items to today's fixtures/results and valid statuses
+function filterValidSportsItems(sports: any[] = [], dateISO: string): any[] {
+  const today = new Date(dateISO).toISOString().slice(0, 10);
+  return (sports || []).filter((ev: any) => {
+    const d = String(ev?.date || '').slice(0, 10);
+    const status = String(ev?.status || '').toUpperCase();
+    return d === today && (status === 'FT' || status === 'NS' || status === 'LIVE');
+  });
+}
+
+function teamWhitelistFromSports(sports: any[] = []): string[] {
+  const set = new Set<string>();
+  for (const ev of sports || []) {
+    ['home_team', 'away_team'].forEach(k => {
+      const v = ev?.[k];
+      if (v) set.add(String(v).toLowerCase());
+    });
+  }
+  return Array.from(set);
+}
+
+// Compute a rough per-section word budget based on duration and what's included
+function sectionBudget(seconds: number, include: { weather: boolean; calendar: boolean; news: boolean; sports: boolean; stocks: boolean; quotes: boolean }): Record<string, number> {
+  const base: Array<[string, number]> = [
+    ['greeting',  40],
+    ['weather',   include.weather ? 120 : 0],
+    ['calendar',  include.calendar ? 120 : 0],
+    ['news',      include.news ? 340 : 0],
+    ['sports',    include.sports ? 90 : 0],
+    ['stocks',    include.stocks ? 80 : 0],
+    ['quote',     include.quotes ? 40 : 0],
+    ['close',     40],
   ];
-  return localKeywords.some(keyword => text.includes(keyword));
+  const total = base.reduce((sum, [, w]) => sum + w, 0) || 1;
+  const target = targetWords(seconds);
+  const entries = base.map(([k, w]) => [k, Math.round((w / total) * target)] as [string, number]);
+  return Object.fromEntries(entries);
 }
 
-function containsRegionalKeywords(text: string): boolean {
-  const regionalKeywords = [
-    'california', 'west coast', 'pacific', 'los angeles', 'san diego',
-    'sacramento', 'fresno', 'nevada', 'oregon', 'washington'
-  ];
-  return regionalKeywords.some(keyword => text.includes(keyword));
+// Extract simple locality hints (no hardcoded locales)
+function localityHints(loc: any): string[] {
+  const hints: string[] = [];
+  if (loc?.city) hints.push(String(loc.city).toLowerCase());
+  if (loc?.county) hints.push(String(loc.county).toLowerCase());
+  if (loc?.metro) hints.push(String(loc.metro).toLowerCase());
+  if (loc?.state) hints.push(String(loc.state).toLowerCase());
+  return Array.from(new Set(hints)).filter(Boolean);
 }
 
-function containsNationalKeywords(text: string): boolean {
-  const nationalKeywords = [
-    'united states', 'america', 'us', 'federal', 'congress', 'senate',
-    'white house', 'washington dc', 'supreme court', 'fda', 'cdc'
-  ];
-  return nationalKeywords.some(keyword => text.includes(keyword));
+// Deterministic transition menu for smoother section changes
+const transitions = {
+  toWeather: ['A quick look outside —', 'First, the sky —', 'Step one: the weather —'],
+  toCalendar: ['Before you head out —', 'On your slate —', 'Two things to timebox —'],
+  toNews: ['Now to the headlines …', 'In the news —', 'Closer to home —'],
+  toSports: ['One sports note —', 'Quick sports pulse —', 'Around the diamond —'],
+  toStocks: ['On the tape —', 'For your watchlist —', 'Markets at the open —'],
+  toQuote: ['Pocket this —', 'A line to carry —', 'One thought for the morning —']
+};
+
+// Simple retry + timeout wrapper for flaky network calls
+async function withRetry<T>(fn: () => Promise<T>, tries = 3, baseMs = 600, timeoutMs = 20000): Promise<T> {
+  let lastErr: any;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const result = await Promise.race([
+        fn(),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
+      ]);
+      return result;
+    } catch (e) {
+      lastErr = e;
+      if (i < tries - 1) {
+        await new Promise(r => setTimeout(r, baseMs * (2 ** i)));
+      }
+    }
+  }
+  throw lastErr;
 }
 
-function isBreakingNews(text: string): boolean {
-  const breakingKeywords = [
-    'breaking', 'urgent', 'developing', 'just in', 'alert', 'emergency',
-    'major', 'massive', 'huge', 'crisis', 'disaster', 'accident'
-  ];
-  return breakingKeywords.some(keyword => text.includes(keyword));
-}
-
-function isHighImpactStory(text: string): boolean {
-  const impactKeywords = [
-    'economy', 'market crash', 'election', 'earthquake', 'fire', 'storm',
-    'security', 'data breach', 'layoffs', 'merger', 'acquisition', 'ipo',
-    'inflation', 'recession', 'rate', 'tech', 'ai', 'climate'
-  ];
-  return impactKeywords.some(keyword => text.includes(keyword));
-}
-
-// Sanitize script output for TTS
+// Sanitize script output for TTS (preserve em-dashes, ellipses, and section breaks)
 function sanitizeForTTS(raw: string): string {
   let s = raw.trim();
 
-  // Remove obvious stage directions / markdown
-  s = s.replace(/\[.*?\]/g, '');       // [INTRO MUSIC], [OUTRO], etc.
-  s = s.replace(/[*_#`>]+/g, '');      // markdown artifacts
-  s = s.replace(/\s{2,}/g, ' ');       // collapse whitespace
+  // Remove bracketed stage directions but keep punctuation
+  s = s.replace(/\[[^\]]*?\]/g, '');
+
+  // Strip markdown symbols but keep dashes and ellipses
+  s = s.replace(/[*_#`>]+/g, '');
+
+  // Normalize whitespace but preserve double newlines (section breaks)
+  s = s
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
   // Remove label-y lines (e.g., "Weather:", "News:")
   s = s.replace(/^(weather|news|sports|stocks|quote|calendar)\s*:\s*/gim, '');
-  
+
   // Remove any "Good morning" duplicates if model adds extras
   s = s.replace(/^(good morning[^.]*\.\s*){2,}/gi, (match, group) => group);
+
+  // Clamp excessive pauses
+  s = s.replace(/\.{4,}/g, '...').replace(/—{2,}/g, '—');
+
+  // Guardrails: strip links and tracking params that can slip into TTS
+  s = s.replace(/\bhttps?:\/\/\S+/gi, '');
+  s = s.replace(/[?&](utm_[^=]+|fbclid)=[^&\s]+/gi, '');
+
+  // Cap pauses per paragraph (≤1 ellipsis, ≤2 em dashes)
+  function capPausesPerParagraph(text: string): string {
+    return text.split(/\n\n+/).map(p => {
+      let e = 0;
+      p = p.replace(/\.{3,}/g, m => (++e <= 1 ? '...' : '.'));
+      let d = 0;
+      p = p.replace(/—/g, m => (++d <= 2 ? '—' : ','));
+      return p;
+    }).join('\n\n');
+  }
+  s = capPausesPerParagraph(s);
 
   return s.trim();
 }
@@ -303,7 +344,7 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
   }
 
   // Calculate total cost
-  const totalCost = Number((scriptResult.cost + audioResult.cost).toFixed(5));
+  const totalCost = Number((scriptResult.cost + (audioResult.cost ?? 0)).toFixed(5));
 
   // Mark job as complete with all costs
   await supabase
@@ -311,10 +352,10 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
     .update({
       status: 'ready',
       audio_file_path: audioPath,
-      audio_duration: audioResult.duration,
+      audio_duration: audioResult.duration ?? 0,
       transcript: scriptResult.content,
       script_cost: scriptResult.cost,
-      tts_cost: audioResult.cost,
+      tts_cost: audioResult.cost ?? 0,
       total_cost: totalCost,
       completed_at: new Date().toISOString(),
       worker_id: null,
@@ -340,12 +381,12 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   // Get fresh content from cache
-  const contentTypes = [];
+  const contentTypes: string[] = [];
   if (job.include_news) contentTypes.push('news');
   if (job.include_stocks) contentTypes.push('stocks');
   if (job.include_sports) contentTypes.push('sports');
 
-  let contentData = {};
+  let contentData: any = {};
   if (contentTypes.length > 0) {
     console.log(`[DEBUG] Requesting content types: ${contentTypes.join(', ')}`);
     const { data: freshContent, error: contentError } = await supabase.rpc('get_fresh_content', {
@@ -389,7 +430,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   };
 
   // Get dynamic limits based on user's duration
-  const duration = context.dayStartLength || 90;
+  const duration = context.dayStartLength || 240;
   const { maxTokens } = getTokenLimits(duration);
   
   // Create prompt for GPT-4
@@ -424,20 +465,20 @@ You've got this.`
     content: prompt
   };
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await withRetry(() => fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${openaiApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4', // High-quality script generation
+      model: 'gpt-4o', // High-quality script generation
       messages: [fewShotExample, systemMessage, userMessage],
       max_tokens: maxTokens,    // Dynamic based on user's duration
       temperature: 0.5,         // tighter adherence
       top_p: 1,
     }),
-  });
+  }));
 
   if (!response.ok) {
     throw new Error(`OpenAI API error: ${response.status}`);
@@ -465,10 +506,58 @@ You've got this.`
   console.log('================== RAW SCRIPT END ==================');
 
   // Sanitize the script for TTS
-  const script = sanitizeForTTS(rawScript);
+  let script = sanitizeForTTS(rawScript);
   
   if (!script) {
     throw new Error('Script was empty after sanitization');
+  }
+
+  // Post-process: adjust to target band if outside bounds, without inventing new facts
+  try {
+    const target = getTokenLimits(duration).targetWords;
+    const band = { min: Math.round(target * 0.9), max: Math.round(target * 1.1) };
+
+    // Build a conservative context JSON for the adjust step
+    const storyLimits = getStoryLimits(duration);
+    const flattenedNews = flattenAndDedupeNews(context.contentData?.news || []).slice(0, 80);
+    const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date).slice(0, storyLimits.sports);
+    const sportsTeamWhitelist = teamWhitelistFromSports(sportsToday);
+    const dataForBand = {
+      user: {
+        preferredName: context.preferredName || 'there',
+        timezone: context.timezone,
+        location: context.locationData || null,
+      },
+      date: { iso: context.date },
+      duration: { seconds: duration, targetWords: target },
+      limits: storyLimits,
+      include: {
+        weather: !!context.includeWeather,
+        news: !!context.includeNews,
+        sports: !!context.includeSports,
+        stocks: !!context.includeStocks,
+        quotes: !!context.includeQuotes,
+        calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0,
+      },
+      weather: context.weatherData || null,
+      news: flattenedNews,
+      sports: sportsToday,
+      sportsTeamWhitelist,
+      stocks: {
+        sources: (context.contentData?.stocks || []).slice(0, storyLimits.stocks),
+        focusSymbols: context.stockSymbols || [],
+      },
+      calendarEvents: context.calendarEvents || [],
+    };
+
+    script = await adjustToTargetBand(
+      script,
+      band,
+      JSON.stringify(dataForBand, null, 2),
+      openaiApiKey
+    );
+  } catch (e) {
+    console.warn('[DEBUG] adjustToTargetBand failed or skipped:', e?.message || e);
   }
 
   // Calculate cost based on token usage
@@ -478,7 +567,10 @@ You've got this.`
   const totalCost = Number((inputCost + outputCost).toFixed(5));
 
   console.log(`[DEBUG] OpenAI usage: ${usage.prompt_tokens} input + ${usage.completion_tokens} output tokens = $${totalCost}`);
-  console.log(`[DEBUG] Script length: ${script.split(' ').length} words (sanitized from ${rawScript.split(' ').length} words)`);
+  const words = script.trim().split(/\s+/).length;
+  const estimatedDurationSec = Math.round((words / 145) * 60);
+  console.log(`[DEBUG] Script length: ${words} words (sanitized from ${rawScript.split(' ').length} words)`);
+  console.log(`[DEBUG] Estimated duration: ${estimatedDurationSec}s at 145 wpm`);
   console.log(`[DEBUG] Dynamic scaling: ${Math.round(context.dayStartLength/60)}min → ${getTokenLimits(context.dayStartLength).targetWords} word target, ${maxTokens} max tokens`);
   
   // Alert if script is too short
@@ -492,6 +584,44 @@ You've got this.`
     content: script,
     cost: totalCost
   };
+}
+
+// Ensure script length fits the computed band by expanding or tightening without inventing facts
+async function adjustToTargetBand(text: string, band: { min: number; max: number }, contextJSON: string, openaiApiKey: string): Promise<string> {
+  const words = text.trim().split(/\s+/).length;
+  if (words >= band.min && words <= band.max) return text;
+
+  const direction = words < band.min ? 'expand' : 'tighten';
+  const delta = words < band.min ? band.min - words : words - band.max;
+
+  const requested = Math.round(delta);
+  const instruction = `
+You previously wrote a morning TTS script. ${direction.toUpperCase()} it by ${requested} words (±15 words).
+- Keep exactly the same facts; do NOT add names/teams not in JSON.
+- If expanding: add one concrete detail in weather, the first news item, and calendar (if present).
+- If tightening: remove the least important detail from stocks or the last news item.
+- Preserve the pausing style (—, …, blank lines) and tone.
+Return ONLY the revised script.
+DATA YOU CAN USE (JSON):
+${contextJSON}
+`;
+
+  const resp = await withRetry(() => fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'user', content: instruction },
+        { role: 'assistant', content: text }
+      ],
+      temperature: 0.2,
+      max_tokens: 900
+    })
+  }));
+
+  const j = await resp.json();
+  return j?.choices?.[0]?.message?.content?.trim() || text;
 }
 
 async function generateAudio(script: string, job: any): Promise<{success: boolean, audioData?: Uint8Array, duration?: number, cost?: number, error?: string}> {
@@ -515,7 +645,7 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
   const normalizedVoiceKey = String(job.voice_option || '').toLowerCase();
   const voiceId = voiceMap[normalizedVoiceKey] || voiceMap['voice1'];
 
-  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+  const response = await withRetry(() => fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',
     headers: {
       'Accept': 'audio/aac',
@@ -532,7 +662,7 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
         use_speaker_boost: true
       }
     }),
-  });
+  }));
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -565,15 +695,24 @@ function buildScriptPrompt(context: any): string {
     day: 'numeric' 
   });
   
-  const duration = context.dayStartLength || 90;
+  const duration = context.dayStartLength || 240;
   const { targetWords } = getTokenLimits(duration);
   const lowerBound = Math.round(targetWords * 0.9);
   const upperBound = Math.round(targetWords * 1.1);
   const storyLimits = getStoryLimits(duration);
   
-  // Prioritize and limit news based on duration
-  const prioritizedNews = prioritizeNews(context.contentData?.news || []);
-  const topNews = prioritizedNews.slice(0, storyLimits.news);
+  // Flatten news; the model will choose relevance based on user.location
+  const flattenedNews: any[] = [];
+  (context.contentData?.news || []).forEach((source: any) => {
+    if (source.data?.articles) {
+      source.data.articles.forEach((article: any) => {
+        flattenedNews.push({ ...article, sourceName: source.source });
+      });
+    }
+  });
+
+  // Enforce valid, present-day sports items only
+  const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date).slice(0, storyLimits.sports);
 
   // Provide machine-readable context so the model can cite specifics cleanly
   const data = {
@@ -593,9 +732,20 @@ function buildScriptPrompt(context: any): string {
       quotes: !!context.includeQuotes,
       calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0
     },
+    budget: sectionBudget(duration, {
+      weather: !!context.includeWeather,
+      news: !!context.includeNews,
+      sports: !!context.includeSports,
+      stocks: !!context.includeStocks,
+      quotes: !!context.includeQuotes,
+      calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0
+    }),
     weather: context.weatherData || null,
-    news: topNews,
-    sports: (context.contentData?.sports || []).slice(0, storyLimits.sports),
+    news: flattenAndDedupeNews(context.contentData?.news || []).slice(0, 80),
+    sports: sportsToday,
+    sportsTeamWhitelist: teamWhitelistFromSports(sportsToday),
+    localityHints: localityHints(context.locationData),
+    transitions,
     stocks: {
       sources: (context.contentData?.stocks || []).slice(0, storyLimits.stocks),
       focusSymbols: context.stockSymbols || []
@@ -603,6 +753,14 @@ function buildScriptPrompt(context: any): string {
     quotePreference: context.quotePreference || null,
     calendarEvents: context.calendarEvents || []
   };
+
+  const styleAddendum = `
+PAUSING & FLOW
+- Use em dashes (—) for short pauses and ellipses (…) for softer rests.
+- Put a blank line between sections to create a natural breath.
+- Start each section with a short sentence. Then continue.
+- Keep sentences mostly under 18 words.
+`;
 
   return `
 You are a professional morning briefing writer for a TTS wake-up app. Your job: write a concise, warm, highly-personalized script that sounds natural when spoken aloud.
@@ -612,6 +770,9 @@ STYLE
 - Use short sentences and varied rhythm.
 - Prefer specifics over generalities. If a section has no data, gracefully skip it.
 - Sprinkle one light, human moment max (a nudge, not a joke barrage).
+${styleAddendum}
+ - Use 1–2 transitions between sections. Keep ellipses to ≤1 per paragraph and em dashes to ≤2 per paragraph.
+ - Stay roughly within the provided per-section word budget (±25%). If a section is omitted, redistribute its budget to News first, then Weather/Calendar.
 
 LENGTH & PACING
   - Target ${targetWords} words total (±10%). Keep between ${lowerBound}–${upperBound} words. Duration: ${Math.round(duration/60)} minutes.
@@ -619,15 +780,27 @@ LENGTH & PACING
   - If the draft is shorter than ${lowerBound}, expand by adding one concrete, relevant detail in the highest-priority sections (weather, calendar, top news) until within range. If longer than ${upperBound}, tighten by removing the least important detail. No filler.
 
 CONTENT PRIORITIZATION
-- News: Use exactly ${storyLimits.news} stories max. The provided news is pre-sorted by relevance (local > regional > national > international, with breaking news boosted).
-- Sports: ${storyLimits.sports} update(s) max. Focus on local/regional teams when possible.
+  - News: Use up to ${storyLimits.news} stories. Choose by local relevance using user.location when available; otherwise pick the most significant stories.
+- Sports: ${storyLimits.sports} update(s) max. Only mention teams/matchups present in the sports data for today. If off-season or no fixtures, skip gracefully.
 - Stocks: ${storyLimits.stocks} market point(s) max. Prioritize user's focus symbols if provided.
+ - Weather: If present, include min/max, rain chance, and wind details for the user's location.
+ - Astronomy: If a meteor shower is present, add viewing advice tailored to the user's location (window, direction, light pollution note). Otherwise, omit.
+- Calendar: Call out today's top 1–2 items with time ranges and one helpful nudge.
+
+FACT RULES
+- Use ONLY facts present in the JSON data.
+- If a desired detail is missing, omit it gracefully—do not invent.
+- Never mention a team or matchup unless it appears in the sports data for today.
+ - Mention ONLY teams present in sportsTeamWhitelist (exact names). If the sports array is empty, omit the sports section entirely.
+ - When choosing news, prefer items that mention the user's city/county/adjacent areas; next, state-level; then national; then international.
+ - Use 1–2 transitions, choosing from data.transitions.
+ - Stocks: Lead with focusSymbols (if present) in one sentence. Add one broader market line only if space allows.
 
 CONTENT ORDER (adapt if sections are missing)
 1) One-line greeting using the user's name and day (no headings).
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day.
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
-4) News (if include.news): Use the prioritized news provided. Lead with most relevant (local/breaking first).
+4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.
 5) Sports (if include.sports): Brief, focused update. Mention major local teams or significant national stories.
 6) Stocks (if include.stocks): Market pulse. Call out focusSymbols prominently when present.
 7) Quote (if include.quotes): 1 line, then a one-line tie-back to today's vibe.

@@ -42,15 +42,15 @@ class AudioPlayerManager: NSObject, ObservableObject {
     
     func loadAudio() {
         // Get selected voice from preferences
-        let voiceIndex = UserPreferences.shared.settings.selectedVoice.rawValue + 1
-        let resourceName = "ai_wakeup_generic_voice\(voiceIndex)"
+        let selectedVoice = UserPreferences.shared.settings.selectedVoice
+        let resourceName = "voice\(selectedVoice.rawValue + 1)_fallback"
         
-        logger.log("[DEBUG] Loading mock audio with voice: \(UserPreferences.shared.settings.selectedVoice.name) (voice\(voiceIndex))", level: .debug)
+        logger.log("[DEBUG] Loading fallback audio with voice: \(selectedVoice.name) (\(resourceName))", level: .debug)
         
-        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3") else {
+        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3", subdirectory: "Audio/Fallbacks") else {
             logger.logError(NSError(domain: "AudioPlayer", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not find \(resourceName).mp3"]), context: "Loading bundled audio")
             // Fallback to voice1 if selected voice not found
-            if let fallbackUrl = Bundle.main.url(forResource: "ai_wakeup_generic_voice1", withExtension: "mp3") {
+            if let fallbackUrl = Bundle.main.url(forResource: "voice1_fallback", withExtension: "mp3", subdirectory: "Audio/Fallbacks") {
                 logger.log("🔄 Falling back to voice1", level: .warning)
                 loadAudio(from: fallbackUrl)
             }
@@ -252,14 +252,8 @@ class AudioPlayerManager: NSObject, ObservableObject {
     
     // MARK: - Helper Methods
     private func getVoicePreviewResourceName(for voice: VoiceOption) -> String {
-        switch voice {
-        case .voice1:
-            return "briefing_sample_grace_voice1"
-        case .voice2:
-            return "briefing_sample_rachel_voice2"
-        case .voice3:
-            return "briefing_sample_matthew_voice3"
-        }
+        let fileName = "voice\(voice.rawValue + 1)_sample"
+        return fileName
     }
     
     // MARK: - Audio Session Management
@@ -370,7 +364,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     func previewVoice(_ voice: VoiceOption) {
         let resourceName = getVoicePreviewResourceName(for: voice)
         
-        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3") else {
+        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3", subdirectory: "Audio/Samples") else {
             logger.logError(NSError(domain: "AudioPlayer", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not find \(resourceName).mp3"]), context: "Previewing voice")
             return
         }

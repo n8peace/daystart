@@ -23,13 +23,20 @@ DayStart/
 │   ├── Models/
 │   │   └── DayStartModels.swift   # Data models
 │   └── Services/
-│       ├── MockDataService.swift       # Mock data generation
+│       ├── MockDataService.swift       # Deprecated - replaced with bundled audio files
 │       ├── AudioPlayerManager.swift    # Audio playback
 │       ├── NotificationScheduler.swift # Local notifications
 │       └── UserPreferences.swift       # Persistent storage
 └── Resources/
-    └── Sounds/
-        └── ai_wakeup_generic_voice1.mp3  # Generic voice audio file
+    └── Audio/
+        ├── Samples/      # Voice preview samples for onboarding
+        │   ├── voice1_sample.mp3
+        │   ├── voice2_sample.mp3
+        │   └── voice3_sample.mp3
+        └── Fallbacks/    # Voice-specific fallback audio
+            ├── voice1_fallback.mp3
+            ├── voice2_fallback.mp3
+            └── voice3_fallback.mp3
 ```
 
 ## Features Implemented
@@ -69,7 +76,7 @@ DayStart/
 ## Setup Instructions
 
 1. Add the project files to a new Xcode project
-2. The audio file `ai_wakeup_generic_voice1.mp3` is already in `Resources/Sounds/`
+2. Voice-specific audio files are organized in `Resources/Audio/` (samples for previews, fallbacks for offline mode)
 3. Enable the following capabilities in Xcode:
    - Push Notifications (for local notifications)
    - Background Modes > Audio (for background playback)
@@ -78,7 +85,7 @@ DayStart/
 ## Next Steps (Phase 2)
 
 When ready to add backend:
-1. Replace `MockDataService` with real API calls
+1. ~~Replace `MockDataService` with real API calls~~ ✅ Replaced with bundled audio files
 2. Integrate GPT-4o for content generation
 3. Add ElevenLabs for audio synthesis
 4. Connect to Supabase for data persistence
