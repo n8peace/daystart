@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+// Local lint shim for Deno globals in non-Deno editors
+declare const Deno: any;
 
 // Helper: ~145 wpm is natural TTS; adjust as needed
 function targetWords(seconds: number, wpm = 145): number {
@@ -59,6 +61,15 @@ function flattenAndDedupeNews(newsData: any[] = []): any[] {
     const tb = new Date(b.publishedAt || 0).getTime();
     return (tb - ta) || (b.trust - a.trust);
   });
+}
+
+function compactNewsItem(a: any) {
+  return {
+    title: a?.title?.slice(0, 160) || '',
+    description: a?.description?.slice(0, 280) || '',
+    source: a?.sourceName || '',
+    publishedAt: a?.publishedAt || ''
+  };
 }
 
 // Filter sports items to today's fixtures/results and valid statuses
@@ -135,7 +146,14 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 3, baseMs = 600, timeo
     } catch (e) {
       lastErr = e;
       if (i < tries - 1) {
-        await new Promise(r => setTimeout(r, baseMs * (2 ** i)));
+        // Respect Retry-After header when available on Response
+        let retryAfterMs = 0;
+        if (e && typeof e === 'object' && 'headers' in (e as any)) {
+          const ra = Number((e as any).headers?.get?.('retry-after')) || 0;
+          retryAfterMs = ra * 1000;
+        }
+        const backoff = baseMs * (2 ** i);
+        await new Promise(r => setTimeout(r, Math.max(backoff, retryAfterMs)));
       }
     }
   }
@@ -204,6 +222,17 @@ serve(async (req: Request): Promise<Response> => {
   const worker_id = crypto.randomUUID();
   
   try {
+    // CORS preflight support
+    if (req.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'authorization, content-type',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        }
+      });
+    }
     // Only allow POST from authorized sources
     if (req.method !== 'POST') {
       return createResponse(false, 0, 0, 'Only POST method allowed', request_id);
@@ -212,8 +241,15 @@ serve(async (req: Request): Promise<Response> => {
     // Basic auth check (can be enhanced with proper API keys)
     const authHeader = req.headers.get('authorization');
     const expectedToken = Deno.env.get('WORKER_AUTH_TOKEN');
+
+    function safeEq(a: string = '', b: string = ''): boolean {
+      if (a.length !== b.length) return false;
+      let res = 0;
+      for (let i = 0; i < a.length; i++) res |= a.charCodeAt(i) ^ b.charCodeAt(i);
+      return res === 0;
+    }
     
-    if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
+    if (!authHeader || !safeEq(authHeader, `Bearer ${expectedToken}`)) {
       return createResponse(false, 0, 0, 'Unauthorized', request_id);
     }
 
@@ -489,11 +525,13 @@ You've got this.`
   const data = await response.json();
   
   // Log the response for debugging
-  console.log('[DEBUG] GPT-4 Response:', {
-    model: data.model,
-    usage: data.usage,
-    finish_reason: data.choices?.[0]?.finish_reason
-  });
+  if (Deno.env.get('DEBUG') === '1') {
+    console.log('[DEBUG] GPT-4 Response:', {
+      model: data.model,
+      usage: data.usage,
+      finish_reason: data.choices?.[0]?.finish_reason
+    });
+  }
   
   const rawScript = data.choices?.[0]?.message?.content;
 
@@ -503,9 +541,11 @@ You've got this.`
   }
   
   console.log('[DEBUG] Raw script from GPT-4:');
-  console.log('================== RAW SCRIPT START ==================');
-  console.log(rawScript);
-  console.log('================== RAW SCRIPT END ==================');
+  if (Deno.env.get('DEBUG') === '1') {
+    console.log('================== RAW SCRIPT START ==================');
+    console.log(rawScript);
+    console.log('================== RAW SCRIPT END ==================');
+  }
 
   // Sanitize the script for TTS
   let script = sanitizeForTTS(rawScript);
@@ -612,7 +652,7 @@ ${contextJSON}
     method: 'POST',
     headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'user', content: instruction },
         { role: 'assistant', content: text }
@@ -704,15 +744,21 @@ function buildScriptPrompt(context: any): string {
   const upperBound = Math.round(targetWords * 1.1);
   const storyLimits = getStoryLimits(duration);
   
-  // Flatten news; the model will choose relevance based on user.location
-  const flattenedNews: any[] = [];
-  (context.contentData?.news || []).forEach((source: any) => {
-    if (source.data?.articles) {
-      source.data.articles.forEach((article: any) => {
-        flattenedNews.push({ ...article, sourceName: source.source });
-      });
+  // Prefer compact news if available, else fall back to raw
+  function collectCompactNews(cd: any): Array<{speakable: string, source?: string, publishedAt?: string}> {
+    const out: Array<{speakable: string, source?: string, publishedAt?: string}> = []
+    for (const src of cd?.news || []) {
+      const items = src?.data?.compact?.news
+      if (Array.isArray(items)) {
+        for (const it of items) {
+          const speak = String(it?.speakable || '').trim()
+          if (speak) out.push({ speakable: speak, source: it?.source || src?.source, publishedAt: it?.publishedAt })
+        }
+      }
     }
-  });
+    return out
+  }
+  const compactNews = collectCompactNews(context.contentData).slice(0, 40)
 
   // Enforce valid, present-day sports items only
   const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date, context.timezone).slice(0, storyLimits.sports);
@@ -744,7 +790,15 @@ function buildScriptPrompt(context: any): string {
       calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0
     }),
     weather: context.weatherData || null,
-    news: flattenAndDedupeNews(context.contentData?.news || []).slice(0, 80),
+    news: (compactNews.length > 0
+      ? compactNews.map(n => ({
+          title: n.speakable.slice(0, 160),
+          description: '',
+          source: n.source || '',
+          publishedAt: n.publishedAt || ''
+        }))
+      : flattenAndDedupeNews(context.contentData?.news || []).map(a => compactNewsItem(a))
+    ).slice(0, 40),
     sports: sportsToday,
     sportsTeamWhitelist: teamWhitelistFromSports(sportsToday),
     localityHints: localityHints(context.locationData),

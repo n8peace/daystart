@@ -23,15 +23,7 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  const startTime = Date.now()
-  const result: CleanupResult = {
-    success: false,
-    started_at: new Date().toISOString(),
-    files_found: 0,
-    files_deleted: 0,
-    files_failed: 0,
-    errors: []
-  }
+  const request_id = crypto.randomUUID()
 
   try {
     // Verify authorization
@@ -40,7 +32,7 @@ serve(async (req) => {
       throw new Error('Missing authorization header')
     }
 
-    // Create Supabase client with service role for full access
+    // Check if cleanup should run (prevents too frequent runs)
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
@@ -51,7 +43,6 @@ serve(async (req) => {
       }
     })
 
-    // Check if cleanup should run (prevents too frequent runs)
     const { data: shouldRun, error: checkError } = await supabase
       .rpc('should_run_audio_cleanup')
     
@@ -64,7 +55,8 @@ serve(async (req) => {
         JSON.stringify({
           success: true,
           message: 'Cleanup skipped - ran too recently',
-          last_run_within_hours: 20
+          last_run_within_hours: 20,
+          request_id
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -72,6 +64,70 @@ serve(async (req) => {
         }
       )
     }
+
+    console.log(`🧹 Audio cleanup accepted with request_id: ${request_id}`)
+    
+    // Start async processing without waiting
+    cleanupAudioAsync(request_id).catch(error => {
+      console.error('Async audio cleanup error:', error)
+    })
+
+    // Return immediate success response
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Audio cleanup started',
+        request_id,
+        started_at: new Date().toISOString()
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      }
+    )
+
+  } catch (error) {
+    console.error('❌ Audio cleanup startup failed:', error)
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message,
+        message: 'Audio cleanup failed to start',
+        request_id
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
+      }
+    )
+  }
+})
+
+async function cleanupAudioAsync(request_id: string): Promise<void> {
+  const startTime = Date.now()
+  const result: CleanupResult = {
+    success: false,
+    started_at: new Date().toISOString(),
+    files_found: 0,
+    files_deleted: 0,
+    files_failed: 0,
+    errors: []
+  }
+
+  try {
+    // Create Supabase client with service role for full access
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      }
+    })
+
+    console.log(`🧹 Starting audio cleanup for request ${request_id}`)
 
     // Create cleanup log entry
     const { data: logEntry, error: logError } = await supabase
@@ -118,13 +174,8 @@ serve(async (req) => {
       result.completed_at = new Date().toISOString()
       result.runtime_seconds = (Date.now() - startTime) / 1000
 
-      return new Response(
-        JSON.stringify(result),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200
-        }
-      )
+      console.log(`✅ Audio cleanup completed for request ${request_id}: No files to delete`)
+      return
     }
 
     // Delete files from storage in batches
@@ -187,29 +238,10 @@ serve(async (req) => {
     result.completed_at = new Date().toISOString()
     result.runtime_seconds = runtime
 
-    console.log(`Cleanup completed: ${result.files_deleted} deleted, ${result.files_failed} failed`)
-
-    return new Response(
-      JSON.stringify(result),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
-      }
-    )
+    console.log(`✅ Audio cleanup completed for request ${request_id}: ${result.files_deleted} deleted, ${result.files_failed} failed`)
 
   } catch (error) {
-    console.error('Cleanup error:', error)
+    console.error(`❌ Audio cleanup async processing failed for request ${request_id}:`, error)
     result.errors.push(error.message)
-    
-    return new Response(
-      JSON.stringify({
-        ...result,
-        error: error.message
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      }
-    )
   }
-})
+}
