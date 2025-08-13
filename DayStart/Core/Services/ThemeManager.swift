@@ -39,24 +39,6 @@ class ThemeManager: ObservableObject {
                 self?.updateEffectiveColorScheme()
             }
             .store(in: &cancellables)
-        
-        // Listen for trait collection changes
-        NotificationCenter.default
-            .publisher(for: UITraitCollection.currentChanged)
-            .sink { [weak self] _ in
-                print("🎨 ThemeManager: Trait collection changed, updating color scheme")
-                self?.updateEffectiveColorScheme()
-            }
-            .store(in: &cancellables)
-        
-        // Listen for window scene interface style changes
-        NotificationCenter.default
-            .publisher(for: UIWindowScene.didChangeNotification)
-            .sink { [weak self] notification in
-                print("🎨 ThemeManager: Window scene changed, updating color scheme")
-                self?.updateEffectiveColorScheme()
-            }
-            .store(in: &cancellables)
         #endif
         
         // Also listen for trait collection changes if available
