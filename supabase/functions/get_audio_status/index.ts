@@ -53,23 +53,12 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('INVALID_DATE_FORMAT', 'Date must be in YYYY-MM-DD format', request_id);
     }
 
-    // Extract user ID from Authorization header or client info
-    const authHeader = req.headers.get('authorization');
-    let user_id: string;
-    
-    if (authHeader?.startsWith('Bearer ')) {
-      // For future authenticated users
-      const jwt = authHeader.substring(7);
-      // TODO: Decode JWT and extract user_id
-      user_id = 'authenticated_user'; // Placeholder
-    } else {
-      // Anonymous user - use device identifier
-      const clientInfo = req.headers.get('x-client-info');
-      if (!clientInfo) {
-        return createErrorResponse('MISSING_USER_ID', 'x-client-info header required for anonymous users', request_id);
-      }
-      user_id = clientInfo;
+    // Extract user ID from client info (device-specific)
+    const clientInfo = req.headers.get('x-client-info');
+    if (!clientInfo) {
+      return createErrorResponse('MISSING_USER_ID', 'x-client-info header required', request_id);
     }
+    const user_id = clientInfo;
 
     // Query job for this user and date
     const { data: job, error: jobError } = await supabase

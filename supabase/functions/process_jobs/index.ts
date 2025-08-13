@@ -163,7 +163,7 @@ serve(async (req: Request): Promise<Response> => {
   try {
     // Only allow POST from authorized sources
     if (req.method !== 'POST') {
-      return createResponse(false, 0, 0, 'Only POST method allowed', request_id, 405);
+      return createResponse(false, 0, 0, 'Only POST method allowed', request_id);
     }
 
     // Basic auth check (can be enhanced with proper API keys)
@@ -171,7 +171,7 @@ serve(async (req: Request): Promise<Response> => {
     const expectedToken = Deno.env.get('WORKER_AUTH_TOKEN');
     
     if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
-      return createResponse(false, 0, 0, 'Unauthorized', request_id, 401);
+      return createResponse(false, 0, 0, 'Unauthorized', request_id);
     }
 
     // Return success immediately to prevent timeout
@@ -187,7 +187,7 @@ serve(async (req: Request): Promise<Response> => {
 
   } catch (error) {
     console.error('Worker error:', error);
-    return createResponse(false, 0, 0, 'Internal worker error', request_id, 500);
+    return createResponse(false, 0, 0, 'Internal worker error', request_id);
   }
 });
 

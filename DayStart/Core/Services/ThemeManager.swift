@@ -73,8 +73,9 @@ class ThemeManager: ObservableObject {
         }
         
         if effectiveColorScheme != newColorScheme {
+            let oldColorScheme = effectiveColorScheme
             effectiveColorScheme = newColorScheme
-            DebugLogger.shared.logThemeChange(from: effectiveColorScheme == .dark ? "dark" : "light", to: newColorScheme == .dark ? "dark" : "light")
+            DebugLogger.shared.logThemeChange(from: oldColorScheme == .dark ? "dark" : "light", to: newColorScheme == .dark ? "dark" : "light")
         }
     }
     

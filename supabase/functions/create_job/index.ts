@@ -78,20 +78,9 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('VALIDATION_ERROR', validation.error!, request_id);
     }
 
-    // Extract user ID from Authorization header or generate anonymous ID
-    const authHeader = req.headers.get('authorization');
-    let user_id: string;
-    
-    if (authHeader?.startsWith('Bearer ')) {
-      // For future authenticated users
-      const jwt = authHeader.substring(7);
-      // TODO: Decode JWT and extract user_id
-      user_id = 'authenticated_user'; // Placeholder
-    } else {
-      // Anonymous user - use device identifier or generate one
-      const clientInfo = req.headers.get('x-client-info');
-      user_id = clientInfo || `anonymous_${crypto.randomUUID()}`;
-    }
+    // Extract user ID from client info (device-specific) or generate anonymous ID
+    const clientInfo = req.headers.get('x-client-info');
+    const user_id = clientInfo || `anonymous_${crypto.randomUUID()}`;
 
     // Calculate estimated ready time (1-2 minutes from now with 1-minute cron schedule)
     const estimated_ready_time = new Date(Date.now() + (1.5 * 60 * 1000)).toISOString();

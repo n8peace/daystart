@@ -97,7 +97,7 @@ class UserPreferences: ObservableObject {
                 if !item.isDeleted {
                     // Delete the audio file if it exists and isn't bundled
                     if let audioPath = item.audioFilePath, 
-                       !audioPath.contains("Bundle.main"),
+                       !audioPath.contains(".app/"), // Skip bundled resources
                        FileManager.default.fileExists(atPath: audioPath) {
                         do {
                             try FileManager.default.removeItem(atPath: audioPath)
@@ -233,7 +233,6 @@ class UserPreferences: ObservableObject {
             
             // Delete the audio file if it exists and isn't bundled
             if let audioPath = item.audioFilePath,
-               !audioPath.contains("Bundle.main"),
                !audioPath.contains(".app/"), // Skip bundled resources
                FileManager.default.fileExists(atPath: audioPath) {
                 do {

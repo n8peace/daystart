@@ -81,7 +81,10 @@ class AudioDownloader: NSObject {
         logger.log("Starting audio download with progress for \(date)", level: .info)
         
         return await withCheckedContinuation { continuation in
-            let task = URLSession.shared.downloadTask(with: url) { [weak self] tempURL, response, error in
+            // Create custom delegate to track progress
+            let delegate = DownloadDelegate(onProgress: onProgress, logger: logger)
+            let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: .main)
+            let progressTask = session.downloadTask(with: url) { [weak self] tempURL, response, error in
                 Task { @MainActor in
                     guard let self = self else {
                         continuation.resume(returning: false)
@@ -132,53 +135,6 @@ class AudioDownloader: NSObject {
                         
                     } catch {
                         self.logger.logError(error, context: "Failed to read downloaded file for \(date)")
-                        continuation.resume(returning: false)
-                    }
-                }
-            }
-            
-            // Store the task for potential cancellation
-            let downloadTask = DownloadTask(task: task, date: date, progressCallback: onProgress)
-            activeDownloads[date] = downloadTask
-            
-            // Create custom delegate to track progress
-            let delegate = DownloadDelegate(onProgress: onProgress, logger: logger)
-            let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: .main)
-            let progressTask = session.downloadTask(with: url) { tempURL, response, error in
-                Task { @MainActor in
-                    // Same completion logic as above...
-                    if let error = error {
-                        self.logger.logError(error, context: "Download failed for \(date)")
-                        continuation.resume(returning: false)
-                        return
-                    }
-                    
-                    guard let tempURL = tempURL else {
-                        continuation.resume(returning: false)
-                        return
-                    }
-                    
-                    guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                        continuation.resume(returning: false)
-                        return
-                    }
-                    
-                    do {
-                        let data = try Data(contentsOf: tempURL)
-                        guard self.isValidAudioData(data) else {
-                            continuation.resume(returning: false)
-                            return
-                        }
-                        
-                        guard AudioCache.shared.cacheAudio(data: data, for: date) != nil else {
-                            continuation.resume(returning: false)
-                            return
-                        }
-                        
-                        continuation.resume(returning: true)
-                        
-                    } catch {
-                        self.logger.logError(error, context: "Failed to process downloaded file")
                         continuation.resume(returning: false)
                     }
                 }

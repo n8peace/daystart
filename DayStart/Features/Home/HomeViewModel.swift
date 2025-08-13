@@ -196,9 +196,6 @@ class HomeViewModel: ObservableObject {
             startCountdown()
         } else {
             // More than 10 hours before OR more than 6 hours after - show next scheduled time
-            if timeUntil < -sixHoursInSeconds {
-            } else {
-            }
             state = .idle
         }
     }
