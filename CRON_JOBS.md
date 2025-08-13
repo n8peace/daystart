@@ -9,6 +9,7 @@ This document outlines all scheduled tasks (cron jobs) used by the DayStart appl
 | Process Jobs | `*/1 * * * *` | Every 1 minute | Process audio generation queue |
 | Refresh Content | `0 * * * *` | Every hour | Refresh news, stocks, sports cache |
 | Cleanup Audio | `0 2 * * *` | Daily at 2 AM UTC | Delete old audio files |
+| Healthcheck | `0 7 * * *` | Daily at 7 AM UTC | Run system health checks and email report |
 
 ## 1. Process Jobs
 
@@ -108,6 +109,37 @@ Deletes audio files from storage that are older than 10 days to manage storage c
 - Deletes files older than 10 days by default
 - Prevents running more than once per 20 hours
 - Logs all operations for audit trail
+
+## 4. Healthcheck
+
+### Purpose
+Runs a comprehensive application healthcheck across DB, cache freshness, job queue, storage, internal endpoints, and error logs, then emails a summary via Resend.
+
+### Configuration
+- **URL**: `https://[PROJECT_REF].supabase.co/functions/v1/healthcheck`
+- **Method**: POST
+- **Schedule**: `0 7 * * *` (daily at 7 AM UTC)
+- **Headers**:
+  ```
+  Authorization: Bearer [WORKER_AUTH_TOKEN]
+  Content-Type: application/json
+  ```
+
+### Setup Instructions (cron-job.org)
+1. Create new cron job
+2. Set URL to the healthcheck function endpoint
+3. Set schedule to daily at your preferred time
+4. Add Authorization header with the worker token
+5. Optionally append `?notify=1` to enforce email
+6. Enable the job
+
+### Monitoring
+- Check `request_logs` for `/healthcheck` entries
+- Verify healthcheck email is received daily
+
+### Notes
+- The function returns 200 immediately and executes asynchronously
+- Ensure Resend env vars are configured in Supabase secrets
 
 ## Troubleshooting
 

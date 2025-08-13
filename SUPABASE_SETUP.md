@@ -55,6 +55,9 @@ supabase functions deploy --no-verify-jwt
 supabase secrets set OPENAI_API_KEY="your-openai-key"
 supabase secrets set ELEVENLABS_API_KEY="your-elevenlabs-key"  
 supabase secrets set WORKER_AUTH_TOKEN="$(openssl rand -base64 32)"
+supabase secrets set RESEND_API_KEY="your-resend-api-key"
+supabase secrets set RESEND_TO_EMAIL="you@example.com"
+supabase secrets set RESEND_FROM_EMAIL="healthcheck@yourdomain.com"
 ```
 
 ### 5. Configure iOS App
@@ -131,6 +134,20 @@ Returns status and signed URL for audio.
   "request_id": "req-456"
 }
 ```
+
+#### POST /healthcheck
+Schedules and runs a comprehensive healthcheck asynchronously and emails a report via Resend.
+
+Invocation (returns 200 immediately):
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $WORKER_AUTH_TOKEN" \
+  "https://YOUR_PROJECT_REF.supabase.co/functions/v1/healthcheck"
+```
+
+Query params:
+- `notify=0|1` (default 1)
 
 ### Job Processing
 
