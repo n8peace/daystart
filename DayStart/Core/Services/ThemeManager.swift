@@ -35,6 +35,25 @@ class ThemeManager: ObservableObject {
         NotificationCenter.default
             .publisher(for: UIApplication.didBecomeActiveNotification)
             .sink { [weak self] _ in
+                print("🎨 ThemeManager: App became active, updating color scheme")
+                self?.updateEffectiveColorScheme()
+            }
+            .store(in: &cancellables)
+        
+        // Listen for trait collection changes
+        NotificationCenter.default
+            .publisher(for: UITraitCollection.currentChanged)
+            .sink { [weak self] _ in
+                print("🎨 ThemeManager: Trait collection changed, updating color scheme")
+                self?.updateEffectiveColorScheme()
+            }
+            .store(in: &cancellables)
+        
+        // Listen for window scene interface style changes
+        NotificationCenter.default
+            .publisher(for: UIWindowScene.didChangeNotification)
+            .sink { [weak self] notification in
+                print("🎨 ThemeManager: Window scene changed, updating color scheme")
                 self?.updateEffectiveColorScheme()
             }
             .store(in: &cancellables)
@@ -44,6 +63,7 @@ class ThemeManager: ObservableObject {
         NotificationCenter.default
             .publisher(for: NSNotification.Name("NSSystemColorsDidChangeNotification"))
             .sink { [weak self] _ in
+                print("🎨 ThemeManager: System colors changed, updating color scheme")
                 self?.updateEffectiveColorScheme()
             }
             .store(in: &cancellables)
@@ -57,9 +77,17 @@ class ThemeManager: ObservableObject {
         
         switch themePreference {
         case .system:
-            // Get system appearance - improved detection
+            // Get system appearance - use UIScreen.main for accurate system theme
             #if os(iOS)
-            newColorScheme = UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light
+            let systemStyle = UIScreen.main.traitCollection.userInterfaceStyle
+            newColorScheme = systemStyle == .dark ? .dark : .light
+            print("🎨 ThemeManager: System theme detection - UIScreen.main.traitCollection.userInterfaceStyle = \(systemStyle.rawValue) (\(systemStyle == .dark ? "dark" : "light"))")
+            
+            // Also log UITraitCollection.current for comparison
+            let currentStyle = UITraitCollection.current.userInterfaceStyle
+            if currentStyle != systemStyle {
+                print("🎨 ThemeManager: Note - UITraitCollection.current (\(currentStyle.rawValue)) differs from UIScreen.main (\(systemStyle.rawValue))")
+            }
             #elseif os(macOS)
             let appearance = NSApp.effectiveAppearance.name
             newColorScheme = (appearance == .darkAqua || appearance == .vibrantDark) ? .dark : .light
@@ -72,16 +100,35 @@ class ThemeManager: ObservableObject {
             newColorScheme = .dark
         }
         
+        print("🎨 ThemeManager: updateEffectiveColorScheme() - preference: \(themePreference.displayName), newColorScheme: \(newColorScheme == .dark ? "dark" : "light"), currentEffectiveColorScheme: \(effectiveColorScheme == .dark ? "dark" : "light")")
+        
         if effectiveColorScheme != newColorScheme {
             let oldColorScheme = effectiveColorScheme
             effectiveColorScheme = newColorScheme
+            print("🎨 ThemeManager: Color scheme changed from \(oldColorScheme == .dark ? "dark" : "light") to \(newColorScheme == .dark ? "dark" : "light")")
             DebugLogger.shared.logThemeChange(from: oldColorScheme == .dark ? "dark" : "light", to: newColorScheme == .dark ? "dark" : "light")
         }
     }
     
     func setTheme(_ preference: ThemePreference) {
+        print("🎨 ThemeManager: setTheme() called with preference: \(preference.displayName)")
         withAnimation(.easeInOut(duration: 0.3)) {
             themePreference = preference
         }
+    }
+    
+    /// Force refresh the color scheme - useful when app returns from background
+    func refreshColorScheme() {
+        print("🎨 ThemeManager: Force refreshing color scheme")
+        updateEffectiveColorScheme()
+    }
+    
+    /// Get the current system color scheme
+    var systemColorScheme: ColorScheme {
+        #if os(iOS)
+        return UIScreen.main.traitCollection.userInterfaceStyle == .dark ? .dark : .light
+        #else
+        return .light
+        #endif
     }
 }

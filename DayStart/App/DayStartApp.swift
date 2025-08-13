@@ -51,6 +51,10 @@ struct DayStartApp: App {
                         await userPreferences.cleanupOldAudioFiles()
                     }
                 }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                    // Refresh theme when app enters foreground
+                    themeManager.refreshColorScheme()
+                }
                 .fullScreenCover(isPresented: $showOnboarding) {
                     OnboardingView {
                         logger.logUserAction("Onboarding completed")
