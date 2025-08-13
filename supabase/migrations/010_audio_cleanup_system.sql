@@ -109,39 +109,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Update the existing cleanup_old_data function to also handle audio files
-CREATE OR REPLACE FUNCTION cleanup_old_data(days_to_keep INTEGER DEFAULT 30)
-RETURNS TABLE(jobs_deleted INTEGER, history_deleted INTEGER, audio_paths_cleared INTEGER) AS $$
-DECLARE
-  cutoff_date TIMESTAMPTZ := NOW() - (days_to_keep || ' days')::INTERVAL;
-  jobs_count INTEGER;
-  history_count INTEGER;
-  audio_count INTEGER;
-BEGIN
-  -- Clear audio file paths from old jobs (but don't delete the job records yet)
-  UPDATE jobs 
-  SET audio_file_path = NULL
-  WHERE created_at < cutoff_date 
-    AND audio_file_path IS NOT NULL
-    AND status IN ('ready', 'failed');
-  GET DIAGNOSTICS audio_count = ROW_COUNT;
-  
-  -- Delete old completed/failed jobs
-  DELETE FROM jobs 
-  WHERE created_at < cutoff_date 
-    AND status IN ('ready', 'failed');
-  GET DIAGNOSTICS jobs_count = ROW_COUNT;
-  
-  -- Mark old history as deleted (keep for analytics)
-  UPDATE daystart_history 
-  SET is_deleted = TRUE 
-  WHERE created_at < cutoff_date 
-    AND is_deleted = FALSE;
-  GET DIAGNOSTICS history_count = ROW_COUNT;
-  
-  RETURN QUERY SELECT jobs_count, history_count, audio_count;
-END;
-$$ LANGUAGE plpgsql;
+-- Drop the existing cleanup_old_data function to prepare for recreation with new signature
+-- This is necessary because PostgreSQL doesn't allow changing return types with CREATE OR REPLACE
+DROP FUNCTION IF EXISTS cleanup_old_data(INTEGER);
 
 -- Grant necessary permissions
 GRANT SELECT, INSERT, UPDATE ON audio_cleanup_log TO service_role;
