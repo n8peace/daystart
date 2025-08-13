@@ -138,6 +138,12 @@ class HomeViewModel: ObservableObject {
             return
         }
         
+        // Don't update state if currently playing audio (prevents interruption)
+        if state == .playing {
+            logger.log("🎵 HomeViewModel: Currently playing audio, skipping state update", level: .debug)
+            return
+        }
+        
         guard let nextOccurrence = userPreferences.schedule.nextOccurrence else {
             logger.log("📅 No schedule found, showing no schedule message", level: .info)
             // Batch all updates together
@@ -422,6 +428,7 @@ class HomeViewModel: ObservableObject {
     
     private func playMockAudio() async {
         logger.logAudioEvent("Loading mock audio for DayStart")
+        logger.log("[DEBUG] User's selected voice: \(userPreferences.settings.selectedVoice.name)", level: .debug)
         audioPlayer.loadAudio()
         audioPlayer.play()
         state = .playing

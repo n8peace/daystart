@@ -289,12 +289,12 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
   }
 
   // Upload audio to storage
-  const audioPath = `${job.user_id}/${job.local_date}/${jobId}.mp3`;
+  const audioPath = `${job.user_id}/${job.local_date}/${jobId}.aac`;
   
   const { error: uploadError } = await supabase.storage
     .from('daystart-audio')
     .upload(audioPath, audioResult.audioData, {
-      contentType: 'audio/mpeg',
+      contentType: 'audio/aac',
       upsert: true
     });
 
@@ -431,7 +431,7 @@ You've got this.`
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini', // Cost-effective for script generation
+      model: 'gpt-4', // High-quality script generation
       messages: [fewShotExample, systemMessage, userMessage],
       max_tokens: maxTokens,    // Dynamic based on user's duration
       temperature: 0.5,         // tighter adherence
@@ -473,8 +473,8 @@ You've got this.`
 
   // Calculate cost based on token usage
   const usage = data.usage;
-  const inputCost = (usage.prompt_tokens / 1_000_000) * 0.15;  // $0.15 per 1M input tokens
-  const outputCost = (usage.completion_tokens / 1_000_000) * 0.60;  // $0.60 per 1M output tokens
+  const inputCost = (usage.prompt_tokens / 1_000_000) * 30.00;  // $30.00 per 1M input tokens
+  const outputCost = (usage.completion_tokens / 1_000_000) * 60.00;  // $60.00 per 1M output tokens
   const totalCost = Number((inputCost + outputCost).toFixed(5));
 
   console.log(`[DEBUG] OpenAI usage: ${usage.prompt_tokens} input + ${usage.completion_tokens} output tokens = $${totalCost}`);
@@ -518,7 +518,7 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
   const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',
     headers: {
-      'Accept': 'audio/mpeg',
+      'Accept': 'audio/aac',
       'Content-Type': 'application/json',
       'xi-api-key': elevenlabsApiKey,
     },
