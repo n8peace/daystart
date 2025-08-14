@@ -73,7 +73,6 @@ struct DayStartApp: App {
                         logger.log("🎓 User completed onboarding - transitioning to main app", level: .info)
                     }
                 }
-            }
         }
     }
     

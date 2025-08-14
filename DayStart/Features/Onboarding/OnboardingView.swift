@@ -1,5 +1,6 @@
 import SwiftUI
 import StoreKit
+import CoreLocation
 
 struct OnboardingView: View {
     let onComplete: () -> Void

@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreLocation
 
 struct EditScheduleView: View {
     @Environment(\.presentationMode) var presentationMode
