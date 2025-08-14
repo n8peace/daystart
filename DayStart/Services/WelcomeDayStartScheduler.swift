@@ -1,12 +1,16 @@
 import Foundation
 import Combine
 import UserNotifications
+import AVFoundation
 
 class WelcomeDayStartScheduler: ObservableObject {
     static let shared = WelcomeDayStartScheduler()
     
     @Published var isWelcomePending = false
     @Published var welcomeCountdownText = ""
+    @Published var initializationProgress: String = ""
+    @Published var initializationStep: Int = 0
+    @Published var totalInitializationSteps: Int = 6
     
     private var welcomeTimer: Timer?
     private var audioStatusTimer: Timer?
@@ -34,6 +38,13 @@ class WelcomeDayStartScheduler: ObservableObject {
         // Start checking audio status after 3 minutes
         let pollStartTime = Date().addingTimeInterval(3 * 60)
         startAudioStatusPolling(startTime: pollStartTime)
+        
+        // Start initialization tasks after a short delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            Task {
+                await self.performDeferredInitialization()
+            }
+        }
     }
     
     private func startWelcomeCountdown(to targetTime: Date) {
@@ -102,16 +113,8 @@ class WelcomeDayStartScheduler: ObservableObject {
         guard !hasNotifiedReady else { return }
         
         do {
-            // Get current date for the job
-            let localDate: Date = {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                formatter.timeZone = TimeZone.current
-                let localDateString = formatter.string(from: Date())
-                return formatter.date(from: localDateString) ?? Date()
-            }()
-            
-            let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: localDate)
+            // Use canonical local date normalization via SupabaseClient
+            let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: Date())
             
             if audioStatus.success && audioStatus.status == "ready" {
                 logger.log("✅ Welcome DayStart audio is ready!", level: .info)
@@ -151,6 +154,120 @@ class WelcomeDayStartScheduler: ObservableObject {
             logger.log("📬 Welcome DayStart ready notification sent", level: .info)
         } catch {
             logger.logError(error, context: "Failed to send welcome DayStart ready notification")
+        }
+    }
+    
+    private func performDeferredInitialization() async {
+        logger.log("🎆 Starting deferred initialization during countdown", level: .info)
+        
+        // Initialize AudioPlayerManager
+        await updateInitializationProgress("Preparing audio system...", step: 1)
+        await MainActor.run {
+            _ = AudioPlayerManager.shared
+            logger.log("✅ AudioPlayerManager initialized", level: .info)
+        }
+        
+        // Initialize other services
+        await updateInitializationProgress("Setting up notification system...", step: 2)
+        await MainActor.run {
+            _ = NotificationScheduler.shared
+            _ = AudioPrefetchManager.shared
+            _ = AudioCache.shared
+            logger.log("✅ Notification and audio services initialized", level: .info)
+        }
+        
+        // Configure audio session
+        await updateInitializationProgress("Configuring audio settings...", step: 3)
+        await configureAudioSessionAsync()
+        
+        // Request permissions
+        await updateInitializationProgress("Requesting permissions...", step: 4)
+        await requestPermissionsAsync()
+        
+        // Register background tasks
+        await updateInitializationProgress("Setting up background tasks...", step: 5)
+        await MainActor.run {
+            AudioPrefetchManager.shared.registerBackgroundTasks()
+            logger.log("✅ Background tasks registered", level: .info)
+        }
+        
+        // Start pre-creating today's audio
+        await updateInitializationProgress("Creating your personalized content...", step: 6)
+        Task {
+            await prefetchTodaysAudio()
+        }
+    }
+    
+    private func updateInitializationProgress(_ message: String, step: Int) async {
+        await MainActor.run {
+            self.initializationProgress = message
+            self.initializationStep = step
+            logger.log("📦 Initialization progress: \(message) (\(step)/\(totalInitializationSteps))", level: .debug)
+        }
+    }
+    
+    private func configureAudioSessionAsync() async {
+        await MainActor.run {
+            do {
+                let audioSession = AVAudioSession.sharedInstance()
+                try audioSession.setCategory(
+                    .playback,
+                    mode: .spokenAudio,
+                    options: []
+                )
+                try audioSession.setPreferredSampleRate(44100.0)
+                try audioSession.setPreferredIOBufferDuration(256.0 / 44100.0)
+                try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+                logger.log("✅ Audio session configured during countdown", level: .info)
+            } catch {
+                logger.logError(error, context: "Failed to configure audio session during countdown")
+            }
+        }
+    }
+    
+    private func requestPermissionsAsync() async {
+        // Request notification permissions
+        do {
+            let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
+            logger.log("🔔 Notification permissions: \(granted ? "granted" : "denied")", level: .info)
+        } catch {
+            logger.logError(error, context: "Failed to request notification permissions")
+        }
+        
+        // Request location permissions if weather is enabled
+        let settings = UserPreferences.shared.settings
+        if settings.includeWeather {
+            await MainActor.run {
+                LocationManager.shared.requestPermission()
+                logger.log("📍 Location permission requested", level: .info)
+            }
+        }
+    }
+    
+    private func prefetchTodaysAudio() async {
+        logger.log("📦 Pre-creating today's audio during countdown", level: .info)
+        
+        let localDate = Date()
+        let scheduler = UserPreferences.shared.schedule
+        let settings = UserPreferences.shared.settings
+        
+        do {
+            // Build snapshot for context
+            let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+            
+            // Create job for today
+            _ = try await SupabaseClient.shared.createJob(
+                for: localDate,
+                with: settings,
+                schedule: scheduler,
+                locationData: snapshot.location,
+                weatherData: snapshot.weather,
+                calendarEvents: snapshot.calendar
+            )
+            
+            logger.log("✅ Today's audio job created during countdown", level: .info)
+        } catch {
+            logger.logError(error, context: "Failed to create audio job during countdown")
         }
     }
 }

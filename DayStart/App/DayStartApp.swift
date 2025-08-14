@@ -20,8 +20,8 @@ struct DayStartApp: App {
         logger.log("🚀 DayStart app initializing", level: .info)
         logger.logMemoryUsage()
         
-        configureAudioSession()
-        requestNotificationPermissions()
+        // Defer heavy initialization - only set up minimal UI
+        // Audio and permissions will be initialized during onboarding countdown
         
         logger.log("✅ App initialization complete", level: .info)
     }
@@ -155,7 +155,8 @@ struct DayStartApp: App {
 }
 
 struct ContentView: View {
-    @StateObject private var homeViewModel = HomeViewModel()
+    // Lazy initialization to prevent AudioPlayerManager from loading at startup
+    @StateObject private var homeViewModel = HomeViewModel(lazyInit: true)
     private let logger = DebugLogger.shared
     
     var body: some View {
@@ -174,9 +175,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // Register background tasks for audio prefetch
-        AudioPrefetchManager.shared.registerBackgroundTasks()
-        logger.log("🔄 Registered background tasks", level: .info)
+        // Defer background task registration - will be done after onboarding
+        // This prevents AudioPrefetchManager from initializing at startup
+        logger.log("📱 App launched - deferring background task registration", level: .info)
         
         return true
     }

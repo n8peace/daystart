@@ -30,13 +30,18 @@ class HomeViewModel: ObservableObject {
     private var loadingTimeoutTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private let userPreferences = UserPreferences.shared
-    private let audioPlayer = AudioPlayerManager.shared
-    private let notificationScheduler = NotificationScheduler.shared
+    // Lazy initialization for heavy services
+    private var audioPlayer: AudioPlayerManager?
+    private var notificationScheduler: NotificationScheduler?
     // Removed MockDataService - using bundled audio files instead
     private let welcomeScheduler = WelcomeDayStartScheduler.shared
-    private let audioPrefetchManager = AudioPrefetchManager.shared
-    private let audioCache = AudioCache.shared
+    private var audioPrefetchManager: AudioPrefetchManager?
+    private var audioCache: AudioCache?
     private let loadingMessages = LoadingMessagesService.shared
+    
+    // Track initialization state
+    private var isFullyInitialized = false
+    private let lazyInit: Bool
     
     // Debouncing
     private var updateStateWorkItem: DispatchWorkItem?
@@ -68,12 +73,54 @@ class HomeViewModel: ObservableObject {
         )
     }
     
-    init() {
-        logger.log("🏠 HomeViewModel initialized", level: .info)
+    init(lazyInit: Bool = false) {
+        self.lazyInit = lazyInit
+        logger.log("🏠 HomeViewModel initialized (lazy: \(lazyInit))", level: .info)
+        
+        if !lazyInit {
+            // Normal initialization for existing flows
+            initializeServices()
+        }
+        // For lazy init, services will be initialized during countdown
+        
         setupObservers()
         updateState()
+    }
+    
+    private func initializeServices() {
+        guard !isFullyInitialized else { return }
         
-        // New users start with empty history - no mock data needed
+        logger.log("🎵 Initializing audio and notification services", level: .info)
+        audioPlayer = AudioPlayerManager.shared
+        notificationScheduler = NotificationScheduler.shared
+        audioPrefetchManager = AudioPrefetchManager.shared
+        audioCache = AudioCache.shared
+        isFullyInitialized = true
+        
+        // Re-setup observers that depend on these services
+        setupAudioObservers()
+    }
+    
+    // Ensure services are initialized before use
+    private func ensureServicesInitialized() {
+        if !isFullyInitialized {
+            initializeServices()
+        }
+    }
+    
+    private var requireAudioPlayer: AudioPlayerManager {
+        ensureServicesInitialized()
+        return audioPlayer!
+    }
+    
+    private var requireNotificationScheduler: NotificationScheduler {
+        ensureServicesInitialized()
+        return notificationScheduler!
+    }
+    
+    private var requireAudioCache: AudioCache {
+        ensureServicesInitialized()
+        return audioCache!
     }
     
     private func setupObservers() {
@@ -94,6 +141,15 @@ class HomeViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+        
+        // Audio observers will be set up after services are initialized
+        if isFullyInitialized {
+            setupAudioObservers()
+        }
+    }
+    
+    private func setupAudioObservers() {
+        guard let audioPlayer = audioPlayer else { return }
         
         audioPlayer.$didFinishPlaying
             .sink { [weak self] didFinish in
@@ -252,6 +308,9 @@ class HomeViewModel: ObservableObject {
     func startDayStart() {
         logger.logUserAction("Start DayStart", details: ["time": Date().description])
         
+        // Ensure services are initialized before starting
+        ensureServicesInitialized()
+        
         Task {
             await startDayStartWithAudio()
         }
@@ -371,8 +430,8 @@ class HomeViewModel: ObservableObject {
         let audioUrl = audioCache.getAudioPath(for: date)
         
         logger.logAudioEvent("Loading cached audio for DayStart")
-        audioPlayer.loadAudio(from: audioUrl)
-        audioPlayer.play()
+        requireAudioPlayer.loadAudio(from: audioUrl)
+        requireAudioPlayer.play()
         state = .playing
         stopPauseTimeoutTimer()
         
@@ -390,7 +449,7 @@ class HomeViewModel: ObservableObject {
         startLoadingTimeoutTimer()
         
         // Load audio with completion callback
-        audioPlayer.loadAudio(from: url) { [weak self] success, error in
+        requireAudioPlayer.loadAudio(from: url) { [weak self] success, error in
             Task { @MainActor in
                 guard let self = self else { return }
                 
@@ -399,7 +458,7 @@ class HomeViewModel: ObservableObject {
                 
                 if success {
                     self.logger.logAudioEvent("Audio loaded successfully, starting playback")
-                    self.audioPlayer.play()
+                    self.requireAudioPlayer.play()
                     self.state = .playing
                     self.stopPauseTimeoutTimer()
                     
@@ -528,6 +587,9 @@ class HomeViewModel: ObservableObject {
     func startWelcomeDayStart() {
         logger.logUserAction("Start Welcome DayStart", details: ["time": Date().description])
         
+        // Ensure services are initialized before starting
+        ensureServicesInitialized()
+        
         Task {
             await startWelcomeDayStartWithSupabase()
         }
@@ -545,17 +607,8 @@ class HomeViewModel: ObservableObject {
         
         // Try to use Supabase for welcome DayStart
         do {
-            // Check if audio exists (should have been created during onboarding)
-            // Use the same local date calculation as createJob to ensure consistency
-            let localDate: Date = {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                formatter.timeZone = TimeZone.current
-                let localDateString = formatter.string(from: Date())
-                formatter.timeZone = TimeZone(secondsFromGMT: 0) // UTC
-                return formatter.date(from: localDateString) ?? Date()
-            }()
-            let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: localDate)
+            // Check if audio exists (should have been created during onboarding) using canonical local date normalization
+            let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: Date())
             
             if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
                 logger.log("✅ Welcome DayStart audio ready from Supabase, streaming...", level: .info)
@@ -575,13 +628,13 @@ class HomeViewModel: ObservableObject {
                 // Download in background for future replays
                 let welcomeId = welcomeDayStart.id
                 Task.detached {
-                    let success = await AudioDownloader.shared.download(from: audioUrl, for: localDate)
+                    let success = await AudioDownloader.shared.download(from: audioUrl, for: Date())
                     if success {
                         DebugLogger.shared.log("Welcome audio downloaded for caching", level: .info)
                         
                         // Update history with cached audio path
                         await MainActor.run {
-                            let audioPath = AudioCache.shared.getAudioPath(for: localDate)
+                            let audioPath = AudioCache.shared.getAudioPath(for: Date())
                             UserPreferences.shared.updateHistory(
                                 with: welcomeId,
                                 audioFilePath: audioPath.path
@@ -613,6 +666,9 @@ class HomeViewModel: ObservableObject {
         logger.log("🎵 HomeViewModel: Setting currentDayStart to \(dayStart.id)", level: .info)
         logger.log("🎵 HomeViewModel: Current state before replay: \(state)", level: .info)
         
+        // Ensure services are initialized before replay
+        ensureServicesInitialized()
+        
         currentDayStart = dayStart
         
         Task {
@@ -626,11 +682,11 @@ class HomeViewModel: ObservableObject {
         
         // Check if we have cached audio for this DayStart
         if let scheduledTime = dayStart.scheduledTime,
-           audioCache.hasAudio(for: scheduledTime) {
-            let audioUrl = audioCache.getAudioPath(for: scheduledTime)
+           requireAudioCache.hasAudio(for: scheduledTime) {
+            let audioUrl = requireAudioCache.getAudioPath(for: scheduledTime)
             logger.logAudioEvent("Loading cached audio for replay")
             logger.log("🎵 HomeViewModel: Loading cached audio from \(audioUrl)", level: .info)
-            audioPlayer.loadAudio(from: audioUrl)
+            requireAudioPlayer.loadAudio(from: audioUrl)
         } else {
             // Fall back to bundled fallback audio for replay
             logger.logAudioEvent("Loading fallback audio for replay")
@@ -640,16 +696,16 @@ class HomeViewModel: ObservableObject {
             if let fallbackPath = getFallbackAudioPath(for: selectedVoice),
                let audioUrl = URL(string: "file://\(fallbackPath)") {
                 logger.log("Loading fallback audio from: \(fallbackPath)", level: .info)
-                audioPlayer.loadAudio(from: audioUrl)
+                requireAudioPlayer.loadAudio(from: audioUrl)
             } else {
                 // Ultimate fallback
                 logger.log("Bundled fallback audio not found, using AudioPlayerManager default", level: .warning)
-                audioPlayer.loadAudio()
+                requireAudioPlayer.loadAudio()
             }
         }
         
         logger.log("🎵 HomeViewModel: Calling audioPlayer.play()", level: .info)
-        audioPlayer.play()
+        requireAudioPlayer.play()
         
         logger.log("🎵 HomeViewModel: Setting state to .playing", level: .info)
         state = .playing
@@ -678,7 +734,7 @@ class HomeViewModel: ObservableObject {
     
     private func scheduleNotifications() {
         Task {
-            await notificationScheduler.scheduleNotifications(for: userPreferences.schedule)
+            await notificationScheduler?.scheduleNotifications(for: userPreferences.schedule)
         }
     }
     
@@ -719,13 +775,13 @@ class HomeViewModel: ObservableObject {
     }
     
     private func checkIfShouldExitPlayingState() {
-        guard state == .playing, !audioPlayer.isPlaying else { return }
+        guard state == .playing, audioPlayer?.isPlaying == false else { return }
         
         // Check if we're still within a reasonable window to be in playing state
         guard let nextOccurrence = userPreferences.schedule.nextOccurrence else {
             // No schedule - transition out of playing state
             logger.log("No schedule found while paused, exiting playing state", level: .info)
-            audioPlayer.reset()
+            audioPlayer?.reset()
             updateState()
             return
         }
@@ -738,12 +794,12 @@ class HomeViewModel: ObservableObject {
         // or if it's time for the next countdown/ready period, exit playing state
         if timeUntil < -sixHoursInSeconds {
             logger.log("Paused too long past scheduled time, transitioning to next state", level: .info)
-            audioPlayer.reset()
+            audioPlayer?.reset()
             updateState()
         } else if timeUntil > 0 && timeUntil <= tenHoursInSeconds {
             // Next DayStart countdown should start
             logger.log("Time for next DayStart countdown, exiting playing state", level: .info)
-            audioPlayer.reset()
+            audioPlayer?.reset()
             updateState()
         }
     }

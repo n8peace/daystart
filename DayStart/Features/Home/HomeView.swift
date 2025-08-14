@@ -349,14 +349,35 @@ struct HomeView: View {
                     .multilineTextAlignment(.center)
             }
             
-            VStack(spacing: 8) {
-                Text("Ready in")
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+            VStack(spacing: 16) {
+                // Countdown
+                VStack(spacing: 8) {
+                    Text("Ready in")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    
+                    Text(welcomeScheduler.welcomeCountdownText)
+                        .font(.system(size: 48, weight: .bold, design: .monospaced))
+                        .foregroundColor(BananaTheme.ColorToken.primary)
+                }
                 
-                Text(welcomeScheduler.welcomeCountdownText)
-                    .font(.system(size: 48, weight: .bold, design: .monospaced))
-                    .foregroundColor(BananaTheme.ColorToken.primary)
+                // Progress indicator
+                if !welcomeScheduler.initializationProgress.isEmpty {
+                    VStack(spacing: 8) {
+                        ProgressView(value: Double(welcomeScheduler.initializationStep), 
+                                   total: Double(welcomeScheduler.totalInitializationSteps))
+                            .progressViewStyle(LinearProgressViewStyle(tint: BananaTheme.ColorToken.primary))
+                            .scaleEffect(x: 1, y: 2, anchor: .center)
+                            .frame(maxWidth: 200)
+                        
+                        Text(welcomeScheduler.initializationProgress)
+                            .font(.caption)
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .animation(.easeInOut(duration: 0.3), value: welcomeScheduler.initializationProgress)
+                    }
+                    .padding(.top, 8)
+                }
             }
         }
     }

@@ -859,40 +859,12 @@ struct OnboardingView: View {
         )
         userPreferences.saveSettings()
         
-        // Schedule notifications
-        Task {
-            await NotificationScheduler.shared.scheduleNotifications(for: userPreferences.schedule)
-        }
+        // Start the welcome countdown which will handle all initialization
+        WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
+        logger.log("🎉 Welcome DayStart scheduled - initializing services during countdown", level: .info)
         
-        // Request permissions for enabled features
-        Task {
-            await requestRequiredPermissions()
-            
-            // Schedule welcome DayStart for 5 minutes from now
-            WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
-            logger.log("🎉 Welcome DayStart scheduled for new user", level: .info)
-            
-            // Create Supabase job immediately for welcome DayStart with snapshot
-            Task {
-                do {
-                    logger.log("🎵 Creating welcome DayStart audio job", level: .info)
-                    let snapshot = await SnapshotBuilder.shared.buildSnapshot()
-                    let jobResponse = try await SupabaseClient.shared.createJob(
-                        for: Date(),
-                        with: userPreferences.settings,
-                        schedule: userPreferences.schedule,
-                        locationData: snapshot.location,
-                        weatherData: snapshot.weather,
-                        calendarEvents: snapshot.calendar
-                    )
-                    logger.log("✅ Welcome DayStart job created: \(jobResponse.jobId ?? "unknown")", level: .info)
-                } catch {
-                    logger.logError(error, context: "Failed to create welcome DayStart job")
-                }
-            }
-            
-            onComplete()
-        }
+        // Complete onboarding immediately - countdown handles everything else
+        onComplete()
     }
     
     // MARK: - Permission Handling

@@ -26,7 +26,7 @@ class SupabaseClient {
     // MARK: - Audio Status API
     
     func getAudioStatus(for date: Date) async throws -> AudioStatusResponse {
-        let dateString = ISO8601DateFormatter().string(from: date).prefix(10) // YYYY-MM-DD
+        let dateString = localDateString(from: date) // Canonical local calendar day (YYYY-MM-DD)
         let url = baseURL.appendingPathComponent("get_audio_status")
             .appendingQueryItem(name: "date", value: String(dateString))
         
@@ -109,12 +109,7 @@ class SupabaseClient {
         var request = createRequest(for: url, method: "POST")
         
         let jobRequest = CreateJobRequest(
-            local_date: {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd"
-                formatter.timeZone = TimeZone.current
-                return formatter.string(from: date)
-            }(),
+            local_date: localDateString(from: date),
             scheduled_at: ISO8601DateFormatter().string(from: date),
             preferred_name: preferences.preferredName,
             include_weather: preferences.includeWeather,
@@ -222,6 +217,13 @@ class SupabaseClient {
         logger.log("🔑 Auth headers set, timeout: 30s", level: .debug)
         
         return request
+    }
+
+    private func localDateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+        return formatter.string(from: date)
     }
 }
 

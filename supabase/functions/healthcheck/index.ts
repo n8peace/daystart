@@ -169,6 +169,10 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
   const tenMinAgo = new Date(now.getTime() - 10 * 60 * 1000).toISOString()
   const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000).toISOString()
+  const nowIso = now.toISOString()
+  const nowPlus2hIso = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString()
+  const nowPlus2hMinus10mIso = new Date(now.getTime() + 2 * 60 * 60 * 1000 - 10 * 60 * 1000).toISOString()
+  const nowPlus2hMinus30mIso = new Date(now.getTime() + 2 * 60 * 60 * 1000 - 30 * 60 * 1000).toISOString()
 
   const [queued, processing, ready, failed] = await Promise.all([
     supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'queued').gte('created_at', since24h),
@@ -184,25 +188,60 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
     failed: failed.count ?? 0,
   }
 
-  // Oldest queued job age
-  const { data: oldestQueued } = await supabase
+  // Eligible queued: jobs that could be processed now (respect process_not_before; fallback to scheduled_at - 2h when null)
+  const eligibleOr = (cutoffIsoA: string, cutoffIsoB: string) =>
+    `process_not_before.lte.${cutoffIsoA},and(process_not_before.is.null,scheduled_at.lte.${cutoffIsoB})`
+
+  const [{ count: eligibleQueuedCount }, { count: eligibleQueuedGt10 }, { count: eligibleQueuedGt30 }] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select('*', { head: true, count: 'exact' })
+      .eq('status', 'queued')
+      .or(eligibleOr(nowIso, nowPlus2hIso)),
+    supabase
+      .from('jobs')
+      .select('*', { head: true, count: 'exact' })
+      .eq('status', 'queued')
+      .or(eligibleOr(tenMinAgo, nowPlus2hMinus10mIso)),
+    supabase
+      .from('jobs')
+      .select('*', { head: true, count: 'exact' })
+      .eq('status', 'queued')
+      .or(eligibleOr(thirtyMinAgo, nowPlus2hMinus30mIso)),
+  ])
+
+  // Oldest eligible queued age in minutes (based on process_not_before; for null, derive eligibility as scheduled_at - 2h)
+  let oldestQueuedMinutes: number | null = null
+  const { data: oldestByPnb } = await supabase
     .from('jobs')
-    .select('created_at')
+    .select('process_not_before')
     .eq('status', 'queued')
-    .order('created_at', { ascending: true })
+    .not('process_not_before', 'is', null)
+    .lte('process_not_before', nowIso)
+    .order('process_not_before', { ascending: true })
     .limit(1)
     .maybeSingle()
-
-  let oldestQueuedMinutes: number | null = null
-  if (oldestQueued?.created_at) {
-    oldestQueuedMinutes = Math.floor((now.getTime() - new Date(oldestQueued.created_at).getTime()) / 60000)
+  if (oldestByPnb?.process_not_before) {
+    oldestQueuedMinutes = Math.floor((now.getTime() - new Date(oldestByPnb.process_not_before).getTime()) / 60000)
+  } else {
+    const { data: oldestBySched } = await supabase
+      .from('jobs')
+      .select('scheduled_at')
+      .eq('status', 'queued')
+      .is('process_not_before', null)
+      .lte('scheduled_at', nowPlus2hIso)
+      .order('scheduled_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (oldestBySched?.scheduled_at) {
+      const eligibilityStart = new Date(new Date(oldestBySched.scheduled_at).getTime() - 2 * 60 * 60 * 1000)
+      oldestQueuedMinutes = Math.floor((now.getTime() - eligibilityStart.getTime()) / 60000)
+    }
   }
 
-  // Queued older than thresholds
-  const [queuedGt10, queuedGt30] = await Promise.all([
-    supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'queued').lt('created_at', tenMinAgo),
-    supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'queued').lt('created_at', thirtyMinAgo),
-  ])
+  // Eligible queued older than thresholds (age since eligibility start, not since creation)
+  const queuedGt10 = { count: eligibleQueuedGt10 ?? 0 }
+  const queuedGt30 = { count: eligibleQueuedGt30 ?? 0 }
 
   // Stuck processing
   const twentyMinAgo = new Date(now.getTime() - 20 * 60 * 1000).toISOString()
@@ -229,6 +268,7 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
   const notes: Record<string, unknown> = {
     counts,
     oldestQueuedMinutes,
+    eligibleQueued: eligibleQueuedCount ?? 0,
     queuedOlderThan10m: queuedGt10.count ?? 0,
     queuedOlderThan30m: queuedGt30.count ?? 0,
     stuckProcessing: (stuckByLease ?? 0) + (staleProcessing ?? 0),
@@ -237,7 +277,7 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
 
   if ((queuedGt30.count ?? 0) > 0 || ((stuckByLease ?? 0) + (staleProcessing ?? 0)) > 0) {
     status = 'fail'
-  } else if ((queuedGt10.count ?? 0) > 0 || (updatesLastHour ?? 0) === 0) {
+  } else if ((queuedGt10.count ?? 0) > 0 || ((updatesLastHour ?? 0) === 0 && (eligibleQueuedCount ?? 0) > 0)) {
     status = 'warn'
   }
 

@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import EventKit
+import WeatherKit
 
 @MainActor
 class SnapshotBuilder {
@@ -34,10 +35,12 @@ class SnapshotBuilder {
         if #available(iOS 16.0, *), let _ = locData {
             if let weather = await LocationManager.shared.getCurrentWeather() {
                 let tempF = Int(weather.currentWeather.temperature.converted(to: .fahrenheit).value)
+                let conditionDesc = weather.currentWeather.condition.description
+                let symbolName = weather.currentWeather.symbolName
                 weatherData = WeatherData(
                     temperatureF: tempF,
-                    condition: weather.currentWeather.condition.description,
-                    symbol: weather.currentWeather.symbolName,
+                    condition: conditionDesc,
+                    symbol: symbolName,
                     updated_at: ISO8601DateFormatter().string(from: Date())
                 )
             }
