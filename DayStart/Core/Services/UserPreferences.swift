@@ -204,6 +204,33 @@ class UserPreferences: ObservableObject {
         }
     }
     
+    func updateHistory(with id: UUID, transcript: String? = nil, duration: TimeInterval? = nil, audioFilePath: String? = nil) {
+        guard let index = history.firstIndex(where: { $0.id == id }) else {
+            logger.log("⚠️ Could not find history item with id: \(id)", level: .warning)
+            return
+        }
+        
+        var updatedItem = history[index]
+        
+        // Update fields if provided
+        if let transcript = transcript {
+            updatedItem.transcript = transcript
+        }
+        
+        if let duration = duration {
+            updatedItem.duration = duration
+        }
+        
+        if let audioFilePath = audioFilePath {
+            updatedItem.audioFilePath = audioFilePath
+        }
+        
+        // Replace the item in history
+        history[index] = updatedItem
+        
+        logger.log("✅ Updated history item: id=\(id), transcript=\(transcript != nil), duration=\(duration != nil), audioPath=\(audioFilePath != nil)", level: .info)
+    }
+    
     func isWithinLockoutPeriod(of date: Date) -> Bool {
         let hoursUntil = date.timeIntervalSinceNow / 3600
         return hoursUntil < 4 && hoursUntil > 0

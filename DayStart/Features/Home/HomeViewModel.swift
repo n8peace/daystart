@@ -278,6 +278,31 @@ class HomeViewModel: ObservableObject {
         // Check if audio is already cached locally
         if audioCache.hasAudio(for: scheduledTime) {
             logger.log("Audio already cached, playing from local file", level: .info)
+            
+            // Update history with cached audio path
+            let audioPath = audioCache.getAudioPath(for: scheduledTime)
+            userPreferences.updateHistory(
+                with: dayStartWithScheduledTime.id,
+                audioFilePath: audioPath.path
+            )
+            
+            // Still fetch audio status to get transcript/duration if missing
+            Task {
+                do {
+                    let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: scheduledTime)
+                    if let transcript = audioStatus.transcript,
+                       let duration = audioStatus.duration {
+                        userPreferences.updateHistory(
+                            with: dayStartWithScheduledTime.id,
+                            transcript: transcript,
+                            duration: TimeInterval(duration)
+                        )
+                    }
+                } catch {
+                    logger.logError(error, context: "Failed to fetch transcript/duration for cached audio")
+                }
+            }
+            
             await playCachedAudio(for: scheduledTime)
         } else {
             // Stream from CDN while downloading in background
@@ -287,14 +312,34 @@ class HomeViewModel: ObservableObject {
                 if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
                     logger.log("Streaming audio from CDN: \(audioUrl.absoluteString)", level: .info)
                     
+                    // Update history with transcript and duration from API
+                    if let transcript = audioStatus.transcript, 
+                       let duration = audioStatus.duration {
+                        userPreferences.updateHistory(
+                            with: dayStartWithScheduledTime.id,
+                            transcript: transcript,
+                            duration: TimeInterval(duration)
+                        )
+                    }
+                    
                     // Stream immediately
                     await streamAudio(from: audioUrl)
                     
                     // Download in background for future replays (no user waiting)
+                    let dayStartId = dayStartWithScheduledTime.id
                     Task.detached {
                         let success = await AudioDownloader.shared.download(from: audioUrl, for: scheduledTime)
                         if success {
                             DebugLogger.shared.log("Background download completed for \(scheduledTime)", level: .info)
+                            
+                            // Update history with cached audio path
+                            await MainActor.run {
+                                let audioPath = AudioCache.shared.getAudioPath(for: scheduledTime)
+                                UserPreferences.shared.updateHistory(
+                                    with: dayStartId,
+                                    audioFilePath: audioPath.path
+                                )
+                            }
                         }
                     }
                 } else {
@@ -509,7 +554,36 @@ class HomeViewModel: ObservableObject {
             
             if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
                 logger.log("✅ Welcome DayStart audio ready from Supabase, streaming...", level: .info)
+                
+                // Update history with transcript and duration from API
+                if let transcript = audioStatus.transcript,
+                   let duration = audioStatus.duration {
+                    userPreferences.updateHistory(
+                        with: welcomeDayStart.id,
+                        transcript: transcript,
+                        duration: TimeInterval(duration)
+                    )
+                }
+                
                 await streamAudio(from: audioUrl)
+                
+                // Download in background for future replays
+                let welcomeId = welcomeDayStart.id
+                Task.detached {
+                    let success = await AudioDownloader.shared.download(from: audioUrl, for: localDate)
+                    if success {
+                        DebugLogger.shared.log("Welcome audio downloaded for caching", level: .info)
+                        
+                        // Update history with cached audio path
+                        await MainActor.run {
+                            let audioPath = AudioCache.shared.getAudioPath(for: localDate)
+                            UserPreferences.shared.updateHistory(
+                                with: welcomeId,
+                                audioFilePath: audioPath.path
+                            )
+                        }
+                    }
+                }
             } else if audioStatus.status == "processing" {
                 // Audio still processing, show status
                 logger.log("⏳ Welcome DayStart audio still processing (status: \(audioStatus.status))", level: .info)

@@ -868,7 +868,7 @@ struct OnboardingView: View {
         Task {
             await requestRequiredPermissions()
             
-            // Schedule welcome DayStart for 10 minutes from now
+            // Schedule welcome DayStart for 5 minutes from now
             WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
             logger.log("🎉 Welcome DayStart scheduled for new user", level: .info)
             

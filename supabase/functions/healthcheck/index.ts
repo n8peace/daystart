@@ -434,21 +434,61 @@ function buildEmailSubject(report: HealthReport): string {
 function buildEmailHtml(report: HealthReport): string {
   const rows = report.checks
     .map((c) => {
-      const color = c.status === 'pass' ? '#16a34a' : c.status === 'warn' ? '#ca8a04' : c.status === 'fail' ? '#dc2626' : '#6b7280'
-      return `<tr style="border-bottom:1px solid #eee"><td style="padding:8px 12px;font-weight:600">${c.name}</td><td style="padding:8px 12px;color:${color}">${c.status.toUpperCase()}</td><td style="padding:8px 12px;font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:12px">${escapeHtml(
+      const pillBg = c.status === 'pass' ? '#16a34a' : c.status === 'warn' ? '#FFD23F' : c.status === 'fail' ? '#dc2626' : '#6b7280'
+      const pillText = c.status === 'warn' ? '#8B4513' : '#ffffff'
+      const detailsJson = escapeHtml(
         JSON.stringify(c.details ?? (c.error ? { error: c.error } : {})),
-      )}</td></tr>`
+      )
+      return `
+        <tr>
+          <td style="padding:12px 14px;font-weight:700;color:#111;border-bottom:1px solid #eee;white-space:nowrap">${c.name}</td>
+          <td style="padding:12px 14px;border-bottom:1px solid #eee;white-space:nowrap">
+            <span style="display:inline-block;padding:4px 10px;border-radius:999px;background:${pillBg};color:${pillText};font-weight:700;font-size:12px;letter-spacing:.3px">${c.status.toUpperCase()}</span>
+          </td>
+          <td style="padding:12px 14px;border-bottom:1px solid #eee">
+            <pre style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;line-height:1.4;color:#111">${detailsJson}</pre>
+          </td>
+        </tr>`
     })
     .join('')
-  return `<!doctype html><html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#111">
-    <h2 style="margin:0 0 8px 0">Healthcheck</h2>
-    <p style="margin:0 0 12px 0"><strong>Overall:</strong> ${report.overall_status.toUpperCase()}</p>
-    <p style="margin:0 0 16px 0">${escapeHtml(report.summary)}</p>
-    <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;min-width:520px">
-      <thead><tr><th align="left" style="padding:8px 12px;border-bottom:2px solid #000">Check</th><th align="left" style="padding:8px 12px;border-bottom:2px solid #000">Status</th><th align="left" style="padding:8px 12px;border-bottom:2px solid #000">Details</th></tr></thead>
-      <tbody>${rows}</tbody>
+
+  const overallPillBg = report.overall_status === 'pass' ? '#16a34a' : report.overall_status === 'warn' ? '#FFD23F' : report.overall_status === 'fail' ? '#dc2626' : '#6b7280'
+  const overallPillText = report.overall_status === 'warn' ? '#8B4513' : '#ffffff'
+
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#FFFDF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0;padding:0;background:#FFFDF0">
+      <tr>
+        <td>
+          <table role="presentation" align="center" width="640" cellspacing="0" cellpadding="0" style="margin:24px auto;background:#ffffff;border:1px solid #8B4513;border-radius:12px;overflow:hidden">
+            <tr>
+              <td style="background:#FFD23F;border-bottom:1px solid #8B4513;padding:16px 20px">
+                <div style="font-size:18px;font-weight:800;color:#111">🍌 DayStart Healthcheck — ${report.overall_status.toUpperCase()}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 20px">
+                <p style="margin:0 0 8px 0">
+                  <strong>Overall:</strong>
+                  <span style="display:inline-block;margin-left:8px;padding:4px 10px;border-radius:999px;background:${overallPillBg};color:${overallPillText};font-weight:800;font-size:12px;letter-spacing:.3px">${report.overall_status.toUpperCase()}</span>
+                </p>
+                <p style="margin:0 0 16px 0;color:#8B4513">${escapeHtml(report.summary)}</p>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse">
+                  <thead>
+                    <tr>
+                      <th align="left" style="padding:8px 12px;border-bottom:2px solid #8B4513;color:#8B4513;text-transform:uppercase;font-size:12px;letter-spacing:.4px">Check</th>
+                      <th align="left" style="padding:8px 12px;border-bottom:2px solid #8B4513;color:#8B4513;text-transform:uppercase;font-size:12px;letter-spacing:.4px">Status</th>
+                      <th align="left" style="padding:8px 12px;border-bottom:2px solid #8B4513;color:#8B4513;text-transform:uppercase;font-size:12px;letter-spacing:.4px">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                </table>
+                <p style="margin-top:16px;color:#666;font-size:12px">Request: ${report.request_id} • Started: ${report.started_at} • Duration: ${report.duration_ms} ms</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
     </table>
-    <p style="margin-top:16px;color:#666;font-size:12px">Request: ${report.request_id} • Started: ${report.started_at} • Duration: ${report.duration_ms} ms</p>
   </body></html>`
 }
 

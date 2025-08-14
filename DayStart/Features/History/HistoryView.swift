@@ -41,9 +41,11 @@ struct HistoryView: View {
                     .foregroundColor(BananaTheme.ColorToken.text)
                 }
             }
-            .overlay(alignment: .bottom) {
-                searchOverlay
-            }
+			.overlay(alignment: .bottom) {
+				if !userPreferences.history.isEmpty {
+					searchOverlay
+				}
+			}
         }
         .onChange(of: searchQuery) { _ in
             // Reset pagination when search changes
