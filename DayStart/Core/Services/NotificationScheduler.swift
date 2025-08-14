@@ -61,6 +61,27 @@ class NotificationScheduler {
             // Schedule main notification
             await scheduleMainNotification(for: notificationDate, dayOffset: dayOffset)
             
+            // Schedule a BG processing window near this occurrence
+            await MainActor.run {
+                AudioPrefetchManager.shared.scheduleAudioPrefetch(for: notificationDate)
+            }
+            
+            // Ensure a placeholder job exists far in advance without forcing early processing
+            Task { @MainActor in
+                do {
+                    let status = try await SupabaseClient.shared.getAudioStatus(for: notificationDate)
+                    if status.status == "not_found" || status.status == "queued" || status.status == "failed" {
+                        _ = try? await SupabaseClient.shared.createJob(
+                            for: notificationDate,
+                            with: UserPreferences.shared.settings,
+                            schedule: UserPreferences.shared.schedule
+                        )
+                    }
+                } catch {
+                    DebugLogger.shared.logError(error, context: "Placeholder job ensure failed")
+                }
+            }
+            
             // Note: Prefetch functionality removed - local notifications cannot trigger background fetch
             
             // Schedule night-before reminder (10 hours before)
