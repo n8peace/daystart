@@ -343,15 +343,20 @@ class HomeViewModel: ObservableObject {
                         }
                     }
                 } else {
-                    // Audio not ready, create job and fall back to mock
+                    // Audio not ready, create job (only if not processing/ready) with snapshot, then fall back to mock
                     logger.log("Audio not ready (status: \(audioStatus.status)), falling back to mock", level: .warning)
                     
-                    // Create job for future
-                    try? await SupabaseClient.shared.createJob(
-                        for: scheduledTime,
-                        with: userPreferences.settings,
-                        schedule: userPreferences.schedule
-                    )
+                    if audioStatus.status == "not_found" || audioStatus.status == "failed" || audioStatus.status == "queued" {
+                        let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+                        try? await SupabaseClient.shared.createJob(
+                            for: scheduledTime,
+                            with: userPreferences.settings,
+                            schedule: userPreferences.schedule,
+                            locationData: snapshot.location,
+                            weatherData: snapshot.weather,
+                            calendarEvents: snapshot.calendar
+                        )
+                    }
                     
                     await playFallbackAudio()
                 }

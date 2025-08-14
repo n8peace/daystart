@@ -872,14 +872,18 @@ struct OnboardingView: View {
             WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
             logger.log("🎉 Welcome DayStart scheduled for new user", level: .info)
             
-            // Create Supabase job immediately for welcome DayStart
+            // Create Supabase job immediately for welcome DayStart with snapshot
             Task {
                 do {
                     logger.log("🎵 Creating welcome DayStart audio job", level: .info)
+                    let snapshot = await SnapshotBuilder.shared.buildSnapshot()
                     let jobResponse = try await SupabaseClient.shared.createJob(
                         for: Date(),
                         with: userPreferences.settings,
-                        schedule: userPreferences.schedule
+                        schedule: userPreferences.schedule,
+                        locationData: snapshot.location,
+                        weatherData: snapshot.weather,
+                        calendarEvents: snapshot.calendar
                     )
                     logger.log("✅ Welcome DayStart job created: \(jobResponse.jobId ?? "unknown")", level: .info)
                 } catch {

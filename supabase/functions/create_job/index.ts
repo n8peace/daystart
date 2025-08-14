@@ -16,6 +16,7 @@ interface CreateJobRequest {
   voice_option: string;
   daystart_length: number;
   timezone: string;
+  process_not_before?: string; // ISO timestamp (optional)
   // Optional contextual data
   location_data?: {
     city?: string;
@@ -85,6 +86,49 @@ serve(async (req: Request): Promise<Response> => {
     // Calculate estimated ready time (1-2 minutes from now with 1-minute cron schedule)
     const estimated_ready_time = new Date(Date.now() + (1.5 * 60 * 1000)).toISOString();
 
+    // Check existing job to avoid status regression
+    const { data: existingJob } = await supabase
+      .from('jobs')
+      .select('job_id, status, estimated_ready_time')
+      .eq('user_id', user_id)
+      .eq('local_date', body.local_date)
+      .single();
+
+    if (existingJob && (existingJob.status === 'processing' || existingJob.status === 'ready')) {
+      // Do not regress status; return existing details
+      await logRequest(supabase, {
+        request_id,
+        user_id,
+        endpoint: '/create_job',
+        method: 'POST',
+        status_code: 200,
+        response_time_ms: Date.now() - start_time,
+        user_agent: req.headers.get('user-agent'),
+        ip_address: req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')
+      });
+
+      const response: CreateJobResponse = {
+        success: true,
+        job_id: existingJob.job_id,
+        status: existingJob.status,
+        estimated_ready_time: existingJob.estimated_ready_time,
+        request_id
+      };
+
+      return new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+
+    // Compute process_not_before (default to scheduled_at - 2h if not provided)
+    let process_not_before: string | undefined = undefined;
+    try {
+      const sched = new Date(body.scheduled_at);
+      const defaultNotBefore = new Date(sched.getTime() - 2 * 60 * 60 * 1000).toISOString();
+      process_not_before = body.process_not_before || defaultNotBefore;
+    } catch (_) {}
+
     // Insert or update job (upsert for idempotency)
     const { data: job, error: jobError } = await supabase
       .from('jobs')
@@ -92,6 +136,7 @@ serve(async (req: Request): Promise<Response> => {
         user_id,
         local_date: body.local_date,
         scheduled_at: body.scheduled_at,
+        process_not_before,
         preferred_name: body.preferred_name,
         include_weather: body.include_weather,
         include_news: body.include_news,
@@ -184,6 +229,11 @@ function validateRequest(body: any): { valid: boolean; error?: string } {
         return { valid: false, error: `Invalid stock symbol: ${symbol}` };
       }
     }
+  }
+
+  // Validate process_not_before if present
+  if (body.process_not_before && isNaN(Date.parse(body.process_not_before))) {
+    return { valid: false, error: 'process_not_before must be valid ISO timestamp when provided' };
   }
 
   return { valid: true };

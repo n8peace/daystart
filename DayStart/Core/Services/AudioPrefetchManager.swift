@@ -39,7 +39,7 @@ class AudioPrefetchManager {
         }
         
         Task {
-            let success = await checkAndDownloadReadyAudio()
+            let success = await precreateJobsWithSnapshotIfNeeded()
             task.setTaskCompleted(success: success)
         }
     }
@@ -76,16 +76,17 @@ class AudioPrefetchManager {
                 logger.log("Audio ready for \(date), downloading...", level: .info)
                 return await AudioDownloader.shared.download(from: audioUrl, for: date)
             } else if response.status == "not_found" {
-                // Audio doesn't exist yet, create a job for it
-                logger.log("Audio not found for \(date), creating job...", level: .info)
-                
-                // Create job for this scheduled time
-                let userPreferences = UserPreferences.shared
+                // Audio doesn't exist yet, create a job for it with snapshot context
+                logger.log("Audio not found for \(date), creating job with snapshot...", level: .info)
+                let snapshot = await SnapshotBuilder.shared.buildSnapshot()
                 do {
                     let jobResponse = try await SupabaseClient.shared.createJob(
                         for: date,
-                        with: userPreferences.settings,
-                        schedule: userPreferences.schedule
+                        with: UserPreferences.shared.settings,
+                        schedule: UserPreferences.shared.schedule,
+                        locationData: snapshot.location,
+                        weatherData: snapshot.weather,
+                        calendarEvents: snapshot.calendar
                     )
                     logger.log("Created job \(jobResponse.jobId ?? "unknown") for \(date)", level: .info)
                 } catch {
@@ -103,18 +104,36 @@ class AudioPrefetchManager {
         }
     }
     
-    private func checkAndDownloadReadyAudio() async -> Bool {
+    private func precreateJobsWithSnapshotIfNeeded() async -> Bool {
         let upcomingSchedules = getSchedulesWithinHours(2)
-        var successCount = 0
+        if upcomingSchedules.isEmpty { return true }
         
+        var createdOrConfirmed = 0
         for schedule in upcomingSchedules {
-            if await checkAndDownloadAudio(for: schedule.date) {
-                successCount += 1
+            let scheduledTime = schedule.scheduledTime
+            do {
+                let status = try await SupabaseClient.shared.getAudioStatus(for: scheduledTime)
+                if status.status == "ready" || status.status == "processing" {
+                    // Nothing to do
+                    continue
+                }
+                // Build snapshot context
+                let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+                _ = try await SupabaseClient.shared.createJob(
+                    for: scheduledTime,
+                    with: UserPreferences.shared.settings,
+                    schedule: UserPreferences.shared.schedule,
+                    locationData: snapshot.location,
+                    weatherData: snapshot.weather,
+                    calendarEvents: snapshot.calendar
+                )
+                createdOrConfirmed += 1
+            } catch {
+                logger.logError(error, context: "BG precreate job failed for \(scheduledTime)")
             }
         }
-        
-        logger.log("Background prefetch completed: \(successCount)/\(upcomingSchedules.count) successful", level: .info)
-        return successCount > 0
+        logger.log("Background precreate completed: \(createdOrConfirmed)/\(upcomingSchedules.count) jobs ensured", level: .info)
+        return createdOrConfirmed > 0
     }
     
     // MARK: - Helper Methods
@@ -156,6 +175,9 @@ class AudioPrefetchManager {
             if let scheduledTime = calendar.date(from: scheduledComponents),
                scheduledTime > now && scheduledTime <= endTime {
                 schedules.append(ScheduleInfo(date: candidateDate, scheduledTime: scheduledTime))
+                
+                // Submit BG processing request so iOS may run us before this time
+                scheduleAudioPrefetch(for: scheduledTime)
             }
         }
         

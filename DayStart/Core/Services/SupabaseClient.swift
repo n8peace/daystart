@@ -93,7 +93,14 @@ class SupabaseClient {
     
     // MARK: - Job Creation API
     
-    func createJob(for date: Date, with preferences: UserSettings, schedule: DayStartSchedule) async throws -> JobResponse {
+    func createJob(
+        for date: Date,
+        with preferences: UserSettings,
+        schedule: DayStartSchedule,
+        locationData: LocationData? = nil,
+        weatherData: WeatherData? = nil,
+        calendarEvents: [String]? = nil
+    ) async throws -> JobResponse {
         let url = baseURL.appendingPathComponent("create_job")
         
         logger.log("📤 Supabase API: POST create_job", level: .info)
@@ -120,7 +127,10 @@ class SupabaseClient {
             quote_preference: preferences.quotePreference.rawValue,
             voice_option: "voice\(preferences.selectedVoice.rawValue + 1)",
             daystart_length: preferences.dayStartLength * 60, // Convert minutes to seconds
-            timezone: TimeZone.current.identifier
+            timezone: TimeZone.current.identifier,
+            location_data: locationData,
+            weather_data: weatherData,
+            calendar_events: calendarEvents
         )
         
         let jsonData = try JSONEncoder().encode(jobRequest)
@@ -232,6 +242,9 @@ fileprivate struct CreateJobRequest: Codable {
     let voice_option: String
     let daystart_length: Int
     let timezone: String
+    let location_data: LocationData?
+    let weather_data: WeatherData?
+    let calendar_events: [String]?
 }
 
 private struct CreateJobAPIResponse: Codable {

@@ -177,6 +177,23 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 }
 
+// MARK: - Snapshot DTOs used for Supabase job context
+
+struct LocationData: Codable {
+    let city: String?
+    let state: String?
+    let country: String?
+    let latitude: Double?
+    let longitude: Double?
+}
+
+struct WeatherData: Codable {
+    let temperatureF: Int?
+    let condition: String?
+    let symbol: String?
+    let updated_at: String?
+}
+
 // MARK: - CLAuthorizationStatus Extension
 
 extension CLAuthorizationStatus {
