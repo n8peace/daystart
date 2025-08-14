@@ -12,10 +12,13 @@ class ThemeManager: ObservableObject {
     
     @Published var themePreference: ThemePreference = .system {
         didSet {
-            // Properly update UserPreferences to trigger save
-            var updatedSettings = UserPreferences.shared.settings
-            updatedSettings.themePreference = themePreference
-            UserPreferences.shared.settings = updatedSettings
+            // Defer UserPreferences update to avoid publishing during view updates
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                var updatedSettings = UserPreferences.shared.settings
+                updatedSettings.themePreference = self.themePreference
+                UserPreferences.shared.settings = updatedSettings
+            }
             
             // Update effective color scheme
             updateEffectiveColorScheme()
@@ -27,8 +30,13 @@ class ThemeManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     private init() {
-        // Load saved preference
-        self.themePreference = UserPreferences.shared.settings.themePreference
+        // Load saved preference directly from UserDefaults to avoid triggering UserPreferences lazy loading
+        if let data = UserDefaults.standard.data(forKey: "settings"),
+           let settings = try? JSONDecoder().decode(UserSettings.self, from: data) {
+            self.themePreference = settings.themePreference
+        } else {
+            self.themePreference = .system // Default
+        }
         
         // Listen to system color scheme changes
         #if os(iOS)

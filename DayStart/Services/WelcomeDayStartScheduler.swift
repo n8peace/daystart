@@ -11,10 +11,13 @@ class WelcomeDayStartScheduler: ObservableObject {
     @Published var initializationProgress: String = ""
     @Published var initializationStep: Int = 0
     @Published var totalInitializationSteps: Int = 6
+    @Published var isWelcomeReadyToPlay = false
     
     private var welcomeTimer: Timer?
     private var audioStatusTimer: Timer?
     private var hasNotifiedReady = false
+    private var isAudioReady = false
+    private var hasCountdownCompleted = false
     private let logger = DebugLogger.shared
     
     private init() {}
@@ -56,8 +59,9 @@ class WelcomeDayStartScheduler: ObservableObject {
             DispatchQueue.main.async {
                 if timeUntil <= 0 {
                     self.welcomeTimer?.invalidate()
-                    self.isWelcomePending = false
+                    self.hasCountdownCompleted = true
                     self.logger.log("🎉 Welcome DayStart countdown complete!", level: .info)
+                    self.checkIfReadyToShow()
                 } else {
                     self.updateWelcomeCountdown(timeInterval: timeUntil)
                 }
@@ -78,6 +82,25 @@ class WelcomeDayStartScheduler: ObservableObject {
         isWelcomePending = false
         welcomeCountdownText = ""
         hasNotifiedReady = false
+        isAudioReady = false
+        hasCountdownCompleted = false
+        isWelcomeReadyToPlay = false
+    }
+    
+    private func checkIfReadyToShow() {
+        logger.log("🔍 Checking if welcome ready to show: countdown=\(hasCountdownCompleted), audio=\(isAudioReady)", level: .debug)
+        
+        // Only show as ready when BOTH countdown is complete AND audio is ready
+        if hasCountdownCompleted && isAudioReady {
+            logger.log("✅ Welcome DayStart is ready to play! Transitioning to ready state.", level: .info)
+            DispatchQueue.main.async {
+                self.isWelcomePending = false
+                self.isWelcomeReadyToPlay = true
+                self.logger.log("🔄 Published state change: isWelcomePending=false, isWelcomeReadyToPlay=true", level: .debug)
+            }
+        } else {
+            logger.log("⏳ Not ready yet: countdown=\(hasCountdownCompleted), audio=\(isAudioReady)", level: .debug)
+        }
     }
     
     private func startAudioStatusPolling(startTime: Date) {
@@ -123,6 +146,8 @@ class WelcomeDayStartScheduler: ObservableObject {
                 await MainActor.run {
                     self.audioStatusTimer?.invalidate()
                     self.audioStatusTimer = nil
+                    self.isAudioReady = true
+                    self.checkIfReadyToShow()
                 }
                 
                 // Send notification
@@ -237,10 +262,8 @@ class WelcomeDayStartScheduler: ObservableObject {
         // Request location permissions if weather is enabled
         let settings = UserPreferences.shared.settings
         if settings.includeWeather {
-            await MainActor.run {
-                LocationManager.shared.requestPermission()
-                logger.log("📍 Location permission requested", level: .info)
-            }
+            _ = await LocationManager.shared.requestLocationPermission()
+            logger.log("📍 Location permission requested", level: .info)
         }
     }
     

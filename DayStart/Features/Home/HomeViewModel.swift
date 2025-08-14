@@ -142,6 +142,21 @@ class HomeViewModel: ObservableObject {
             }
             .store(in: &cancellables)
         
+        // Welcome scheduler observers
+        welcomeScheduler.$isWelcomePending
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.debouncedUpdateState()
+            }
+            .store(in: &cancellables)
+        
+        welcomeScheduler.$isWelcomeReadyToPlay
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.debouncedUpdateState()
+            }
+            .store(in: &cancellables)
+        
         // Audio observers will be set up after services are initialized
         if isFullyInitialized {
             setupAudioObservers()
@@ -201,6 +216,7 @@ class HomeViewModel: ObservableObject {
     private func updateState() {
         logger.log("🎵 HomeViewModel: updateState() called", level: .debug)
         logger.log("🎵 HomeViewModel: Current state: \(state), currentDayStart: \(currentDayStart?.id.uuidString ?? "nil")", level: .debug)
+        logger.log("🎵 HomeViewModel: Welcome pending: \(welcomeScheduler.isWelcomePending), ready: \(welcomeScheduler.isWelcomeReadyToPlay)", level: .debug)
         
         timer?.invalidate()
         pauseTimeoutTimer?.invalidate()
@@ -210,6 +226,13 @@ class HomeViewModel: ObservableObject {
         if welcomeScheduler.isWelcomePending {
             logger.log("🎵 HomeViewModel: Welcome pending, setting state to .welcomeCountdown", level: .debug)
             state = .welcomeCountdown
+            return
+        }
+        
+        // Check if welcome DayStart is ready to play
+        if welcomeScheduler.isWelcomeReadyToPlay {
+            logger.log("🎵 HomeViewModel: Welcome ready to play, setting state to .welcomeReady", level: .debug)
+            state = .welcomeReady
             return
         }
         
@@ -244,7 +267,7 @@ class HomeViewModel: ObservableObject {
         let now = Date()
         let today = calendar.startOfDay(for: now)
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
-        let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: today)!
+        // dayAfterTomorrow not needed - removed to fix unused variable warning
         
         let nextOccurrenceDay = calendar.startOfDay(for: nextOccurrence)
         
@@ -335,11 +358,11 @@ class HomeViewModel: ObservableObject {
         }
         
         // Check if audio is already cached locally
-        if audioCache.hasAudio(for: scheduledTime) {
+        if requireAudioCache.hasAudio(for: scheduledTime) {
             logger.log("Audio already cached, playing from local file", level: .info)
             
             // Update history with cached audio path
-            let audioPath = audioCache.getAudioPath(for: scheduledTime)
+            let audioPath = requireAudioCache.getAudioPath(for: scheduledTime)
             userPreferences.updateHistory(
                 with: dayStartWithScheduledTime.id,
                 audioFilePath: audioPath.path
@@ -389,7 +412,7 @@ class HomeViewModel: ObservableObject {
                     Task.detached {
                         let success = await AudioDownloader.shared.download(from: audioUrl, for: scheduledTime)
                         if success {
-                            DebugLogger.shared.log("Background download completed for \(scheduledTime)", level: .info)
+                            await DebugLogger.shared.log("Background download completed for \(scheduledTime)", level: .info)
                             
                             // Update history with cached audio path
                             await MainActor.run {
@@ -407,7 +430,7 @@ class HomeViewModel: ObservableObject {
                     
                     if audioStatus.status == "not_found" || audioStatus.status == "failed" || audioStatus.status == "queued" {
                         let snapshot = await SnapshotBuilder.shared.buildSnapshot()
-                        try? await SupabaseClient.shared.createJob(
+                        _ = try? await SupabaseClient.shared.createJob(
                             for: scheduledTime,
                             with: userPreferences.settings,
                             schedule: userPreferences.schedule,
@@ -427,7 +450,7 @@ class HomeViewModel: ObservableObject {
     }
     
     private func playCachedAudio(for date: Date) async {
-        let audioUrl = audioCache.getAudioPath(for: date)
+        let audioUrl = requireAudioCache.getAudioPath(for: date)
         
         logger.logAudioEvent("Loading cached audio for DayStart")
         requireAudioPlayer.loadAudio(from: audioUrl)
@@ -560,14 +583,14 @@ class HomeViewModel: ObservableObject {
         if let fallbackPath = getFallbackAudioPath(for: selectedVoice),
            let audioUrl = URL(string: "file://\(fallbackPath)") {
             logger.log("Loading fallback audio from: \(fallbackPath)", level: .info)
-            audioPlayer.loadAudio(from: audioUrl)
+            requireAudioPlayer.loadAudio(from: audioUrl)
         } else {
             // Ultimate fallback - use the old method if bundled files aren't found
             logger.log("Bundled fallback audio not found, using AudioPlayerManager default", level: .warning)
-            audioPlayer.loadAudio()
+            requireAudioPlayer.loadAudio()
         }
         
-        audioPlayer.play()
+        requireAudioPlayer.play()
         state = .playing
         stopPauseTimeoutTimer()
         
@@ -580,8 +603,8 @@ class HomeViewModel: ObservableObject {
     }
     
     private func cancelTodaysNotifications() async {
-        await notificationScheduler.cancelTodaysMissedNotification()
-        await notificationScheduler.cancelTodaysEveningReminder()
+        await requireNotificationScheduler.cancelTodaysMissedNotification()
+        await requireNotificationScheduler.cancelTodaysEveningReminder()
     }
     
     func startWelcomeDayStart() {
@@ -589,6 +612,9 @@ class HomeViewModel: ObservableObject {
         
         // Ensure services are initialized before starting
         ensureServicesInitialized()
+        
+        // Cancel the welcome scheduler since we're starting the DayStart
+        welcomeScheduler.cancelWelcomeDayStart()
         
         Task {
             await startWelcomeDayStartWithSupabase()
@@ -630,7 +656,7 @@ class HomeViewModel: ObservableObject {
                 Task.detached {
                     let success = await AudioDownloader.shared.download(from: audioUrl, for: Date())
                     if success {
-                        DebugLogger.shared.log("Welcome audio downloaded for caching", level: .info)
+                        await DebugLogger.shared.log("Welcome audio downloaded for caching", level: .info)
                         
                         // Update history with cached audio path
                         await MainActor.run {
@@ -745,7 +771,7 @@ class HomeViewModel: ObservableObject {
     }
     
     private func hasCompletedOccurrence(_ scheduledTime: Date) -> Bool {
-        let calendar = Calendar.current
+        // calendar not needed - removed to fix unused variable warning
         
         // Look for a completed DayStart with matching scheduled time
         return userPreferences.history.contains { dayStart in

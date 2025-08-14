@@ -16,16 +16,45 @@ class UserPreferences: ObservableObject {
         }
     }
     
+    // Lazy-loaded properties
+    private var _schedule: DayStartSchedule?
     @Published var schedule: DayStartSchedule {
-        didSet {
+        get {
+            if _schedule == nil {
+                _schedule = Self.loadSchedule()
+            }
+            return _schedule!
+        }
+        set {
+            _schedule = newValue
             saveSchedule()
         }
     }
     
-    @Published var settings: UserSettings
+    private var _settings: UserSettings?
+    @Published var settings: UserSettings {
+        get {
+            if _settings == nil {
+                _settings = Self.loadSettings()
+            }
+            return _settings!
+        }
+        set {
+            _settings = newValue
+            saveSettings()
+        }
+    }
     
+    private var _history: [DayStartData]?
     @Published var history: [DayStartData] {
-        didSet {
+        get {
+            if _history == nil {
+                _history = Self.loadHistory()
+            }
+            return _history!
+        }
+        set {
+            _history = newValue
             debouncedSaveHistory()
         }
     }
@@ -33,10 +62,9 @@ class UserPreferences: ObservableObject {
     private var saveHistoryWorkItem: DispatchWorkItem?
     
     private init() {
+        // Only load onboarding status immediately - everything else is lazy
         self.hasCompletedOnboarding = userDefaults.bool(forKey: "hasCompletedOnboarding")
-        self.schedule = Self.loadSchedule()
-        self.settings = Self.loadSettings()
-        self.history = Self.loadHistory()
+        logger.log("🏎 UserPreferences initialized (lazy mode)", level: .debug)
     }
     
     private static func loadSchedule() -> DayStartSchedule {
@@ -162,6 +190,20 @@ class UserPreferences: ObservableObject {
                 await MainActor.run {
                     self.logger.logError(NSError(domain: "KeychainError", code: 1), context: "Failed to save user settings to Keychain")
                 }
+            }
+        }
+
+        // After saving, update upcoming scheduled jobs (next 48h) with new settings
+        Task { [weak self] in
+            guard let self = self else { return }
+            self.logger.log("🛠️ Settings saved; updating upcoming jobs with new settings", level: .info)
+            let upcomingDates = self.upcomingScheduledDates(windowHours: 48)
+            if upcomingDates.isEmpty { return }
+            do {
+                _ = try await SupabaseClient.shared.updateJobs(dates: upcomingDates, with: settingsToSave, forceRequeue: false)
+                self.logger.log("✅ Updated \(upcomingDates.count) scheduled jobs with new settings", level: .info)
+            } catch {
+                self.logger.logError(error, context: "Failed to update scheduled jobs after settings change")
             }
         }
     }

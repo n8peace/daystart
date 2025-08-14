@@ -26,6 +26,8 @@ interface CreateJobRequest {
   };
   weather_data?: any;
   calendar_events?: any[];
+  // Explicitly allow re-queuing and updating an existing ready/processing job
+  force_update?: boolean;
 }
 
 interface CreateJobResponse {
@@ -94,7 +96,88 @@ serve(async (req: Request): Promise<Response> => {
       .eq('local_date', body.local_date)
       .single();
 
+    const forceUpdate = !!(body as any).force_update;
+
     if (existingJob && (existingJob.status === 'processing' || existingJob.status === 'ready')) {
+      if (forceUpdate) {
+        // Re-queue existing job with updated settings and clear generated fields
+        let process_not_before: string | undefined = undefined;
+        try {
+          const sched = new Date(body.scheduled_at);
+          const defaultNotBefore = new Date(sched.getTime() - 2 * 60 * 60 * 1000).toISOString();
+          process_not_before = body.process_not_before || defaultNotBefore;
+        } catch (_) {}
+
+        const { data: updatedJob, error: updateErr } = await supabase
+          .from('jobs')
+          .update({
+            scheduled_at: body.scheduled_at,
+            process_not_before,
+            preferred_name: body.preferred_name,
+            include_weather: body.include_weather,
+            include_news: body.include_news,
+            include_sports: body.include_sports,
+            include_stocks: body.include_stocks,
+            stock_symbols: body.stock_symbols,
+            include_calendar: body.include_calendar,
+            include_quotes: body.include_quotes,
+            quote_preference: body.quote_preference,
+            voice_option: body.voice_option,
+            daystart_length: body.daystart_length,
+            timezone: body.timezone,
+            location_data: body.location_data,
+            weather_data: body.weather_data,
+            calendar_events: body.calendar_events,
+            // Clear generated results and costs
+            script_content: null,
+            audio_file_path: null,
+            audio_duration: null,
+            transcript: null,
+            script_cost: null,
+            tts_cost: null,
+            total_cost: null,
+            completed_at: null,
+            worker_id: null,
+            lease_until: null,
+            estimated_ready_time,
+            status: 'queued',
+            priority: calculatePriority(body.local_date, body.scheduled_at),
+            updated_at: new Date().toISOString()
+          })
+          .eq('job_id', existingJob.job_id)
+          .select('job_id, status, estimated_ready_time')
+          .single();
+
+        if (updateErr) {
+          console.error('Database error (force_update):', updateErr);
+          return createErrorResponse('DATABASE_ERROR', 'Failed to update job', request_id);
+        }
+
+        await logRequest(supabase, {
+          request_id,
+          user_id,
+          endpoint: '/create_job',
+          method: 'POST',
+          status_code: 200,
+          response_time_ms: Date.now() - start_time,
+          user_agent: req.headers.get('user-agent'),
+          ip_address: req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')
+        });
+
+        const response: CreateJobResponse = {
+          success: true,
+          job_id: updatedJob.job_id,
+          status: updatedJob.status,
+          estimated_ready_time: updatedJob.estimated_ready_time,
+          request_id
+        };
+
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+      }
+
       // Do not regress status; return existing details
       await logRequest(supabase, {
         request_id,

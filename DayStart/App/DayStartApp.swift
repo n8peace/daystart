@@ -8,9 +8,13 @@ import BackgroundTasks
 @main
 struct DayStartApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var userPreferences = UserPreferences.shared
-    @StateObject private var themeManager = ThemeManager.shared
+    // Delay StateObject creation to avoid heavy initialization
+    private var userPreferences: UserPreferences { UserPreferences.shared }
+    private var themeManager: ThemeManager { ThemeManager.shared }
     @State private var showOnboarding = false
+    @State private var showSplashScreen = true
+    @State private var isAppReady = false
+    @State private var hasCheckedOnboarding = false
     
     private let logger = DebugLogger.shared
     private static var audioConfigRetryCount = 0
@@ -28,9 +32,20 @@ struct DayStartApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(userPreferences)
-                .environmentObject(themeManager)
+            if showSplashScreen {
+                SplashScreenView(isAppReady: $isAppReady) {
+                    showSplashScreen = false
+                }
+                .onAppear {
+                    // Start initialization immediately when splash appears
+                    Task {
+                        await initializeApp()
+                    }
+                }
+            } else {
+                ContentView()
+                .environmentObject(UserPreferences.shared)
+                .environmentObject(ThemeManager.shared)
                 .preferredColorScheme(themeManager.effectiveColorScheme)
                 .accentColor(BananaTheme.ColorToken.primary)
                 .onReceive(themeManager.$effectiveColorScheme) { colorScheme in
@@ -42,20 +57,16 @@ struct DayStartApp: App {
 					configureAudioSession()
 				}
                 .onAppear {
-                    logger.log("📱 App appeared - checking onboarding status", level: .info)
+                    logger.log("📱 Main content appeared", level: .info)
                     
-                    let shouldShowOnboarding = !userPreferences.hasCompletedOnboarding
-                    showOnboarding = shouldShowOnboarding
+                    // Show onboarding if needed (already determined during splash)
+                    if hasCheckedOnboarding {
+                        showOnboarding = !UserPreferences.shared.hasCompletedOnboarding
+                    }
                     
-                    logger.logUserAction("App launch", details: [
-                        "hasCompletedOnboarding": userPreferences.hasCompletedOnboarding,
-                        "showingOnboarding": shouldShowOnboarding,
-                        "historyCount": userPreferences.history.count
-                    ])
-                    
-                    // Clean up old audio files on app start
-                    Task {
-                        await userPreferences.cleanupOldAudioFiles()
+                    // Clean up old audio files in background
+                    Task.detached(priority: .background) {
+                        await UserPreferences.shared.cleanupOldAudioFiles()
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
@@ -65,11 +76,12 @@ struct DayStartApp: App {
                 .fullScreenCover(isPresented: $showOnboarding) {
                     OnboardingView {
                         logger.logUserAction("Onboarding completed")
-                        userPreferences.hasCompletedOnboarding = true
+                        UserPreferences.shared.hasCompletedOnboarding = true
                         showOnboarding = false
                         logger.log("🎓 User completed onboarding - transitioning to main app", level: .info)
                     }
                 }
+            }
         }
     }
     
@@ -151,6 +163,46 @@ struct DayStartApp: App {
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
         UINavigationBar.appearance().compactAppearance = appearance
         UINavigationBar.appearance().tintColor = UIColor(BananaTheme.ColorToken.accent)
+    }
+    
+    private func initializeApp() async {
+        logger.log("🚀 Starting app initialization during splash", level: .info)
+        
+        // Phase 1: Check onboarding status only (fast)
+        let needsOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        await MainActor.run {
+            hasCheckedOnboarding = true
+        }
+        logger.log("🔍 Onboarding check: \(needsOnboarding ? "needed" : "completed")", level: .info)
+        
+        // Phase 2: Initialize critical services based on user type
+        if needsOnboarding {
+            // New user: Initialize audio for voice preview in onboarding
+            logger.log("🎵 Initializing audio for onboarding", level: .info)
+            await MainActor.run {
+                _ = AudioPlayerManager.shared
+                configureAudioSession()
+            }
+        } else {
+            // Existing user: Load minimal data needed for home screen
+            logger.log("📦 Loading user data for existing user", level: .info)
+            // UserPreferences will lazy load when accessed
+        }
+        
+        // Phase 3: Mark app as ready
+        await MainActor.run {
+            isAppReady = true
+            logger.log("✅ App initialization complete, dismissing splash", level: .info)
+        }
+        
+        // Phase 4: Background tasks (non-blocking)
+        if !needsOnboarding {
+            Task.detached(priority: .background) {
+                // Trigger lazy loading of heavy data in background for existing users
+                // This will load settings and history when first accessed
+                await DebugLogger.shared.log("📦 Background ready for lazy loading", level: .debug)
+            }
+        }
     }
 }
 

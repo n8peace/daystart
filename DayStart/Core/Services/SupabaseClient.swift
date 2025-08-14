@@ -34,6 +34,7 @@ class SupabaseClient {
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
         
         let request = createRequest(for: url, method: "GET")
+        logger.logNetworkRequest(request)
         
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -44,6 +45,8 @@ class SupabaseClient {
             }
             
             logger.log("📥 Supabase API: Response status: \(httpResponse.statusCode)", level: .info)
+            logger.logNetworkResponse(httpResponse, data: data)
+            logger.logNetworkResponse(httpResponse, data: data)
             
             // Log response body for debugging
             if let responseString = String(data: data, encoding: .utf8) {
@@ -133,10 +136,11 @@ class SupabaseClient {
         
         // Log request payload
         if let requestString = String(data: jsonData, encoding: .utf8) {
-            logger.log("📝 Request payload: \(requestString)", level: .debug)
+            logger.log("📝 create_job payload: \(requestString)", level: .debug)
         }
         
         do {
+            logger.logNetworkRequest(request)
             let (data, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -148,7 +152,7 @@ class SupabaseClient {
             
             // Log response body for debugging
             if let responseString = String(data: data, encoding: .utf8) {
-                logger.log("📄 Response body: \(responseString)", level: .debug)
+                logger.log("📄 create_job response: \(responseString)", level: .debug)
             }
             
             // Always expect 200 per GPT-5 review - check success field instead
@@ -184,6 +188,79 @@ class SupabaseClient {
             throw error
         }
     }
+
+    // MARK: - Bulk Update Jobs API
+    func updateJobs(
+        dates: [Date],
+        with settings: UserSettings,
+        forceRequeue: Bool = false
+    ) async throws -> UpdateJobsResult {
+        let url = baseURL.appendingPathComponent("update_jobs")
+
+        logger.log("📤 Supabase API: POST update_jobs", level: .info)
+        logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+
+        var request = createRequest(for: url, method: "POST")
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+
+        let dateStrings = dates.map { formatter.string(from: $0) }
+
+        let payload = UpdateJobsRequest(
+            dates: dateStrings,
+            date_range: nil,
+            statuses: nil, // use server default (queued + failed)
+            settings: UpdateSettings(
+                preferred_name: settings.preferredName,
+                include_weather: settings.includeWeather,
+                include_news: settings.includeNews,
+                include_sports: settings.includeSports,
+                include_stocks: settings.includeStocks,
+                stock_symbols: settings.stockSymbols,
+                include_calendar: settings.includeCalendar,
+                include_quotes: settings.includeQuotes,
+                quote_preference: settings.quotePreference.rawValue,
+                voice_option: "voice\(settings.selectedVoice.rawValue + 1)",
+                daystart_length: settings.dayStartLength * 60,
+                timezone: TimeZone.current.identifier
+            ),
+            force_requeue: forceRequeue
+        )
+
+        let jsonData = try JSONEncoder().encode(payload)
+        request.httpBody = jsonData
+
+        if let requestString = String(data: jsonData, encoding: .utf8) {
+            logger.log("📝 update_jobs payload: \(requestString)", level: .debug)
+        }
+
+        logger.logNetworkRequest(request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            logger.log("❌ Supabase API: Invalid response type (update_jobs)", level: .error)
+            throw SupabaseError.invalidResponse
+        }
+
+        logger.log("📥 Supabase API: Response status (update_jobs): \(httpResponse.statusCode)", level: .info)
+        logger.logNetworkResponse(httpResponse, data: data)
+
+        guard httpResponse.statusCode == 200 else {
+            throw SupabaseError.httpError(httpResponse.statusCode)
+        }
+
+        if let responseString = String(data: data, encoding: .utf8) {
+            logger.log("📄 update_jobs response: \(responseString)", level: .debug)
+        }
+
+        let resp = try JSONDecoder().decode(UpdateJobsAPIResponse.self, from: data)
+        if !resp.success {
+            throw SupabaseError.apiError(resp.error_code, resp.error_message ?? "Unknown error")
+        }
+        return UpdateJobsResult(success: true, updatedCount: resp.updated_count ?? 0)
+    }
     
     // MARK: - Authentication (Future)
     
@@ -212,6 +289,7 @@ class SupabaseClient {
         // Add device ID as client info for tracking
         if let deviceId = UIDevice.current.identifierForVendor?.uuidString {
             request.setValue(deviceId, forHTTPHeaderField: "x-client-info")
+            logger.log("📎 x-client-info set: \(deviceId)", level: .debug)
         }
         
         logger.log("🔑 Auth headers set, timeout: 30s", level: .debug)
@@ -247,6 +325,50 @@ fileprivate struct CreateJobRequest: Codable {
     let location_data: LocationData?
     let weather_data: WeatherData?
     let calendar_events: [String]?
+    let force_update: Bool? // optional, when set true allows re-queueing existing job
+}
+
+// MARK: - Update Jobs API models
+
+private struct UpdateJobsRequest: Codable {
+    let dates: [String]?
+    let date_range: DateRangeFilter?
+    let statuses: [String]?
+    let settings: UpdateSettings?
+    let force_requeue: Bool?
+}
+
+private struct DateRangeFilter: Codable {
+    let start_local_date: String
+    let end_local_date: String
+}
+
+private struct UpdateSettings: Codable {
+    let preferred_name: String?
+    let include_weather: Bool?
+    let include_news: Bool?
+    let include_sports: Bool?
+    let include_stocks: Bool?
+    let stock_symbols: [String]?
+    let include_calendar: Bool?
+    let include_quotes: Bool?
+    let quote_preference: String?
+    let voice_option: String?
+    let daystart_length: Int?
+    let timezone: String?
+}
+
+private struct UpdateJobsAPIResponse: Codable {
+    let success: Bool
+    let updated_count: Int?
+    let error_code: String?
+    let error_message: String?
+    let request_id: String?
+}
+
+struct UpdateJobsResult {
+    let success: Bool
+    let updatedCount: Int
 }
 
 private struct CreateJobAPIResponse: Codable {
