@@ -13,6 +13,8 @@ struct DayStartApp: App {
     @State private var showOnboarding = false
     
     private let logger = DebugLogger.shared
+    private static var audioConfigRetryCount = 0
+    private static let maxAudioConfigRetries = 3
     
     init() {
         logger.log("🚀 DayStart app initializing", level: .info)
@@ -34,6 +36,11 @@ struct DayStartApp: App {
                 .onReceive(themeManager.$effectiveColorScheme) { colorScheme in
                     configureNavigationAppearance(for: colorScheme)
                 }
+				.onReceive(NotificationCenter.default.publisher(for: AVAudioSession.mediaServicesWereResetNotification)) { _ in
+					logger.log("🔄 Media services reset - reconfiguring audio session", level: .info)
+					Self.audioConfigRetryCount = 0 // Reset retry counter on media services reset
+					configureAudioSession()
+				}
                 .onAppear {
                     logger.log("📱 App appeared - checking onboarding status", level: .info)
                     
@@ -67,13 +74,24 @@ struct DayStartApp: App {
     }
     
     private func configureAudioSession() {
+        // Check retry limit to prevent infinite loops
+        guard Self.audioConfigRetryCount < Self.maxAudioConfigRetries else {
+            logger.log("⚠️ Audio session configuration retry limit reached (\(Self.maxAudioConfigRetries)). Skipping further attempts.", level: .warning)
+            return
+        }
+        
+        Self.audioConfigRetryCount += 1
+        logger.log("🔧 Configuring audio session (attempt \(Self.audioConfigRetryCount)/\(Self.maxAudioConfigRetries))", level: .debug)
+        
         do {
             let audioSession = AVAudioSession.sharedInstance()
             
-            // Configure category and mode with fallback options
-            try audioSession.setCategory(.playback, 
-                                       mode: .spokenAudio, 
-                                       options: [.allowBluetooth, .allowBluetoothA2DP])
+			// Configure category and mode with fallback options
+			try audioSession.setCategory(
+				.playback,
+				mode: .spokenAudio,
+				options: []
+			)
             
             // Set preferred sample rate and buffer duration for stable playback
             try audioSession.setPreferredSampleRate(44100.0)
@@ -84,6 +102,8 @@ struct DayStartApp: App {
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
             
             logger.log("✅ Audio session configured successfully", level: .info)
+            // Reset retry counter on success
+            Self.audioConfigRetryCount = 0
             
         } catch let error as NSError {
             // Handle specific audio session errors gracefully
@@ -92,14 +112,10 @@ struct DayStartApp: App {
             // Check for specific error codes we can handle
             if error.code == AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue {
                 logger.log("⚠️ Cannot interrupt other audio apps", level: .warning)
-            } else if error.domain == NSOSStatusErrorDomain {
-                // Handle media services issues with OSStatus errors
-                logger.log("🔄 Media services issue detected, attempting reconfiguration", level: .warning)
-                // Retry configuration after brief delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    self.configureAudioSession()
-                }
-            } else {
+			} else if error.domain == NSOSStatusErrorDomain {
+				// Handle media services issues with OSStatus errors
+				logger.log("🔄 Media services issue detected; will reconfigure on media services reset", level: .warning)
+			} else {
                 logger.logError(error, context: "Failed to configure audio session")
             }
         }

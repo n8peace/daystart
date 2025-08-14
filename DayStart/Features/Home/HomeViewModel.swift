@@ -367,8 +367,8 @@ class HomeViewModel: ObservableObject {
                         }
                     }
                     
-                    self.logger.log("Audio loading failed, falling back to mock", level: .warning)
-                    await self.playMockAudio()
+                    self.logger.log("Audio loading failed, falling back to fallback audio", level: .warning)
+                    await self.playFallbackAudio()
                 }
             }
         }
@@ -396,9 +396,9 @@ class HomeViewModel: ObservableObject {
             Task { @MainActor in
                 guard let self = self else { return }
                 
-                self.logger.log("Audio loading timeout after 30s, falling back to mock", level: .warning)
+                self.logger.log("Audio loading timeout after 30s, falling back to fallback audio", level: .warning)
                 self.stopLoadingTimers()
-                await self.playMockAudio()
+                await self.playFallbackAudio()
             }
         }
     }

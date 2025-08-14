@@ -25,13 +25,6 @@ Processes the job queue for audio generation. Picks up queued jobs, generates au
   Authorization: Bearer [WORKER_AUTH_TOKEN]
   ```
 
-### Setup Instructions (cron-job.org)
-1. Create new cron job
-2. Set URL to your Supabase function endpoint
-3. Set execution schedule to "Every 1 minute"
-4. Add Authorization header with your anon key
-5. Enable the job
-
 ### Monitoring
 - Check `jobs` table for stuck jobs (status='processing' for >10 minutes)
 - Monitor Edge Function logs in Supabase Dashboard
@@ -49,19 +42,12 @@ Refreshes cached content from external APIs (news, stocks, sports) to ensure fre
 
 ### Configuration
 - **URL**: `https://[PROJECT_REF].supabase.co/functions/v1/refresh_content`
-- **Method**: GET
+- **Method**: POST
 - **Schedule**: `0 * * * *` (top of every hour)
 - **Headers**:
   ```
-  Authorization: Bearer [SUPABASE_ANON_KEY]
+  Authorization: Bearer [WORKER_AUTH_TOKEN]
   ```
-
-### Setup Instructions (cron-job.org)
-1. Create new cron job
-2. Set URL to your Supabase function endpoint
-3. Set execution schedule to "Every hour at 0 minutes"
-4. Add Authorization header with your anon key
-5. Enable the job
 
 ### Monitoring
 - Check `content_cache` table for recent entries
@@ -80,20 +66,12 @@ Deletes audio files from storage that are older than 10 days to manage storage c
 
 ### Configuration
 - **URL**: `https://[PROJECT_REF].supabase.co/functions/v1/cleanup-audio`
-- **Method**: GET
+- **Method**: POST
 - **Schedule**: `5 1 * * *` (daily at 1:05 AM UTC)
 - **Headers**:
   ```
-  Authorization: Bearer [SUPABASE_SERVICE_ROLE_KEY]
+  Authorization: Bearer [WORKER_AUTH_TOKEN]
   ```
-  
-### Setup Instructions (cron-job.org)
-1. Create new cron job
-2. Set URL to your Supabase function endpoint
-3. Set execution schedule to "Every day at 2:00"
-4. Add Authorization header with your **service role key** (keep this secure!)
-5. Set timeout to 5 minutes (cleanup can take time)
-6. Enable the job
 
 ### Monitoring
 - Check `audio_cleanup_log` table for execution history
@@ -124,14 +102,6 @@ Runs a comprehensive application healthcheck across DB, cache freshness, job que
   Authorization: Bearer [WORKER_AUTH_TOKEN]
   Content-Type: application/json
   ```
-
-### Setup Instructions (cron-job.org)
-1. Create new cron job
-2. Set URL to the healthcheck function endpoint
-3. Set schedule to daily at your preferred time
-4. Add Authorization header with the worker token
-5. Optionally append `?notify=1` to enforce email
-6. Enable the job
 
 ### Monitoring
 - Check `request_logs` for `/healthcheck` entries

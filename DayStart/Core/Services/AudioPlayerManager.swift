@@ -3,6 +3,7 @@ import AVFoundation
 import CoreMedia
 import SwiftUI
 import Combine
+import MediaPlayer
 
 class AudioPlayerManager: NSObject, ObservableObject {
     static let shared = AudioPlayerManager()
@@ -20,6 +21,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     private var displayLink: Timer?
     private var previewPlayer: AVAudioPlayer?
     private var previewStopWorkItem: DispatchWorkItem?
+    private var nowPlayingInfo: [String: Any] = [:]
     
     // KVO observers for AVPlayer
     private var statusObserver: NSKeyValueObservation?
@@ -37,6 +39,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     override private init() {
         super.init()
         setupAudioSessionObservers()
+		setupRemoteCommands()
         logger.log("🎵 AudioPlayerManager initialized", level: .info)
     }
     
@@ -47,16 +50,17 @@ class AudioPlayerManager: NSObject, ObservableObject {
         
         logger.log("[DEBUG] Loading fallback audio with voice: \(selectedVoice.name) (\(resourceName))", level: .debug)
         
-        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3", subdirectory: "Audio/Fallbacks") else {
+        // Files are bundled to root instead of Audio/Fallbacks subdirectory
+        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3") else {
             logger.logError(NSError(domain: "AudioPlayer", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not find \(resourceName).mp3"]), context: "Loading bundled audio")
             // Fallback to voice1 if selected voice not found
-            if let fallbackUrl = Bundle.main.url(forResource: "voice1_fallback", withExtension: "mp3", subdirectory: "Audio/Fallbacks") {
+            if let fallbackUrl = Bundle.main.url(forResource: "voice1_fallback", withExtension: "mp3") {
                 logger.log("🔄 Falling back to voice1", level: .warning)
                 loadAudio(from: fallbackUrl)
             }
             return
         }
-        logger.logAudioEvent("Loading bundled audio file", details: ["voice": "voice\(voiceIndex)"])
+        logger.logAudioEvent("Loading bundled audio file", details: ["voice": "voice\(selectedVoice.rawValue + 1)"])
         loadAudio(from: url)
     }
 
@@ -107,6 +111,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
                 case .readyToPlay:
                     self?.duration = item.duration.seconds
                     self?.logger.logAudioEvent("Audio loaded successfully with completion", details: ["duration": item.duration.seconds])
+				self?.updateNowPlayingInfo(title: "DayStart")
                     completion(true, nil)
                 case .failed:
                     let error = item.error ?? NSError(domain: "AudioLoadError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Player item failed"])
@@ -184,6 +189,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
         player.play()
         didFinishPlaying = false
         startTimeObserver()
+
+		// Reflect play state on lock screen
+		updateNowPlayingPlaybackState()
     }
     
     func pause() {
@@ -193,6 +201,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
         
         // Notify other players that main player stopped
         NotificationCenter.default.post(name: Self.didStopPlayingNotification, object: self)
+
+		// Reflect pause state on lock screen
+		updateNowPlayingPlaybackState()
     }
     
     func togglePlayPause() {
@@ -208,6 +219,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
         let cmTime = CMTime(seconds: time, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         audioPlayer?.seek(to: cmTime)
         currentTime = time
+		updateNowPlayingElapsedTime()
     }
     
     func skip(by seconds: TimeInterval) {
@@ -221,6 +233,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
         logger.logAudioEvent("Changing playback rate", details: ["rate": rate])
         audioPlayer?.rate = rate
         playbackRate = rate
+		updateNowPlayingPlaybackState()
     }
     
     private func startTimeObserver() {
@@ -237,6 +250,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     private func updateTime() {
         if let player = audioPlayer {
             currentTime = player.currentTime().seconds
+            updateNowPlayingElapsedTime()
         }
     }
     
@@ -347,6 +361,8 @@ class AudioPlayerManager: NSObject, ObservableObject {
             let audioSession = AVAudioSession.sharedInstance()
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
             logger.logAudioEvent("Audio session reactivated successfully")
+            // Keep lock-screen state consistent after reactivation
+            updateNowPlayingPlaybackState()
         } catch {
             logger.logError(error, context: "Failed to reactivate audio session")
         }
@@ -364,7 +380,8 @@ class AudioPlayerManager: NSObject, ObservableObject {
     func previewVoice(_ voice: VoiceOption) {
         let resourceName = getVoicePreviewResourceName(for: voice)
         
-        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3", subdirectory: "Audio/Samples") else {
+        // Files are bundled to root instead of Audio/Samples subdirectory
+        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "mp3") else {
             logger.logError(NSError(domain: "AudioPlayer", code: 404, userInfo: [NSLocalizedDescriptionKey: "Could not find \(resourceName).mp3"]), context: "Previewing voice")
             return
         }
@@ -445,6 +462,54 @@ class AudioPlayerManager: NSObject, ObservableObject {
         // Reset coordination state
         wasPlayingBeforePreview = false
         playbackPositionBeforePreview = 0
+    }
+
+    // MARK: - Now Playing / Remote Commands
+    private func setupRemoteCommands() {
+        let commands = MPRemoteCommandCenter.shared()
+        commands.playCommand.addTarget { [weak self] _ in
+            self?.play(); return .success
+        }
+        commands.pauseCommand.addTarget { [weak self] _ in
+            self?.pause(); return .success
+        }
+        commands.togglePlayPauseCommand.addTarget { [weak self] _ in
+            self?.togglePlayPause(); return .success
+        }
+        commands.skipForwardCommand.isEnabled = true
+        commands.skipForwardCommand.preferredIntervals = [15]
+        commands.skipForwardCommand.addTarget { [weak self] _ in
+            self?.skip(by: 15); return .success
+        }
+        commands.skipBackwardCommand.isEnabled = true
+        commands.skipBackwardCommand.preferredIntervals = [15]
+        commands.skipBackwardCommand.addTarget { [weak self] _ in
+            self?.skip(by: -15); return .success
+        }
+    }
+
+    private func updateNowPlayingInfo(title: String, artist: String? = nil, artwork: UIImage? = nil) {
+        nowPlayingInfo[MPMediaItemPropertyTitle] = title
+        nowPlayingInfo[MPMediaItemPropertyArtist] = artist ?? "DayStart"
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        if let image = artwork {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+
+    private func updateNowPlayingElapsedTime() {
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+
+    private func updateNowPlayingPlaybackState() {
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 }
 
