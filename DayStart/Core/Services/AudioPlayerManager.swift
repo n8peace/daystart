@@ -38,12 +38,21 @@ class AudioPlayerManager: NSObject, ObservableObject {
     
     override private init() {
         super.init()
+        // Defer heavy setup until first use
+        logger.log("🎵 AudioPlayerManager initialized (lightweight)", level: .info)
+    }
+    
+    private var isSetupComplete = false
+    private func ensureSetup() {
+        guard !isSetupComplete else { return }
+        isSetupComplete = true
         setupAudioSessionObservers()
-		setupRemoteCommands()
-        logger.log("🎵 AudioPlayerManager initialized", level: .info)
+        setupRemoteCommands()
+        logger.log("🎵 AudioPlayerManager setup complete", level: .info)
     }
     
     func loadAudio() {
+        ensureSetup()
         // Get selected voice from preferences
         let selectedVoice = UserPreferences.shared.settings.selectedVoice
         let resourceName = "voice\(selectedVoice.rawValue + 1)_fallback"
@@ -73,6 +82,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     }
     
     func loadAudio(from url: URL, trackId: UUID? = nil, completion: @escaping (Bool, Error?) -> Void) {
+        ensureSetup()
         logger.logAudioEvent("Loading audio from URL with completion", details: ["url": url.lastPathComponent, "trackId": trackId?.uuidString ?? "none"])
         
         // Clean up any existing player and observers
@@ -175,7 +185,76 @@ class AudioPlayerManager: NSObject, ObservableObject {
         loadAudio(from: url, trackId: dayStart.id)
     }
     
+    // PHASE 4: Try to load from preloaded items first, fallback to URL loading
+    func loadAudioInstantly(for date: Date, trackId: UUID? = nil) -> Bool {
+        ensureSetup()
+        
+        // Try preloaded player item first
+        if let preloadedItem = AudioPrefetchManager.shared.getPreloadedPlayerItem(for: date) {
+            logger.log("🚀 Using preloaded player item for instant start", level: .info)
+            
+            // Clean up any existing player and observers
+            cleanup()
+            
+            // Set up the preloaded item
+            playerItem = preloadedItem
+            audioPlayer = AVPlayer(playerItem: preloadedItem)
+            currentTrackId = trackId
+            
+            // Set duration if available
+            if preloadedItem.duration.isValid && !preloadedItem.duration.isIndefinite {
+                duration = preloadedItem.duration.seconds
+            }
+            
+            // Set up observers for the preloaded item
+            setupObserversForPreloadedItem(preloadedItem)
+            
+            return true
+        }
+        
+        logger.log("🚀 No preloaded item available, will use regular loading", level: .debug)
+        return false
+    }
+    
+    // PHASE 4: Set up observers for preloaded items (simplified version of loadAudio observers)
+    private func setupObserversForPreloadedItem(_ item: AVPlayerItem) {
+        // Observe player item status
+        statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            DispatchQueue.main.async {
+                switch item.status {
+                case .readyToPlay:
+                    self?.duration = item.duration.seconds
+                    self?.logger.log("✅ Preloaded audio ready to play", level: .info)
+                    self?.updateNowPlayingInfo(title: "DayStart")
+                case .failed:
+                    let error = item.error ?? NSError(domain: "AudioLoadError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Preloaded item failed"])
+                    self?.logger.logError(error, context: "Preloaded audio item failed")
+                case .unknown:
+                    break
+                @unknown default:
+                    break
+                }
+            }
+        }
+        
+        // Observe time control status for play/pause state
+        timeControlStatusObserver = audioPlayer?.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
+            DispatchQueue.main.async {
+                self?.isPlaying = (player.timeControlStatus == .playing)
+            }
+        }
+        
+        // Listen for playback completion
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(playerDidFinishPlaying),
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: item
+        )
+    }
+    
     func play() {
+        ensureSetup()
         guard let player = audioPlayer else {
             logger.log("⚠️ Attempted to play with no audio loaded", level: .warning)
             return
@@ -195,6 +274,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     }
     
     func pause() {
+        ensureSetup()
         logger.logAudioEvent("Pausing audio")
         audioPlayer?.pause()
         stopTimeObserver()
@@ -378,6 +458,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     
     // MARK: - Voice Preview
     func previewVoice(_ voice: VoiceOption) {
+        ensureSetup()
         let resourceName = getVoicePreviewResourceName(for: voice)
         
         // Files are bundled to root instead of Audio/Samples subdirectory
@@ -405,6 +486,10 @@ class AudioPlayerManager: NSObject, ObservableObject {
         }
         
         do {
+            // Ensure audio session is active
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            
             let newPreviewPlayer = try AVAudioPlayer(contentsOf: url)
             newPreviewPlayer.prepareToPlay()
             self.previewPlayer = newPreviewPlayer

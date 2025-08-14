@@ -1,7 +1,6 @@
 import Foundation
 import UIKit
 
-@MainActor
 class SupabaseClient {
     static let shared = SupabaseClient()
     
@@ -45,7 +44,6 @@ class SupabaseClient {
             }
             
             logger.log("📥 Supabase API: Response status: \(httpResponse.statusCode)", level: .info)
-            logger.logNetworkResponse(httpResponse, data: data)
             logger.logNetworkResponse(httpResponse, data: data)
             
             // Log response body for debugging
@@ -128,7 +126,8 @@ class SupabaseClient {
             timezone: TimeZone.current.identifier,
             location_data: locationData,
             weather_data: weatherData,
-            calendar_events: calendarEvents
+            calendar_events: calendarEvents,
+            force_update: nil
         )
         
         let jsonData = try JSONEncoder().encode(jobRequest)
@@ -284,7 +283,7 @@ class SupabaseClient {
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("DayStart-iOS/1.0", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 30
+        request.timeoutInterval = 10
         
         // Add device ID as client info for tracking
         if let deviceId = UIDevice.current.identifierForVendor?.uuidString {

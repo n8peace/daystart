@@ -67,14 +67,19 @@ class NotificationScheduler {
             }
             
             // Ensure a placeholder job exists far in advance without forcing early processing
-            Task { @MainActor in
+            Task.detached {
                 do {
                     let status = try await SupabaseClient.shared.getAudioStatus(for: notificationDate)
                     if status.status == "not_found" || status.status == "queued" || status.status == "failed" {
+                        // Build snapshot for context data (location, weather, calendar)
+                        let snapshot = await SnapshotBuilder.shared.buildSnapshot()
                         _ = try? await SupabaseClient.shared.createJob(
                             for: notificationDate,
                             with: UserPreferences.shared.settings,
-                            schedule: UserPreferences.shared.schedule
+                            schedule: UserPreferences.shared.schedule,
+                            locationData: snapshot.location,
+                            weatherData: snapshot.weather,
+                            calendarEvents: snapshot.calendar
                         )
                     }
                 } catch {

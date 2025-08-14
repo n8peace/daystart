@@ -12,9 +12,6 @@ struct DayStartApp: App {
     private var userPreferences: UserPreferences { UserPreferences.shared }
     private var themeManager: ThemeManager { ThemeManager.shared }
     @State private var showOnboarding = false
-    @State private var showSplashScreen = true
-    @State private var isAppReady = false
-    @State private var hasCheckedOnboarding = false
     
     private let logger = DebugLogger.shared
     private static var audioConfigRetryCount = 0
@@ -32,18 +29,7 @@ struct DayStartApp: App {
     
     var body: some Scene {
         WindowGroup {
-            if showSplashScreen {
-                SplashScreenView(isAppReady: $isAppReady) {
-                    showSplashScreen = false
-                }
-                .onAppear {
-                    // Start initialization immediately when splash appears
-                    Task {
-                        await initializeApp()
-                    }
-                }
-            } else {
-                ContentView()
+            ContentView()
                 .environmentObject(UserPreferences.shared)
                 .environmentObject(ThemeManager.shared)
                 .preferredColorScheme(themeManager.effectiveColorScheme)
@@ -59,9 +45,9 @@ struct DayStartApp: App {
                 .onAppear {
                     logger.log("📱 Main content appeared", level: .info)
                     
-                    // Show onboarding if needed (already determined during splash)
-                    if hasCheckedOnboarding {
-                        showOnboarding = !UserPreferences.shared.hasCompletedOnboarding
+                    // Initialize app immediately
+                    Task {
+                        await initializeApp()
                     }
                     
                     // Clean up old audio files in background
@@ -72,6 +58,12 @@ struct DayStartApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                     // Refresh theme when app enters foreground
                     themeManager.refreshColorScheme()
+                    
+                    // PHASE 3: Service warmup on foreground entry
+                    Task.detached {
+                        await AudioPrefetchManager.shared.checkForUpcomingDayStarts()
+                        _ = await LocationManager.shared.getCurrentLocation() // Pre-warm location
+                    }
                 }
                 .fullScreenCover(isPresented: $showOnboarding) {
                     OnboardingView {
@@ -166,36 +158,16 @@ struct DayStartApp: App {
     }
     
     private func initializeApp() async {
-        logger.log("🚀 Starting app initialization during splash", level: .info)
+        logger.log("🚀 Starting app initialization", level: .info)
         
-        // Phase 1: Check onboarding status only (fast)
+        // Check onboarding status only (fast)
         let needsOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         await MainActor.run {
-            hasCheckedOnboarding = true
+            showOnboarding = needsOnboarding
         }
         logger.log("🔍 Onboarding check: \(needsOnboarding ? "needed" : "completed")", level: .info)
         
-        // Phase 2: Initialize critical services based on user type
-        if needsOnboarding {
-            // New user: Initialize audio for voice preview in onboarding
-            logger.log("🎵 Initializing audio for onboarding", level: .info)
-            await MainActor.run {
-                _ = AudioPlayerManager.shared
-                configureAudioSession()
-            }
-        } else {
-            // Existing user: Load minimal data needed for home screen
-            logger.log("📦 Loading user data for existing user", level: .info)
-            // UserPreferences will lazy load when accessed
-        }
-        
-        // Phase 3: Mark app as ready
-        await MainActor.run {
-            isAppReady = true
-            logger.log("✅ App initialization complete, dismissing splash", level: .info)
-        }
-        
-        // Phase 4: Background tasks (non-blocking)
+        // Background tasks (non-blocking)
         if !needsOnboarding {
             Task.detached(priority: .background) {
                 // Trigger lazy loading of heavy data in background for existing users
@@ -214,6 +186,10 @@ struct ContentView: View {
     var body: some View {
         HomeView(viewModel: homeViewModel)
             .onAppear {
+                homeViewModel.onViewAppear()
+            }
+            .onDisappear {
+                homeViewModel.onViewDisappear()
             }
     }
 }
@@ -237,7 +213,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func applicationWillEnterForeground(_ application: UIApplication) {
         logger.log("📱 App entering foreground - checking for upcoming DayStarts", level: .info)
         
-        Task { @MainActor in
+        Task.detached {
             await AudioPrefetchManager.shared.checkForUpcomingDayStarts()
         }
     }

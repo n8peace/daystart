@@ -4,15 +4,21 @@ import Combine
 
 class HomeViewModel: ObservableObject {
     private let logger = DebugLogger.shared
+    
+    // PHASE 3: State update priority system
+    enum StateUpdatePriority {
+        case immediate    // User actions: startDayStart(), button taps
+        case coalesced   // Background: schedule changes, observers
+    }
+    
     enum AppState {
-        case idle
+        case idle            // Default state, no scheduled DayStart nearby
         case welcomeCountdown
         case welcomeReady
-        case countdown
-        case ready
-        case audioLoading
-        case playing
-        case recentlyPlayed
+        case countdown       // 0-10 hours before scheduled time
+        case ready          // Ready to play (includes welcome)
+        case playing        // Currently playing (includes loading)
+        case completed      // Completed (replay available)
     }
     
     @Published var state: AppState = .idle
@@ -83,8 +89,27 @@ class HomeViewModel: ObservableObject {
         }
         // For lazy init, services will be initialized during countdown
         
-        setupObservers()
-        updateState()
+        // Don't setup observers or update state on init - wait for view to appear
+    }
+    
+    func onViewAppear() {
+        // Initialize on first view appearance
+        if !isFullyInitialized && lazyInit {
+            setupObservers()
+            updateState()
+        } else if isFullyInitialized {
+            // Just update state if already initialized
+            updateState()
+        }
+    }
+    
+    func onViewDisappear() {
+        // Clean up timers when view disappears
+        timer?.invalidate()
+        timer = nil
+        pauseTimeoutTimer?.invalidate()
+        pauseTimeoutTimer = nil
+        stopLoadingTimers()
     }
     
     private func initializeServices() {
@@ -124,13 +149,17 @@ class HomeViewModel: ObservableObject {
     }
     
     private func setupObservers() {
-        userPreferences.$schedule
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.debouncedUpdateState()
-                self?.scheduleNotifications()
-            }
-            .store(in: &cancellables)
+        // Only observe schedule changes after initial load
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self else { return }
+            self.userPreferences.$schedule
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.debouncedUpdateState()
+                    self?.scheduleNotifications()
+                }
+                .store(in: &self.cancellables)
+        }
         
         userPreferences.$settings
             .receive(on: DispatchQueue.main)
@@ -199,21 +228,38 @@ class HomeViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    private func debouncedUpdateState() {
-        // Cancel any pending update
-        updateStateWorkItem?.cancel()
-        
-        // Schedule new update with 0.1s delay
-        updateStateWorkItem = DispatchWorkItem { [weak self] in
-            self?.updateState()
-        }
-        
-        if let workItem = updateStateWorkItem {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: workItem)
+    // PHASE 3: Coalesced state updates - no artificial delays for user actions
+    private func updateState(priority: StateUpdatePriority = .coalesced) {
+        switch priority {
+        case .immediate:
+            // Direct update for user interactions - no delay
+            performStateUpdate()
+        case .coalesced:
+            // Coalesce background updates to next runloop to prevent thrashing
+            coalescedUpdateState()
         }
     }
     
-    private func updateState() {
+    private func coalescedUpdateState() {
+        // Cancel any pending update
+        updateStateWorkItem?.cancel()
+        
+        // Schedule for next runloop instead of 100ms delay
+        updateStateWorkItem = DispatchWorkItem { [weak self] in
+            self?.performStateUpdate()
+        }
+        
+        if let workItem = updateStateWorkItem {
+            DispatchQueue.main.async(execute: workItem)
+        }
+    }
+    
+    private func debouncedUpdateState() {
+        // PHASE 3: Redirect old calls to coalesced updates
+        updateState(priority: .coalesced)
+    }
+    
+    private func performStateUpdate() {
         logger.log("🎵 HomeViewModel: updateState() called", level: .debug)
         logger.log("🎵 HomeViewModel: Current state: \(state), currentDayStart: \(currentDayStart?.id.uuidString ?? "nil")", level: .debug)
         logger.log("🎵 HomeViewModel: Welcome pending: \(welcomeScheduler.isWelcomePending), ready: \(welcomeScheduler.isWelcomeReadyToPlay)", level: .debug)
@@ -282,18 +328,30 @@ class HomeViewModel: ObservableObject {
         let sixHoursInSeconds: TimeInterval = 6 * 3600 // 6 hours
         let tenHoursInSeconds: TimeInterval = 10 * 3600 // 10 hours
         
-        // Check if current occurrence has been completed
-        hasCompletedCurrentOccurrence = hasCompletedOccurrence(nextOccurrence)
+        // Check if THIS occurrence has been completed
+        let hasCompletedThisOccurrence = hasCompletedOccurrence(nextOccurrence)
+        hasCompletedCurrentOccurrence = hasCompletedThisOccurrence
         
-        if timeUntil <= 0 && timeUntil >= -sixHoursInSeconds {
-            // Within 6 hours after scheduled time - show Ready with Play/Replay
-            logger.log("⏰ Within 6-hour ready window: \(Int(-timeUntil))s after scheduled time", level: .info)
-            state = .ready
-        } else if timeUntil > 0 && timeUntil <= tenHoursInSeconds {
-            // Less than 10 hours before - show countdown
+        // Apply the enhanced 4-state rules
+        
+        // COUNTDOWN: Next DayStart is 0-10 hours away
+        if timeUntil > 0 && timeUntil <= tenHoursInSeconds {
+            logger.log("⏰ Countdown state: \(Int(timeUntil))s until scheduled time", level: .info)
             startCountdown()
-        } else {
-            // More than 10 hours before OR more than 6 hours after - show next scheduled time
+        }
+        // READY: Within 6-hour window AND haven't completed THIS occurrence
+        else if timeUntil <= 0 && timeUntil >= -sixHoursInSeconds && !hasCompletedThisOccurrence {
+            logger.log("⏰ Ready state: Within window and not completed", level: .info)
+            state = .ready
+        }
+        // COMPLETED: Finished THIS occurrence, still in 6-hour window
+        else if hasCompletedThisOccurrence && timeUntil >= -sixHoursInSeconds {
+            logger.log("⏰ Completed state: Done with this occurrence", level: .info)
+            state = .completed
+        }
+        // IDLE: Everything else
+        else {
+            logger.log("⏰ Idle state: Outside all windows", level: .info)
             state = .idle
         }
     }
@@ -330,6 +388,9 @@ class HomeViewModel: ObservableObject {
     
     func startDayStart() {
         logger.logUserAction("Start DayStart", details: ["time": Date().description])
+        
+        // PHASE 3: Immediate state change for button responsiveness
+        state = .playing  // Playing state includes loading
         
         // Ensure services are initialized before starting
         ensureServicesInitialized()
@@ -450,10 +511,17 @@ class HomeViewModel: ObservableObject {
     }
     
     private func playCachedAudio(for date: Date) async {
-        let audioUrl = requireAudioCache.getAudioPath(for: date)
-        
         logger.logAudioEvent("Loading cached audio for DayStart")
-        requireAudioPlayer.loadAudio(from: audioUrl)
+        
+        // PHASE 4: Try preloaded player item first for instant start
+        if requireAudioPlayer.loadAudioInstantly(for: date) {
+            logger.log("🚀 Using preloaded audio item for instant playback", level: .info)
+        } else {
+            // Fallback to regular cached audio loading
+            let audioUrl = requireAudioCache.getAudioPath(for: date)
+            requireAudioPlayer.loadAudio(from: audioUrl)
+        }
+        
         requireAudioPlayer.play()
         state = .playing
         stopPauseTimeoutTimer()
@@ -509,14 +577,13 @@ class HomeViewModel: ObservableObject {
     private func startLoadingDelayTimer() {
         stopLoadingTimers()
         
-        loadingDelayTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { [weak self] _ in
+        loadingDelayTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self = self else { return }
                 
-                // Only show loading screen if we're not already playing
-                if self.state != .playing {
-                    self.logger.log("Audio taking longer than 1s, showing loading screen", level: .info)
-                    self.state = .audioLoading
+                // Only start loading messages if we're in playing state
+                if self.state == .playing {
+                    self.logger.log("Audio taking longer than 200ms, showing loading messages", level: .info)
                     self.loadingMessages.startRotatingMessages()
                 }
             }
@@ -524,11 +591,11 @@ class HomeViewModel: ObservableObject {
     }
     
     private func startLoadingTimeoutTimer() {
-        loadingTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: false) { [weak self] _ in
+        loadingTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self = self else { return }
                 
-                self.logger.log("Audio loading timeout after 30s, falling back to fallback audio", level: .warning)
+                self.logger.log("Audio loading timeout after 8s, falling back to fallback audio", level: .warning)
                 self.stopLoadingTimers()
                 await self.playFallbackAudio()
             }
@@ -609,6 +676,9 @@ class HomeViewModel: ObservableObject {
     
     func startWelcomeDayStart() {
         logger.logUserAction("Start Welcome DayStart", details: ["time": Date().description])
+        
+        // PHASE 3: Immediate state change for button responsiveness
+        state = .playing  // Playing state includes loading
         
         // Ensure services are initialized before starting
         ensureServicesInitialized()
@@ -741,18 +811,19 @@ class HomeViewModel: ObservableObject {
     }
     
     private func transitionToRecentlyPlayed() {
-        logger.log("✅ DayStart completed, transitioning to recently played", level: .info)
+        logger.log("✅ DayStart completed, transitioning to completed state", level: .info)
         
         // Update completion status for current occurrence
         if let scheduledTime = nextDayStartTime {
             hasCompletedCurrentOccurrence = hasCompletedOccurrence(scheduledTime)
         }
         
-        state = .recentlyPlayed
+        state = .completed
         stopPauseTimeoutTimer()
         
+        // After 30 seconds, update state to see if we should transition elsewhere
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
-            if self?.state == .recentlyPlayed {
+            if self?.state == .completed {
                 self?.updateState()
             }
         }

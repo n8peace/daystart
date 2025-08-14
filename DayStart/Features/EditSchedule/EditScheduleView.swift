@@ -23,6 +23,8 @@ struct EditScheduleView: View {
     @State private var showVoicePicker = false
     @State private var dismissTask: Task<Void, Never>?
     @State private var textInputTask: Task<Void, Never>?
+    @State private var showingLocationDeniedAlert = false
+    @State private var showingCalendarDeniedAlert = false
     
     private let logger = DebugLogger.shared
     
@@ -195,6 +197,26 @@ struct EditScheduleView: View {
             dismissTask?.cancel()
             textInputTask?.cancel()
         }
+        .alert("Location Access Required", isPresented: $showingLocationDeniedAlert) {
+            Button("Open Settings") {
+                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsURL)
+                }
+            }
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Weather updates require location access. You can enable this in Settings > DayStart > Location.")
+        }
+        .alert("Calendar Access Required", isPresented: $showingCalendarDeniedAlert) {
+            Button("Open Settings") {
+                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsURL)
+                }
+            }
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Calendar events require calendar access. You can enable this in Settings > DayStart > Calendars.")
+        }
     }
     
     private var lockoutBanner: some View {
@@ -347,6 +369,13 @@ struct EditScheduleView: View {
             Toggle("Weather", isOn: $includeWeather)
                 .tint(BananaTheme.ColorToken.primary)
                 .disabled(isLocked)
+                .onChange(of: includeWeather) { enabled in
+                    if enabled {
+                        Task {
+                            await requestLocationPermission()
+                        }
+                    }
+                }
             Toggle("News", isOn: $includeNews)
                 .tint(BananaTheme.ColorToken.primary)
                 .disabled(isLocked)
@@ -368,6 +397,13 @@ struct EditScheduleView: View {
             Toggle("Calendar", isOn: $includeCalendar)
                 .tint(BananaTheme.ColorToken.primary)
                 .disabled(isLocked)
+                .onChange(of: includeCalendar) { enabled in
+                    if enabled {
+                        Task {
+                            await requestCalendarPermission()
+                        }
+                    }
+                }
             Toggle("Motivational Quotes", isOn: $includeQuotes)
                 .tint(BananaTheme.ColorToken.primary)
                 .disabled(isLocked)
@@ -502,6 +538,44 @@ struct EditScheduleView: View {
         
         DebugLogger.shared.log("✅ Settings saved successfully", level: .info)
         logger.endPerformanceTimer(startTime, operation: "Settings save")
+    }
+    
+    // MARK: - Permission Handling
+    
+    private func requestLocationPermission() async {
+        let locationManager = LocationManager.shared
+        
+        // Check if already denied - if so, just show alert
+        if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
+            await MainActor.run {
+                includeWeather = false
+                showingLocationDeniedAlert = true
+            }
+            return
+        }
+        
+        let granted = await locationManager.requestLocationPermission()
+        
+        if !granted {
+            // If permission denied, disable weather feature and show alert
+            await MainActor.run {
+                includeWeather = false
+                showingLocationDeniedAlert = true
+            }
+        }
+    }
+    
+    private func requestCalendarPermission() async {
+        let calendarManager = CalendarManager.shared
+        let granted = await calendarManager.requestCalendarAccess()
+        
+        if !granted {
+            // If permission denied, disable calendar feature and show alert
+            await MainActor.run {
+                includeCalendar = false
+                showingCalendarDeniedAlert = true
+            }
+        }
     }
 }
 

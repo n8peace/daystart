@@ -10,7 +10,7 @@ class WelcomeDayStartScheduler: ObservableObject {
     @Published var welcomeCountdownText = ""
     @Published var initializationProgress: String = ""
     @Published var initializationStep: Int = 0
-    @Published var totalInitializationSteps: Int = 6
+    @Published var totalInitializationSteps: Int = 7
     @Published var isWelcomeReadyToPlay = false
     
     private var welcomeTimer: Timer?
@@ -28,25 +28,21 @@ class WelcomeDayStartScheduler: ObservableObject {
             return
         }
         
-        logger.log("🎉 Scheduling welcome DayStart in 5 minutes", level: .info)
-        isWelcomePending = true
+        logger.log("🎉 PHASE 4: Welcome DayStart ready instantly with background preparation", level: .info)
         
-        let welcomeTime = Date().addingTimeInterval(5 * 60) // 5 minutes
-        
-        // Initialize countdown text immediately
-        updateWelcomeCountdown(timeInterval: welcomeTime.timeIntervalSinceNow)
-        
-        startWelcomeCountdown(to: welcomeTime)
-        
-        // Start checking audio status after 3 minutes
-        let pollStartTime = Date().addingTimeInterval(3 * 60)
-        startAudioStatusPolling(startTime: pollStartTime)
-        
-        // Start initialization tasks after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            Task {
-                await self.performDeferredInitialization()
+        // PHASE 4: Make welcome instantly available, prepare content in background
+        Task {
+            await performDeferredInitialization()
+            
+            // After initialization, mark as ready immediately
+            await MainActor.run {
+                self.isWelcomeReadyToPlay = true
+                self.isWelcomePending = false
+                logger.log("✅ Welcome DayStart ready to play immediately", level: .info)
             }
+            
+            // Background: Prepare real content for future use
+            await prepareWelcomeContentInBackground()
         }
     }
     
@@ -185,15 +181,22 @@ class WelcomeDayStartScheduler: ObservableObject {
     private func performDeferredInitialization() async {
         logger.log("🎆 Starting deferred initialization during countdown", level: .info)
         
+        // PHASE 3: Service warmup integration
+        await updateInitializationProgress("Warming up services...", step: 1)
+        Task.detached {
+            await AudioPrefetchManager.shared.checkForUpcomingDayStarts()
+            _ = await LocationManager.shared.getCurrentLocation() // Pre-warm location
+        }
+        
         // Initialize AudioPlayerManager
-        await updateInitializationProgress("Preparing audio system...", step: 1)
+        await updateInitializationProgress("Preparing audio system...", step: 2)
         await MainActor.run {
             _ = AudioPlayerManager.shared
             logger.log("✅ AudioPlayerManager initialized", level: .info)
         }
         
         // Initialize other services
-        await updateInitializationProgress("Setting up notification system...", step: 2)
+        await updateInitializationProgress("Setting up notification system...", step: 3)
         await MainActor.run {
             _ = NotificationScheduler.shared
             _ = AudioPrefetchManager.shared
@@ -202,22 +205,22 @@ class WelcomeDayStartScheduler: ObservableObject {
         }
         
         // Configure audio session
-        await updateInitializationProgress("Configuring audio settings...", step: 3)
+        await updateInitializationProgress("Configuring audio settings...", step: 4)
         await configureAudioSessionAsync()
         
         // Request permissions
-        await updateInitializationProgress("Requesting permissions...", step: 4)
+        await updateInitializationProgress("Requesting permissions...", step: 5)
         await requestPermissionsAsync()
         
         // Register background tasks
-        await updateInitializationProgress("Setting up background tasks...", step: 5)
+        await updateInitializationProgress("Setting up background tasks...", step: 6)
         await MainActor.run {
             AudioPrefetchManager.shared.registerBackgroundTasks()
             logger.log("✅ Background tasks registered", level: .info)
         }
         
         // Start pre-creating today's audio
-        await updateInitializationProgress("Creating your personalized content...", step: 6)
+        await updateInitializationProgress("Creating your personalized content...", step: 7)
         Task {
             await prefetchTodaysAudio()
         }
@@ -291,6 +294,27 @@ class WelcomeDayStartScheduler: ObservableObject {
             logger.log("✅ Today's audio job created during countdown", level: .info)
         } catch {
             logger.logError(error, context: "Failed to create audio job during countdown")
+        }
+    }
+    
+    // PHASE 4: Background content preparation without blocking user
+    private func prepareWelcomeContentInBackground() async {
+        logger.log("📦 Preparing welcome content in background", level: .info)
+        
+        let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+        
+        do {
+            _ = try await SupabaseClient.shared.createJob(
+                for: Date(),
+                with: UserPreferences.shared.settings,
+                schedule: UserPreferences.shared.schedule,
+                locationData: snapshot.location,
+                weatherData: snapshot.weather,
+                calendarEvents: snapshot.calendar
+            )
+            logger.log("✅ Welcome content prepared in background", level: .info)
+        } catch {
+            logger.logError(error, context: "Background welcome content creation failed")
         }
     }
 }

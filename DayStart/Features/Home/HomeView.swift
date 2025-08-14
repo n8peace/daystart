@@ -1,5 +1,130 @@
 import SwiftUI
 
+// MARK: - Instant Response Button Style for Phase 1 Optimization
+struct InstantResponseStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeOut(duration: 0.05), value: configuration.isPressed)
+            .background(
+                RoundedRectangle(cornerRadius: 25)
+                    .fill(BananaTheme.ColorToken.primary)
+                    .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+                    .animation(.easeOut(duration: 0.05), value: configuration.isPressed)
+            )
+    }
+}
+
+// MARK: - Phase 2 Micro-Components for Performance
+struct HomeHeaderView: View {
+    let userName: String
+    let timeBasedGreeting: String
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            if !userName.isEmpty {
+                Text("\(timeBasedGreeting), \(userName)")
+                    .adaptiveFont(BananaTheme.Typography.title2)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+            }
+        }
+    }
+}
+
+struct PrimaryActionView: View {
+    let state: HomeViewModel.AppState
+    let nextTime: Date?
+    let hasCompleted: Bool
+    let showNoSchedule: Bool
+    let onStartTapped: () -> Void
+    let onEditTapped: () -> Void
+    let onReplayTapped: () -> Void
+    
+    var body: some View {
+        VStack {
+            switch state {
+            case .idle:
+                if showNoSchedule {
+                    Button(action: onEditTapped) {
+                        Label("Schedule DayStart", systemImage: "calendar.badge.plus")
+                            .adaptiveFont(BananaTheme.Typography.headline)
+                            .foregroundColor(BananaTheme.ColorToken.background)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 80)
+                    }
+                    .buttonStyle(InstantResponseStyle())
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .fill(BananaTheme.ColorToken.text)
+                    )
+                    .padding(.horizontal, 40)
+                } else if let _ = nextTime, !hasCompleted {
+                    Button(action: onStartTapped) {
+                        Text("DayStart")
+                            .adaptiveFont(BananaTheme.Typography.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(BananaTheme.ColorToken.background)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 80)
+                    }
+                    .buttonStyle(InstantResponseStyle())
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+                    )
+                    .padding(.horizontal, 40)
+                }
+            case .welcomeReady:
+                Button(action: onStartTapped) {
+                    Text("DayStart")
+                        .adaptiveFont(BananaTheme.Typography.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(BananaTheme.ColorToken.background)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 80)
+                }
+                .buttonStyle(InstantResponseStyle())
+                .background(
+                    RoundedRectangle(cornerRadius: 25)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+                )
+                .padding(.horizontal, 40)
+            case .ready:
+                Button(action: onStartTapped) {
+                    Text(hasCompleted ? "Replay" : "DayStart")
+                        .adaptiveFont(BananaTheme.Typography.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(BananaTheme.ColorToken.background)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 80)
+                }
+                .buttonStyle(InstantResponseStyle())
+                .background(
+                    RoundedRectangle(cornerRadius: 25)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+                )
+                .padding(.horizontal, 40)
+            case .completed:
+                Button(action: onReplayTapped) {
+                    Label("Replay", systemImage: "arrow.clockwise")
+                        .adaptiveFont(BananaTheme.Typography.headline)
+                        .foregroundColor(BananaTheme.ColorToken.background)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 60)
+                }
+                .buttonStyle(InstantResponseStyle())
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(BananaTheme.ColorToken.primary)
+                )
+                .padding(.horizontal, 40)
+            default:
+                EmptyView()
+            }
+        }
+    }
+}
+
 struct HomeView: View {
     @ObservedObject var viewModel: HomeViewModel
     @State private var showEditSchedule = false
@@ -7,8 +132,8 @@ struct HomeView: View {
     @EnvironmentObject var userPreferences: UserPreferences
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject private var welcomeScheduler = WelcomeDayStartScheduler.shared
-    @ObservedObject private var loadingMessages = LoadingMessagesService.shared
-    @ObservedObject private var streakManager = StreakManager.shared
+    // Removed heavy @ObservedObject - access directly when needed
+    // Removed heavy @ObservedObject - access directly when needed
     @State private var previousState: HomeViewModel.AppState = .idle
     @State private var showStreakCelebration = false
     @State private var celebrationStreak = 0
@@ -17,7 +142,7 @@ struct HomeView: View {
     @State private var isViewVisible = true
     @Environment(\.scenePhase) var scenePhase
     private let hapticManager = HapticManager.shared
-    private let locationManager = LocationManager.shared
+    // Removed early LocationManager init - will access when needed
     private let formatters = FormatterCache.shared
     
     private func formattedDate(for date: Date) -> String {
@@ -44,8 +169,11 @@ struct HomeView: View {
                 DayStartGradientBackground()
                 
                 VStack(spacing: 0) {
-                    headerView
-                        .padding(.top, 20)
+                    HomeHeaderView(
+                        userName: userPreferences.settings.preferredName,
+                        timeBasedGreeting: timeBasedGreeting
+                    )
+                    .padding(.top, 20)
                     
                     // Main content in upper area
                     VStack {
@@ -59,8 +187,31 @@ struct HomeView: View {
                     
                     // Primary actions in thumb-friendly bottom zone
                     VStack(spacing: 20) {
-                        primaryActionView
-                            .animation(isViewVisible ? .spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0) : .none, value: viewModel.state)
+                        PrimaryActionView(
+                            state: viewModel.state,
+                            nextTime: viewModel.nextDayStartTime,
+                            hasCompleted: viewModel.hasCompletedCurrentOccurrence,
+                            showNoSchedule: viewModel.showNoScheduleMessage,
+                            onStartTapped: { 
+                                hapticManager.impact(style: .medium)
+                                if viewModel.state == .welcomeReady {
+                                    viewModel.startWelcomeDayStart()
+                                } else {
+                                    viewModel.startDayStart()
+                                }
+                            },
+                            onEditTapped: { 
+                                hapticManager.impact(style: .light)
+                                showEditSchedule = true 
+                            },
+                            onReplayTapped: {
+                                hapticManager.impact(style: .light)
+                                if let dayStart = viewModel.currentDayStart {
+                                    viewModel.replayDayStart(dayStart)
+                                }
+                            }
+                        )
+                        .animation(isViewVisible ? .spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0) : .none, value: viewModel.state)
                         
                         if viewModel.state == .playing {
                             AudioPlayerView(dayStart: viewModel.currentDayStart)
@@ -73,12 +224,12 @@ struct HomeView: View {
                         }
                         
                         // Streak counter at bottom
-                        if streakManager.currentStreak > 0 {
+                        if StreakManager.shared.currentStreak > 0 {
                             streakCounterView
                         }
                         
                         // Weekly progress indicator at bottom
-                        if streakManager.currentStreak > 0 {
+                        if StreakManager.shared.currentStreak > 0 {
                             weeklyProgressView
                         }
                     }
@@ -144,11 +295,9 @@ struct HomeView: View {
             hapticManager.impact(style: .medium)
         case (_, .countdown):
             hapticManager.impact(style: .light)
-        case (_, .audioLoading):
-            hapticManager.impact(style: .light)
         case (_, .playing):
             hapticManager.impact(style: .heavy)
-        case (_, .recentlyPlayed):
+        case (_, .completed):
             hapticManager.notification(type: .success)
         default:
             break
@@ -198,7 +347,7 @@ struct HomeView: View {
             // Much stronger background for light mode
             return BananaTheme.ColorToken.primary.opacity(0.8)
         } else {
-            return BananaTheme.ColorToken.primary.opacity(streakManager.currentStreak >= 7 ? 0.3 : 0.25)
+            return BananaTheme.ColorToken.primary.opacity(StreakManager.shared.currentStreak >= 7 ? 0.3 : 0.25)
         }
     }
     
@@ -235,7 +384,7 @@ struct HomeView: View {
         if colorScheme == .light {
             return BananaTheme.ColorToken.primary.opacity(0.4)
         } else {
-            return BananaTheme.ColorToken.primary.opacity(streakManager.currentStreak >= 30 ? 0.4 : 0)
+            return BananaTheme.ColorToken.primary.opacity(StreakManager.shared.currentStreak >= 30 ? 0.4 : 0)
         }
     }
     
@@ -260,17 +409,7 @@ struct HomeView: View {
         return colorScheme == .light ? 2.5 : 1
     }
     
-    private var headerView: some View {
-        VStack(spacing: 12) {
-            // Personalized greeting
-            let name = userPreferences.settings.preferredName
-            if !name.isEmpty {
-                Text("\(timeBasedGreeting), \(name)")
-                    .adaptiveFont(BananaTheme.Typography.title2)
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-            }
-        }
-    }
+    // PHASE 2: Removed headerView - replaced with HomeHeaderView micro-component
     
     private var timeBasedGreeting: String {
         let calendar = Calendar.current
@@ -301,30 +440,14 @@ struct HomeView: View {
             countdownView
         case .ready:
             readyViewContent
-        case .audioLoading:
-            audioLoadingView
         case .playing:
-            playingView
-        case .recentlyPlayed:
-            recentlyPlayedViewContent
+            playingView  // Playing state includes loading
+        case .completed:
+            completedViewContent
         }
     }
     
-    @ViewBuilder
-    private var primaryActionView: some View {
-        switch viewModel.state {
-        case .idle:
-            idleViewAction
-        case .welcomeReady:
-            welcomeReadyViewAction
-        case .ready:
-            readyViewAction
-        case .recentlyPlayed:
-            recentlyPlayedViewAction
-        default:
-            EmptyView()
-        }
-    }
+    // PHASE 2: Removed primaryActionView - replaced with PrimaryActionView micro-component
     
     private var welcomeCountdownView: some View {
         VStack(spacing: 30) {
@@ -382,31 +505,6 @@ struct HomeView: View {
         }
     }
     
-    private var audioLoadingView: some View {
-        VStack(spacing: 30) {
-            VStack(spacing: 12) {
-                Text("🎵")
-                    .font(.system(size: 80))
-                    .scaleEffect(1.2)
-                    .animation(
-                        Animation.easeInOut(duration: 1.5)
-                            .repeatForever(autoreverses: true),
-                        value: viewModel.state
-                    )
-                
-                Text("Getting ready...")
-                    .adaptiveFont(BananaTheme.Typography.title2)
-                    .foregroundColor(BananaTheme.ColorToken.text)
-                    .multilineTextAlignment(.center)
-                
-                Text(loadingMessages.currentMessage)
-                    .font(.subheadline)
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .animation(.easeInOut(duration: 0.3), value: loadingMessages.currentMessage)
-            }
-        }
-    }
     
     private var welcomeReadyViewContent: some View {
         VStack(spacing: 12) {
@@ -437,12 +535,12 @@ struct HomeView: View {
                 .foregroundColor(BananaTheme.ColorToken.background)
                 .frame(maxWidth: .infinity)
                 .frame(height: 80)
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .fill(BananaTheme.ColorToken.primary)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                )
         }
+        .buttonStyle(InstantResponseStyle())
+        .background(
+            RoundedRectangle(cornerRadius: 25)
+                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+        )
         .padding(.horizontal, 40)
         .scaleEffect(1.0)
         .animation(
@@ -526,9 +624,12 @@ struct HomeView: View {
                         .foregroundColor(BananaTheme.ColorToken.background)
                         .frame(maxWidth: .infinity)
                         .frame(height: 80)
-                        .background(BananaTheme.ColorToken.text)
-                        .cornerRadius(25)
                 }
+                .buttonStyle(InstantResponseStyle())
+                .background(
+                    RoundedRectangle(cornerRadius: 25)
+                        .fill(BananaTheme.ColorToken.text)
+                )
                 .padding(.horizontal, 40)
             } else if let _ = viewModel.nextDayStartTime, viewModel.isNextDayStartToday && !viewModel.hasCompletedCurrentOccurrence {
                 Button(action: { 
@@ -541,12 +642,12 @@ struct HomeView: View {
                         .foregroundColor(BananaTheme.ColorToken.background)
                         .frame(maxWidth: .infinity)
                         .frame(height: 80)
-                        .background(
-                            RoundedRectangle(cornerRadius: 25)
-                                .fill(BananaTheme.ColorToken.primary)
-                                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                        )
                 }
+                .buttonStyle(InstantResponseStyle())
+                .background(
+                    RoundedRectangle(cornerRadius: 25)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+                )
                 .padding(.horizontal, 40)
                 .accessibilityLabel("Start today's DayStart")
                 .accessibilityHint("Tap to begin your daily audio briefing")
@@ -604,12 +705,12 @@ struct HomeView: View {
                 .foregroundColor(BananaTheme.ColorToken.background)
                 .frame(maxWidth: .infinity)
                 .frame(height: 80)
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .fill(BananaTheme.ColorToken.primary)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                )
         }
+        .buttonStyle(InstantResponseStyle())
+        .background(
+            RoundedRectangle(cornerRadius: 25)
+                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+        )
         .padding(.horizontal, 40)
         .scaleEffect(1.0)
         .animation(
@@ -622,18 +723,42 @@ struct HomeView: View {
     }
     
     private var playingView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "waveform")
-                .font(.system(size: 48))
-                .foregroundColor(BananaTheme.ColorToken.text)
-            
-            Text("Playing your DayStart")
-                .adaptiveFont(BananaTheme.Typography.title2)
-                .foregroundColor(BananaTheme.ColorToken.text)
+        VStack(spacing: 30) {
+            VStack(spacing: 12) {
+                // Show music note when loading, waveform when playing
+                if AudioPlayerManager.shared.isPlaying {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 48))
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                } else {
+                    Text("🎵")
+                        .font(.system(size: 80))
+                        .scaleEffect(1.2)
+                        .animation(
+                            Animation.easeInOut(duration: 1.5)
+                                .repeatForever(autoreverses: true),
+                            value: viewModel.state
+                        )
+                }
+                
+                // Show different text based on playing state
+                Text(AudioPlayerManager.shared.isPlaying ? "Playing your DayStart" : "Getting ready...")
+                    .adaptiveFont(BananaTheme.Typography.title2)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                    .multilineTextAlignment(.center)
+                
+                // Show loading messages when not playing
+                if !AudioPlayerManager.shared.isPlaying {
+                    Text(LoadingMessagesService.shared.currentMessage)
+                        .font(.subheadline)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+            }
         }
     }
     
-    private var recentlyPlayedViewContent: some View {
+    private var completedViewContent: some View {
         VStack(spacing: 20) {
             VStack(spacing: 12) {
                 Image(systemName: "checkmark.circle.fill")
@@ -678,9 +803,12 @@ struct HomeView: View {
                         .foregroundColor(BananaTheme.ColorToken.background)
                         .frame(maxWidth: .infinity)
                         .frame(height: 60)
-                        .background(BananaTheme.ColorToken.primary)
-                        .cornerRadius(20)
                 }
+                .buttonStyle(InstantResponseStyle())
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(BananaTheme.ColorToken.primary)
+                )
                 .padding(.horizontal, 40)
                 .accessibilityLabel("Replay DayStart")
                 .accessibilityHint("Tap to replay the audio briefing you just completed")
@@ -814,39 +942,39 @@ struct HomeView: View {
             HStack(spacing: 8) {
                 Text("🔥")
                     .font(.title2)
-                    .scaleEffect(streakManager.currentStreak >= 7 ? 1.3 : 1.0)
-                    .rotationEffect(.degrees(streakManager.currentStreak >= 14 ? 10 : 0))
-                    .animation(isViewVisible && streakManager.currentStreak >= 7 ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .none, value: streakManager.currentStreak >= 7)
+                    .scaleEffect(StreakManager.shared.currentStreak >= 7 ? 1.3 : 1.0)
+                    .rotationEffect(.degrees(StreakManager.shared.currentStreak >= 14 ? 10 : 0))
+                    .animation(isViewVisible && StreakManager.shared.currentStreak >= 7 ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .none, value: StreakManager.shared.currentStreak >= 7)
                 
-                Text("\(streakManager.currentStreak) day streak")
+                Text("\(StreakManager.shared.currentStreak) day streak")
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(streakTextColor)
-                    .scaleEffect(showStreakCelebration && celebrationStreak == streakManager.currentStreak ? 1.1 : 1.0)
+                    .scaleEffect(showStreakCelebration && celebrationStreak == StreakManager.shared.currentStreak ? 1.1 : 1.0)
                     .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showStreakCelebration)
                 
                 // Enhanced streak milestone celebrations
                 Group {
-                    if streakManager.currentStreak >= 100 {
+                    if StreakManager.shared.currentStreak >= 100 {
                         Text("🏆✨🎊")
                             .font(.caption)
                             .scaleEffect(1.2)
-                            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: streakManager.currentStreak)
-                    } else if streakManager.currentStreak >= 50 {
+                            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
+                    } else if StreakManager.shared.currentStreak >= 50 {
                         Text("👑🎆✨")
                             .font(.caption)
                             .scaleEffect(1.1)
-                            .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: streakManager.currentStreak)
-                    } else if streakManager.currentStreak >= 30 {
+                            .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
+                    } else if StreakManager.shared.currentStreak >= 30 {
                         Text("💪🎆")
                             .font(.caption)
                             .scaleEffect(1.05)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: streakManager.currentStreak)
-                    } else if streakManager.currentStreak >= 14 {
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
+                    } else if StreakManager.shared.currentStreak >= 14 {
                         Text("⭐️🎆")
                             .font(.caption)
-                            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: streakManager.currentStreak)
-                    } else if streakManager.currentStreak >= 7 {
+                            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
+                    } else if StreakManager.shared.currentStreak >= 7 {
                         Text("🎆")
                             .font(.caption)
                     }
@@ -859,18 +987,18 @@ struct HomeView: View {
                     .fill(streakBackgroundColor)
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)
-                            .stroke(BananaTheme.ColorToken.primary.opacity(streakBorderOpacity(for: streakManager.currentStreak)), lineWidth: streakBorderWidth(for: streakManager.currentStreak))
+                            .stroke(BananaTheme.ColorToken.primary.opacity(streakBorderOpacity(for: StreakManager.shared.currentStreak)), lineWidth: streakBorderWidth(for: StreakManager.shared.currentStreak))
                     )
             )
             .shadow(
                 color: streakShadowColor, 
-                radius: streakShadowRadius(for: streakManager.currentStreak)
+                radius: streakShadowRadius(for: StreakManager.shared.currentStreak)
             )
         }
         .buttonStyle(PlainButtonStyle())
-        .accessibilityLabel("Current streak: \(streakManager.currentStreak) days")
+        .accessibilityLabel("Current streak: \(StreakManager.shared.currentStreak) days")
         .accessibilityHint("Tap to view your streak history")
-        .onChange(of: streakManager.currentStreak) { newStreak in
+        .onChange(of: StreakManager.shared.currentStreak) { newStreak in
             // Trigger celebration for milestone streaks
             let isMilestone = [7, 14, 21, 30, 50, 75, 100].contains(newStreak)
             if isMilestone && newStreak > celebrationStreak {
@@ -935,7 +1063,7 @@ struct HomeView: View {
     }
     
     private var weeklyStatuses: [StreakManager.DayStatus] {
-        streakManager.lastNDaysStatuses(7).reversed().map { $0.status }
+        StreakManager.shared.lastNDaysStatuses(7).reversed().map { $0.status }
     }
     
     private var weeklyCompletionCount: Int {
@@ -1081,13 +1209,13 @@ struct HomeView: View {
     
     private func loadTomorrowForecast() async {
         guard userPreferences.settings.includeWeather,
-              locationManager.hasLocationAccess(),
+              LocationManager.shared.hasLocationAccess(),
               tomorrowWeatherForecast == nil else { return }
         
         isLoadingForecast = true
         
         if #available(iOS 16.0, *) {
-            tomorrowWeatherForecast = await locationManager.getTomorrowForecast()
+            tomorrowWeatherForecast = await LocationManager.shared.getTomorrowForecast()
         }
         
         isLoadingForecast = false
@@ -1102,7 +1230,7 @@ struct HomeView: View {
         if userPreferences.settings.includeWeather {
             if let forecast = tomorrowWeatherForecast {
                 topics.append("Weather: \(forecast)")
-            } else if locationManager.hasLocationAccess() {
+            } else if LocationManager.shared.hasLocationAccess() {
                 topics.append("Weather forecast for your location")
             }
         }

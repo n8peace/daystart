@@ -8,7 +8,6 @@ struct OnboardingView: View {
     
     private let logger = DebugLogger.shared
     @State private var name = ""
-    @State private var textInputTask: Task<Void, Never>?
     @State private var selectedTime = Calendar.current.date(from: DateComponents(hour: 7, minute: 0)) ?? Date()
     @State private var selectedDays: Set<WeekDay> = Set([.monday, .tuesday, .wednesday, .thursday, .friday])
     @State private var includeWeather = false
@@ -29,6 +28,8 @@ struct OnboardingView: View {
     @State private var isRequestingCalendarPermission = false
     @State private var showingLocationPermissionDialog = false
     @State private var showingCalendarPermissionDialog = false
+    @State private var showingLocationDeniedAlert = false
+    @State private var showingCalendarDeniedAlert = false
     
     @StateObject private var themeManager = ThemeManager.shared
     @Environment(\.colorScheme) var colorScheme
@@ -112,6 +113,9 @@ struct OnboardingView: View {
                 .onChange(of: currentPage) { newPage in
                     // Stop any playing voice preview when navigating between pages
                     AudioPlayerManager.shared.stopVoicePreview()
+                    
+                    // Dismiss keyboard when changing pages
+                    hideKeyboard()
                     
                     logger.logUserAction("Onboarding page changed", details: [
                         "fromPage": currentPage,
@@ -227,16 +231,18 @@ struct OnboardingView: View {
                             
                             Spacer(minLength: BananaTheme.Spacing.md)
                             
-                            TextField("Optional", text: Binding(
-                                get: { name },
-                                set: { newValue in
-                                    textInputTask?.cancel()
-                                    let sanitized = String(newValue.prefix(50)).trimmingCharacters(in: .whitespacesAndNewlines)
-                                    name = sanitized
-                                }
-                            ))
+                            TextField("Optional", text: $name)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .font(BananaTheme.Typography.body)
+                                .submitLabel(.done)
+                                .onSubmit {
+                                    hideKeyboard()
+                                }
+                                .onChange(of: name) { newValue in
+                                    if newValue.count > 50 {
+                                        name = String(newValue.prefix(50))
+                                    }
+                                }
                         }
                     }
                     
@@ -311,6 +317,9 @@ struct OnboardingView: View {
                 // Bottom spacer for better scrolling  
                 Spacer(minLength: 60)
             }
+        }
+        .onTapGesture {
+            hideKeyboard()
         }
         .overlay(
             VStack {
@@ -401,17 +410,19 @@ struct OnboardingView: View {
                     
                     if includeStocks {
                         VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
-                            TextField("Enter symbols: SPY, DIA, BTC-USD", text: Binding(
-                                get: { stockSymbols },
-                                set: { newValue in
-                                    textInputTask?.cancel()
-                                    let sanitized = String(newValue.prefix(100)).trimmingCharacters(in: .whitespacesAndNewlines)
-                                    stockSymbols = sanitized
-                                }
-                            ))
+                            TextField("Enter symbols: SPY, DIA, BTC-USD", text: $stockSymbols)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .font(BananaTheme.Typography.body)
                                 .padding(.leading, BananaTheme.Spacing.xl)
+                                .submitLabel(.done)
+                                .onSubmit {
+                                    hideKeyboard()
+                                }
+                                .onChange(of: stockSymbols) { newValue in
+                                    if newValue.count > 100 {
+                                        stockSymbols = String(newValue.prefix(100))
+                                    }
+                                }
                         }
                         .transition(.slide)
                     }
@@ -490,6 +501,9 @@ struct OnboardingView: View {
                 Spacer(minLength: 110)
             }
         }
+        .onTapGesture {
+            hideKeyboard()
+        }
         .overlay(
             VStack {
                 Spacer()
@@ -518,6 +532,26 @@ struct OnboardingView: View {
                 )
             }
         )
+        .alert("Location Access Required", isPresented: $showingLocationDeniedAlert) {
+            Button("Open Settings") {
+                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsURL)
+                }
+            }
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Weather updates require location access. You can enable this in Settings > DayStart > Location.")
+        }
+        .alert("Calendar Access Required", isPresented: $showingCalendarDeniedAlert) {
+            Button("Open Settings") {
+                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsURL)
+                }
+            }
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Calendar events require calendar access. You can enable this in Settings > DayStart > Calendars.")
+        }
     }
     
     // MARK: - Page 4: Voice & Experience
@@ -788,6 +822,10 @@ struct OnboardingView: View {
     
     // MARK: - Helper Functions
     
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    
     private func getPageName(for page: Int) -> String {
         switch page {
         case 0: return "Pain Point"
@@ -891,18 +929,26 @@ struct OnboardingView: View {
         }
     }
     
-    func cleanup() {
-        textInputTask?.cancel()
-    }
     
     private func requestLocationPermission() async {
         let locationManager = LocationManager.shared
+        
+        // Check if already denied - if so, just show alert
+        if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
+            await MainActor.run {
+                includeWeather = false
+                showingLocationDeniedAlert = true
+            }
+            return
+        }
+        
         let granted = await locationManager.requestLocationPermission()
         
         if !granted {
-            // If permission denied, disable weather feature
+            // If permission denied, disable weather feature and show alert
             await MainActor.run {
                 includeWeather = false
+                showingLocationDeniedAlert = true
             }
         }
     }
@@ -912,9 +958,10 @@ struct OnboardingView: View {
         let granted = await calendarManager.requestCalendarAccess()
         
         if !granted {
-            // If permission denied, disable calendar feature
+            // If permission denied, disable calendar feature and show alert
             await MainActor.run {
                 includeCalendar = false
+                showingCalendarDeniedAlert = true
             }
         }
     }

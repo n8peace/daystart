@@ -20,7 +20,7 @@ final class StreakManager: ObservableObject {
     }
 
     private let logger = DebugLogger.shared
-    private let audioPlayer = AudioPlayerManager.shared
+    private var audioPlayer: AudioPlayerManager { AudioPlayerManager.shared }
     private let userPreferences = UserPreferences.shared
     private let notificationScheduler = NotificationScheduler.shared
 

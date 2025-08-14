@@ -31,28 +31,29 @@ struct SplashScreenView: View {
             }
         }
         .onAppear {
-            // Minimum display time of 1.5 seconds
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            // PHASE 3: Reduced splash delay for faster launch (0.5s -> 0.1s)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 minimumTimeElapsed = true
-                checkIfReadyToDismiss()
+                withAnimation(.easeOut(duration: 0.1)) {
+                    opacity = 0
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    onComplete()
+                }
             }
         }
-        .onChange(of: isAppReady) { _ in
-            checkIfReadyToDismiss()
+        .onChange(of: isAppReady) { ready in
+            // If app is ready before minimum time, dismiss immediately
+            if ready && !minimumTimeElapsed {
+                withAnimation(.easeOut(duration: 0.1)) {
+                    opacity = 0
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    onComplete()
+                }
+            }
         }
     }
     
-    private func checkIfReadyToDismiss() {
-        // Dismiss only when both minimum time elapsed AND app is ready
-        if minimumTimeElapsed && isAppReady {
-            withAnimation(.easeOut(duration: 0.3)) {
-                opacity = 0
-            }
-            
-            // Complete after fade out
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                onComplete()
-            }
-        }
-    }
+    private func checkIfReadyToDismiss() {}
 }

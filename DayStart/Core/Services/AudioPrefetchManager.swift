@@ -1,5 +1,7 @@
 import Foundation
 import BackgroundTasks
+import AVFoundation
+import UIKit
 
 @MainActor
 class AudioPrefetchManager {
@@ -8,7 +10,25 @@ class AudioPrefetchManager {
     private let taskIdentifier = "ai.bananaintelligence.DayStart.audio-prefetch"
     private let logger = DebugLogger.shared
     
-    private init() {}
+    // PHASE 4: AVPlayerItem prefetching for instant audio start
+    private var preloadedPlayerItems: [String: (item: AVPlayerItem, created: Date)] = [:]
+    private let maxCacheAge: TimeInterval = 3600 // 1 hour TTL
+    private let maxCacheSize = 5 // Limit memory usage
+    
+    private init() {
+        // PHASE 4: Monitor memory pressure to clear cache if needed
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMemoryWarning),
+            name: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func handleMemoryWarning() {
+        logger.log("🚨 Memory warning received, clearing player item cache", level: .warning)
+        clearPlayerItemCache()
+    }
     
     // MARK: - Tier 1: BGTaskScheduler (Background Processing)
     
@@ -62,25 +82,35 @@ class AudioPrefetchManager {
     }
     
     private func checkAndDownloadAudio(for date: Date) async -> Bool {
-        // Check if audio already cached locally
+        // Check cache quickly on main actor
         if AudioCache.shared.hasAudio(for: date) {
             logger.log("Audio already cached for \(date)", level: .debug)
             return true
         }
-        
-        // Call backend to check if audio is ready
+
+        // Perform network status check off-main
         do {
-            let response = try await SupabaseClient.shared.getAudioStatus(for: date)
-            
+            let response = try await Task.detached(priority: .background) {
+                try await SupabaseClient.shared.getAudioStatus(for: date)
+            }.value
+
             if response.status == "ready", let audioUrl = response.audioUrl {
-                logger.log("Audio ready for \(date), downloading...", level: .info)
+                logger.log("Audio ready for \(date), creating player item and downloading...", level: .info)
+                
+                // PHASE 4: Create and cache AVPlayerItem for instant handoff
+                let playerItem = AVPlayerItem(url: audioUrl)
+                let cacheKey = localDateString(from: date)
+                addPlayerItemToCache(playerItem, forKey: cacheKey)
+                
+                // Also download for offline use
                 return await AudioDownloader.shared.download(from: audioUrl, for: date)
             } else if response.status == "not_found" {
-                // Audio doesn't exist yet, create a job for it with snapshot context
                 logger.log("Audio not found for \(date), creating job with snapshot...", level: .info)
+                // Build snapshot on main actor (location/calendar)
                 let snapshot = await SnapshotBuilder.shared.buildSnapshot()
-                do {
-                    let jobResponse = try await SupabaseClient.shared.createJob(
+                // Create job off-main
+                _ = try? await Task.detached(priority: .background) {
+                    try await SupabaseClient.shared.createJob(
                         for: date,
                         with: UserPreferences.shared.settings,
                         schedule: UserPreferences.shared.schedule,
@@ -88,11 +118,7 @@ class AudioPrefetchManager {
                         weatherData: snapshot.weather,
                         calendarEvents: snapshot.calendar
                     )
-                    logger.log("Created job \(jobResponse.jobId ?? "unknown") for \(date)", level: .info)
-                } catch {
-                    logger.logError(error, context: "Failed to create job for \(date)")
-                }
-                
+                }.value
                 return false
             } else {
                 logger.log("Audio not ready for \(date), status: \(response.status)", level: .debug)
@@ -112,21 +138,27 @@ class AudioPrefetchManager {
         for schedule in upcomingSchedules {
             let scheduledTime = schedule.scheduledTime
             do {
-                let status = try await SupabaseClient.shared.getAudioStatus(for: scheduledTime)
+                // Check status off-main
+                let status = try await Task.detached(priority: .background) {
+                    try await SupabaseClient.shared.getAudioStatus(for: scheduledTime)
+                }.value
                 if status.status == "ready" || status.status == "processing" {
                     // Nothing to do
                     continue
                 }
-                // Build snapshot context
+                // Build snapshot on main
                 let snapshot = await SnapshotBuilder.shared.buildSnapshot()
-                _ = try await SupabaseClient.shared.createJob(
-                    for: scheduledTime,
-                    with: UserPreferences.shared.settings,
-                    schedule: UserPreferences.shared.schedule,
-                    locationData: snapshot.location,
-                    weatherData: snapshot.weather,
-                    calendarEvents: snapshot.calendar
-                )
+                // Create job off-main
+                _ = try? await Task.detached(priority: .background) {
+                    try await SupabaseClient.shared.createJob(
+                        for: scheduledTime,
+                        with: UserPreferences.shared.settings,
+                        schedule: UserPreferences.shared.schedule,
+                        locationData: snapshot.location,
+                        weatherData: snapshot.weather,
+                        calendarEvents: snapshot.calendar
+                    )
+                }.value
                 createdOrConfirmed += 1
             } catch {
                 logger.logError(error, context: "BG precreate job failed for \(scheduledTime)")
@@ -193,6 +225,74 @@ class AudioPrefetchManager {
     func cancelAllBackgroundTasks() {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         logger.log("Cancelled all background audio prefetch tasks", level: .info)
+    }
+    
+    // MARK: - Phase 4: AVPlayerItem Prefetching
+    
+    private func addPlayerItemToCache(_ item: AVPlayerItem, forKey key: String) {
+        // Purge old/excess items before adding new ones
+        purgeExpiredItems()
+        if preloadedPlayerItems.count >= maxCacheSize {
+            purgeOldestItem()
+        }
+        
+        preloadedPlayerItems[key] = (item, Date())
+        logger.log("🎵 Cached player item for \(key) (cache size: \(preloadedPlayerItems.count))", level: .info)
+    }
+    
+    func getPreloadedPlayerItem(for date: Date) -> AVPlayerItem? {
+        let cacheKey = localDateString(from: date)
+        
+        guard let cached = preloadedPlayerItems[cacheKey] else {
+            logger.log("🎵 No preloaded item found for \(cacheKey)", level: .debug)
+            return nil
+        }
+        
+        // Check if item is still valid (not expired)
+        let age = Date().timeIntervalSince(cached.created)
+        if age > maxCacheAge {
+            logger.log("🎵 Preloaded item expired for \(cacheKey) (age: \(Int(age))s)", level: .info)
+            preloadedPlayerItems.removeValue(forKey: cacheKey)
+            return nil
+        }
+        
+        logger.log("🚀 Using preloaded player item for \(cacheKey)", level: .info)
+        return cached.item
+    }
+    
+    private func purgeExpiredItems() {
+        let now = Date()
+        let expiredKeys = preloadedPlayerItems.compactMap { (key, value) in
+            now.timeIntervalSince(value.created) > maxCacheAge ? key : nil
+        }
+        
+        for key in expiredKeys {
+            preloadedPlayerItems.removeValue(forKey: key)
+            logger.log("🗑️ Purged expired player item: \(key)", level: .debug)
+        }
+    }
+    
+    private func purgeOldestItem() {
+        guard let oldestKey = preloadedPlayerItems.min(by: { $0.value.created < $1.value.created })?.key else {
+            return
+        }
+        
+        preloadedPlayerItems.removeValue(forKey: oldestKey)
+        logger.log("🗑️ Purged oldest player item: \(oldestKey) due to cache size limit", level: .info)
+    }
+    
+    // Memory pressure handling
+    func clearPlayerItemCache() {
+        let cacheSize = preloadedPlayerItems.count
+        preloadedPlayerItems.removeAll()
+        logger.log("🛡️ Cleared all \(cacheSize) player items due to memory pressure", level: .warning)
+    }
+    
+    private func localDateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+        return formatter.string(from: date)
     }
 }
 
