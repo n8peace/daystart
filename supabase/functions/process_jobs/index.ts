@@ -545,7 +545,7 @@ You've got this.`
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4o', // High-quality script generation
+      model: 'gpt-4o-mini', // Cost-effective script generation
       messages: [fewShotExample, systemMessage, userMessage],
       max_tokens: maxTokens,    // Dynamic based on user's duration
       temperature: 0.5,         // tighter adherence
@@ -637,10 +637,10 @@ You've got this.`
     console.warn('[DEBUG] adjustToTargetBand failed or skipped:', e?.message || e);
   }
 
-  // Calculate cost based on token usage
+  // Calculate cost based on token usage (GPT-4o mini pricing)
   const usage = data.usage;
-  const inputCost = (usage.prompt_tokens / 1_000_000) * 30.00;  // $30.00 per 1M input tokens
-  const outputCost = (usage.completion_tokens / 1_000_000) * 60.00;  // $60.00 per 1M output tokens
+  const inputCost = (usage.prompt_tokens / 1_000_000) * 0.15;  // $0.15 per 1M input tokens
+  const outputCost = (usage.completion_tokens / 1_000_000) * 0.60;  // $0.60 per 1M output tokens
   const totalCost = Number((inputCost + outputCost).toFixed(5));
 
   console.log(`[DEBUG] OpenAI usage: ${usage.prompt_tokens} input + ${usage.completion_tokens} output tokens = $${totalCost}`);
