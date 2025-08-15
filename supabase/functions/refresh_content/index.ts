@@ -152,16 +152,16 @@ async function refreshContentAsync(request_id: string): Promise<void> {
     const contentSources: ContentSource[] = []
     const missingEnvs: string[] = []
     if (Deno.env.get('NEWSAPI_KEY')) {
-      contentSources.push({ type: 'news', source: 'newsapi', ttlHours: 3, fetchFunction: () => fetchNewsAPI() })
+      contentSources.push({ type: 'news', source: 'newsapi', ttlHours: 168, fetchFunction: () => fetchNewsAPI() })
     } else { missingEnvs.push('NEWSAPI_KEY') }
     if (Deno.env.get('GNEWS_API_KEY')) {
-      contentSources.push({ type: 'news', source: 'gnews', ttlHours: 3, fetchFunction: () => fetchGNews() })
+      contentSources.push({ type: 'news', source: 'gnews', ttlHours: 168, fetchFunction: () => fetchGNews() })
     } else { missingEnvs.push('GNEWS_API_KEY') }
     if (Deno.env.get('RAPIDAPI_KEY')) {
-      contentSources.push({ type: 'stocks', source: 'yahoo_finance', ttlHours: 1, fetchFunction: () => fetchYahooFinance() })
+      contentSources.push({ type: 'stocks', source: 'yahoo_finance', ttlHours: 168, fetchFunction: () => fetchYahooFinance() })
     } else { missingEnvs.push('RAPIDAPI_KEY') }
-    contentSources.push({ type: 'sports', source: 'espn', ttlHours: 1, fetchFunction: () => fetchESPN() })
-    contentSources.push({ type: 'sports', source: 'thesportdb', ttlHours: 1, fetchFunction: () => fetchTheSportDB() })
+    contentSources.push({ type: 'sports', source: 'espn', ttlHours: 168, fetchFunction: () => fetchESPN() })
+    contentSources.push({ type: 'sports', source: 'thesportdb', ttlHours: 168, fetchFunction: () => fetchTheSportDB() })
 
     const results = {
       successful: 0,

@@ -650,11 +650,11 @@ You've got this.`
   console.log(`[DEBUG] Estimated duration: ${estimatedDurationSec}s at 145 wpm`);
   console.log(`[DEBUG] Dynamic scaling: ${Math.round(context.dayStartLength/60)}min → ${getTokenLimits(context.dayStartLength).targetWords} word target, ${maxTokens} max tokens`);
   
-  // Alert if script is too short
+  // Alert if script is too short (info level, not error)
   const expectedWords = getTokenLimits(context.dayStartLength).targetWords;
   const actualWords = script.split(' ').length;
   if (actualWords < expectedWords * 0.5) {
-    console.warn(`[DEBUG] ⚠️ Script is significantly shorter than expected! Expected ~${expectedWords} words, got ${actualWords} words`);
+    console.log(`[DEBUG] ⚠️ Script is significantly shorter than expected! Expected ~${expectedWords} words, got ${actualWords} words`);
   }
 
   return {
