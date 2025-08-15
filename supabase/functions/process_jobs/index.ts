@@ -76,11 +76,15 @@ function compactNewsItem(a: any) {
 function filterValidSportsItems(sports: any[] = [], dateISO: string, tz?: string): any[] {
   const target = tz ? new Date(new Date(dateISO + 'T00:00:00').toLocaleString('en-US', { timeZone: tz }))
                     : new Date(dateISO + 'T00:00:00');
-  const yyyyMmDd = target.toISOString().slice(0, 10);
+  const today = target.toISOString().slice(0, 10);
+  
+  // Also include tomorrow to catch events that slip due to UTC timezone differences
+  const tomorrow = new Date(target.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  
   return (sports || []).filter((ev: any) => {
     const d = String(ev?.date || '').slice(0, 10);
     const status = String(ev?.status || '').toUpperCase();
-    return d === yyyyMmDd && (status === 'FT' || status === 'NS' || status === 'LIVE');
+    return (d === today || d === tomorrow) && (status === 'FT' || status === 'NS' || status === 'LIVE');
   });
 }
 
@@ -497,7 +501,10 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
 
   // Get dynamic limits based on user's duration
   const duration = context.dayStartLength || 240;
-  const { maxTokens } = getTokenLimits(duration);
+  const { maxTokens, targetWords } = getTokenLimits(duration);
+  
+  // Log the dynamic scaling for debugging
+  console.log(`[DEBUG] Duration: ${duration}s, Target words: ${targetWords}, Max tokens: ${maxTokens}`);
   
   // Create prompt for GPT-4
   const prompt = buildScriptPrompt(context);
@@ -732,7 +739,7 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
         use_speaker_boost: true
       }
     }),
-  }), 3, 600, 45000, `ElevenLabs-TTS-${voiceOption}`);
+  }), 3, 600, 45000, `ElevenLabs-TTS-${normalizedVoiceKey}`);
 
   if (!response.ok) {
     const errorText = await response.text();

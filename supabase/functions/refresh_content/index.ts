@@ -390,13 +390,24 @@ async function fetchESPN(): Promise<any> {
 
 // TheSportDB API fetch function
 async function fetchTheSportDB(): Promise<any> {
-  // Get today's date in YYYY-MM-DD format
+  // Get today's and tomorrow's dates in YYYY-MM-DD format
   const today = new Date().toISOString().split('T')[0]
-  const url = `https://www.thesportsdb.com/api/v1/json/123/eventsday.php?d=${today}`
-  const data = await getJSON<any>(url)
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  
+  // Fetch both today and tomorrow to catch events that slip to next day due to UTC
+  const [todayData, tomorrowData] = await Promise.all([
+    getJSON<any>(`https://www.thesportsdb.com/api/v1/json/123/eventsday.php?d=${today}`),
+    getJSON<any>(`https://www.thesportsdb.com/api/v1/json/123/eventsday.php?d=${tomorrow}`)
+  ])
+  
+  // Combine events from both days
+  const allEvents = [
+    ...(todayData.events || []),
+    ...(tomorrowData.events || [])
+  ]
   
   return {
-    events: data.events?.slice(0, 10).map((event: any) => ({
+    events: allEvents.slice(0, 20).map((event: any) => ({
       event: event.strEvent,
       date: event.dateEvent,
       time: event.strTime,
@@ -408,7 +419,7 @@ async function fetchTheSportDB(): Promise<any> {
       league: event.strLeague,
       sport: event.strSport
     })) || [],
-    date: today,
+    date: `${today},${tomorrow}`,
     fetched_at: new Date().toISOString(),
     source: 'thesportdb'
   }
