@@ -797,8 +797,8 @@ struct HomeView: View {
     }
     
     private var preparingProgress: Double {
-        guard let countdownText = viewModel.preparingCountdownText.components(separatedBy: ":").compactMap({ Int($0) }),
-              countdownText.count == 2 else { return 0 }
+        let countdownText = viewModel.preparingCountdownText.components(separatedBy: ":").compactMap({ Int($0) })
+        guard countdownText.count == 2 else { return 0 }
         
         let totalSeconds = 120.0 // 2 minutes
         let remainingSeconds = Double(countdownText[0] * 60 + countdownText[1])
@@ -866,6 +866,21 @@ struct HomeView: View {
     
     private var completedViewContent: some View {
         VStack(spacing: 20) {
+            HStack {
+                Spacer()
+                Button(action: {
+                    hapticManager.impact(style: .light)
+                    viewModel.exitCompletedState()
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                }
+                .accessibilityLabel("Close completed view")
+                .accessibilityHint("Return to main view")
+            }
+            .padding(.top, -10)
+            
             VStack(spacing: 12) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 60))

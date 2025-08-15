@@ -74,10 +74,20 @@ class HomeViewModel: ObservableObject {
     private var preparingMessageTimer: Timer?
     private var pollingTimer: Timer?
     private var preparingStartTime: Date?
+    private var pollingStartTime: Date?
+    private var pollingAttempts = 0
+    private let maxPollingAttempts = 30 // 5 minutes at 10-second intervals
+    private let maxPollingDuration: TimeInterval = 300 // 5 minutes total
     private var cancellables = Set<AnyCancellable>()
     
-    // Debouncing
+    // Debouncing and state transition protection
     private var updateStateWorkItem: DispatchWorkItem?
+    private var isTransitioning = false
+    private var lastStateChangeTime = Date()
+    
+    // Background/foreground handling
+    private var stateBeforeBackground: AppState?
+    private var wasPollingBeforeBackground = false
     
     // Preparing state messages
     private let preparingMessages = [
@@ -121,18 +131,235 @@ class HomeViewModel: ObservableObject {
         // DEFERRED: Load only basic observers and update state
         Task {
             await loadBasicObservers()
-            updateState()
+            validateAndUpdateState()
+        }
+    }
+    
+    private func validateAndUpdateState() {
+        // Detect and recover from invalid states
+        validateCurrentState()
+        updateState()
+    }
+    
+    private func validateCurrentState() {
+        let currentState = state
+        
+        // Check for impossible state combinations
+        switch currentState {
+        case .playing:
+            // If in playing state but no current DayStart, that's invalid
+            if currentDayStart == nil {
+                logger.log("⚠️ Invalid state: playing with no currentDayStart", level: .warning)
+                state = .idle
+                return
+            }
+            
+            // If in playing state but audio player isn't loaded, check if it should be
+            if serviceRegistry.loadedServices.contains("AudioPlayerManager") {
+                let audioPlayer = serviceRegistry.audioPlayerManager
+                if !audioPlayer.isPlaying && !audioPlayer.isLoading {
+                    logger.log("⚠️ Invalid state: playing but audio not playing/loading", level: .warning)
+                    // Try to recover by restarting audio or go to completed
+                    if let dayStart = currentDayStart {
+                        state = .completed
+                    } else {
+                        state = .idle
+                    }
+                    return
+                }
+            }
+            
+        case .preparing:
+            // If in preparing state but no polling is active, that's invalid
+            if pollingTimer == nil || pollingStartTime == nil {
+                logger.log("⚠️ Invalid state: preparing but no active polling", level: .warning)
+                state = .idle
+                return
+            }
+            
+        case .completed:
+            // If in completed state but no current DayStart, that's invalid
+            if currentDayStart == nil {
+                logger.log("⚠️ Invalid state: completed with no currentDayStart", level: .warning)
+                state = .idle
+                return
+            }
+            
+        default:
+            break
+        }
+        
+        // Check for timer leaks
+        validateTimerStates()
+    }
+    
+    private func validateTimerStates() {
+        let activeTimers = [
+            timer != nil,
+            pauseTimeoutTimer != nil,
+            preparingTimer != nil,
+            preparingMessageTimer != nil,
+            pollingTimer != nil,
+            loadingDelayTimer != nil,
+            loadingTimeoutTimer != nil
+        ]
+        
+        let timerCount = activeTimers.filter { $0 }.count
+        
+        if timerCount > 3 {
+            logger.log("⚠️ Potential timer leak: \(timerCount) active timers", level: .warning)
+            
+            // In most states, we shouldn't have more than 2-3 active timers
+            switch state {
+            case .preparing:
+                // Preparing can have: preparing timer, message timer, polling timer (3 max)
+                if timerCount > 3 {
+                    logger.log("🧹 Cleaning up excess timers in preparing state", level: .info)
+                    cleanupAllTimers()
+                    startPreparingState(isWelcome: false)
+                }
+            case .countdown:
+                // Countdown should only have countdown timer
+                if timer == nil || timerCount > 1 {
+                    logger.log("🧹 Cleaning up timers for countdown state", level: .info)
+                    cleanupAllTimers()
+                    startCountdown()
+                }
+            case .playing:
+                // Playing can have: pause timeout, loading timers
+                if timerCount > 3 {
+                    logger.log("🧹 Cleaning up excess timers in playing state", level: .info)
+                    cleanupAllTimers()
+                }
+            default:
+                // Most other states should have no timers
+                if timerCount > 0 {
+                    logger.log("🧹 Cleaning up timers for \(state) state", level: .info)
+                    cleanupAllTimers()
+                }
+            }
         }
     }
     
     func onViewDisappear() {
-        // Clean up timers when view disappears
+        // Clean up all timers when view disappears
+        cleanupAllTimers()
+    }
+    
+    func onAppBackground() {
+        logger.log("📱 App entering background, state: \(state)", level: .info)
+        
+        // Save current state
+        stateBeforeBackground = state
+        wasPollingBeforeBackground = pollingTimer != nil
+        
+        // Pause timers that shouldn't run in background
+        switch state {
+        case .preparing:
+            // Keep polling for job completion, but pause UI timers
+            preparingTimer?.invalidate()
+            preparingTimer = nil
+            preparingMessageTimer?.invalidate()
+            preparingMessageTimer = nil
+            loadingMessages.stopRotatingMessages()
+            
+        case .countdown:
+            // Pause countdown display but keep the main timer
+            // Timer will continue to track time until DayStart is ready
+            break
+            
+        case .playing:
+            // Audio should continue playing in background
+            // But pause loading timers
+            loadingDelayTimer?.invalidate()
+            loadingDelayTimer = nil
+            loadingTimeoutTimer?.invalidate()
+            loadingTimeoutTimer = nil
+            loadingMessages.stopRotatingMessages()
+            
+        default:
+            // For other states, clean up all timers
+            cleanupAllTimers()
+        }
+    }
+    
+    func onAppForeground() {
+        logger.log("📱 App entering foreground, state: \(state)", level: .info)
+        
+        // Validate state after returning from background
+        validateAndUpdateState()
+        
+        // Restart appropriate timers based on current state
+        switch state {
+        case .preparing:
+            // Restart preparing UI if we were preparing before
+            if stateBeforeBackground == .preparing {
+                // Restart message rotation
+                startPreparingMessageRotation()
+                
+                // Restart countdown if we have a start time
+                if let startTime = preparingStartTime {
+                    let elapsed = Date().timeIntervalSince(startTime)
+                    let remaining = max(0, 120 - elapsed) // 2 minutes total
+                    if remaining > 0 {
+                        startPreparingCountdown(duration: remaining)
+                    }
+                }
+                
+                // Restart polling if it was active
+                if wasPollingBeforeBackground && pollingTimer == nil {
+                    if let nextTime = nextDayStartTime {
+                        startPollingForAudio(scheduledTime: nextTime)
+                    }
+                }
+            }
+            
+        case .countdown:
+            // Countdown should continue automatically
+            break
+            
+        case .playing:
+            // Check if audio is still playing, update UI accordingly
+            if serviceRegistry.loadedServices.contains("AudioPlayerManager") {
+                let audioPlayer = serviceRegistry.audioPlayerManager
+                if !audioPlayer.isPlaying && !audioPlayer.isLoading {
+                    // Audio stopped while in background, transition to completed
+                    transitionToRecentlyPlayed()
+                }
+            }
+            
+        default:
+            break
+        }
+        
+        // Clear background state tracking
+        stateBeforeBackground = nil
+        wasPollingBeforeBackground = false
+    }
+    
+    private func cleanupAllTimers() {
         timer?.invalidate()
         timer = nil
         pauseTimeoutTimer?.invalidate()
         pauseTimeoutTimer = nil
-        stopLoadingTimers()
-        stopPreparingState()
+        preparingTimer?.invalidate()
+        preparingTimer = nil
+        preparingMessageTimer?.invalidate()
+        preparingMessageTimer = nil
+        pollingTimer?.invalidate()
+        pollingTimer = nil
+        loadingDelayTimer?.invalidate()
+        loadingDelayTimer = nil
+        loadingTimeoutTimer?.invalidate()
+        loadingTimeoutTimer = nil
+        
+        // Reset preparing state data
+        preparingStartTime = nil
+        pollingStartTime = nil
+        pollingAttempts = 0
+        
+        // Stop any rotating messages
+        loadingMessages.stopRotatingMessages()
     }
     
     // MARK: - Lazy Service Loading
@@ -239,9 +466,28 @@ class HomeViewModel: ObservableObject {
     private func performStateUpdate() {
         logger.log("🎵 HomeViewModel: updateState() called", level: .debug)
         
-        timer?.invalidate()
-        pauseTimeoutTimer?.invalidate()
-        stopLoadingTimers()
+        // Prevent rapid state transitions
+        guard !isTransitioning else {
+            logger.log("⚠️ State transition already in progress, skipping", level: .debug)
+            return
+        }
+        
+        let now = Date()
+        let timeSinceLastChange = now.timeIntervalSince(lastStateChangeTime)
+        
+        // Minimum 100ms between state changes to prevent flicker
+        guard timeSinceLastChange > 0.1 else {
+            logger.log("⚠️ State change too rapid, debouncing", level: .debug)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.performStateUpdate()
+            }
+            return
+        }
+        
+        isTransitioning = true
+        lastStateChangeTime = now
+        
+        cleanupAllTimers()
         
         // Check for welcome DayStart first (only if enabled)
         if !userPreferences.schedule.repeatDays.isEmpty {
@@ -302,16 +548,23 @@ class HomeViewModel: ObservableObject {
         hasCompletedCurrentOccurrence = hasCompletedThisOccurrence
         
         // State logic (no service dependencies)
-        if timeUntil > 0 && timeUntil <= tenHoursInSeconds {
+        if timeUntil > 300 && timeUntil <= tenHoursInSeconds {
+            // More than 5 minutes until start - show countdown
             startCountdown()
+        } else if timeUntil > 0 && timeUntil <= 300 && !hasCompletedThisOccurrence {
+            // Less than 5 minutes until start - check if audio is ready
+            checkAudioReadiness(for: nextOccurrence)
         } else if timeUntil <= 0 && timeUntil >= -sixHoursInSeconds && !hasCompletedThisOccurrence {
-            // Check if audio is ready before showing ready state
+            // Past scheduled time - check if audio is ready
             checkAudioReadiness(for: nextOccurrence)
         } else if hasCompletedThisOccurrence && timeUntil >= -sixHoursInSeconds {
             state = .completed
         } else {
             state = .idle
         }
+        
+        // Mark transition as complete
+        isTransitioning = false
     }
     
     private func startCountdown() {
@@ -362,8 +615,13 @@ class HomeViewModel: ObservableObject {
         // Start preparing state
         startPreparingState(isWelcome: false)
         
-        // Start polling for audio status
-        startPollingForAudio(scheduledTime: scheduledTime)
+        // Check if job exists and create if needed, then start polling
+        Task {
+            await checkAndCreateJobIfNeeded(for: scheduledTime)
+            await MainActor.run {
+                startPollingForAudio(scheduledTime: scheduledTime)
+            }
+        }
     }
     
     private func startPreparingState(isWelcome: Bool) {
@@ -434,17 +692,43 @@ class HomeViewModel: ObservableObject {
     private func startPollingForAudio(scheduledTime: Date) {
         pollingTimer?.invalidate()
         
+        // Reset polling counters
+        pollingStartTime = Date()
+        pollingAttempts = 0
+        
         // Initial check
         Task {
             await checkAudioStatus(for: scheduledTime)
         }
         
-        // Poll every 10 seconds
+        // Poll every 10 seconds with safety limits
         pollingTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task {
-                await self?.checkAudioStatus(for: scheduledTime)
+                await self?.checkAudioStatusWithLimits(for: scheduledTime)
             }
         }
+    }
+    
+    private func checkAudioStatusWithLimits(for scheduledTime: Date) async {
+        guard let startTime = pollingStartTime else { return }
+        
+        pollingAttempts += 1
+        let elapsed = Date().timeIntervalSince(startTime)
+        
+        // Check if we've exceeded limits
+        if pollingAttempts >= maxPollingAttempts || elapsed >= maxPollingDuration {
+            logger.log("⚠️ Polling timeout after \(pollingAttempts) attempts in \(elapsed)s", level: .warning)
+            
+            await MainActor.run {
+                connectionError = .timeout
+                stopPreparingState()
+                state = .idle
+            }
+            return
+        }
+        
+        // Continue with normal polling
+        await checkAudioStatus(for: scheduledTime)
     }
     
     private func checkAudioStatus(for scheduledTime: Date) async {
@@ -497,20 +781,102 @@ class HomeViewModel: ObservableObject {
         pollingTimer = nil
         
         preparingStartTime = nil
+        pollingStartTime = nil
+        pollingAttempts = 0
+    }
+    
+    private func checkAndCreateJobIfNeeded(for scheduledTime: Date) async {
+        do {
+            let supabaseClient = serviceRegistry.supabaseClient
+            let audioStatus = try await supabaseClient.getAudioStatus(for: scheduledTime)
+            
+            // If job doesn't exist or failed, create a new one
+            if audioStatus.status == "not_found" || audioStatus.status == "failed" {
+                logger.log("🔄 Creating job for \(scheduledTime) - status: \(audioStatus.status)", level: .info)
+                
+                // Load snapshot builder to get current data
+                let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot()
+                
+                let jobResponse = try await supabaseClient.createJob(
+                    for: scheduledTime,
+                    with: userPreferences.settings,
+                    schedule: userPreferences.schedule,
+                    locationData: snapshot.location,
+                    weatherData: snapshot.weather,
+                    calendarEvents: snapshot.calendar
+                )
+                
+                logger.log("✅ Job created: \(jobResponse.jobId ?? "unknown") with status: \(jobResponse.status ?? "unknown")", level: .info)
+            }
+        } catch {
+            logger.logError(error, context: "Failed to check/create job for \(scheduledTime)")
+            await MainActor.run {
+                if !NetworkMonitor.shared.isConnected {
+                    connectionError = .noInternet
+                } else {
+                    connectionError = .supabaseError
+                }
+                stopPreparingState()
+                state = .idle
+            }
+        }
     }
     
     private func checkWelcomeAudioStatus() async {
-        // Poll every 10 seconds for welcome audio
-        pollingTimer?.invalidate()
+        // First try to create welcome job if needed
+        await checkAndCreateWelcomeJobIfNeeded()
         
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-            Task {
-                await self?.checkWelcomeAudioStatusOnce()
+        // Then start polling every 10 seconds for welcome audio
+        await MainActor.run {
+            pollingTimer?.invalidate()
+            
+            pollingTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+                Task {
+                    await self?.checkWelcomeAudioStatusOnce()
+                }
             }
         }
         
         // Initial check
         await checkWelcomeAudioStatusOnce()
+    }
+    
+    private func checkAndCreateWelcomeJobIfNeeded() async {
+        do {
+            let supabaseClient = serviceRegistry.supabaseClient
+            let currentDate = Date()
+            let audioStatus = try await supabaseClient.getAudioStatus(for: currentDate)
+            
+            // If job doesn't exist or failed, create a welcome job
+            if audioStatus.status == "not_found" || audioStatus.status == "failed" {
+                logger.log("🔄 Creating welcome job - status: \(audioStatus.status)", level: .info)
+                
+                // Load snapshot builder to get current data
+                let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot()
+                
+                let jobResponse = try await supabaseClient.createJob(
+                    for: currentDate,
+                    with: userPreferences.settings,
+                    schedule: userPreferences.schedule,
+                    locationData: snapshot.location,
+                    weatherData: snapshot.weather,
+                    calendarEvents: snapshot.calendar
+                )
+                
+                logger.log("✅ Welcome job created: \(jobResponse.jobId ?? "unknown") with status: \(jobResponse.status ?? "unknown")", level: .info)
+            }
+        } catch {
+            logger.logError(error, context: "Failed to check/create welcome job")
+            await MainActor.run {
+                if !NetworkMonitor.shared.isConnected {
+                    connectionError = .noInternet
+                } else {
+                    connectionError = .supabaseError
+                }
+                stopPreparingState()
+                state = .idle
+            }
+        }
     }
     
     private func checkWelcomeAudioStatusOnce() async {
@@ -636,6 +1002,24 @@ class HomeViewModel: ObservableObject {
         }
     }
     
+    func exitCompletedState() {
+        logger.logUserAction("Exit Completed State", details: ["time": Date().description])
+        
+        // Clean up any timers and reset to appropriate state
+        timer?.invalidate()
+        timer = nil
+        pauseTimeoutTimer?.invalidate()
+        pauseTimeoutTimer = nil
+        stopLoadingTimers()
+        stopPreparingState()
+        
+        // Reset current DayStart
+        currentDayStart = nil
+        
+        // Update to appropriate state based on schedule
+        updateState()
+    }
+    
     // MARK: - Audio Playback (Services Loaded On-Demand)
     
     private func startDayStartWithAudio() async {
@@ -650,7 +1034,10 @@ class HomeViewModel: ObservableObject {
         userPreferences.addToHistory(dayStartWithScheduledTime)
         
         guard let scheduledTime = nextDayStartTime else {
-            await playFallbackAudio()
+            await MainActor.run {
+                connectionError = .supabaseError
+                state = .idle
+            }
             return
         }
         
@@ -683,25 +1070,26 @@ class HomeViewModel: ObservableObject {
                         }
                     }
                 } else {
-                    // Create job if needed
-                    if audioStatus.status == "not_found" || audioStatus.status == "failed" || audioStatus.status == "queued" {
-                        // LAZY: Load SnapshotBuilder only when creating jobs
-                        let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot()
-                        _ = try? await supabaseClient.createJob(
-                            for: scheduledTime,
-                            with: userPreferences.settings,
-                            schedule: userPreferences.schedule,
-                            locationData: snapshot.location,
-                            weatherData: snapshot.weather,
-                            calendarEvents: snapshot.calendar
-                        )
+                    // Audio not ready - show error
+                    await MainActor.run {
+                        if audioStatus.status == "not_found" || audioStatus.status == "failed" {
+                            connectionError = .supabaseError
+                        } else {
+                            connectionError = .timeout
+                        }
+                        state = .idle
                     }
-                    
-                    await playFallbackAudio()
                 }
             } catch {
                 logger.logError(error, context: "Failed to check audio status")
-                await playFallbackAudio()
+                await MainActor.run {
+                    if !NetworkMonitor.shared.isConnected {
+                        connectionError = .noInternet
+                    } else {
+                        connectionError = .supabaseError
+                    }
+                    state = .idle
+                }
             }
         }
     }
@@ -723,11 +1111,21 @@ class HomeViewModel: ObservableObject {
             if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
                 await streamAudio(from: audioUrl)
             } else {
-                await playFallbackAudio()
+                await MainActor.run {
+                    connectionError = .supabaseError
+                    state = .idle
+                }
             }
         } catch {
             logger.logError(error, context: "Welcome DayStart Supabase failed")
-            await playFallbackAudio()
+            await MainActor.run {
+                if !NetworkMonitor.shared.isConnected {
+                    connectionError = .noInternet
+                } else {
+                    connectionError = .supabaseError
+                }
+                state = .idle
+            }
         }
     }
     
@@ -764,33 +1162,13 @@ class HomeViewModel: ObservableObject {
                     await self.cancelTodaysNotifications()
                     self.scheduleNextNotifications()
                 } else {
-                    await self.playFallbackAudio()
+                    self.connectionError = .timeout
+                    self.state = .idle
                 }
             }
         }
     }
     
-    private func playFallbackAudio() async {
-        let audioPlayer = serviceRegistry.audioPlayerManager
-        let selectedVoice = userPreferences.settings.selectedVoice
-        
-        if let fallbackPath = getFallbackAudioPath(for: selectedVoice),
-           let audioUrl = URL(string: "file://\(fallbackPath)") {
-            audioPlayer.loadAudio(from: audioUrl)
-        } else {
-            audioPlayer.loadAudio()
-        }
-        
-        audioPlayer.play()
-        state = .playing
-        stopPauseTimeoutTimer()
-        
-        await cancelTodaysNotifications()
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.scheduleNextNotifications()
-        }
-    }
     
     private func replayDayStartWithAudio(_ dayStart: DayStartData) async {
         let audioPlayer = serviceRegistry.audioPlayerManager
@@ -801,13 +1179,9 @@ class HomeViewModel: ObservableObject {
             let audioUrl = audioCache.getAudioPath(for: scheduledTime)
             audioPlayer.loadAudio(from: audioUrl)
         } else {
-            let selectedVoice = userPreferences.settings.selectedVoice
-            if let fallbackPath = getFallbackAudioPath(for: selectedVoice),
-               let audioUrl = URL(string: "file://\(fallbackPath)") {
-                audioPlayer.loadAudio(from: audioUrl)
-            } else {
-                audioPlayer.loadAudio()
-            }
+            // No cached audio available for replay - this shouldn't happen
+            // but if it does, we'll load without audio
+            audioPlayer.loadAudio()
         }
         
         audioPlayer.play()
@@ -833,10 +1207,6 @@ class HomeViewModel: ObservableObject {
         )
     }
     
-    private func getFallbackAudioPath(for voice: VoiceOption) -> String? {
-        let fileName = "voice\(voice.rawValue + 1)_fallback"
-        return Bundle.main.path(forResource: fileName, ofType: "mp3", inDirectory: "Audio/Fallbacks")
-    }
     
     private func hasCompletedOccurrence(_ scheduledTime: Date) -> Bool {
         return userPreferences.history.contains { dayStart in
@@ -908,7 +1278,8 @@ class HomeViewModel: ObservableObject {
             Task { @MainActor in
                 guard let self = self else { return }
                 self.stopLoadingTimers()
-                await self.playFallbackAudio()
+                self.connectionError = .timeout
+                self.state = .idle
             }
         }
     }
