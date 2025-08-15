@@ -2,13 +2,17 @@ import Foundation
 import SwiftUI
 import Combine
 
+/// Simplified UserPreferences with aggressive dependency deferral
+/// Only loads UserDefaults immediately, defers Keychain and all other services
 @MainActor
 class UserPreferences: ObservableObject {
     static let shared = UserPreferences()
     
     private let userDefaults = UserDefaults.standard
-    private let keychain = KeychainManager.shared
-    private let logger = DebugLogger.shared
+    
+    // Lazy-loaded dependencies (only when needed)
+    private var _keychain: KeychainManager?
+    private var _logger: DebugLogger?
     
     @Published var hasCompletedOnboarding: Bool {
         didSet {
@@ -22,7 +26,12 @@ class UserPreferences: ObservableObject {
         }
     }
     
-    @Published var settings: UserSettings
+    @Published var settings: UserSettings {
+        didSet {
+            // Only trigger settings save when changed
+            saveSettings()
+        }
+    }
     
     @Published var history: [DayStartData] {
         didSet {
@@ -33,21 +42,36 @@ class UserPreferences: ObservableObject {
     private var saveHistoryWorkItem: DispatchWorkItem?
     
     private init() {
-        // PHASE 2 OPTIMIZATION: UserDefaults-first loading for instant initialization
+        // INSTANT: Only UserDefaults loading (no dependencies)
         self.hasCompletedOnboarding = userDefaults.bool(forKey: "hasCompletedOnboarding")
         self.schedule = Self.loadScheduleFromUserDefaults() ?? DayStartSchedule()
         self.settings = Self.loadSettingsFromUserDefaults() ?? UserSettings.default
         self.history = Self.loadHistoryFromUserDefaults() ?? []
         
-        logger.log("🏎 UserPreferences initialized instantly from UserDefaults", level: .debug)
-        
-        // BACKGROUND: Reconcile with Keychain without blocking main thread
+        // DEFERRED: Keychain reconciliation happens only when needed
         Task.detached { [weak self] in
-            await self?.reconcileWithKeychain()
+            await self?.lazyReconcileWithKeychain()
         }
     }
     
-    // PHASE 2: Separate UserDefaults and Keychain loading methods
+    // MARK: - Lazy Dependencies
+    
+    private var keychain: KeychainManager {
+        if _keychain == nil {
+            _keychain = KeychainManager.shared
+        }
+        return _keychain!
+    }
+    
+    private var logger: DebugLogger {
+        if _logger == nil {
+            _logger = DebugLogger.shared
+        }
+        return _logger!
+    }
+    
+    // MARK: - Fast UserDefaults Loading (No Dependencies)
+    
     private static func loadScheduleFromUserDefaults() -> DayStartSchedule? {
         guard let data = UserDefaults.standard.data(forKey: "schedule"),
               let schedule = try? JSONDecoder().decode(DayStartSchedule.self, from: data) else {
@@ -56,11 +80,6 @@ class UserPreferences: ObservableObject {
         return schedule
     }
     
-    private static func loadScheduleFromKeychain() -> DayStartSchedule? {
-        return KeychainManager.shared.retrieve(DayStartSchedule.self, forKey: KeychainManager.Keys.schedule)
-    }
-    
-    // PHASE 2: Separate UserDefaults and Keychain loading methods
     private static func loadSettingsFromUserDefaults() -> UserSettings? {
         guard let data = UserDefaults.standard.data(forKey: "settings"),
               let settings = try? JSONDecoder().decode(UserSettings.self, from: data) else {
@@ -69,11 +88,6 @@ class UserPreferences: ObservableObject {
         return settings
     }
     
-    private static func loadSettingsFromKeychain() -> UserSettings? {
-        return KeychainManager.shared.retrieve(UserSettings.self, forKey: KeychainManager.Keys.userSettings)
-    }
-    
-    // PHASE 2: Separate UserDefaults and Keychain loading methods  
     private static func loadHistoryFromUserDefaults() -> [DayStartData]? {
         guard let data = UserDefaults.standard.data(forKey: "history"),
               let decoded = try? JSONDecoder().decode([DayStartData].self, from: data) else {
@@ -82,43 +96,14 @@ class UserPreferences: ObservableObject {
         return Self.processHistory(decoded)
     }
     
-    // PHASE 2: Background reconciliation with Keychain
-    private func reconcileWithKeychain() async {
-        logger.log("🔄 Starting background Keychain reconciliation", level: .info)
-        
-        // Load from Keychain in background
-        let keychainSchedule = Self.loadScheduleFromKeychain()
-        let keychainSettings = Self.loadSettingsFromKeychain()
-        let keychainHistory = Self.loadHistoryFromKeychain()
-        
-        await MainActor.run {
-            var hasUpdates = false
-            
-            // Update from Keychain data if it exists
-            if let keychainSchedule = keychainSchedule {
-                logger.log("🔄 Updating schedule from Keychain", level: .info)
-                self.schedule = keychainSchedule
-                hasUpdates = true
-            }
-            
-            if let keychainSettings = keychainSettings {
-                logger.log("🔄 Updating settings from Keychain", level: .info)
-                self.settings = keychainSettings
-                hasUpdates = true
-            }
-            
-            if let keychainHistory = keychainHistory {
-                logger.log("🔄 Updating history from Keychain", level: .info)
-                self.history = keychainHistory
-                hasUpdates = true
-            }
-            
-            if hasUpdates {
-                logger.log("✅ Keychain reconciliation completed with updates", level: .info)
-            } else {
-                logger.log("✅ Keychain reconciliation completed - data was in sync", level: .info)
-            }
-        }
+    // MARK: - Deferred Keychain Loading (Only When Needed)
+    
+    private static func loadScheduleFromKeychain() -> DayStartSchedule? {
+        return KeychainManager.shared.retrieve(DayStartSchedule.self, forKey: KeychainManager.Keys.schedule)
+    }
+    
+    private static func loadSettingsFromKeychain() -> UserSettings? {
+        return KeychainManager.shared.retrieve(UserSettings.self, forKey: KeychainManager.Keys.userSettings)
     }
     
     private static func loadHistoryFromKeychain() -> [DayStartData]? {
@@ -128,11 +113,46 @@ class UserPreferences: ObservableObject {
         return nil
     }
     
+    /// Background reconciliation with Keychain (deferred, non-blocking)
+    private func lazyReconcileWithKeychain() async {
+        // Load from Keychain in background (only when needed)
+        let keychainSchedule = Self.loadScheduleFromKeychain()
+        let keychainSettings = Self.loadSettingsFromKeychain()
+        let keychainHistory = Self.loadHistoryFromKeychain()
+        
+        await MainActor.run {
+            var hasUpdates = false
+            
+            // Update from Keychain data if it exists and is different
+            if let keychainSchedule = keychainSchedule, keychainSchedule != self.schedule {
+                self.schedule = keychainSchedule
+                hasUpdates = true
+            }
+            
+            if let keychainSettings = keychainSettings, keychainSettings != self.settings {
+                self.settings = keychainSettings
+                hasUpdates = true
+            }
+            
+            if let keychainHistory = keychainHistory, keychainHistory.count != self.history.count {
+                self.history = keychainHistory
+                hasUpdates = true
+            }
+            
+            if hasUpdates {
+                logger.log("✅ Keychain reconciliation completed with updates", level: .info)
+            }
+        }
+    }
+    
+    // MARK: - History Processing (Static, No Dependencies)
+    
     private static func processHistory(_ decoded: [DayStartData]) -> [DayStartData] {
         let calendar = Calendar.current
         let now = Date()
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
         let targetDate = calendar.date(from: DateComponents(year: 2025, month: 8, day: 8))
+        
         let patched: [DayStartData] = decoded.map { item in
             var updated = item
             if let targetDate = targetDate, calendar.isDate(item.date, inSameDayAs: targetDate) {
@@ -140,13 +160,13 @@ class UserPreferences: ObservableObject {
                 updated.audioFilePath = Bundle.main.path(forResource: "voice1_fallback", ofType: "mp3", inDirectory: "Audio/Fallbacks")
                 updated.isDeleted = false
             } else if item.date < sevenDaysAgo {
-                // Mark entries older than 7 days as deleted (defer file deletion to async cleanup task)
+                // Mark entries older than 7 days as deleted
                 updated.isDeleted = true
             }
             return updated
         }
         
-        // Deduplicate the patched history to remove any duplicate dates
+        // Deduplicate the patched history
         var deduplicatedHistory: [DayStartData] = []
         var seenDates: Set<DateComponents> = []
         
@@ -157,14 +177,12 @@ class UserPreferences: ObservableObject {
                 seenDates.insert(dateComponents)
                 deduplicatedHistory.append(item)
             } else {
-                // Find the existing item for this date
+                // Find existing item for this date and keep the better one
                 if let existingIndex = deduplicatedHistory.firstIndex(where: { 
                     let existingComponents = calendar.dateComponents([.year, .month, .day], from: $0.date)
                     return existingComponents == dateComponents 
                 }) {
                     let existing = deduplicatedHistory[existingIndex]
-                    
-                    // Keep the one with more data (audio) or the most recent
                     let shouldReplace = item.audioFilePath != nil && (existing.audioFilePath == nil || item.date > existing.date)
                     
                     if shouldReplace {
@@ -177,63 +195,103 @@ class UserPreferences: ObservableObject {
         return deduplicatedHistory
     }
     
+    // MARK: - Saving (Deferred Keychain)
+    
     private func saveSchedule() {
         let scheduleToSave = schedule
         
-        // PHASE 2: Save to UserDefaults immediately for fast access
+        // IMMEDIATE: Save to UserDefaults for fast access
         if let data = try? JSONEncoder().encode(scheduleToSave) {
             userDefaults.set(data, forKey: "schedule")
         }
         
-        // Background save to Keychain for security
+        // DEFERRED: Background save to Keychain
         Task.detached { [weak self] in
             guard let self = self else { return }
-            _ = self.keychain.store(scheduleToSave, forKey: KeychainManager.Keys.schedule)
+            _ = await self.keychain.store(scheduleToSave, forKey: KeychainManager.Keys.schedule)
         }
     }
     
     func saveSettings() {
         let settingsToSave = settings
         
-        // PHASE 2: Save to UserDefaults immediately for fast access
+        // IMMEDIATE: Save to UserDefaults for fast access
         if let data = try? JSONEncoder().encode(settingsToSave) {
             userDefaults.set(data, forKey: "settings")
         }
         
-        // Background save to Keychain for security
+        // DEFERRED: Background save to Keychain and job updates
         Task.detached { [weak self] in
             guard let self = self else { return }
-            let success = self.keychain.store(settingsToSave, forKey: KeychainManager.Keys.userSettings)
+            
+            // Save to keychain
+            let success = await self.keychain.store(settingsToSave, forKey: KeychainManager.Keys.userSettings)
             if !success {
                 await MainActor.run {
                     self.logger.logError(NSError(domain: "KeychainError", code: 1), context: "Failed to save user settings to Keychain")
                 }
             }
+            
+            // Update upcoming jobs (only if content generation is needed)
+            await self.updateUpcomingJobsIfNeeded(with: settingsToSave)
         }
-
-        // After saving, update upcoming scheduled jobs (next 48h) with new settings
-        Task { [weak self] in
-            guard let self = self else { return }
-            self.logger.log("🛠️ Settings saved; updating upcoming jobs with new settings", level: .info)
-            let upcomingDates = self.upcomingScheduledDates(windowHours: 48)
-            if upcomingDates.isEmpty { return }
-            do {
-                _ = try await SupabaseClient.shared.updateJobs(dates: upcomingDates, with: settingsToSave, forceRequeue: false)
-                self.logger.log("✅ Updated \(upcomingDates.count) scheduled jobs with new settings", level: .info)
-            } catch {
-                self.logger.logError(error, context: "Failed to update scheduled jobs after settings change")
+    }
+    
+    /// Update upcoming jobs only when content generation services are needed
+    private func updateUpcomingJobsIfNeeded(with settings: UserSettings) async {
+        let upcomingDates = await MainActor.run { self.upcomingScheduledDates(windowHours: 48) }
+        guard !upcomingDates.isEmpty else { return }
+        
+        do {
+            // LAZY: Only load SupabaseClient when actually updating jobs
+            let supabaseClient = ServiceRegistry.shared.supabaseClient
+            _ = try await supabaseClient.updateJobs(dates: upcomingDates, with: settings, forceRequeue: false)
+            await MainActor.run {
+                logger.log("✅ Updated \(upcomingDates.count) scheduled jobs with new settings", level: .info)
+            }
+        } catch {
+            await MainActor.run {
+                logger.logError(error, context: "Failed to update scheduled jobs after settings change")
             }
         }
     }
-
-    // MARK: - Scheduling helpers
+    
+    private func debouncedSaveHistory() {
+        saveHistoryWorkItem?.cancel()
+        
+        saveHistoryWorkItem = DispatchWorkItem { [weak self] in
+            self?.saveHistory()
+        }
+        
+        if let workItem = saveHistoryWorkItem {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
+        }
+    }
+    
+    private func saveHistory() {
+        let historyToSave = history
+        
+        // IMMEDIATE: Save to UserDefaults for fast access
+        if let data = try? JSONEncoder().encode(historyToSave) {
+            userDefaults.set(data, forKey: "history")
+        }
+        
+        // DEFERRED: Background save to Keychain
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+            _ = await self.keychain.store(historyToSave, forKey: KeychainManager.Keys.history)
+        }
+    }
+    
+    // MARK: - Scheduling Helpers (No Dependencies)
+    
     private func upcomingScheduledDates(windowHours: Int = 48) -> [Date] {
         let calendar = Calendar.current
         let now = Date()
         let maxScheduleTime = now.addingTimeInterval(TimeInterval(windowHours * 60 * 60))
         var results: [Date] = []
         
-        for dayOffset in 0..<3 { // today, tomorrow, day after
+        for dayOffset in 0..<3 {
             guard let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
             
             // Skip tomorrow if enabled
@@ -257,7 +315,7 @@ class UserPreferences: ObservableObject {
             }
         }
         
-        // Ensure unique days by local date
+        // Ensure unique days
         var uniqueByDay: [String: Date] = [:]
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
@@ -265,35 +323,7 @@ class UserPreferences: ObservableObject {
         return Array(uniqueByDay.values).sorted()
     }
     
-    
-    private func debouncedSaveHistory() {
-        // Cancel any pending save
-        saveHistoryWorkItem?.cancel()
-        
-        // Schedule new save with 0.5s delay to batch rapid changes
-        saveHistoryWorkItem = DispatchWorkItem { [weak self] in
-            self?.saveHistory()
-        }
-        
-        if let workItem = saveHistoryWorkItem {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
-        }
-    }
-    
-    private func saveHistory() {
-        let historyToSave = history
-        
-        // PHASE 2: Save to UserDefaults immediately for fast access
-        if let data = try? JSONEncoder().encode(historyToSave) {
-            userDefaults.set(data, forKey: "history")
-        }
-        
-        // Background save to Keychain for security
-        Task.detached { [weak self] in
-            guard let self = self else { return }
-            _ = self.keychain.store(historyToSave, forKey: KeychainManager.Keys.history)
-        }
-    }
+    // MARK: - History Management
     
     func addToHistory(_ dayStart: DayStartData) {
         history.insert(dayStart, at: 0)
@@ -317,7 +347,6 @@ class UserPreferences: ObservableObject {
         
         var updatedItem = history[index]
         
-        // Update fields if provided
         if let transcript = transcript {
             updatedItem.transcript = transcript
         }
@@ -330,10 +359,8 @@ class UserPreferences: ObservableObject {
             updatedItem.audioFilePath = audioFilePath
         }
         
-        // Replace the item in history
         history[index] = updatedItem
-        
-        logger.log("✅ Updated history item: id=\(id), transcript=\(transcript != nil), duration=\(duration != nil), audioPath=\(audioFilePath != nil)", level: .info)
+        logger.log("✅ Updated history item: id=\(id)", level: .info)
     }
     
     func isWithinLockoutPeriod(of date: Date) -> Bool {
@@ -341,17 +368,13 @@ class UserPreferences: ObservableObject {
         return hoursUntil < 4 && hoursUntil > 0
     }
     
-    // MARK: - Audio Cleanup
+    // MARK: - Audio Cleanup (Deferred, No Dependencies in Call Path)
+    
     nonisolated func cleanupOldAudioFiles() async {
-        await MainActor.run {
-            logger.log("🧹 Starting cleanup of old audio files", level: .info)
-        }
-        
         let calendar = Calendar.current
         let now = Date()
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
         
-        // Work with a copy to avoid concurrent modifications
         let currentHistory = await history
         var updatedHistory = currentHistory
         var deletedCount = 0
@@ -360,38 +383,27 @@ class UserPreferences: ObservableObject {
         for i in 0..<updatedHistory.count {
             let item = updatedHistory[i]
             
-            // Skip if already marked as deleted or not old enough
             guard !item.isDeleted && item.date < sevenDaysAgo else { continue }
             
             // Delete the audio file if it exists and isn't bundled
             if let audioPath = item.audioFilePath,
-               !audioPath.contains(".app/"), // Skip bundled resources
+               !audioPath.contains(".app/"),
                FileManager.default.fileExists(atPath: audioPath) {
                 do {
                     try FileManager.default.removeItem(atPath: audioPath)
-                    await MainActor.run {
-                    }
                     deletedCount += 1
                 } catch {
-                    await MainActor.run {
-                        logger.logError(error, context: "Failed to delete audio file: \(audioPath)")
-                    }
                     errorCount += 1
                 }
             }
             
-            // Mark as deleted
             updatedHistory[i].isDeleted = true
         }
         
-        // Update history on main thread if any changes were made
+        // Update history on main thread if changes were made
         if deletedCount > 0 || updatedHistory.contains(where: { !$0.isDeleted && $0.date < sevenDaysAgo }) {
             await MainActor.run {
                 history = updatedHistory
-                logger.log("✅ Audio cleanup completed: \(deletedCount) files deleted, \(errorCount) errors", level: .info)
-            }
-        } else {
-            await MainActor.run {
             }
         }
     }

@@ -2,6 +2,67 @@ import SwiftUI
 import StoreKit
 import CoreLocation
 
+struct ContentToggleRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    @Binding var isOn: Bool
+    var accessoryContent: (() -> AnyView)? = nil
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Text(icon)
+                    .font(.system(size: 24))
+                    .frame(width: 32, height: 32)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                    
+                    Text(subtitle)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                }
+                
+                Spacer()
+                
+                Toggle("", isOn: $isOn)
+                    .labelsHidden()
+                    .tint(BananaTheme.ColorToken.primary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            
+            if isOn, let accessoryContent = accessoryContent {
+                accessoryContent()
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+                    .transition(.opacity.combined(with: .scale))
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(BananaTheme.ColorToken.card)
+                .stroke(BananaTheme.ColorToken.border.opacity(0.2), lineWidth: 1)
+        )
+    }
+}
+
+struct Product {
+    let id: String
+    let displayName: String
+    let description: String
+    let price: Double
+    let displayPrice: String
+    let type: ProductType
+    
+    enum ProductType {
+        case autoRenewable
+    }
+}
+
 struct OnboardingView: View {
     let onComplete: () -> Void
     
@@ -12,41 +73,66 @@ struct OnboardingView: View {
     @State private var selectedTime = Calendar.current.date(from: DateComponents(hour: 7, minute: 0)) ?? Date()
     @State private var selectedDays: Set<WeekDay> = Set([.monday, .tuesday, .wednesday, .thursday, .friday])
     @State private var includeWeather = false
-    @State private var includeNews = true  // Auto-selected
-    @State private var includeSports = true  // Auto-selected
-    @State private var includeStocks = true  // Auto-selected
+    @State private var includeNews = true
+    @State private var includeSports = true
+    @State private var includeStocks = true
     @State private var stockSymbols = "SPY, DIA, BTC-USD"
     @State private var includeCalendar = false
     @State private var includeQuotes = true
     @State private var selectedQuoteType: QuotePreference = .inspirational
     @State private var selectedVoice: VoiceOption? = nil
     @State private var dayStartLength = 5
-    @State private var showingPaywall = false
     @State private var selectedProduct: Product?
     
     // Permission states
-    @State private var isRequestingLocationPermission = false
-    @State private var isRequestingCalendarPermission = false
-    @State private var showingLocationPermissionDialog = false
-    @State private var showingCalendarPermissionDialog = false
-    @State private var showingLocationDeniedAlert = false
-    @State private var showingCalendarDeniedAlert = false
+    @State private var locationPermissionStatus: PermissionStatus = .notDetermined
+    @State private var calendarPermissionStatus: PermissionStatus = .notDetermined
+    @State private var showingLocationError = false
+    @State private var showingCalendarError = false
+    
+    // Animation states
+    @State private var animationTrigger = false
+    @State private var heroScale: CGFloat = 1.0
+    @State private var textOpacity: Double = 1.0  // Start visible for first page
+    
+    // Date formatter
+    private var shortTimeFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }
     
     @StateObject private var themeManager = ThemeManager.shared
     @Environment(\.colorScheme) var colorScheme
     
-    private let totalPages = 5
+    private let totalPages = 10
     
+    enum PermissionStatus {
+        case notDetermined, granted, denied
+    }
+    
+    // MARK: - Computed Properties
     var progressPercentage: Double {
         Double(currentPage + 1) / Double(totalPages)
+    }
+    
+    var progressText: String {
+        "\(Int(progressPercentage * 100))% Complete"
+    }
+    
+    var isNameValid: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
+    var isVoiceSelected: Bool {
+        selectedVoice != nil
     }
     
     var selectedDaysSummary: String {
         let sortedDays = selectedDays.sorted { $0.rawValue < $1.rawValue }
         
-        // Check for common patterns
         if selectedDays.count == 7 {
-            return "All days"
+            return "day"
         } else if selectedDays.count == 0 {
             return "No days selected"
         } else if selectedDays == Set([.monday, .tuesday, .wednesday, .thursday, .friday]) {
@@ -56,14 +142,14 @@ struct OnboardingView: View {
         } else if selectedDays.count == 1 {
             return sortedDays.first!.name
         } else {
-            // For custom selections, list the days
             return sortedDays.map { $0.name }.joined(separator: ", ")
         }
     }
     
+    // MARK: - Body
     var body: some View {
         ZStack {
-            // Opaque background to prevent home screen showing through
+            // Background
             BananaTheme.ColorToken.background
                 .ignoresSafeArea()
             
@@ -80,46 +166,50 @@ struct OnboardingView: View {
                     .padding(.top, BananaTheme.Spacing.md)
                 
                 // Progress text
-                Text("\(Int(progressPercentage * 100))% Complete")
+                Text(progressText)
                     .font(BananaTheme.Typography.caption)
                     .foregroundColor(BananaTheme.ColorToken.secondaryText)
                     .padding(.top, BananaTheme.Spacing.sm)
                 
                 // Page content
                 TabView(selection: $currentPage) {
-                    painPointPage
-                        .tag(0)
-                    
-                    solutionPersonalizationPage
-                        .tag(1)
-                    
-                    contentSelectionPage
-                        .tag(2)
-                    
-                    voiceExperiencePage
-                        .tag(3)
-                    
-                    paywallPage
-                        .tag(4)
+                    painPointPage.tag(0)
+                    valueDemoPage.tag(1)
+                    namePersonalizationPage.tag(2)
+                    scheduleSetupPage.tag(3)
+                    contentSelectionPage.tag(4)
+                    weatherPermissionPage.tag(5)
+                    calendarPermissionPage.tag(6)
+                    voiceSelectionPage.tag(7)
+                    finalPreviewPage.tag(8)
+                    paywallPage.tag(9)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
-                .sensoryFeedback(.selection, trigger: currentPage) { _, _ in
-                    false // Disable all haptic feedback during page transitions
-                }
                 .onAppear {
-                    logger.log("🎓 Onboarding view appeared", level: .info)
+                    logger.log("🎓 New onboarding view appeared", level: .info)
                     logger.logUserAction("Onboarding started", details: ["initialPage": currentPage])
-                }
-                .onChange(of: currentPage) { newPage in
-                    // Stop any playing voice preview when navigating between pages
-                    AudioPlayerManager.shared.stopVoicePreview()
                     
-                    // Dismiss keyboard when changing pages
+                    // Ensure first page animations start properly with a slight delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        startPageAnimation()
+                    }
+                }
+                .onChange(of: currentPage) { oldPage, newPage in
+                    AudioPlayerManager.shared.stopVoicePreview()
                     hideKeyboard()
                     
+                    // Reset animations first
+                    textOpacity = 0.0
+                    animationTrigger = false
+                    
+                    // Start animations with delay to ensure reset takes effect
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        startPageAnimation()
+                    }
+                    
                     logger.logUserAction("Onboarding page changed", details: [
-                        "fromPage": currentPage,
+                        "fromPage": oldPage,
                         "toPage": newPage,
                         "pageName": getPageName(for: newPage)
                     ])
@@ -128,499 +218,1005 @@ struct OnboardingView: View {
         }
     }
     
-    // MARK: - Page 1: Pain Point Introduction
+    // MARK: - Page 1: Pain Point Hook (10%)
     private var painPointPage: some View {
-        VStack(spacing: 0) {
-            Spacer()
-            
-            VStack(spacing: BananaTheme.Spacing.xl) {
-                // Animated emoji transition
-                VStack(spacing: BananaTheme.Spacing.md) {
-                    Text("😴")
-                        .font(.system(size: 100))
-                        .scaleEffect(1.2)
-                        .animation(
-                            Animation.easeInOut(duration: 2)
-                                .repeatForever(autoreverses: true),
-                            value: currentPage
-                        )
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                VStack(spacing: geometry.size.height * 0.04) {
+                    // Animated emoji transformation
+                    HStack(spacing: 20) {
+                        Text("😴")
+                            .font(.system(size: min(80, geometry.size.width * 0.15)))
+                            .scaleEffect(animationTrigger ? 0.8 : 1.2)
+                            .opacity(animationTrigger ? 0.3 : 1.0)
+                        
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: min(30, geometry.size.width * 0.08)))
+                            .foregroundColor(BananaTheme.ColorToken.primary)
+                            .scaleEffect(animationTrigger ? 1.2 : 0.8)
+                        
+                        Text("😊")
+                            .font(.system(size: min(80, geometry.size.width * 0.15)))
+                            .scaleEffect(animationTrigger ? 1.2 : 0.8)
+                            .opacity(animationTrigger ? 1.0 : 0.3)
+                    }
+                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
                     
-                    Text("Mornings Suck. We Get It.")
-                        .adaptiveFont(BananaTheme.Typography.largeTitle)
-                        .foregroundColor(BananaTheme.ColorToken.text)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                    
-                    Text("Most people are filled with unorganized dread in the morning.")
-                        .font(BananaTheme.Typography.body)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, BananaTheme.Spacing.lg)
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("Mornings Suck. We Get It.")
+                            .font(.system(size: min(32, geometry.size.width * 0.08), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .opacity(textOpacity)
+                        
+                        Text("Most people start their day feeling lost and overwhelmed.")
+                            .font(.system(size: min(18, geometry.size.width * 0.045), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
+                    }
                 }
                 
-                // Pain points
-                VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
-                    PainPointRow(text: "Unsure where to start")
-                    PainPointRow(text: "Overwhelmed by the day ahead")
-                    PainPointRow(text: "No motivation to get up")
-                    PainPointRow(text: "Same boring routine")
+                Spacer(minLength: geometry.size.height * 0.06)
+                
+                // Pain points grid
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
+                    PainPointCard(icon: "❌", text: "Unsure where to start", geometry: geometry)
+                    PainPointCard(icon: "❌", text: "Overwhelmed by the day", geometry: geometry)
+                    PainPointCard(icon: "❌", text: "No motivation to rise", geometry: geometry)
+                    PainPointCard(icon: "❌", text: "Same boring routine", geometry: geometry)
                 }
-                .padding(.horizontal, BananaTheme.Spacing.xl)
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .opacity(textOpacity)
+                
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                // CTA Button
+                Button(action: { 
+                    logger.logUserAction("Pain point CTA tapped")
+                    impactFeedback()
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                        currentPage = 1 
+                    }
+                }) {
+                    Text("Transform My Mornings")
+                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(56, geometry.size.height * 0.07))
+                        .background(
+                            LinearGradient(
+                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(16)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .opacity(textOpacity)
             }
-            
-            Spacer()
-            
-            // CTA Button
-            Button(action: { 
-                logger.logUserAction("Pain point CTA tapped")
-                withAnimation { currentPage = 1 }
-            }) {
-                Text("Let's Fix This")
-                    .adaptiveFont(BananaTheme.Typography.headline)
-                    .frame(maxWidth: .infinity)
-            }
-            .bananaPrimaryButton()
-            .padding(.horizontal, BananaTheme.Spacing.xl)
-            .padding(.bottom, BananaTheme.Spacing.xl)
         }
     }
     
-    // MARK: - Page 2: Solution & Personalization
-    private var solutionPersonalizationPage: some View {
-        ScrollView {
-            VStack(spacing: BananaTheme.Spacing.xl) {
-                Spacer(minLength: BananaTheme.Spacing.xl)
+    // MARK: - Page 2: Value Demo (20%)
+    private var valueDemoPage: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
                 
-                // Animated phone with sound waves
-                ZStack {
-                    Image(systemName: "iphone")
-                        .font(.system(size: 80))
-                        .foregroundColor(BananaTheme.ColorToken.primary)
+                VStack(spacing: geometry.size.height * 0.05) {
+                    animatedPhoneView(geometry: geometry)
                     
-                    Image(systemName: "speaker.wave.3.fill")
-                        .font(.system(size: 30))
-                        .foregroundColor(BananaTheme.ColorToken.accent)
-                        .offset(x: 50, y: -20)
-                        .scaleEffect(1.2)
-                        .animation(
-                            Animation.easeInOut(duration: 1)
-                                .repeatForever(autoreverses: true),
-                            value: currentPage
-                        )
+                    valueDemoText(geometry: geometry)
                 }
-                .padding(.bottom)
                 
-                VStack(spacing: BananaTheme.Spacing.md) {
-                    Text("Your Personal Morning Briefing")
-                        .adaptiveFont(BananaTheme.Typography.title)
+                Spacer(minLength: geometry.size.height * 0.04)
+                
+                // Feature preview cards
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 16) {
+                    FeaturePreviewCard(icon: "📰", title: "News", subtitle: "Stay informed", geometry: geometry)
+                    FeaturePreviewCard(icon: "☁️", title: "Weather", subtitle: "Dress right", geometry: geometry)
+                    FeaturePreviewCard(icon: "📅", title: "Calendar", subtitle: "Never miss", geometry: geometry)
+                }
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .opacity(textOpacity)
+                
+                Spacer(minLength: geometry.size.height * 0.04)
+                
+                // Social proof
+                HStack(spacing: 8) {
+                    ForEach(0..<5) { _ in
+                        Image(systemName: "star.fill")
+                            .foregroundColor(BananaTheme.ColorToken.primary)
+                            .font(.system(size: min(16, geometry.size.width * 0.04)))
+                    }
+                    Text("Join others who start better")
+                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                }
+                .opacity(textOpacity)
+                
+                Spacer(minLength: geometry.size.height * 0.06)
+                
+                // CTA
+                Button(action: {
+                    logger.logUserAction("Value demo CTA tapped")
+                    impactFeedback()
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                        currentPage = 2 
+                    }
+                }) {
+                    Text("See How It Works")
+                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(56, geometry.size.height * 0.07))
+                        .background(
+                            LinearGradient(
+                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(16)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .opacity(textOpacity)
+            }
+        }
+    }
+    
+    // MARK: - Page 3: Name Personalization (30%)
+    private var namePersonalizationPage: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                VStack(spacing: geometry.size.height * 0.05) {
+                    // Greeting animation
+                    Text("👋")
+                        .font(.system(size: min(100, geometry.size.width * 0.2)))
+                        .scaleEffect(animationTrigger ? 1.2 : 0.9)
+                        .rotationEffect(.degrees(animationTrigger ? 15 : -15))
+                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: animationTrigger)
+                    
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("Let's Make This Personal")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .opacity(textOpacity)
+                        
+                        Text("Your AI will greet you by name each morning")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
+                    }
+                }
+                
+                Spacer(minLength: geometry.size.height * 0.06)
+                
+                // Name input
+                VStack(spacing: geometry.size.height * 0.03) {
+                    TextField("What should I call you?", text: $name)
+                        .font(.system(size: min(24, geometry.size.width * 0.06), weight: .medium))
                         .foregroundColor(BananaTheme.ColorToken.text)
                         .multilineTextAlignment(.center)
+                        .padding(.vertical, 20)
+                        .padding(.horizontal, 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(BananaTheme.ColorToken.card)
+                                .stroke(isNameValid ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border, lineWidth: 2)
+                        )
+                        .padding(.horizontal, geometry.size.width * 0.08)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            if isNameValid {
+                                impactFeedback()
+                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                    currentPage = 3
+                                }
+                            }
+                        }
+                        .opacity(textOpacity)
                     
-                    Text("Have a personalized start to the day ready for you when you wake up.")
-                        .font(BananaTheme.Typography.body)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                        .multilineTextAlignment(.center)
+                    // Preview
+                    if !name.isEmpty {
+                        Text("Good morning \(name)! Ready to conquer today?")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.primary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .transition(.opacity.combined(with: .scale))
+                    }
                 }
-                .padding(.horizontal, BananaTheme.Spacing.xl)
                 
-                // Personalization inputs
-                VStack(spacing: BananaTheme.Spacing.lg) {
-                    VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
-                        HStack {
-                            Text("Your Name")
-                                .foregroundColor(BananaTheme.ColorToken.text)
-                            
-                            Spacer(minLength: BananaTheme.Spacing.md)
-                            
-                            TextField("Optional", text: $name)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .font(BananaTheme.Typography.body)
-                                .submitLabel(.done)
-                                .onSubmit {
-                                    hideKeyboard()
-                                }
-                                .onChange(of: name) { newValue in
-                                    if newValue.count > 50 {
-                                        name = String(newValue.prefix(50))
-                                    }
-                                }
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                // CTA Buttons
+                VStack(spacing: 16) {
+                    Button(action: {
+                        logger.logUserAction("Name personalization CTA tapped", details: ["hasName": !name.isEmpty])
+                        impactFeedback()
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 3
+                        }
+                    }) {
+                        Text(isNameValid ? "That's Perfect!" : "Continue")
+                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(56, geometry.size.height * 0.07))
+                            .background(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(16)
+                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                    .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                    
+                    // Skip button
+                    Button(action: {
+                        logger.logUserAction("Name personalization skipped")
+                        impactFeedback()
+                        name = "" // Clear name if they skip
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 3
+                        }
+                    }) {
+                        Text("Skip for now")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
+                }
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .opacity(textOpacity)
+            }
+        }
+    }
+    
+    // MARK: - Page 4: Schedule Setup (40%)
+    private var scheduleSetupPage: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                VStack(spacing: geometry.size.height * 0.05) {
+                    // Clock with sunrise animation
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.orange.opacity(0.3), Color.yellow.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: min(120, geometry.size.width * 0.25))
+                        
+                        Text("⏰")
+                            .font(.system(size: min(60, geometry.size.width * 0.12)))
+                            .scaleEffect(animationTrigger ? 1.1 : 0.9)
+                            .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
+                        
+                        // Sunrise rays
+                        ForEach(0..<8) { index in
+                            Rectangle()
+                                .fill(Color.orange.opacity(0.6))
+                                .frame(width: 3, height: 20)
+                                .offset(y: -50)
+                                .rotationEffect(.degrees(Double(index) * 45))
+                                .opacity(animationTrigger ? 1.0 : 0.3)
+                                .animation(.easeInOut(duration: 2.0).repeatForever().delay(Double(index) * 0.1), value: animationTrigger)
                         }
                     }
                     
-                    VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
-                        HStack {
-                            Text("When should your personalized briefing be ready?")
-                                .foregroundColor(BananaTheme.ColorToken.text)
-                            
-                            Spacer()
-                            
-                            DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
-                                .labelsHidden()
-                        }
-                    }
-                    
-                    VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
-                        Text("Which days?")
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("When Do You Rise?")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .multilineTextAlignment(.center)
+                            .opacity(textOpacity)
+                        
+                        Text("We'll have your briefing ready when you wake up")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
+                    }
+                }
+                
+                Spacer(minLength: geometry.size.height * 0.04)
+                
+                // Time picker and days selection
+                VStack(spacing: geometry.size.height * 0.04) {
+                    // Time picker
+                    VStack(spacing: 16) {
+                        Text("Briefing Time")
+                            .font(.system(size: min(18, geometry.size.width * 0.045), weight: .semibold))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .opacity(textOpacity)
                         
                         HStack {
+                            Spacer()
+                            DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                                .datePickerStyle(.wheel)
+                                .labelsHidden()
+                                .frame(height: min(120, geometry.size.height * 0.15))
+                                .clipped()
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .opacity(textOpacity)
+                    }
+                    
+                    // Days selection
+                    VStack(spacing: 16) {
+                        Text("Which Days?")
+                            .font(.system(size: min(18, geometry.size.width * 0.045), weight: .semibold))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .opacity(textOpacity)
+                        
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), spacing: 8) {
                             ForEach(WeekDay.allCases, id: \.id) { day in
                                 Button(action: {
                                     let wasSelected = selectedDays.contains(day)
                                     if wasSelected {
                                         selectedDays.remove(day)
-                                        logger.logUserAction("Day deselected", details: ["day": day.name])
                                     } else {
                                         selectedDays.insert(day)
-                                        logger.logUserAction("Day selected", details: ["day": day.name])
                                     }
+                                    impactFeedback()
                                 }) {
-                                    Text(day.name)
-                                        .font(.caption)
-                                        .fontWeight(selectedDays.contains(day) ? .bold : .regular)
-                                        .foregroundColor(selectedDays.contains(day) ? .white : BananaTheme.ColorToken.text)
-                                        .frame(width: 30, height: 30)
-                                        .background(selectedDays.contains(day) ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
-                                        .clipShape(Circle())
+                                    VStack(spacing: 4) {
+                                        Text(String(day.name.prefix(1)))
+                                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .bold))
+                                            .foregroundColor(selectedDays.contains(day) ? .white : BananaTheme.ColorToken.text)
+                                        
+                                        Text(day.name)
+                                            .font(.system(size: min(10, geometry.size.width * 0.025), weight: .medium))
+                                            .foregroundColor(selectedDays.contains(day) ? .white : BananaTheme.ColorToken.secondaryText)
+                                    }
+                                    .frame(width: min(40, geometry.size.width * 0.1), height: min(50, geometry.size.height * 0.06))
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(selectedDays.contains(day) ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
+                                            .stroke(selectedDays.contains(day) ? Color.clear : BananaTheme.ColorToken.border, lineWidth: 1)
+                                    )
                                 }
-                                
-                                if day != WeekDay.allCases.last {
-                                    Spacer()
-                                }
+                                .scaleEffect(selectedDays.contains(day) ? 1.05 : 1.0)
+                                .animation(.spring(response: 0.3), value: selectedDays.contains(day))
                             }
                         }
-                        
-                        // Days Selected summary
-                        HStack {
-                            Text("Days Selected:")
-                                .font(BananaTheme.Typography.caption)
-                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                            
-                            Text(selectedDaysSummary)
-                                .font(BananaTheme.Typography.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(BananaTheme.ColorToken.primary)
-                        }
-                        .padding(.top, BananaTheme.Spacing.xs)
+                        .padding(.horizontal, geometry.size.width * 0.08)
+                        .opacity(textOpacity)
+                    }
+                    
+                    // Preview
+                    if !selectedDays.isEmpty {
+                        Text("Your briefing will be ready every \(selectedDaysSummary) at \(shortTimeFormatter.string(from: selectedTime))")
+                            .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.primary)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .transition(.opacity.combined(with: .scale))
                     }
                 }
-                .padding(.horizontal, BananaTheme.Spacing.xl)
                 
-                Text("DayStart creates a personalized audio briefing just for you - like having a trusted friend catch you up on everything that matters")
-                    .font(BananaTheme.Typography.caption)
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, BananaTheme.Spacing.xl)
+                Spacer(minLength: geometry.size.height * 0.06)
                 
-                Spacer(minLength: BananaTheme.Spacing.xl)
-                
-                // Bottom spacer for better scrolling  
-                Spacer(minLength: 60)
-            }
-        }
-        .onTapGesture {
-            hideKeyboard()
-        }
-        .overlay(
-            VStack {
-                Spacer()
-                
-                // Gradient backdrop for navigation buttons
-                VStack(spacing: 0) {
-                    LinearGradient(
-                        colors: [
-                            BananaTheme.ColorToken.background.opacity(0),
-                            BananaTheme.ColorToken.background.opacity(0.8),
-                            BananaTheme.ColorToken.background
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 160)
-                    .allowsHitTesting(false)
-                }
-                .frame(maxWidth: .infinity)
-                .ignoresSafeArea(edges: .bottom)
-                .overlay(
-                    VStack {
-                        Spacer()
-                        navigationButtons
+                // CTA
+                Button(action: {
+                    logger.logUserAction("Schedule setup CTA tapped")
+                    impactFeedback()
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                        currentPage = 4
                     }
-                )
+                }) {
+                    Text("Lock It In!")
+                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(56, geometry.size.height * 0.07))
+                        .background(
+                            LinearGradient(
+                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(16)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .opacity(textOpacity)
             }
-        )
+        }
     }
     
-    // MARK: - Page 3: Content Selection
+    // MARK: - Page 5: Content Selection (50%)
     private var contentSelectionPage: some View {
-        ScrollView {
-            VStack(spacing: BananaTheme.Spacing.xl) {
-                Spacer(minLength: BananaTheme.Spacing.xl)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
                 
-                
-                VStack(spacing: BananaTheme.Spacing.md) {
-                    Text("What gets you started ☕")
-                        .adaptiveFont(BananaTheme.Typography.title)
-                        .foregroundColor(BananaTheme.ColorToken.text)
-                        .multilineTextAlignment(.center)
+                VStack(spacing: geometry.size.height * 0.05) {
+                    // Floating content icons
+                    floatingIconsView(geometry: geometry)
                     
-                    Text("Choose what to include in your personalized morning briefing.")
-                        .font(BananaTheme.Typography.body)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("What Gets You Pumped?")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .opacity(textOpacity)
+                        
+                        Text("Choose what matters to you most")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
+                    }
                 }
                 
-                // Content toggles
-                VStack(spacing: BananaTheme.Spacing.md) {
+                Spacer(minLength: geometry.size.height * 0.02)
+                
+                // Content selection toggles
+                VStack(spacing: 14) {
                     ContentToggleRow(
-                        icon: "sun.max.fill",
-                        title: "Weather",
-                        subtitle: "Start dressed for success",
-                        isOn: $includeWeather
-                    )
-                    .onChange(of: includeWeather) { enabled in
-                        if enabled {
-                            Task {
-                                await requestLocationPermission()
-                            }
-                        }
-                    }
-                    
-                    ContentToggleRow(
-                        icon: "newspaper.fill",
+                        icon: "📰",
                         title: "News",
-                        subtitle: "Stay informed, not overwhelmed",
+                        subtitle: "Latest headlines and updates",
                         isOn: $includeNews
                     )
                     
                     ContentToggleRow(
-                        icon: "sportscourt.fill",
+                        icon: "🏈",
                         title: "Sports",
-                        subtitle: "Hot dog eating and others",
+                        subtitle: "Scores and highlights",
                         isOn: $includeSports
                     )
                     
                     ContentToggleRow(
-                        icon: "chart.line.uptrend.xyaxis",
+                        icon: "📈",
                         title: "Stocks",
-                        subtitle: "Your portfolio at a glance",
-                        isOn: $includeStocks
-                    )
-                    
-                    if includeStocks {
-                        VStack(alignment: .leading, spacing: BananaTheme.Spacing.sm) {
-                            TextField("Enter symbols: SPY, DIA, BTC-USD", text: $stockSymbols)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .font(BananaTheme.Typography.body)
-                                .padding(.leading, BananaTheme.Spacing.xl)
-                                .submitLabel(.done)
-                                .onSubmit {
-                                    hideKeyboard()
-                                }
-                                .onChange(of: stockSymbols) { newValue in
-                                    if newValue.count > 100 {
-                                        stockSymbols = String(newValue.prefix(100))
-                                    }
-                                }
+                        subtitle: "Market updates and prices",
+                        isOn: $includeStocks,
+                        accessoryContent: {
+                            AnyView(
+                                TextField("SPY, AAPL, BTC-USD", text: $stockSymbols)
+                                    .font(.system(size: 14))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(BananaTheme.ColorToken.background)
+                                            .stroke(BananaTheme.ColorToken.border.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .submitLabel(.done)
+                                    .onSubmit { hideKeyboard() }
+                            )
                         }
-                        .transition(.slide)
-                    }
+                    )
                     
                     ContentToggleRow(
-                        icon: "calendar.circle.fill",
-                        title: "Calendar",
-                        subtitle: "Your events and meetings",
-                        isOn: $includeCalendar
-                    )
-                    .onChange(of: includeCalendar) { enabled in
-                        if enabled {
-                            Task {
-                                await requestCalendarPermission()
-                            }
-                        }
-                    }
-                    
-                    // Daily Wisdom with integrated Quote Style picker
-                    VStack(spacing: 0) {
-                        VStack(spacing: BananaTheme.Spacing.sm) {
-                            HStack {
-                                Image(systemName: "quote.bubble.fill")
-                                    .font(.title2)
-                                    .foregroundColor(BananaTheme.ColorToken.primary)
-                                    .frame(width: 40)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Daily Wisdom")
-                                        .adaptiveFont(BananaTheme.Typography.headline)
-                                        .foregroundColor(BananaTheme.ColorToken.text)
-                                    
-                                    Text("Motivation that actually helps")
-                                        .font(BananaTheme.Typography.caption)
-                                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                                }
-                                
-                                Spacer()
-                                
-                                Toggle("", isOn: $includeQuotes)
-                                    .labelsHidden()
-                                    .tint(BananaTheme.ColorToken.primary)
-                            }
-                            
-                            if includeQuotes {
-                                HStack {
-                                    Spacer().frame(width: 40) // Align with content above
-                                    
-                                    Text("Quote Style")
-                                        .foregroundColor(BananaTheme.ColorToken.text)
-                                    
-                                    Spacer()
-                                    
-                                    Picker("Quote Style", selection: $selectedQuoteType) {
-                                        ForEach(QuotePreference.allCases, id: \.self) { preference in
-                                            Text(preference.name).tag(preference)
+                        icon: "💬",
+                        title: "Motivational Quotes",
+                        subtitle: "Daily inspiration and wisdom",
+                        isOn: $includeQuotes,
+                        accessoryContent: {
+                            AnyView(
+                                HStack(spacing: 8) {
+                                    ForEach([QuotePreference.inspirational, QuotePreference.philosophical, QuotePreference.stoic], id: \.self) { preference in
+                                        Button(action: {
+                                            selectedQuoteType = preference
+                                            impactFeedback()
+                                        }) {
+                                            Text(preference.rawValue.capitalized)
+                                                .font(.system(size: 12, weight: .medium))
+                                                .foregroundColor(selectedQuoteType == preference ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.text)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .fill(selectedQuoteType == preference ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.background)
+                                                        .stroke(BananaTheme.ColorToken.border.opacity(selectedQuoteType == preference ? 0 : 0.3), lineWidth: 1)
+                                                )
                                         }
                                     }
-                                    .pickerStyle(MenuPickerStyle())
-                                    .accentColor(BananaTheme.ColorToken.primary)
+                                    Spacer()
                                 }
-                                .transition(.slide)
-                            }
+                            )
                         }
-                        .padding(.vertical, BananaTheme.Spacing.sm)
-                        .padding(.horizontal, BananaTheme.Spacing.md)
-                        .background(BananaTheme.ColorToken.card)
-                        .cornerRadius(BananaTheme.CornerRadius.md)
-                    }
-                }
-                .padding(.horizontal, BananaTheme.Spacing.lg)
-                
-                Spacer(minLength: BananaTheme.Spacing.xl)
-                
-                // Bottom spacer to prevent content being covered
-                Spacer(minLength: 110)
-            }
-        }
-        .onTapGesture {
-            hideKeyboard()
-        }
-        .overlay(
-            VStack {
-                Spacer()
-                
-                // Gradient backdrop for navigation buttons
-                VStack(spacing: 0) {
-                    LinearGradient(
-                        colors: [
-                            BananaTheme.ColorToken.background.opacity(0),
-                            BananaTheme.ColorToken.background.opacity(0.8),
-                            BananaTheme.ColorToken.background
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
                     )
-                    .frame(height: 160)
-                    .allowsHitTesting(false)
                 }
-                .frame(maxWidth: .infinity)
-                .ignoresSafeArea(edges: .bottom)
-                .overlay(
-                    VStack {
-                        Spacer()
-                        navigationButtons
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .opacity(textOpacity)
+                
+                Spacer(minLength: geometry.size.height * 0.03)
+                
+                // CTA
+                Button(action: {
+                    logger.logUserAction("Content selection CTA tapped")
+                    impactFeedback()
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                        currentPage = 5
                     }
-                )
-            }
-        )
-        .alert("Location Access Required", isPresented: $showingLocationDeniedAlert) {
-            Button("Open Settings") {
-                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(settingsURL)
+                }) {
+                    Text("Perfect Mix!")
+                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(56, geometry.size.height * 0.07))
+                        .background(
+                            LinearGradient(
+                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(16)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
+                .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .opacity(textOpacity)
             }
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("Weather updates require location access. You can enable this in Settings > DayStart > Location.")
-        }
-        .alert("Calendar Access Required", isPresented: $showingCalendarDeniedAlert) {
-            Button("Open Settings") {
-                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(settingsURL)
-                }
-            }
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("Calendar events require calendar access. You can enable this in Settings > DayStart > Calendars.")
         }
     }
     
-    // MARK: - Page 4: Voice & Experience
-    private var voiceExperiencePage: some View {
-        ScrollView {
-            VStack(spacing: BananaTheme.Spacing.xl) {
-                Spacer(minLength: BananaTheme.Spacing.xl)
+    // MARK: - Page 6: Weather Permission (60%)
+    private var weatherPermissionPage: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
                 
-                // Voice waveform animation
-                Image(systemName: "waveform")
-                    .font(.system(size: 80))
-                    .foregroundColor(BananaTheme.ColorToken.primary)
-                    .scaleEffect(x: 1.2, y: 1, anchor: .center)
-                    .animation(
-                        Animation.easeInOut(duration: 1.5)
-                            .repeatForever(autoreverses: true),
-                        value: currentPage
-                    )
-                    .padding(.bottom)
-                
-                VStack(spacing: BananaTheme.Spacing.md) {
-                    Text("Your Perfect Morning Voice")
-                        .adaptiveFont(BananaTheme.Typography.title)
-                        .foregroundColor(BananaTheme.ColorToken.text)
-                        .multilineTextAlignment(.center)
+                VStack(spacing: geometry.size.height * 0.05) {
+                    // Weather animation with location
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.blue.opacity(0.3), Color.cyan.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: min(140, geometry.size.width * 0.3))
+                        
+                        VStack(spacing: 8) {
+                            Text("🌤️")
+                                .font(.system(size: min(50, geometry.size.width * 0.1)))
+                                .scaleEffect(animationTrigger ? 1.1 : 0.9)
+                            
+                            Image(systemName: "location.fill")
+                                .font(.system(size: min(20, geometry.size.width * 0.05)))
+                                .foregroundColor(BananaTheme.ColorToken.primary)
+                                .scaleEffect(animationTrigger ? 1.2 : 0.8)
+                        }
+                        .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
+                    }
                     
-                    Text("Choose how you want to start your day")
-                        .font(BananaTheme.Typography.body)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("Know Before You Go")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .opacity(textOpacity)
+                        
+                        Text("Get dressed right for the day ahead")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
+                    }
                 }
                 
-                // Voice selection
-                VStack(spacing: BananaTheme.Spacing.lg) {
-                    Text("Select Voice")
-                        .adaptiveFont(BananaTheme.Typography.headline)
-                        .foregroundColor(BananaTheme.ColorToken.text)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: geometry.size.height * 0.06)
+                
+                // Benefits
+                VStack(spacing: 16) {
+                    PermissionBenefitRow(icon: "🌡️", text: "Temperature & forecast", geometry: geometry)
+                    PermissionBenefitRow(icon: "👕", text: "Outfit suggestions", geometry: geometry)
+                    PermissionBenefitRow(icon: "☔", text: "Rain & storm alerts", geometry: geometry)
+                }
+                .opacity(textOpacity)
+                
+                // Error state
+                if showingLocationError {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                            Text("Location access needed for weather updates")
+                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                                .foregroundColor(.red)
+                        }
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.red.opacity(0.1))
+                                .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                        )
+                        
+                        Button("Open Settings") {
+                            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(settingsURL)
+                            }
+                        }
+                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.primary)
+                    }
+                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .transition(.opacity.combined(with: .scale))
+                }
+                
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                // Permission button or skip
+                VStack(spacing: 16) {
+                    if locationPermissionStatus != .granted {
+                        Button(action: {
+                            Task {
+                                await requestLocationPermission()
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "location.fill")
+                                Text("Enable Weather")
+                            }
+                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(56, geometry.size.height * 0.07))
+                            .background(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(16)
+                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                        }
+                    } else {
+                        Button(action: {
+                            includeWeather = true
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 6
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Weather Enabled!")
+                            }
+                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(56, geometry.size.height * 0.07))
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.green, Color.green.opacity(0.8)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(16)
+                        }
+                    }
                     
-                    HStack(spacing: BananaTheme.Spacing.md) {
+                    Button(action: {
+                        includeWeather = false
+                        impactFeedback()
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 6
+                        }
+                    }) {
+                        Text("Skip Weather")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
+                }
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .opacity(textOpacity)
+            }
+        }
+    }
+    
+    // MARK: - Page 7: Calendar Permission (70%)
+    private var calendarPermissionPage: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                VStack(spacing: geometry.size.height * 0.05) {
+                    // Calendar animation with events
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary.opacity(0.3), BananaTheme.ColorToken.accent.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: min(120, geometry.size.width * 0.25), height: min(100, geometry.size.height * 0.12))
+                        
+                        VStack(spacing: 8) {
+                            Text("📅")
+                                .font(.system(size: min(40, geometry.size.width * 0.08)))
+                                .scaleEffect(animationTrigger ? 1.1 : 0.9)
+                            
+                            // Animated event dots
+                            HStack(spacing: 4) {
+                                ForEach(0..<3) { index in
+                                    Circle()
+                                        .fill(BananaTheme.ColorToken.primary)
+                                        .frame(width: 6, height: 6)
+                                        .scaleEffect(animationTrigger ? 1.2 : 0.8)
+                                        .animation(.easeInOut(duration: 1.0).repeatForever().delay(Double(index) * 0.2), value: animationTrigger)
+                                }
+                            }
+                        }
+                    }
+                    
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("Never Miss a Beat")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .opacity(textOpacity)
+                        
+                        Text("Your meetings and events in your briefing")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
+                    }
+                }
+                
+                Spacer(minLength: geometry.size.height * 0.06)
+                
+                // Benefits
+                VStack(spacing: 16) {
+                    PermissionBenefitRow(icon: "🕰️", text: "Upcoming events overview", geometry: geometry)
+                    PermissionBenefitRow(icon: "💼", text: "Meeting preparation tips", geometry: geometry)
+                    PermissionBenefitRow(icon: "📅", text: "Schedule optimization", geometry: geometry)
+                }
+                .opacity(textOpacity)
+                
+                // Error state
+                if showingCalendarError {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                            Text("Calendar access required for events")
+                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                                .foregroundColor(.red)
+                        }
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.red.opacity(0.1))
+                                .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                        )
+                        
+                        Button("Open Settings") {
+                            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(settingsURL)
+                            }
+                        }
+                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.primary)
+                    }
+                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .transition(.opacity.combined(with: .scale))
+                }
+                
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                // Permission button or skip
+                VStack(spacing: 16) {
+                    if calendarPermissionStatus != .granted {
+                        Button(action: {
+                            Task {
+                                await requestCalendarPermission()
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "calendar")
+                                Text("Connect Calendar")
+                            }
+                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(56, geometry.size.height * 0.07))
+                            .background(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(16)
+                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                        }
+                    } else {
+                        Button(action: {
+                            includeCalendar = true
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 7
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Calendar Connected!")
+                            }
+                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(56, geometry.size.height * 0.07))
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.green, Color.green.opacity(0.8)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(16)
+                        }
+                    }
+                    
+                    Button(action: {
+                        includeCalendar = false
+                        impactFeedback()
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 7
+                        }
+                    }) {
+                        Text("Skip Calendar")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
+                }
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .opacity(textOpacity)
+            }
+        }
+    }
+    
+    // MARK: - Page 8: Voice Selection (80%)
+    private var voiceSelectionPage: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                VStack(spacing: geometry.size.height * 0.05) {
+                    // Microphone with sound waves
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary.opacity(0.3), BananaTheme.ColorToken.accent.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: min(140, geometry.size.width * 0.3))
+                        
+                        Text("🎤")
+                            .font(.system(size: min(60, geometry.size.width * 0.12)))
+                            .scaleEffect(animationTrigger ? 1.1 : 0.9)
+                        
+                        // Sound wave lines
+                        ForEach(0..<4) { index in
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(BananaTheme.ColorToken.primary.opacity(0.6))
+                                .frame(width: 4, height: CGFloat(20 + index * 10))
+                                .offset(x: CGFloat(30 + index * 8))
+                                .scaleEffect(y: animationTrigger ? 1.0 + Double(index) * 0.2 : 0.6)
+                                .animation(.easeInOut(duration: 0.8).repeatForever().delay(Double(index) * 0.1), value: animationTrigger)
+                        }
+                    }
+                    
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("Choose Your Voice")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .opacity(textOpacity)
+                        
+                        Text("The voice that starts your day right")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
+                    }
+                }
+                
+                Spacer(minLength: geometry.size.height * 0.04)
+                
+                // Voice selection cards
+                VStack(spacing: 20) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 16) {
                         ForEach(VoiceOption.allCases, id: \.rawValue) { voice in
-                            VoiceSelectionCard(
+                            VoiceCard(
                                 voice: voice,
                                 isSelected: selectedVoice == voice,
+                                geometry: geometry,
                                 onSelect: {
-                                    logger.logUserAction("Voice selected in onboarding", details: [
-                                        "voice": voice.name,
-                                        "voiceRawValue": voice.rawValue
-                                    ])
                                     selectedVoice = voice
                                     AudioPlayerManager.shared.previewVoice(voice)
+                                    impactFeedback()
+                                    logger.logUserAction("Voice selected", details: ["voice": voice.name])
                                 }
                             )
                         }
                     }
+                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .opacity(textOpacity)
                     
-                    // Briefing length
-                    VStack(alignment: .leading, spacing: BananaTheme.Spacing.md) {
+                    // Voice preview
+                    if selectedVoice != nil {
+                        VStack(spacing: 12) {
+                            Text("Preview")
+                                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                            
+                            Text("\"Good morning! Your briefing will sound like this...\"")
+                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium, design: .rounded))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, geometry.size.width * 0.08)
+                                .italic()
+                        }
+                        .transition(.opacity.combined(with: .scale))
+                    }
+                    
+                    // Length slider
+                    VStack(spacing: 12) {
                         HStack {
-                            Text("Briefing Length")
-                                .adaptiveFont(BananaTheme.Typography.headline)
+                            Text("Perfect length")
+                                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
                                 .foregroundColor(BananaTheme.ColorToken.text)
                             
                             Spacer()
                             
                             Text("\(dayStartLength) minutes")
-                                .font(BananaTheme.Typography.body)
+                                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .bold))
                                 .foregroundColor(BananaTheme.ColorToken.primary)
                         }
                         
@@ -633,140 +1229,305 @@ struct OnboardingView: View {
                             step: 1
                         )
                         .accentColor(BananaTheme.ColorToken.primary)
+                        
+                        Text("Perfect for your commute")
+                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
                     }
+                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .opacity(textOpacity)
                 }
-                .padding(.horizontal, BananaTheme.Spacing.lg)
                 
+                Spacer(minLength: geometry.size.height * 0.06)
                 
-                
-                Spacer(minLength: BananaTheme.Spacing.xl)
-                
-                // Additional bottom spacing for voice page
-                Spacer(minLength: 20)
-            }
-        }
-        .overlay(
-            VStack {
-                Spacer()
-                
-                // Gradient backdrop for navigation buttons
-                VStack(spacing: 0) {
-                    LinearGradient(
-                        colors: [
-                            BananaTheme.ColorToken.background.opacity(0),
-                            BananaTheme.ColorToken.background.opacity(0.8),
-                            BananaTheme.ColorToken.background
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 160)
-                    .allowsHitTesting(false)
-                }
-                .frame(maxWidth: .infinity)
-                .ignoresSafeArea(edges: .bottom)
-                .overlay(
-                    VStack {
-                        Spacer()
-                        navigationButtons
+                // CTA
+                Button(action: {
+                    logger.logUserAction("Voice selection CTA tapped")
+                    impactFeedback()
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                        currentPage = 8
                     }
-                )
-            }
-        )
-    }
-    
-    // MARK: - Page 5: Paywall
-    private var paywallPage: some View {
-        ScrollView {
-            VStack(spacing: BananaTheme.Spacing.md) {
-                // Premium badge
-                VStack(spacing: BananaTheme.Spacing.md) {
-                    Image(systemName: "star.circle.fill")
-                        .font(.system(size: 80))
-                        .foregroundStyle(
+                }) {
+                    Text("Love It!")
+                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(56, geometry.size.height * 0.07))
+                        .background(
                             LinearGradient(
-                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                                colors: isVoiceSelected ? [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent] : [Color.gray, Color.gray],
+                                startPoint: .leading,
+                                endPoint: .trailing
                             )
                         )
-                    
-                    Text("Unlock Your Better Mornings")
-                        .adaptiveFont(BananaTheme.Typography.title)
-                        .foregroundColor(BananaTheme.ColorToken.text)
-                        .multilineTextAlignment(.center)
-                    
-                    Text("Join others who've transformed their mornings")
-                        .font(BananaTheme.Typography.body)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                        .cornerRadius(16)
+                        .shadow(color: isVoiceSelected ? BananaTheme.ColorToken.primary.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
                 }
-                .padding(.top, BananaTheme.Spacing.xl)
+                .disabled(!isVoiceSelected)
+                .scaleEffect(animationTrigger && isVoiceSelected ? 1.05 : 1.0)
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .opacity(textOpacity)
+            }
+        }
+    }
+    
+    // MARK: - Page 9: Final Preview (90%)
+    private var finalPreviewPage: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
                 
-                // Compact social proof - commented out until we have more reviews
-                // HStack {
-                //     ForEach(0..<5) { _ in
-                //         Image(systemName: "star.fill")
-                //             .foregroundColor(BananaTheme.ColorToken.primary)
-                //             .font(.caption)
-                //     }
-                //     Text("4.8 from 5,000+ reviews")
-                //         .font(BananaTheme.Typography.caption)
-                //         .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                // }
+                VStack(spacing: geometry.size.height * 0.05) {
+                    // Sparkle animation
+                    HStack(spacing: 20) {
+                        ForEach(["✨", "🎆", "✨"], id: \.self) { emoji in
+                            Text(emoji)
+                                .font(.system(size: min(50, geometry.size.width * 0.1)))
+                                .scaleEffect(animationTrigger ? 1.2 : 0.8)
+                                .rotationEffect(.degrees(animationTrigger ? 15 : -15))
+                                .animation(.easeInOut(duration: 1.0).repeatForever().delay(Double(["✨", "🎆", "✨"].firstIndex(of: emoji) ?? 0) * 0.3), value: animationTrigger)
+                        }
+                    }
+                    
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("Your Morning Transformation")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .opacity(textOpacity)
+                        
+                        Text("Tomorrow morning will be different...")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
+                    }
+                }
                 
-                // Compact pricing options
-                VStack(spacing: BananaTheme.Spacing.sm) {
-                    PricingOptionCard(
+                Spacer(minLength: geometry.size.height * 0.04)
+                
+                // Preview summary
+                VStack(spacing: 20) {
+                    PreviewSummaryCard(
+                        icon: "👋",
+                        title: name.isEmpty ? "Personal greeting" : "Good morning \(name)!",
+                        geometry: geometry
+                    )
+                    
+                    PreviewSummaryCard(
+                        icon: "⏰",
+                        title: "Ready at \(shortTimeFormatter.string(from: selectedTime))",
+                        geometry: geometry
+                    )
+                    
+                    PreviewSummaryCard(
+                        icon: "🎤",
+                        title: selectedVoice?.name ?? "Your chosen voice",
+                        geometry: geometry
+                    )
+                    
+                    let selectedContent = [includeNews ? "News" : nil, includeWeather ? "Weather" : nil, includeSports ? "Sports" : nil, includeStocks ? "Stocks" : nil, includeCalendar ? "Calendar" : nil, includeQuotes ? "Quotes" : nil].compactMap { $0 }
+                    
+                    PreviewSummaryCard(
+                        icon: "📊",
+                        title: "\(selectedContent.joined(separator: ", ")) & more",
+                        geometry: geometry
+                    )
+                }
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .opacity(textOpacity)
+                
+                Spacer(minLength: geometry.size.height * 0.04)
+                
+                // Anticipation text
+                Text("Your personalized briefing is almost ready...")
+                    .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium, design: .rounded))
+                    .foregroundColor(BananaTheme.ColorToken.primary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .opacity(textOpacity)
+                    .italic()
+                
+                Spacer(minLength: geometry.size.height * 0.06)
+                
+                // CTA
+                Button(action: {
+                    logger.logUserAction("Final preview CTA tapped")
+                    impactFeedback()
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                        currentPage = 9
+                    }
+                }) {
+                    Text("Make It Happen!")
+                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(56, geometry.size.height * 0.07))
+                        .background(
+                            LinearGradient(
+                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(16)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .opacity(textOpacity)
+            }
+        }
+    }
+    
+    // MARK: - Page 10: Hard Paywall (100%)
+    private var paywallPage: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.06)
+                
+                VStack(spacing: geometry.size.height * 0.04) {
+                    // Premium star with pulsing animation
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.yellow.opacity(0.3), Color.orange.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: min(120, geometry.size.width * 0.25))
+                            .scaleEffect(animationTrigger ? 1.1 : 0.9)
+                        
+                        Text("🌟")
+                            .font(.system(size: min(60, geometry.size.width * 0.12)))
+                            .scaleEffect(animationTrigger ? 1.2 : 1.0)
+                    }
+                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
+                    
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("Unlock Your Better Mornings")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .opacity(textOpacity)
+                        
+                        Text("Join thousands who've transformed their mornings")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
+                    }
+                }
+                
+                Spacer(minLength: geometry.size.height * 0.03)
+                
+                // Pricing options - optimized for conversion
+                VStack(spacing: 12) {
+                    PricingCard(
                         title: "Annual Pass",
                         price: "$39.99/year",
                         subtitle: "Just $3.33/month",
-                        trialText: "7-day free trial",
-                        isMostPopular: true,
+                        badge: "🔥 Most Popular",
+                        trialText: "7-Day Free Trial",
+                        savings: "Save 33%",
                         isSelected: selectedProduct?.id == "annual",
+                        geometry: geometry,
                         action: {
-                            // Select annual product
+                            selectedProduct = Product(id: "annual", displayName: "Annual Pass", description: "Annual subscription", price: 39.99, displayPrice: "$39.99", type: .autoRenewable)
+                            impactFeedback()
                         }
                     )
                     
-                    PricingOptionCard(
+                    PricingCard(
                         title: "Monthly Pass",
                         price: "$4.99/month",
                         subtitle: nil,
-                        trialText: "3-day free trial",
-                        isMostPopular: false,
+                        badge: nil,
+                        trialText: "3-Day Free Trial",
+                        savings: nil,
                         isSelected: selectedProduct?.id == "monthly",
+                        geometry: geometry,
                         action: {
-                            // Select monthly product
+                            selectedProduct = Product(id: "monthly", displayName: "Monthly Pass", description: "Monthly subscription", price: 4.99, displayPrice: "$4.99", type: .autoRenewable)
+                            impactFeedback()
                         }
                     )
                 }
-                .padding(.horizontal, BananaTheme.Spacing.lg)
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .opacity(textOpacity)
                 
-                // CTA Button (moved higher)
+                Spacer(minLength: geometry.size.height * 0.03)
+                
+                // Urgency banner
+                HStack {
+                    Image(systemName: "clock.fill")
+                        .foregroundColor(.red)
+                    Text("Limited Time: \(selectedProduct?.id == "annual" ? "7-Day" : "3-Day") Free Trial")
+                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .bold))
+                        .foregroundColor(.red)
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.red.opacity(0.1))
+                        .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                )
+                .opacity(textOpacity)
+                
+                Spacer(minLength: geometry.size.height * 0.04)
+                
+                // Main CTA
                 Button(action: {
-                    // Start purchase flow
-                    completeOnboarding()
+                    logger.logUserAction("Paywall CTA tapped", details: [
+                        "selectedProduct": selectedProduct?.id ?? "none",
+                        "hasName": !name.isEmpty,
+                        "includeWeather": includeWeather,
+                        "includeNews": includeNews,
+                        "includeSports": includeSports,
+                        "includeStocks": includeStocks,
+                        "includeCalendar": includeCalendar,
+                        "includeQuotes": includeQuotes,
+                        "selectedVoice": selectedVoice?.name ?? "none"
+                    ])
+                    
+                    // Start purchase flow and trigger job creation
+                    startPurchaseFlow()
                 }) {
-                    Text("Start Free Trial")
-                        .adaptiveFont(BananaTheme.Typography.headline)
-                        .frame(maxWidth: .infinity)
+                    VStack(spacing: 4) {
+                        Text("Start Free Trial")
+                            .font(.system(size: min(22, geometry.size.width * 0.055), weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Text("Then \(selectedProduct?.displayPrice ?? "$3.33")/month")
+                            .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: max(64, geometry.size.height * 0.08))
+                    .background(
+                        LinearGradient(
+                            colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent, Color.purple],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(20)
+                    .shadow(color: BananaTheme.ColorToken.primary.opacity(0.4), radius: 12, x: 0, y: 6)
                 }
-                .bananaPrimaryButton()
-                .padding(.horizontal, BananaTheme.Spacing.xl)
+                .scaleEffect(animationTrigger ? 1.02 : 1.0)
+                .padding(.horizontal, geometry.size.width * 0.08)
+                .opacity(textOpacity)
                 
-                // Compact features list
-                VStack(alignment: .leading, spacing: BananaTheme.Spacing.xs) {
-                    FeatureRow(text: "A personal briefing every day")
-                    FeatureRow(text: "High quality AI voices")
-                    FeatureRow(text: "Advanced AI customization")
-                    FeatureRow(text: "Better starts to the day, DayStarts")
-                }
-                .padding(.horizontal, BananaTheme.Spacing.xl)
+                Spacer(minLength: geometry.size.height * 0.04)
                 
                 // Legal links
-                HStack(spacing: BananaTheme.Spacing.md) {
+                HStack(spacing: 16) {
                     Button("Terms") {
                         // Open terms
                     }
@@ -779,46 +1540,12 @@ struct OnboardingView: View {
                         // Restore purchases
                     }
                 }
-                .font(BananaTheme.Typography.caption)
+                .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
                 .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                .padding(.bottom, BananaTheme.Spacing.xl)
+                .padding(.bottom, max(20, geometry.size.height * 0.025))
+                .opacity(textOpacity)
             }
         }
-    }
-    
-    // MARK: - Navigation
-    private var navigationButtons: some View {
-        HStack {
-            if currentPage > 0 && currentPage < totalPages - 1 {
-                Button(action: {
-                    withAnimation {
-                        currentPage -= 1
-                    }
-                }) {
-                    Label("Back", systemImage: "chevron.left")
-                        .font(BananaTheme.Typography.body)
-                }
-                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-            }
-            
-            Spacer()
-            
-            if currentPage < totalPages - 1 {
-                Button(action: {
-                    withAnimation {
-                        currentPage += 1
-                    }
-                }) {
-                    Text(currentPage == 0 ? "Let's Fix This" : currentPage == 3 ? "Finalize Setup" : currentPage == 2 ? "Almost There!" : "Customize My Briefing")
-                        .adaptiveFont(BananaTheme.Typography.headline)
-                }
-                .bananaPrimaryButton()
-                .disabled(currentPage == 3 && selectedVoice == nil)
-                .opacity(currentPage == 3 && selectedVoice == nil ? 0.5 : 1.0)
-            }
-        }
-        .padding(.horizontal, BananaTheme.Spacing.xl)
-        .padding(.bottom, BananaTheme.Spacing.xl)
     }
     
     // MARK: - Helper Functions
@@ -827,24 +1554,62 @@ struct OnboardingView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
+    private func startPageAnimation() {
+        // Ensure content is visible
+        withAnimation(.easeInOut(duration: 0.6)) {
+            textOpacity = 1.0
+        }
+        
+        // Trigger scale and other animations
+        withAnimation(.easeInOut(duration: 1.0).delay(0.2)) {
+            animationTrigger.toggle()
+        }
+        
+        // Trigger hero scale animation for first page
+        withAnimation(.spring(response: 0.8, dampingFraction: 0.7).delay(0.4)) {
+            heroScale = 1.02
+        }
+    }
+    
+    private func impactFeedback() {
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+    }
+    
     private func getPageName(for page: Int) -> String {
         switch page {
         case 0: return "Pain Point"
-        case 1: return "Personalization"
-        case 2: return "Content Selection"
-        case 3: return "Voice Experience"
-        case 4: return "Paywall"
+        case 1: return "Value Demo"
+        case 2: return "Name Personalization"
+        case 3: return "Schedule Setup"
+        case 4: return "Content Selection"
+        case 5: return "Weather Permission"
+        case 6: return "Calendar Permission"
+        case 7: return "Voice Selection"
+        case 8: return "Final Preview"
+        case 9: return "Paywall"
         default: return "Unknown"
         }
     }
     
-    private func getButtonText(for page: Int) -> String {
-        switch page {
-        case 0: return "Let's Fix This"
-        case 1: return "Customize My Briefing"
-        case 2: return "Almost There!"
-        case 3: return "Finalize Setup"
-        default: return "Continue"
+    private func startPurchaseFlow() {
+        logger.log("🛒 Starting purchase flow from paywall", level: .info)
+        
+        // In a real implementation, this would:
+        // 1. Initiate StoreKit purchase
+        // 2. Handle purchase result
+        // 3. If successful, call completeOnboarding()
+        // 4. If failed, show error and stay on paywall
+        
+        // For now, simulate successful purchase and complete onboarding
+        Task {
+            // Simulate purchase delay
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+            
+            await MainActor.run {
+                logger.log("✅ Purchase flow completed successfully", level: .info)
+                completeOnboarding()
+            }
         }
     }
     
@@ -854,7 +1619,7 @@ struct OnboardingView: View {
         // Log all collected settings
         logger.logUserAction("Onboarding settings collected", details: [
             "name": name.isEmpty ? "[empty]" : name,
-            "scheduledTime": DateFormatter.shortTime.string(from: selectedTime),
+            "scheduledTime": shortTimeFormatter.string(from: selectedTime),
             "selectedDays": selectedDays.map(\.name).joined(separator: ", "),
             "includeWeather": includeWeather,
             "includeNews": includeNews,
@@ -898,58 +1663,62 @@ struct OnboardingView: View {
         )
         userPreferences.saveSettings()
         
-        // Start the welcome countdown which will handle all initialization
-        WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
-        logger.log("🎉 Welcome DayStart scheduled - initializing services during countdown", level: .info)
+        // CRITICAL: Create the first job immediately after successful paywall conversion
+        Task {
+            do {
+                let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+                
+                let jobResult = try await SupabaseClient.shared.createJob(
+                    for: Date(),
+                    with: userPreferences.settings,
+                    schedule: userPreferences.schedule,
+                    locationData: snapshot.location,
+                    weatherData: snapshot.weather,
+                    calendarEvents: snapshot.calendar
+                )
+                
+                logger.log("✅ ONBOARDING: First job created successfully", level: .info)
+                
+                // Start the welcome countdown for UI purposes
+                WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
+                logger.log("🎉 Welcome DayStart scheduled - user's first briefing is being prepared", level: .info)
+                
+            } catch {
+                logger.logError(error, context: "CRITICAL: Failed to create first job after paywall conversion")
+                // Still proceed with onboarding completion even if job creation fails
+                // The user has paid, so we should complete the flow
+            }
+        }
         
-        // Complete onboarding immediately - countdown handles everything else
+        // Complete onboarding immediately - job creation happens in background
         onComplete()
     }
     
     // MARK: - Permission Handling
     
-    private func requestRequiredPermissions() async {
-        var permissionsNeeded: [String] = []
-        
-        // Check what permissions we need based on selected features
-        if includeWeather {
-            permissionsNeeded.append("location for weather")
-        }
-        if includeCalendar {
-            permissionsNeeded.append("calendar access")
-        }
-        
-        // Request location permission if weather is enabled
-        if includeWeather {
-            await requestLocationPermission()
-        }
-        
-        // Request calendar permission if calendar is enabled
-        if includeCalendar {
-            await requestCalendarPermission()
-        }
-    }
-    
-    
     private func requestLocationPermission() async {
         let locationManager = LocationManager.shared
         
-        // Check if already denied - if so, just show alert
-        if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
+        // Check current status
+        let currentStatus = locationManager.authorizationStatus
+        
+        if currentStatus == .denied || currentStatus == .restricted {
             await MainActor.run {
-                includeWeather = false
-                showingLocationDeniedAlert = true
+                locationPermissionStatus = .denied
+                showingLocationError = true
             }
             return
         }
         
         let granted = await locationManager.requestLocationPermission()
         
-        if !granted {
-            // If permission denied, disable weather feature and show alert
-            await MainActor.run {
-                includeWeather = false
-                showingLocationDeniedAlert = true
+        await MainActor.run {
+            if granted {
+                locationPermissionStatus = .granted
+                showingLocationError = false
+            } else {
+                locationPermissionStatus = .denied
+                showingLocationError = true
             }
         }
     }
@@ -958,11 +1727,108 @@ struct OnboardingView: View {
         let calendarManager = CalendarManager.shared
         let granted = await calendarManager.requestCalendarAccess()
         
-        if !granted {
-            // If permission denied, disable calendar feature and show alert
-            await MainActor.run {
-                includeCalendar = false
-                showingCalendarDeniedAlert = true
+        await MainActor.run {
+            if granted {
+                calendarPermissionStatus = .granted
+                showingCalendarError = false
+            } else {
+                calendarPermissionStatus = .denied
+                showingCalendarError = true
+            }
+        }
+    }
+    
+    // MARK: - Helper Views
+    private func animatedPhoneView(geometry: GeometryProxy) -> some View {
+        ZStack {
+            phoneShape(geometry: geometry)
+            soundWaves(geometry: geometry)
+        }
+    }
+    
+    private func phoneShape(geometry: GeometryProxy) -> some View {
+        let phoneWidth = min(120, geometry.size.width * 0.25)
+        let phoneHeight = min(180, geometry.size.height * 0.22)
+        let screenWidth = min(100, geometry.size.width * 0.21)
+        let screenHeight = min(160, geometry.size.height * 0.19)
+        
+        return RoundedRectangle(cornerRadius: 25)
+            .fill(BananaTheme.ColorToken.primary)
+            .frame(width: phoneWidth, height: phoneHeight)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.black)
+                    .frame(width: screenWidth, height: screenHeight)
+            )
+    }
+    
+    private func soundWaves(geometry: GeometryProxy) -> some View {
+        ForEach(0..<3) { index in
+            soundWave(index: index, geometry: geometry)
+        }
+    }
+    
+    private func soundWave(index: Int, geometry: GeometryProxy) -> some View {
+        let baseSize = 60 + (index * 40)
+        let relativeSizeMultiplier = 0.12 + Double(index) * 0.08
+        let relativeSize = geometry.size.width * relativeSizeMultiplier
+        let waveSize = min(Double(baseSize), relativeSize)
+        
+        let scale = animationTrigger ? 1.0 + Double(index) * 0.2 : 0.8
+        let opacity = animationTrigger ? 0.3 : 0.7
+        let animation = Animation.easeInOut(duration: 1.2).repeatForever().delay(Double(index) * 0.2)
+        
+        return Circle()
+            .stroke(BananaTheme.ColorToken.accent, lineWidth: 3)
+            .frame(width: waveSize)
+            .scaleEffect(scale)
+            .opacity(opacity)
+            .animation(animation, value: animationTrigger)
+    }
+    
+    private func valueDemoText(geometry: GeometryProxy) -> some View {
+        VStack(spacing: geometry.size.height * 0.02) {
+            mainTitle(geometry: geometry)
+            subtitle(geometry: geometry)
+        }
+    }
+    
+    private func mainTitle(geometry: GeometryProxy) -> some View {
+        let fontSize = min(28, geometry.size.width * 0.07)
+        
+        return Text("Your AI Morning Companion")
+            .font(.system(size: fontSize, weight: .bold, design: .rounded))
+            .foregroundColor(BananaTheme.ColorToken.text)
+            .multilineTextAlignment(.center)
+            .opacity(textOpacity)
+    }
+    
+    private func subtitle(geometry: GeometryProxy) -> some View {
+        let fontSize = min(16, geometry.size.width * 0.04)
+        let padding = geometry.size.width * 0.08
+        
+        return Text("A personalized audio briefing that makes every morning better")
+            .font(.system(size: fontSize, weight: .medium))
+            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, padding)
+            .opacity(textOpacity)
+    }
+    
+    private func floatingIconsView(geometry: GeometryProxy) -> some View {
+        let emojis = ["📰", "☁️", "📅", "📈"]
+        let fontSize = min(40, geometry.size.width * 0.08)
+        
+        return HStack(spacing: 20) {
+            ForEach(Array(emojis.enumerated()), id: \.offset) { index, emoji in
+                let scale = animationTrigger ? 1.1 : 0.9
+                let delay = Double(index) * 0.2
+                let animation = Animation.easeInOut(duration: 1.2).repeatForever().delay(delay)
+                
+                Text(emoji)
+                    .font(.system(size: fontSize))
+                    .scaleEffect(scale)
+                    .animation(animation, value: animationTrigger)
             }
         }
     }
@@ -970,240 +1836,286 @@ struct OnboardingView: View {
 
 // MARK: - Supporting Views
 
-struct PainPointRow: View {
-    let text: String
-    
-    var body: some View {
-        HStack(spacing: BananaTheme.Spacing.sm) {
-            Text("❌")
-                .font(.title3)
-            Text(text)
-                .font(BananaTheme.Typography.body)
-                .foregroundColor(BananaTheme.ColorToken.text)
-        }
-    }
-}
-
-struct ContentTypeIcon: View {
+struct PainPointCard: View {
     let icon: String
-    let color: Color
+    let text: String
+    let geometry: GeometryProxy
     
     var body: some View {
-        Image(systemName: icon)
-            .font(.title2)
-            .foregroundColor(color)
-            .frame(width: 50, height: 50)
-            .background(color.opacity(0.1))
-            .cornerRadius(BananaTheme.CornerRadius.sm)
+        VStack(spacing: 8) {
+            Text(icon)
+                .font(.system(size: min(24, geometry.size.width * 0.06)))
+            
+            Text(text)
+                .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                .foregroundColor(BananaTheme.ColorToken.text)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+        }
+        .frame(height: min(80, geometry.size.height * 0.1))
+        .frame(maxWidth: .infinity)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(BananaTheme.ColorToken.card)
+                .stroke(BananaTheme.ColorToken.border, lineWidth: 1)
+        )
     }
 }
 
-struct ContentToggleRow: View {
+struct FeaturePreviewCard: View {
     let icon: String
     let title: String
     let subtitle: String
-    @Binding var isOn: Bool
+    let geometry: GeometryProxy
     
     var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(BananaTheme.ColorToken.primary)
-                .frame(width: 40)
+        VStack(spacing: 6) {
+            Text(icon)
+                .font(.system(size: min(30, geometry.size.width * 0.075)))
             
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(spacing: 2) {
                 Text(title)
-                    .adaptiveFont(BananaTheme.Typography.headline)
+                    .font(.system(size: min(14, geometry.size.width * 0.035), weight: .bold))
                     .foregroundColor(BananaTheme.ColorToken.text)
                 
                 Text(subtitle)
-                    .font(BananaTheme.Typography.caption)
+                    .font(.system(size: min(10, geometry.size.width * 0.025), weight: .medium))
                     .foregroundColor(BananaTheme.ColorToken.secondaryText)
             }
-            
-            Spacer()
-            
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .tint(BananaTheme.ColorToken.primary)
         }
-        .padding(.vertical, BananaTheme.Spacing.sm)
-        .padding(.horizontal, BananaTheme.Spacing.md)
-        .background(BananaTheme.ColorToken.card)
-        .cornerRadius(BananaTheme.CornerRadius.md)
+        .frame(height: min(90, geometry.size.height * 0.11))
+        .frame(maxWidth: .infinity)
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(BananaTheme.ColorToken.card)
+                .stroke(BananaTheme.ColorToken.primary.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 
-struct DayToggleButton: View {
-    let day: WeekDay
-    let isSelected: Bool
-    let action: () -> Void
+struct ContentSelectionCard: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    @Binding var isSelected: Bool
+    let geometry: GeometryProxy
     
     var body: some View {
-        Button(action: action) {
-            Text(String(day.name.prefix(3)))
-                .font(BananaTheme.Typography.caption)
-                .fontWeight(.medium)
-                .foregroundColor(isSelected ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.primary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 40)
-                .background(isSelected ? BananaTheme.ColorToken.primary : Color.clear)
-                .cornerRadius(BananaTheme.CornerRadius.sm)
-                .overlay(
-                    RoundedRectangle(cornerRadius: BananaTheme.CornerRadius.sm)
-                        .stroke(BananaTheme.ColorToken.primary, lineWidth: 1)
-                )
+        Button(action: {
+            isSelected.toggle()
+            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+            impactFeedback.impactOccurred()
+        }) {
+            VStack(spacing: 8) {
+                Text(icon)
+                    .font(.system(size: min(40, geometry.size.width * 0.08)))
+                    .scaleEffect(isSelected ? 1.1 : 1.0)
+                
+                VStack(spacing: 2) {
+                    Text(title)
+                        .font(.system(size: min(16, geometry.size.width * 0.04), weight: .bold))
+                        .foregroundColor(isSelected ? .white : BananaTheme.ColorToken.text)
+                    
+                    Text(subtitle)
+                        .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                        .foregroundColor(isSelected ? .white.opacity(0.9) : BananaTheme.ColorToken.secondaryText)
+                }
+            }
+            .frame(height: min(100, geometry.size.height * 0.12))
+            .frame(maxWidth: .infinity)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
+                    .stroke(isSelected ? Color.clear : BananaTheme.ColorToken.border, lineWidth: 1)
+            )
+            .shadow(color: isSelected ? BananaTheme.ColorToken.primary.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
         }
         .buttonStyle(PlainButtonStyle())
+        .scaleEffect(isSelected ? 1.05 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
     }
 }
 
-struct VoiceSelectionCard: View {
+struct PermissionBenefitRow: View {
+    let icon: String
+    let text: String
+    let geometry: GeometryProxy
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(icon)
+                .font(.system(size: min(20, geometry.size.width * 0.05)))
+            
+            Text(text)
+                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                .foregroundColor(BananaTheme.ColorToken.text)
+            
+            Spacer()
+        }
+        .padding(.horizontal, geometry.size.width * 0.08)
+    }
+}
+
+struct VoiceCard: View {
     let voice: VoiceOption
     let isSelected: Bool
+    let geometry: GeometryProxy
     let onSelect: () -> Void
     
     var body: some View {
-        VStack(spacing: BananaTheme.Spacing.sm) {
-            Button(action: onSelect) {
-                VStack(spacing: BananaTheme.Spacing.sm) {
-                    Image(systemName: "person.wave.2.fill")
-                        .font(.title)
-                        .foregroundColor(isSelected ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.primary)
-                    
-                    Text(voice.name)
-                        .font(BananaTheme.Typography.caption)
-                        .fontWeight(isSelected ? .bold : .regular)
-                        .foregroundColor(isSelected ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.text)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 100)
-                .background(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
-                .cornerRadius(BananaTheme.CornerRadius.md)
-                .overlay(
-                    RoundedRectangle(cornerRadius: BananaTheme.CornerRadius.md)
-                        .stroke(BananaTheme.ColorToken.primary, lineWidth: isSelected ? 0 : 1)
-                )
+        Button(action: onSelect) {
+            VStack(spacing: 8) {
+                Image(systemName: "person.wave.2.fill")
+                    .font(.system(size: min(30, geometry.size.width * 0.06)))
+                    .foregroundColor(isSelected ? .white : BananaTheme.ColorToken.primary)
+                
+                Text(voice.name)
+                    .font(.system(size: min(12, geometry.size.width * 0.03), weight: .bold))
+                    .foregroundColor(isSelected ? .white : BananaTheme.ColorToken.text)
+                    .lineLimit(1)
+                
+                Text("Tap to select")
+                    .font(.system(size: min(10, geometry.size.width * 0.025), weight: .medium))
+                    .foregroundColor(isSelected ? .white.opacity(0.8) : BananaTheme.ColorToken.secondaryText)
+                    .lineLimit(1)
             }
-            .buttonStyle(PlainButtonStyle())
+            .frame(height: min(100, geometry.size.height * 0.12))
+            .frame(maxWidth: .infinity)
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
+                    .stroke(isSelected ? Color.clear : BananaTheme.ColorToken.border, lineWidth: 1)
+            )
+            .shadow(color: isSelected ? BananaTheme.ColorToken.primary.opacity(0.3) : Color.clear, radius: 6, x: 0, y: 3)
         }
+        .buttonStyle(PlainButtonStyle())
+        .scaleEffect(isSelected ? 1.05 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
     }
 }
 
-struct TestimonialCard: View {
-    let quote: String
-    let author: String
+struct PreviewSummaryCard: View {
+    let icon: String
+    let title: String
+    let geometry: GeometryProxy
     
     var body: some View {
-        VStack(spacing: BananaTheme.Spacing.sm) {
-            Text("\"\(quote)\"")
-                .font(BananaTheme.Typography.caption)
-                .foregroundColor(BananaTheme.ColorToken.text)
-                .multilineTextAlignment(.center)
-                .italic()
+        HStack(spacing: 16) {
+            Text(icon)
+                .font(.system(size: min(24, geometry.size.width * 0.06)))
             
-            Text("— \(author)")
-                .font(BananaTheme.Typography.caption2)
-                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+            Text(title)
+                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
+                .foregroundColor(BananaTheme.ColorToken.text)
+                .multilineTextAlignment(.leading)
+            
+            Spacer()
+            
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: min(20, geometry.size.width * 0.04)))
+                .foregroundColor(Color.green)
         }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(BananaTheme.ColorToken.card)
-        .cornerRadius(BananaTheme.CornerRadius.md)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(BananaTheme.ColorToken.card)
+                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 
-struct PricingOptionCard: View {
+struct PricingCard: View {
     let title: String
     let price: String
     let subtitle: String?
+    let badge: String?
     let trialText: String
-    let isMostPopular: Bool
+    let savings: String?
     let isSelected: Bool
+    let geometry: GeometryProxy
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: BananaTheme.Spacing.sm) {
-                if isMostPopular {
-                    Text("🔥 Most Popular")
-                        .font(BananaTheme.Typography.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(BananaTheme.ColorToken.background)
-                        .padding(.horizontal, BananaTheme.Spacing.md)
-                        .padding(.vertical, BananaTheme.Spacing.xs)
-                        .background(BananaTheme.ColorToken.primary)
-                        .cornerRadius(BananaTheme.CornerRadius.sm)
+            VStack(spacing: 12) {
+                if let badge = badge {
+                    Text(badge)
+                        .font(.system(size: min(12, geometry.size.width * 0.03), weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 6)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.orange, Color.red],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(12)
                 }
                 
                 VStack(spacing: 4) {
                     Text(title)
-                        .adaptiveFont(BananaTheme.Typography.headline)
+                        .font(.system(size: min(18, geometry.size.width * 0.045), weight: .bold))
                         .foregroundColor(BananaTheme.ColorToken.text)
                     
                     Text(price)
-                        .adaptiveFont(BananaTheme.Typography.title2)
+                        .font(.system(size: min(24, geometry.size.width * 0.06), weight: .bold))
                         .foregroundColor(BananaTheme.ColorToken.primary)
                     
                     if let subtitle = subtitle {
                         Text(subtitle)
-                            .font(BananaTheme.Typography.caption)
+                            .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                     }
                     
+                    if let savings = savings {
+                        Text(savings)
+                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .bold))
+                            .foregroundColor(Color.green)
+                    }
+                    
                     Text(trialText)
-                        .font(BananaTheme.Typography.caption)
-                        .fontWeight(.medium)
+                        .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
                         .foregroundColor(BananaTheme.ColorToken.accent)
                 }
-                .padding(.vertical, BananaTheme.Spacing.md)
             }
+            .padding(16)
             .frame(maxWidth: .infinity)
-            .background(isSelected ? BananaTheme.ColorToken.primary.opacity(0.4) : BananaTheme.ColorToken.card)
-            .cornerRadius(BananaTheme.CornerRadius.md)
-            .overlay(
-                RoundedRectangle(cornerRadius: BananaTheme.CornerRadius.md)
-                    .stroke(
-                        isSelected ? Color.blue : BananaTheme.ColorToken.border,
-                        lineWidth: isSelected ? 4 : 1
-                    )
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(isSelected ? BananaTheme.ColorToken.primary.opacity(0.1) : BananaTheme.ColorToken.card)
+                    .stroke(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border, lineWidth: isSelected ? 3 : 1)
             )
-            .shadow(
-                color: isSelected ? Color.blue.opacity(0.5) : Color.clear,
-                radius: isSelected ? 8 : 0,
-                x: 0,
-                y: 0
-            )
+            .shadow(color: isSelected ? BananaTheme.ColorToken.primary.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 4)
         }
         .buttonStyle(PlainButtonStyle())
+        .scaleEffect(isSelected ? 1.02 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
     }
 }
 
-struct FeatureRow: View {
+struct PaywallFeatureRow: View {
+    let icon: String
     let text: String
+    let geometry: GeometryProxy
     
     var body: some View {
-        HStack(spacing: BananaTheme.Spacing.sm) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(BananaTheme.ColorToken.success)
-                .font(.body)
+        HStack(spacing: 12) {
+            Text(icon)
+                .font(.system(size: min(16, geometry.size.width * 0.04)))
             
             Text(text)
-                .font(BananaTheme.Typography.body)
+                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                 .foregroundColor(BananaTheme.ColorToken.text)
             
             Spacer()
         }
+        .padding(.horizontal, 4)
     }
 }
 
-
-
-// MARK: - Extensions
-private extension DateFormatter {
-    static let shortTime: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter
-    }()
-}

@@ -33,7 +33,7 @@ struct DayStartData: Identifiable, Codable {
     }
 }
 
-struct DayStartSchedule: Codable {
+struct DayStartSchedule: Codable, Equatable {
     var time: Date
     var repeatDays: Set<WeekDay>
     var skipTomorrow: Bool // Note: UI shows inverted as "Next DayStart" toggle
@@ -153,7 +153,7 @@ enum ThemePreference: String, CaseIterable, Codable {
     }
 }
 
-struct UserSettings: Codable {
+struct UserSettings: Codable, Equatable {
     var preferredName: String
     var includeWeather: Bool
     var includeNews: Bool

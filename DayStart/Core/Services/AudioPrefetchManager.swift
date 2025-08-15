@@ -3,12 +3,17 @@ import BackgroundTasks
 import AVFoundation
 import UIKit
 
+/// AudioPrefetchManager with conditional background task registration
+/// Only registers background tasks when user has an active schedule
 @MainActor
 class AudioPrefetchManager {
     static let shared = AudioPrefetchManager()
     
     private let taskIdentifier = "ai.bananaintelligence.DayStart.audio-prefetch"
-    private let logger = DebugLogger.shared
+    private lazy var logger = DebugLogger.shared // Lazy logger
+    
+    // Background task registration state
+    private var isBackgroundTaskRegistered = false
     
     // PHASE 4: AVPlayerItem prefetching for instant audio start
     private var preloadedPlayerItems: [String: (item: AVPlayerItem, created: Date)] = [:]
@@ -16,13 +21,15 @@ class AudioPrefetchManager {
     private let maxCacheSize = 5 // Limit memory usage
     
     private init() {
-        // PHASE 4: Monitor memory pressure to clear cache if needed
+        // LIGHTWEIGHT: Only memory pressure observer (no background task registration)
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleMemoryWarning),
             name: UIApplication.didReceiveMemoryWarningNotification,
             object: nil
         )
+        
+        logger.log("🔄 AudioPrefetchManager initialized - background tasks deferred", level: .info)
     }
     
     @objc private func handleMemoryWarning() {
@@ -30,24 +37,60 @@ class AudioPrefetchManager {
         clearPlayerItemCache()
     }
     
-    // MARK: - Tier 1: BGTaskScheduler (Background Processing)
+    // MARK: - Conditional Background Task Registration
     
-    func registerBackgroundTasks() {
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { [weak self] task in
-            guard let self = self else { return }
-            self.handleAudioPrefetch(task: task as! BGProcessingTask)
+    /// Register background tasks only when user has an active schedule
+    func registerBackgroundTasksIfNeeded() {
+        // Don't register if already registered
+        guard !isBackgroundTaskRegistered else {
+            logger.log("🔄 Background tasks already registered", level: .debug)
+            return
         }
-        logger.log("Registered background task: \(taskIdentifier)", level: .info)
+        
+        // Don't register if user doesn't have an active schedule
+        guard !UserPreferences.shared.schedule.repeatDays.isEmpty else {
+            logger.log("🔄 Background tasks not registered - no active schedule", level: .debug)
+            return
+        }
+        
+        // DEFERRED: Register background tasks only when actually needed
+        Task.detached(priority: .background) { [weak self] in
+            await self?.performBackgroundTaskRegistration()
+        }
+    }
+    
+    private func performBackgroundTaskRegistration() async {
+        await MainActor.run {
+            BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { [weak self] task in
+                guard let self = self else { return }
+                self.handleAudioPrefetch(task: task as! BGProcessingTask)
+            }
+            
+            isBackgroundTaskRegistered = true
+            logger.log("✅ Background tasks registered on-demand", level: .info)
+        }
+    }
+    
+    /// Force registration (for migration/legacy support)
+    func registerBackgroundTasks() {
+        isBackgroundTaskRegistered = false // Reset flag
+        registerBackgroundTasksIfNeeded()
     }
     
     func scheduleAudioPrefetch(for scheduledTime: Date) {
+        // Only schedule if background tasks are registered
+        guard isBackgroundTaskRegistered else {
+            logger.log("🔄 Cannot schedule audio prefetch - background tasks not registered", level: .debug)
+            return
+        }
+        
         let request = BGProcessingTaskRequest(identifier: taskIdentifier)
         request.earliestBeginDate = scheduledTime.addingTimeInterval(-2 * 3600) // 2 hours before
         request.requiresNetworkConnectivity = true
         
         do {
             try BGTaskScheduler.shared.submit(request)
-            logger.log("Scheduled BGTask for \(scheduledTime)", level: .info)
+            logger.log("📅 Scheduled BGTask for \(scheduledTime)", level: .info)
         } catch {
             logger.logError(error, context: "Failed to schedule background task")
         }
@@ -64,53 +107,69 @@ class AudioPrefetchManager {
         }
     }
     
-    // MARK: - Tier 2: Foreground Check (App State Transitions)
+    // MARK: - Foreground Check (Conditional Service Loading)
     
     func checkForUpcomingDayStarts() async {
-        let upcomingSchedules = getSchedulesWithinHours(2)
-        
-        guard !upcomingSchedules.isEmpty else {
-            logger.log("No upcoming DayStarts within 2 hours", level: .debug)
+        // Don't check if user doesn't have an active schedule
+        guard !UserPreferences.shared.schedule.repeatDays.isEmpty else {
+            logger.log("🔄 Skipping upcoming DayStarts check - no active schedule", level: .debug)
             return
         }
         
-        logger.log("Checking \(upcomingSchedules.count) upcoming DayStarts for ready audio", level: .info)
+        let upcomingSchedules = getSchedulesWithinHours(2)
+        
+        guard !upcomingSchedules.isEmpty else {
+            logger.log("📅 No upcoming DayStarts within 2 hours", level: .debug)
+            return
+        }
+        
+        logger.log("🔍 Checking \(upcomingSchedules.count) upcoming DayStarts for ready audio", level: .info)
+        
+        // Ensure background tasks are registered if we have upcoming schedules
+        registerBackgroundTasksIfNeeded()
         
         for schedule in upcomingSchedules {
-            await checkAndDownloadAudio(for: schedule.date)
+            _ = await checkAndDownloadAudio(for: schedule.date)
         }
     }
     
     private func checkAndDownloadAudio(for date: Date) async -> Bool {
-        // Check cache quickly on main actor
-        if AudioCache.shared.hasAudio(for: date) {
-            logger.log("Audio already cached for \(date)", level: .debug)
+        // LAZY: Only check cache if AudioCache is loaded
+        if ServiceRegistry.shared.loadedServices.contains("AudioCache"),
+           ServiceRegistry.shared.audioCache.hasAudio(for: date) {
+            logger.log("📦 Audio already cached for \(date)", level: .debug)
             return true
         }
-
-        // Perform network status check off-main
+        
+        // Perform network status check
         do {
+            // LAZY: Load SupabaseClient only when needed
+            let supabaseClient = ServiceRegistry.shared.supabaseClient
             let response = try await Task.detached(priority: .background) {
-                try await SupabaseClient.shared.getAudioStatus(for: date)
+                try await supabaseClient.getAudioStatus(for: date)
             }.value
-
+            
             if response.status == "ready", let audioUrl = response.audioUrl {
-                logger.log("Audio ready for \(date), creating player item and downloading...", level: .info)
+                logger.log("🎵 Audio ready for \(date), creating player item and downloading...", level: .info)
                 
                 // PHASE 4: Create and cache AVPlayerItem for instant handoff
                 let playerItem = AVPlayerItem(url: audioUrl)
                 let cacheKey = localDateString(from: date)
                 addPlayerItemToCache(playerItem, forKey: cacheKey)
                 
-                // Also download for offline use
-                return await AudioDownloader.shared.download(from: audioUrl, for: date)
+                // LAZY: Load AudioDownloader only when needed
+                let audioDownloader = ServiceRegistry.shared.audioDownloader
+                return await audioDownloader.download(from: audioUrl, for: date)
+                
             } else if response.status == "not_found" {
-                logger.log("Audio not found for \(date), creating job with snapshot...", level: .info)
-                // Build snapshot on main actor (location/calendar)
-                let snapshot = await SnapshotBuilder.shared.buildSnapshot()
-                // Create job off-main
+                logger.log("📋 Audio not found for \(date), creating job with snapshot...", level: .info)
+                
+                // LAZY: Load SnapshotBuilder only when creating jobs
+                let snapshot = await ServiceRegistry.shared.snapshotBuilder.buildSnapshot()
+                
+                // Create job
                 _ = try? await Task.detached(priority: .background) {
-                    try await SupabaseClient.shared.createJob(
+                    try await supabaseClient.createJob(
                         for: date,
                         with: UserPreferences.shared.settings,
                         schedule: UserPreferences.shared.schedule,
@@ -120,8 +179,9 @@ class AudioPrefetchManager {
                     )
                 }.value
                 return false
+                
             } else {
-                logger.log("Audio not ready for \(date), status: \(response.status)", level: .debug)
+                logger.log("⏳ Audio not ready for \(date), status: \(response.status)", level: .debug)
                 return false
             }
         } catch {
@@ -135,22 +195,29 @@ class AudioPrefetchManager {
         if upcomingSchedules.isEmpty { return true }
         
         var createdOrConfirmed = 0
+        
+        // LAZY: Load services only when background task actually runs
+        let supabaseClient = ServiceRegistry.shared.supabaseClient
+        let snapshotBuilder = ServiceRegistry.shared.snapshotBuilder
+        
         for schedule in upcomingSchedules {
             let scheduledTime = schedule.scheduledTime
             do {
-                // Check status off-main
+                // Check status
                 let status = try await Task.detached(priority: .background) {
-                    try await SupabaseClient.shared.getAudioStatus(for: scheduledTime)
+                    try await supabaseClient.getAudioStatus(for: scheduledTime)
                 }.value
+                
                 if status.status == "ready" || status.status == "processing" {
-                    // Nothing to do
                     continue
                 }
-                // Build snapshot on main
-                let snapshot = await SnapshotBuilder.shared.buildSnapshot()
-                // Create job off-main
+                
+                // Build snapshot
+                let snapshot = await snapshotBuilder.buildSnapshot()
+                
+                // Create job
                 _ = try? await Task.detached(priority: .background) {
-                    try await SupabaseClient.shared.createJob(
+                    try await supabaseClient.createJob(
                         for: scheduledTime,
                         with: UserPreferences.shared.settings,
                         schedule: UserPreferences.shared.schedule,
@@ -160,15 +227,17 @@ class AudioPrefetchManager {
                     )
                 }.value
                 createdOrConfirmed += 1
+                
             } catch {
                 logger.logError(error, context: "BG precreate job failed for \(scheduledTime)")
             }
         }
-        logger.log("Background precreate completed: \(createdOrConfirmed)/\(upcomingSchedules.count) jobs ensured", level: .info)
+        
+        logger.log("✅ Background precreate completed: \(createdOrConfirmed)/\(upcomingSchedules.count) jobs ensured", level: .info)
         return createdOrConfirmed > 0
     }
     
-    // MARK: - Helper Methods
+    // MARK: - Helper Methods (Lightweight)
     
     private func getSchedulesWithinHours(_ hours: Int) -> [ScheduleInfo] {
         let userPreferences = UserPreferences.shared
@@ -180,10 +249,8 @@ class AudioPrefetchManager {
         var schedules: [ScheduleInfo] = []
         
         // Check each day within the time window
-        for dayOffset in 0...2 { // Check today, tomorrow, day after
+        for dayOffset in 0...2 {
             guard let candidateDate = calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: now)) else { continue }
-            
-            // Skip if beyond our time window
             guard candidateDate <= endTime else { continue }
             
             // Check if this day is in the repeat schedule
@@ -208,8 +275,10 @@ class AudioPrefetchManager {
                scheduledTime > now && scheduledTime <= endTime {
                 schedules.append(ScheduleInfo(date: candidateDate, scheduledTime: scheduledTime))
                 
-                // Submit BG processing request so iOS may run us before this time
-                scheduleAudioPrefetch(for: scheduledTime)
+                // Schedule background task only if registered
+                if isBackgroundTaskRegistered {
+                    scheduleAudioPrefetch(for: scheduledTime)
+                }
             }
         }
         
@@ -223,14 +292,18 @@ class AudioPrefetchManager {
     }
     
     func cancelAllBackgroundTasks() {
+        guard isBackgroundTaskRegistered else {
+            logger.log("🔄 No background tasks to cancel - not registered", level: .debug)
+            return
+        }
+        
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
-        logger.log("Cancelled all background audio prefetch tasks", level: .info)
+        logger.log("❌ Cancelled all background audio prefetch tasks", level: .info)
     }
     
-    // MARK: - Phase 4: AVPlayerItem Prefetching
+    // MARK: - AVPlayerItem Prefetching (Lightweight)
     
     private func addPlayerItemToCache(_ item: AVPlayerItem, forKey key: String) {
-        // Purge old/excess items before adding new ones
         purgeExpiredItems()
         if preloadedPlayerItems.count >= maxCacheSize {
             purgeOldestItem()
@@ -244,14 +317,12 @@ class AudioPrefetchManager {
         let cacheKey = localDateString(from: date)
         
         guard let cached = preloadedPlayerItems[cacheKey] else {
-            logger.log("🎵 No preloaded item found for \(cacheKey)", level: .debug)
             return nil
         }
         
-        // Check if item is still valid (not expired)
+        // Check if item is still valid
         let age = Date().timeIntervalSince(cached.created)
         if age > maxCacheAge {
-            logger.log("🎵 Preloaded item expired for \(cacheKey) (age: \(Int(age))s)", level: .info)
             preloadedPlayerItems.removeValue(forKey: cacheKey)
             return nil
         }
@@ -268,7 +339,6 @@ class AudioPrefetchManager {
         
         for key in expiredKeys {
             preloadedPlayerItems.removeValue(forKey: key)
-            logger.log("🗑️ Purged expired player item: \(key)", level: .debug)
         }
     }
     
@@ -278,10 +348,8 @@ class AudioPrefetchManager {
         }
         
         preloadedPlayerItems.removeValue(forKey: oldestKey)
-        logger.log("🗑️ Purged oldest player item: \(oldestKey) due to cache size limit", level: .info)
     }
     
-    // Memory pressure handling
     func clearPlayerItemCache() {
         let cacheSize = preloadedPlayerItems.count
         preloadedPlayerItems.removeAll()
@@ -294,6 +362,22 @@ class AudioPrefetchManager {
         formatter.timeZone = TimeZone.current
         return formatter.string(from: date)
     }
+    
+    // MARK: - Schedule Status
+    
+    var hasActiveSchedule: Bool {
+        !UserPreferences.shared.schedule.repeatDays.isEmpty
+    }
+    
+    var backgroundTaskStatus: String {
+        if !hasActiveSchedule {
+            return "No active schedule"
+        } else if isBackgroundTaskRegistered {
+            return "Registered"
+        } else {
+            return "Not registered (will register on demand)"
+        }
+    }
 }
 
 // MARK: - Helper Structs
@@ -302,5 +386,3 @@ private struct ScheduleInfo {
     let date: Date
     let scheduledTime: Date
 }
-
-// AudioStatusResponse moved to SupabaseClient.swift for consistency

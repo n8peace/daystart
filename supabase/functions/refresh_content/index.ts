@@ -424,13 +424,13 @@ async function summarizeNewsMini(articles: any[] = [], sourceName: string = ''):
     messages: [
       {
         role: 'system',
-        content: `Compact news into short, speakable lines for a morning TTS script.
+        content: `Create substantive, speakable news summaries for a morning TTS script.
 Return strictly JSON: {"items": Array<CompactItem>}.
 CompactItem fields:
 - id: stable string (prefer url; else a 32-char hash of title)
 - source: short source name
 - publishedAt: ISO8601 if present
-- speakable: 16–24 words, concrete and factual
+- speakable: concrete and factual summary with key details, context, and specific information
 - geo: one of local|state|national|international
 - category: one of politics|business|tech|sports|weather|other`
       },

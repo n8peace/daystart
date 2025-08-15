@@ -4,27 +4,25 @@ import UserNotifications
 import UIKit
 import Combine
 import BackgroundTasks
+import MediaPlayer
 
+/// Minimal DayStartApp with aggressive service deferral
+/// Only loads 3 essential services on startup for Spotify-level performance
 @main
 struct DayStartApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    // Delay StateObject creation to avoid heavy initialization
+    
+    // TIER 1: Only essential services (no lazy loading needed)
     private var userPreferences: UserPreferences { UserPreferences.shared }
     private var themeManager: ThemeManager { ThemeManager.shared }
     @State private var showOnboarding = false
     
-    private let logger = DebugLogger.shared
     private static var audioConfigRetryCount = 0
     private static let maxAudioConfigRetries = 3
     
     init() {
-        logger.log("🚀 DayStart app initializing", level: .info)
-        logger.logMemoryUsage()
-        
-        // Defer heavy initialization - only set up minimal UI
-        // Audio and permissions will be initialized during onboarding countdown
-        
-        logger.log("✅ App initialization complete", level: .info)
+        // MINIMAL: Only essential UI setup (no service initialization)
+        configureBasicNavigationAppearance()
     }
     
     var body: some Scene {
@@ -35,117 +33,43 @@ struct DayStartApp: App {
                 .preferredColorScheme(themeManager.effectiveColorScheme)
                 .accentColor(BananaTheme.ColorToken.primary)
                 .onReceive(themeManager.$effectiveColorScheme) { colorScheme in
-                    configureNavigationAppearance(for: colorScheme)
+                    updateNavigationAppearance(for: colorScheme)
                 }
-				.onReceive(NotificationCenter.default.publisher(for: AVAudioSession.mediaServicesWereResetNotification)) { _ in
-					logger.log("🔄 Media services reset - reconfiguring audio session", level: .info)
-					Self.audioConfigRetryCount = 0 // Reset retry counter on media services reset
-					configureAudioSession()
-				}
-                .onAppear {
-                    logger.log("📱 Main content appeared", level: .info)
-                    
-                    // Initialize app immediately
+                .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.mediaServicesWereResetNotification)) { _ in
+                    Self.audioConfigRetryCount = 0
                     Task {
-                        await initializeApp()
+                        await reconfigureAudioSessionIfNeeded()
                     }
-                    
-                    // Clean up old audio files in background
-                    Task.detached(priority: .background) {
-                        await UserPreferences.shared.cleanupOldAudioFiles()
+                }
+                .onAppear {
+                    // DEFERRED: All heavy initialization happens after UI appears
+                    Task {
+                        await deferredAppInitialization()
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                    // Refresh theme when app enters foreground
                     themeManager.refreshColorScheme()
                     
-                    // PHASE 3: Service warmup on foreground entry
+                    // LAZY: Only pre-warm if audio system is already loaded
                     Task.detached {
-                        await AudioPrefetchManager.shared.checkForUpcomingDayStarts()
-                        _ = await LocationManager.shared.getCurrentLocation() // Pre-warm location
+                        await preWarmLoadedServicesOnForeground()
                     }
                 }
                 .fullScreenCover(isPresented: $showOnboarding) {
                     OnboardingView {
-                        logger.logUserAction("Onboarding completed")
                         UserPreferences.shared.hasCompletedOnboarding = true
                         showOnboarding = false
-                        logger.log("🎓 User completed onboarding - transitioning to main app", level: .info)
                     }
                 }
         }
     }
     
-    private func configureAudioSession() {
-        // Check retry limit to prevent infinite loops
-        guard Self.audioConfigRetryCount < Self.maxAudioConfigRetries else {
-            logger.log("⚠️ Audio session configuration retry limit reached (\(Self.maxAudioConfigRetries)). Skipping further attempts.", level: .warning)
-            return
-        }
-        
-        Self.audioConfigRetryCount += 1
-        logger.log("🔧 Configuring audio session (attempt \(Self.audioConfigRetryCount)/\(Self.maxAudioConfigRetries))", level: .debug)
-        
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            
-			// Configure category and mode with fallback options
-			try audioSession.setCategory(
-				.playback,
-				mode: .spokenAudio,
-				options: []
-			)
-            
-            // Set preferred sample rate and buffer duration for stable playback
-            try audioSession.setPreferredSampleRate(44100.0)
-            // Use larger buffer (256 samples ≈ 5.8ms at 44.1kHz) to prevent dropouts
-            try audioSession.setPreferredIOBufferDuration(256.0 / 44100.0)
-            
-            // Activate session with error handling for system resource conflicts
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-            
-            logger.log("✅ Audio session configured successfully", level: .info)
-            // Reset retry counter on success
-            Self.audioConfigRetryCount = 0
-            
-        } catch let error as NSError {
-            // Handle specific audio session errors gracefully
-            logger.log("⚠️ Audio session configuration failed: \(error.localizedDescription)", level: .warning)
-            
-            // Check for specific error codes we can handle
-            if error.code == AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue {
-                logger.log("⚠️ Cannot interrupt other audio apps", level: .warning)
-			} else if error.domain == NSOSStatusErrorDomain {
-				// Handle media services issues with OSStatus errors
-				logger.log("🔄 Media services issue detected; will reconfigure on media services reset", level: .warning)
-			} else {
-                logger.logError(error, context: "Failed to configure audio session")
-            }
-        }
-    }
+    // MARK: - Minimal UI Setup (Instant)
     
-    private func requestNotificationPermissions() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    DebugLogger.shared.logError(error, context: "Notification permission request failed")
-                } else {
-                    DebugLogger.shared.logUserAction("Notification permissions", details: ["granted": granted])
-                    if granted {
-                        DebugLogger.shared.log("✅ Notification permissions granted", level: .info)
-                    } else {
-                        DebugLogger.shared.log("⚠️ Notification permissions denied", level: .warning)
-                    }
-                }
-            }
-        }
-    }
-    
-    private func configureNavigationAppearance(for colorScheme: ColorScheme? = nil) {
+    private func configureBasicNavigationAppearance() {
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
         
-        // Use dynamic system label color so it adapts automatically
         let labelColor = UIColor.label
         appearance.titleTextAttributes = [.foregroundColor: labelColor]
         appearance.largeTitleTextAttributes = [.foregroundColor: labelColor]
@@ -156,35 +80,117 @@ struct DayStartApp: App {
         UINavigationBar.appearance().tintColor = UIColor(BananaTheme.ColorToken.accent)
     }
     
-    private func initializeApp() async {
-        logger.log("🚀 Starting app initialization", level: .info)
-        
-        // Check onboarding status only (fast)
+    private func updateNavigationAppearance(for colorScheme: ColorScheme) {
+        // Dynamic appearance updates (lightweight)
+        configureBasicNavigationAppearance()
+    }
+    
+    // MARK: - Deferred Initialization (Background)
+    
+    private func deferredAppInitialization() async {
+        // Check onboarding status (fast UserDefaults read)
         let needsOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         await MainActor.run {
             showOnboarding = needsOnboarding
         }
-        logger.log("🔍 Onboarding check: \(needsOnboarding ? "needed" : "completed")", level: .info)
         
-        // Background tasks (non-blocking)
+        // CRITICAL: Pre-warm only what prevents keyboard lag
+        Task.detached(priority: .background) {
+            await self.preWarmKeyboardLagFix()
+        }
+        
+        // DEFERRED: Background cleanup (non-blocking)
         if !needsOnboarding {
             Task.detached(priority: .background) {
-                // Trigger lazy loading of heavy data in background for existing users
-                // This will load settings and history when first accessed
-                await DebugLogger.shared.log("📦 Background ready for lazy loading", level: .debug)
+                await UserPreferences.shared.cleanupOldAudioFiles()
             }
+        }
+    }
+    
+    /// Pre-warm only what's essential to prevent keyboard lag
+    private func preWarmKeyboardLagFix() async {
+        do {
+            // 1. Pre-warm MPRemoteCommandCenter (main keyboard lag cause)
+            let _ = MPRemoteCommandCenter.shared()
+            
+            // 2. Configure basic audio session
+            try await configureAudioSessionAsync()
+            
+            await DebugLogger.shared.log("✅ Keyboard lag prevention complete", level: .info)
+            
+        } catch {
+            await DebugLogger.shared.logError(error, context: "Pre-warming keyboard lag fix")
+        }
+    }
+    
+    /// Basic audio session configuration (lightweight)
+    private func configureAudioSessionAsync() async throws {
+        let audioSession = AVAudioSession.sharedInstance()
+        
+        try audioSession.setCategory(
+            .playback,
+            mode: .spokenAudio,
+            options: []
+        )
+        
+        try audioSession.setPreferredSampleRate(44100.0)
+        try audioSession.setPreferredIOBufferDuration(0.005)
+    }
+    
+    /// Only pre-warm services that are already loaded
+    private func preWarmLoadedServicesOnForeground() async {
+        await MainActor.run {
+            let registry = ServiceRegistry.shared
+            
+            // Only check for upcoming DayStarts if AudioPrefetchManager is already loaded
+            if registry.loadedServices.contains("AudioPrefetchManager") {
+                Task {
+                    await registry.audioPrefetchManager.checkForUpcomingDayStarts()
+                }
+            }
+            
+            // Only pre-warm location if LocationManager is already loaded
+            if registry.loadedServices.contains("LocationManager"),
+               let locationManager = registry.locationManager {
+                Task {
+                    _ = await locationManager.getCurrentLocation()
+                }
+            }
+        }
+    }
+    
+    /// Reconfigure audio session only if AudioPlayerManager is loaded
+    private func reconfigureAudioSessionIfNeeded() async {
+        let hasAudioPlayer = await MainActor.run {
+            ServiceRegistry.shared.loadedServices.contains("AudioPlayerManager")
+        }
+        
+        guard hasAudioPlayer else {
+            await DebugLogger.shared.log("🔄 Media services reset - but AudioPlayerManager not loaded, skipping", level: .debug)
+            return
+        }
+        
+        // Only reconfigure if audio system is actually in use
+        Self.audioConfigRetryCount = 0
+        
+        do {
+            try await configureAudioSessionAsync()
+            await DebugLogger.shared.log("✅ Audio session reconfigured after media services reset", level: .info)
+        } catch {
+            await DebugLogger.shared.logError(error, context: "Reconfiguring audio session after media services reset")
         }
     }
 }
 
+/// Minimal ContentView with lazy service loading
 struct ContentView: View {
-    // Lazy initialization to prevent AudioPlayerManager from loading at startup
-    @StateObject private var homeViewModel = HomeViewModel(lazyInit: true)
-    private let logger = DebugLogger.shared
+    // DEFERRED: HomeViewModel loads services only when needed
+    @StateObject private var homeViewModel = HomeViewModel()
     
     var body: some View {
         HomeView(viewModel: homeViewModel)
             .onAppear {
+                // Load core UI services only when view appears
                 homeViewModel.onViewAppear()
             }
             .onDisappear {
@@ -193,45 +199,56 @@ struct ContentView: View {
     }
 }
 
-// MARK: - App Delegate for Background Tasks
+// MARK: - Minimal App Delegate
 
 class AppDelegate: NSObject, UIApplicationDelegate {
-    private let logger = DebugLogger.shared
-    
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // Defer background task registration - will be done after onboarding
-        // This prevents AudioPrefetchManager from initializing at startup
-        logger.log("📱 App launched - deferring background task registration", level: .info)
-        
+        // DEFERRED: No background task registration at launch
+        // Will be registered only when user has active schedule
         return true
     }
     
     func applicationWillEnterForeground(_ application: UIApplication) {
-        logger.log("📱 App entering foreground - checking for upcoming DayStarts", level: .info)
-        
+        // LAZY: Only check if services are already loaded
         Task.detached {
-            await AudioPrefetchManager.shared.checkForUpcomingDayStarts()
+            await MainActor.run {
+                let registry = ServiceRegistry.shared
+                if registry.loadedServices.contains("AudioPrefetchManager") {
+                    Task {
+                        await registry.audioPrefetchManager.checkForUpcomingDayStarts()
+                    }
+                }
+            }
         }
     }
     
     func applicationDidEnterBackground(_ application: UIApplication) {
-        logger.log("🌙 App entered background", level: .debug)
-        
-        // Clean up old cache when app goes to background
+        // LAZY: Only clean cache if AudioCache is loaded
         Task {
-            AudioCache.shared.clearOldCache()
+            await MainActor.run {
+                let registry = ServiceRegistry.shared
+                if registry.loadedServices.contains("AudioCache") {
+                    registry.audioCache.clearOldCache()
+                }
+            }
         }
     }
     
     func applicationWillTerminate(_ application: UIApplication) {
-        logger.log("❌ App terminating - cancelling downloads", level: .info)
-        
+        // LAZY: Only cancel if services are loaded
         Task { @MainActor in
-            AudioDownloader.shared.cancelAllDownloads()
-            AudioPrefetchManager.shared.cancelAllBackgroundTasks()
+            let registry = ServiceRegistry.shared
+            
+            if registry.loadedServices.contains("AudioDownloader") {
+                registry.audioDownloader.cancelAllDownloads()
+            }
+            
+            if registry.loadedServices.contains("AudioPrefetchManager") {
+                registry.audioPrefetchManager.cancelAllBackgroundTasks()
+            }
         }
     }
 }

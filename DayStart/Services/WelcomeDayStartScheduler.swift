@@ -188,20 +188,20 @@ class WelcomeDayStartScheduler: ObservableObject {
             _ = await LocationManager.shared.getCurrentLocation() // Pre-warm location
         }
         
-        // Initialize AudioPlayerManager
+        // Initialize AudioPlayerManager (now in background to prevent blocking)
         await updateInitializationProgress("Preparing audio system...", step: 2)
-        await MainActor.run {
+        Task.detached {
             _ = AudioPlayerManager.shared
-            logger.log("✅ AudioPlayerManager initialized", level: .info)
+            await DebugLogger.shared.log("✅ AudioPlayerManager initialized", level: .info)
         }
         
-        // Initialize other services
+        // Initialize other services (now in background to prevent blocking)
         await updateInitializationProgress("Setting up notification system...", step: 3)
-        await MainActor.run {
+        Task.detached {
             _ = NotificationScheduler.shared
             _ = AudioPrefetchManager.shared
             _ = AudioCache.shared
-            logger.log("✅ Notification and audio services initialized", level: .info)
+            await DebugLogger.shared.log("✅ Notification and audio services initialized", level: .info)
         }
         
         // Configure audio session
