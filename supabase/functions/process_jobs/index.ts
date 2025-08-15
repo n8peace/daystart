@@ -133,30 +133,58 @@ const transitions = {
   toQuote: ['Pocket this —', 'A line to carry —', 'One thought for the morning —']
 };
 
-// Simple retry + timeout wrapper for flaky network calls
-async function withRetry<T>(fn: () => Promise<T>, tries = 3, baseMs = 600, timeoutMs = 20000): Promise<T> {
+// Enhanced retry + timeout wrapper with detailed logging
+async function withRetry<T>(fn: () => Promise<T>, tries = 3, baseMs = 600, timeoutMs = 45000, context = 'unknown'): Promise<T> {
   let lastErr: any;
+  const startTime = Date.now();
+  
+  console.log(`🔄 withRetry starting for ${context}, timeout: ${timeoutMs}ms, tries: ${tries}`);
+  
   for (let i = 0; i < tries; i++) {
+    const attemptStart = Date.now();
+    console.log(`📡 Attempt ${i + 1}/${tries} for ${context} (elapsed: ${attemptStart - startTime}ms)`);
+    
     try {
       const result = await Promise.race([
         fn(),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
+        new Promise<never>((_, rej) => setTimeout(() => {
+          const timeoutError = new Error(`timeout after ${timeoutMs}ms`);
+          console.log(`⏰ TIMEOUT in ${context} after ${timeoutMs}ms (attempt ${i + 1}/${tries})`);
+          rej(timeoutError);
+        }, timeoutMs))
       ]);
+      
+      const attemptTime = Date.now() - attemptStart;
+      const totalTime = Date.now() - startTime;
+      console.log(`✅ ${context} succeeded in ${attemptTime}ms (total: ${totalTime}ms, attempt ${i + 1})`);
       return result;
     } catch (e) {
       lastErr = e;
+      const attemptTime = Date.now() - attemptStart;
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      console.log(`❌ ${context} failed in ${attemptTime}ms (attempt ${i + 1}/${tries}): ${errorMsg}`);
+      
       if (i < tries - 1) {
         // Respect Retry-After header when available on Response
         let retryAfterMs = 0;
         if (e && typeof e === 'object' && 'headers' in (e as any)) {
           const ra = Number((e as any).headers?.get?.('retry-after')) || 0;
           retryAfterMs = ra * 1000;
+          if (retryAfterMs > 0) {
+            console.log(`🕐 Retry-After header: ${ra}s`);
+          }
         }
         const backoff = baseMs * (2 ** i);
-        await new Promise(r => setTimeout(r, Math.max(backoff, retryAfterMs)));
+        const delayMs = Math.max(backoff, retryAfterMs);
+        console.log(`⏳ Retrying ${context} in ${delayMs}ms (backoff: ${backoff}ms)`);
+        await new Promise(r => setTimeout(r, delayMs));
       }
     }
   }
+  
+  const totalTime = Date.now() - startTime;
+  const finalError = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  console.log(`💥 ${context} FAILED after ${tries} attempts in ${totalTime}ms. Final error: ${finalError}`);
   throw lastErr;
 }
 
@@ -516,7 +544,7 @@ You've got this.`
       temperature: 0.5,         // tighter adherence
       top_p: 1,
     }),
-  }));
+  }), 3, 600, 45000, 'OpenAI-ContentGeneration');
 
   if (!response.ok) {
     throw new Error(`OpenAI API error: ${response.status}`);
@@ -660,7 +688,7 @@ ${contextJSON}
       temperature: 0.2,
       max_tokens: 900
     })
-  }));
+  }), 3, 600, 45000, 'OpenAI-TTS-Cleanup');
 
   const j = await resp.json();
   return j?.choices?.[0]?.message?.content?.trim() || text;
@@ -704,7 +732,7 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
         use_speaker_boost: true
       }
     }),
-  }));
+  }), 3, 600, 45000, `ElevenLabs-TTS-${voiceOption}`);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -732,13 +760,46 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
 
 function buildScriptPrompt(context: any): string {
   // Parse the date in the user's timezone, not UTC
-  const [year, month, day] = context.date.split('-').map(Number);
-  const date = new Date(year, month - 1, day).toLocaleDateString('en-US', { 
+  console.log(`📅 Parsing date: ${context.date} in timezone: ${context.timezone}`);
+  
+  const dateParts = context.date.split('-').map(Number);
+  console.log(`📅 Date parts: year=${dateParts[0]}, month=${dateParts[1]}, day=${dateParts[2]}`);
+  
+  // Validate date parts
+  if (dateParts.length !== 3 || dateParts.some(part => isNaN(part))) {
+    throw new Error(`Invalid date format: ${context.date}. Expected YYYY-MM-DD format.`);
+  }
+  
+  const [year, month, day] = dateParts;
+  
+  // Validate date ranges
+  if (year < 2020 || year > 2030) {
+    throw new Error(`Invalid year: ${year}. Must be between 2020 and 2030.`);
+  }
+  if (month < 1 || month > 12) {
+    throw new Error(`Invalid month: ${month}. Must be between 1 and 12.`);
+  }
+  if (day < 1 || day > 31) {
+    throw new Error(`Invalid day: ${day}. Must be between 1 and 31.`);
+  }
+  
+  const dateObj = new Date(year, month - 1, day);
+  
+  // Validate the date object is valid
+  if (isNaN(dateObj.getTime())) {
+    throw new Error(`Invalid date object created from: ${year}-${month}-${day}`);
+  }
+  
+  console.log(`📅 Created date object: ${dateObj.toISOString()}`);
+  
+  const date = dateObj.toLocaleDateString('en-US', { 
     weekday: 'long', 
     month: 'long', 
     day: 'numeric',
     timeZone: context.timezone
   });
+  
+  console.log(`📅 Formatted date: ${date}`);
   
   const duration = context.dayStartLength || 240;
   const { targetWords } = getTokenLimits(duration);

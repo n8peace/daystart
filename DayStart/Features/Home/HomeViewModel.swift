@@ -157,8 +157,8 @@ class HomeViewModel: ObservableObject {
             // If in playing state but audio player isn't loaded, check if it should be
             if serviceRegistry.loadedServices.contains("AudioPlayerManager") {
                 let audioPlayer = serviceRegistry.audioPlayerManager
-                if !audioPlayer.isPlaying && !audioPlayer.isLoading {
-                    logger.log("⚠️ Invalid state: playing but audio not playing/loading", level: .warning)
+                if !audioPlayer.isPlaying {
+                    logger.log("⚠️ Invalid state: playing but audio not playing", level: .warning)
                     // Try to recover by restarting audio or go to completed
                     if let dayStart = currentDayStart {
                         state = .completed
@@ -322,7 +322,7 @@ class HomeViewModel: ObservableObject {
             // Check if audio is still playing, update UI accordingly
             if serviceRegistry.loadedServices.contains("AudioPlayerManager") {
                 let audioPlayer = serviceRegistry.audioPlayerManager
-                if !audioPlayer.isPlaying && !audioPlayer.isLoading {
+                if !audioPlayer.isPlaying {
                     // Audio stopped while in background, transition to completed
                     transitionToRecentlyPlayed()
                 }
@@ -530,7 +530,6 @@ class HomeViewModel: ObservableObject {
         
         // Calculate date flags
         let calendar = Calendar.current
-        let now = Date()
         let today = calendar.startOfDay(for: now)
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
         let nextOccurrenceDay = calendar.startOfDay(for: nextOccurrence)
