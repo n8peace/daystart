@@ -731,7 +731,9 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
 }
 
 function buildScriptPrompt(context: any): string {
-  const date = new Date(context.date).toLocaleDateString('en-US', { 
+  // Parse the date in the user's timezone, not UTC
+  const [year, month, day] = context.date.split('-').map(Number);
+  const date = new Date(year, month - 1, day).toLocaleDateString('en-US', { 
     weekday: 'long', 
     month: 'long', 
     day: 'numeric',

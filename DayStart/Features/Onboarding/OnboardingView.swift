@@ -705,7 +705,10 @@ struct OnboardingView: View {
                         icon: "📈",
                         title: "Stocks",
                         subtitle: "Market updates and prices",
-                        isOn: $includeStocks,
+                        isOn: $includeStocks
+                        // TEMPORARILY REMOVED: Stock symbols text field
+                        // Will be added back later if needed
+                        /*
                         accessoryContent: {
                             AnyView(
                                 TextField("SPY, AAPL, BTC-USD", text: $stockSymbols)
@@ -721,13 +724,17 @@ struct OnboardingView: View {
                                     .onSubmit { hideKeyboard() }
                             )
                         }
+                        */
                     )
                     
                     ContentToggleRow(
                         icon: "💬",
                         title: "Motivational Quotes",
                         subtitle: "Daily inspiration and wisdom",
-                        isOn: $includeQuotes,
+                        isOn: $includeQuotes
+                        // TEMPORARILY REMOVED: Quote type picker
+                        // Will be added back later if needed
+                        /*
                         accessoryContent: {
                             AnyView(
                                 HStack(spacing: 8) {
@@ -752,6 +759,7 @@ struct OnboardingView: View {
                                 }
                             )
                         }
+                        */
                     )
                 }
                 .padding(.horizontal, geometry.size.width * 0.08)

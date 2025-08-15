@@ -2,6 +2,36 @@ import Foundation
 import SwiftUI
 import Combine
 
+enum ConnectionError {
+    case noInternet
+    case supabaseError
+    case timeout
+    
+    var icon: String {
+        switch self {
+        case .noInternet: return "📡"
+        case .supabaseError: return "🔧"
+        case .timeout: return "⏳"
+        }
+    }
+    
+    var title: String {
+        switch self {
+        case .noInternet: return "Looks like you're offline!"
+        case .supabaseError: return "Our servers are taking a coffee break"
+        case .timeout: return "Taking longer than expected..."
+        }
+    }
+    
+    var message: String {
+        switch self {
+        case .noInternet: return "Check your connection and we'll sync up when you're back online."
+        case .supabaseError: return "We'll have your DayStart ready shortly!"
+        case .timeout: return "Your personalized brief is worth the wait!"
+        }
+    }
+}
+
 /// Simplified HomeViewModel with aggressive service deferral via ServiceRegistry
 /// No services loaded in init - everything loads on-demand when actually needed
 class HomeViewModel: ObservableObject {
@@ -18,6 +48,7 @@ class HomeViewModel: ObservableObject {
         case welcomeCountdown
         case welcomeReady
         case countdown       // 0-10 hours before scheduled time
+        case preparing      // Waiting for audio to be ready
         case ready          // Ready to play
         case playing        // Currently playing
         case completed      // Completed (replay available)
@@ -31,15 +62,55 @@ class HomeViewModel: ObservableObject {
     @Published var hasCompletedCurrentOccurrence = false
     @Published var isNextDayStartTomorrow = false
     @Published var isNextDayStartToday = false
+    @Published var preparingCountdownText = ""
+    @Published var preparingMessage = ""
+    @Published var connectionError: ConnectionError?
     
     private var timer: Timer?
     private var pauseTimeoutTimer: Timer?
     private var loadingDelayTimer: Timer?
     private var loadingTimeoutTimer: Timer?
+    private var preparingTimer: Timer?
+    private var preparingMessageTimer: Timer?
+    private var pollingTimer: Timer?
+    private var preparingStartTime: Date?
     private var cancellables = Set<AnyCancellable>()
     
     // Debouncing
     private var updateStateWorkItem: DispatchWorkItem?
+    
+    // Preparing state messages
+    private let preparingMessages = [
+        "✨🔭 Checking the stars for cosmic alignment...",
+        "🍌🌅 Ripening your morning bananas...",
+        "👖🪙 Checking all the pockets for loose change...",
+        "🤖☕ Teaching the AI to speak fluent morning...",
+        "🌅📡 Calibrating the sunrise sensors...",
+        "🐹💾 Feeding the digital hamsters...",
+        "🔮✨ Polishing your crystal ball...",
+        "🌡️🔥 Warming up the forecast machine...",
+        "📰🪢 Untangling the news wires...",
+        "☕📊 Brewing your information espresso...",
+        "🛸📡 Syncing with the mothership...",
+        "🐑💤 Counting sheep backwards...",
+        "📻🌀 Adjusting the reality frequency...",
+        "📥✨ Downloading today's vibes...",
+        "🧊💡 Defrosting the insight freezer...",
+        "🎼🎻 Tuning the morning orchestra...",
+        "🧙‍♂️💻 Waking up the data gnomes...",
+        "🔋⚡ Charging the inspiration batteries...",
+        "🎱🔮 Consulting the magic 8-ball...",
+        "🪐⚡ Aligning the productivity planets...",
+        "🥘💪 Stirring the motivation pot...",
+        "☁️🧠 Fluffing the wisdom clouds...",
+        "👻🥞 Summoning the breakfast spirits...",
+        "⚛️🔗 Activating quantum entanglement...",
+        "⏰🐌 Convincing time to slow down...",
+        "🌦️⚡ Negotiating with the weather gods...",
+        "🐦🎵 Translating bird songs...",
+        "💡🏃‍♂️ Measuring the speed of light..."
+    ]
+    private var currentMessageIndex = 0
     
     init() {
         // INSTANT: No service loading, no dependencies
@@ -61,6 +132,7 @@ class HomeViewModel: ObservableObject {
         pauseTimeoutTimer?.invalidate()
         pauseTimeoutTimer = nil
         stopLoadingTimers()
+        stopPreparingState()
     }
     
     // MARK: - Lazy Service Loading
@@ -233,7 +305,8 @@ class HomeViewModel: ObservableObject {
         if timeUntil > 0 && timeUntil <= tenHoursInSeconds {
             startCountdown()
         } else if timeUntil <= 0 && timeUntil >= -sixHoursInSeconds && !hasCompletedThisOccurrence {
-            state = .ready
+            // Check if audio is ready before showing ready state
+            checkAudioReadiness(for: nextOccurrence)
         } else if hasCompletedThisOccurrence && timeUntil >= -sixHoursInSeconds {
             state = .completed
         } else {
@@ -270,17 +343,249 @@ class HomeViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Audio Readiness & Preparing State
+    
+    private func checkAudioReadiness(for scheduledTime: Date) {
+        // First check if we have cached audio
+        if serviceRegistry.audioCache.hasAudio(for: scheduledTime) {
+            state = .ready
+            return
+        }
+        
+        // Check network connectivity
+        guard NetworkMonitor.shared.isConnected else {
+            connectionError = .noInternet
+            state = .idle
+            return
+        }
+        
+        // Start preparing state
+        startPreparingState(isWelcome: false)
+        
+        // Start polling for audio status
+        startPollingForAudio(scheduledTime: scheduledTime)
+    }
+    
+    private func startPreparingState(isWelcome: Bool) {
+        state = .preparing
+        preparingStartTime = Date()
+        connectionError = nil
+        
+        // Start countdown timer
+        let expectedDuration: TimeInterval = isWelcome ? 120 : 120 // 2 minutes for both initially
+        startPreparingCountdown(duration: expectedDuration)
+        
+        // Start message rotation
+        startPreparingMessageRotation()
+    }
+    
+    private func startPreparingCountdown(duration: TimeInterval) {
+        preparingTimer?.invalidate()
+        
+        preparingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self = self, let startTime = self.preparingStartTime else { return }
+            
+            let elapsed = Date().timeIntervalSince(startTime)
+            let remaining = max(0, duration - elapsed)
+            
+            let minutes = Int(remaining) / 60
+            let seconds = Int(remaining) % 60
+            self.preparingCountdownText = String(format: "%d:%02d", minutes, seconds)
+            
+            if remaining <= 0 {
+                self.preparingTimer?.invalidate()
+                self.preparingCountdownText = "0:00"
+            }
+        }
+    }
+    
+    private func startPreparingMessageRotation() {
+        // Set initial message
+        currentMessageIndex = Int.random(in: 0..<preparingMessages.count)
+        preparingMessage = preparingMessages[currentMessageIndex]
+        
+        preparingMessageTimer?.invalidate()
+        
+        // Rotate messages every 5-7 seconds
+        preparingMessageTimer = Timer.scheduledTimer(withTimeInterval: Double.random(in: 5...7), repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            
+            self.currentMessageIndex = (self.currentMessageIndex + 1) % self.preparingMessages.count
+            
+            withAnimation(.easeInOut(duration: 0.3)) {
+                self.preparingMessage = self.preparingMessages[self.currentMessageIndex]
+            }
+            
+            // Reset timer with new random interval
+            self.preparingMessageTimer?.invalidate()
+            self.preparingMessageTimer = Timer.scheduledTimer(withTimeInterval: Double.random(in: 5...7), repeats: true) { _ in
+                self.rotatePreparingMessage()
+            }
+        }
+    }
+    
+    private func rotatePreparingMessage() {
+        currentMessageIndex = (currentMessageIndex + 1) % preparingMessages.count
+        withAnimation(.easeInOut(duration: 0.3)) {
+            preparingMessage = preparingMessages[currentMessageIndex]
+        }
+    }
+    
+    private func startPollingForAudio(scheduledTime: Date) {
+        pollingTimer?.invalidate()
+        
+        // Initial check
+        Task {
+            await checkAudioStatus(for: scheduledTime)
+        }
+        
+        // Poll every 10 seconds
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            Task {
+                await self?.checkAudioStatus(for: scheduledTime)
+            }
+        }
+    }
+    
+    private func checkAudioStatus(for scheduledTime: Date) async {
+        do {
+            let supabaseClient = serviceRegistry.supabaseClient
+            let audioStatus = try await supabaseClient.getAudioStatus(for: scheduledTime)
+            
+            await MainActor.run {
+                if audioStatus.success && audioStatus.status == "ready" {
+                    // Audio is ready!
+                    stopPreparingState()
+                    state = .playing
+                    
+                    // Haptic feedback for early completion
+                    HapticManager.shared.notification(type: .success)
+                    
+                    // Load audio services and start playing
+                    Task {
+                        await loadAudioServicesAndStart()
+                    }
+                } else if audioStatus.status == "failed" {
+                    // Job failed
+                    connectionError = .supabaseError
+                    stopPreparingState()
+                    state = .idle
+                }
+                // Continue polling if still processing
+            }
+        } catch {
+            await MainActor.run {
+                // Check if it's a network error
+                if !NetworkMonitor.shared.isConnected {
+                    connectionError = .noInternet
+                } else {
+                    connectionError = .supabaseError
+                }
+                logger.logError(error, context: "Failed to check audio status while preparing")
+            }
+        }
+    }
+    
+    private func stopPreparingState() {
+        preparingTimer?.invalidate()
+        preparingTimer = nil
+        
+        preparingMessageTimer?.invalidate()
+        preparingMessageTimer = nil
+        
+        pollingTimer?.invalidate()
+        pollingTimer = nil
+        
+        preparingStartTime = nil
+    }
+    
+    private func checkWelcomeAudioStatus() async {
+        // Poll every 10 seconds for welcome audio
+        pollingTimer?.invalidate()
+        
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            Task {
+                await self?.checkWelcomeAudioStatusOnce()
+            }
+        }
+        
+        // Initial check
+        await checkWelcomeAudioStatusOnce()
+    }
+    
+    private func checkWelcomeAudioStatusOnce() async {
+        do {
+            let supabaseClient = serviceRegistry.supabaseClient
+            let audioStatus = try await supabaseClient.getAudioStatus(for: Date())
+            
+            await MainActor.run {
+                if audioStatus.success && audioStatus.status == "ready" {
+                    // Welcome audio is ready!
+                    stopPreparingState()
+                    state = .playing
+                    
+                    // Load audio services and play
+                    Task {
+                        await loadAudioServicesAndStart()
+                        await startWelcomeDayStartWithSupabase()
+                    }
+                    
+                    // Haptic feedback for early completion
+                    HapticManager.shared.notification(type: .success)
+                } else if audioStatus.status == "failed" {
+                    // Job failed
+                    connectionError = .supabaseError
+                    stopPreparingState()
+                    state = .idle
+                }
+                // Continue polling if still processing
+            }
+        } catch {
+            await MainActor.run {
+                // Check if it's a network error
+                if !NetworkMonitor.shared.isConnected {
+                    connectionError = .noInternet
+                } else {
+                    connectionError = .supabaseError
+                }
+                stopPreparingState()
+                state = .idle
+                logger.logError(error, context: "Failed to check welcome audio status")
+            }
+        }
+    }
+    
     // MARK: - User Actions (Load Services On-Demand)
     
     func startDayStart() {
         logger.logUserAction("Start DayStart", details: ["time": Date().description])
         
-        // IMMEDIATE: State change for responsiveness
-        state = .playing
+        guard let scheduledTime = nextDayStartTime else {
+            logger.log("❌ No scheduled time for DayStart", level: .error)
+            return
+        }
         
-        // LAZY: Load audio services only when needed
-        Task {
-            await loadAudioServicesAndStart()
+        // Check if audio is already cached
+        if serviceRegistry.audioCache.hasAudio(for: scheduledTime) {
+            // IMMEDIATE: State change for responsiveness
+            state = .playing
+            
+            // LAZY: Load audio services only when needed
+            Task {
+                await loadAudioServicesAndStart()
+            }
+        } else {
+            // Check network connectivity
+            guard NetworkMonitor.shared.isConnected else {
+                connectionError = .noInternet
+                return
+            }
+            
+            // Start preparing state
+            startPreparingState(isWelcome: false)
+            
+            // Start polling for audio status
+            startPollingForAudio(scheduledTime: scheduledTime)
         }
     }
     
@@ -300,16 +605,22 @@ class HomeViewModel: ObservableObject {
     func startWelcomeDayStart() {
         logger.logUserAction("Start Welcome DayStart", details: ["time": Date().description])
         
-        // IMMEDIATE: State change for responsiveness
-        state = .playing
-        
         // Cancel welcome scheduler
         WelcomeDayStartScheduler.shared.cancelWelcomeDayStart()
         
-        // LAZY: Load services when needed
+        // Check network connectivity first
+        guard NetworkMonitor.shared.isConnected else {
+            connectionError = .noInternet
+            state = .idle
+            return
+        }
+        
+        // Start preparing state for welcome
+        startPreparingState(isWelcome: true)
+        
+        // Start polling for welcome audio
         Task {
-            await loadAudioServicesAndStart()
-            await startWelcomeDayStartWithSupabase()
+            await checkWelcomeAudioStatus()
         }
     }
     

@@ -36,6 +36,7 @@ struct PrimaryActionView: View {
     let nextTime: Date?
     let hasCompleted: Bool
     let showNoSchedule: Bool
+    let connectionError: ConnectionError?
     let onStartTapped: () -> Void
     let onEditTapped: () -> Void
     let onReplayTapped: () -> Void
@@ -44,7 +45,10 @@ struct PrimaryActionView: View {
         VStack {
             switch state {
             case .idle:
-                if showNoSchedule {
+                if connectionError != nil {
+                    // No button shown for connection errors
+                    EmptyView()
+                } else if showNoSchedule {
                     Button(action: onEditTapped) {
                         Label("Schedule DayStart", systemImage: "calendar.badge.plus")
                             .adaptiveFont(BananaTheme.Typography.headline)
@@ -192,6 +196,7 @@ struct HomeView: View {
                             nextTime: viewModel.nextDayStartTime,
                             hasCompleted: viewModel.hasCompletedCurrentOccurrence,
                             showNoSchedule: viewModel.showNoScheduleMessage,
+                            connectionError: viewModel.connectionError,
                             onStartTapped: { 
                                 hapticManager.impact(style: .medium)
                                 if viewModel.state == .welcomeReady {
@@ -431,13 +436,19 @@ struct HomeView: View {
     private var mainContentView: some View {
         switch viewModel.state {
         case .idle:
-            idleViewContent
+            if let error = viewModel.connectionError {
+                connectionErrorView(error: error)
+            } else {
+                idleViewContent
+            }
         case .welcomeCountdown:
             welcomeCountdownView
         case .welcomeReady:
             welcomeReadyViewContent
         case .countdown:
             countdownView
+        case .preparing:
+            preparingView
         case .ready:
             readyViewContent
         case .playing:
@@ -720,6 +731,101 @@ struct HomeView: View {
         )
         .accessibilityLabel(viewModel.hasCompletedCurrentOccurrence ? "Replay DayStart" : "Start DayStart")
         .accessibilityHint("Tap to begin your daily audio briefing")
+    }
+    
+    private var preparingView: some View {
+        VStack(spacing: 30) {
+            // Progress ring with countdown
+            ZStack {
+                // Background ring
+                Circle()
+                    .stroke(BananaTheme.ColorToken.tertiaryText.opacity(0.2), lineWidth: 8)
+                    .frame(width: 120, height: 120)
+                
+                // Progress ring
+                Circle()
+                    .trim(from: 0, to: preparingProgress)
+                    .stroke(
+                        LinearGradient(
+                            colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.primary.opacity(0.7)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                    )
+                    .frame(width: 120, height: 120)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.1), value: preparingProgress)
+                
+                // Countdown text
+                VStack(spacing: 4) {
+                    Text(viewModel.preparingCountdownText)
+                        .font(.system(size: 32, weight: .bold, design: .monospaced))
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                    
+                    Text("Ready in")
+                        .font(.caption)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                }
+            }
+            
+            // Rotating message
+            Text(viewModel.preparingMessage)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(BananaTheme.ColorToken.text)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+                .frame(height: 50)
+                .animation(.easeInOut(duration: 0.3), value: viewModel.preparingMessage)
+            
+            // Subtle loading indicator
+            HStack(spacing: 8) {
+                ForEach(0..<3) { index in
+                    Circle()
+                        .fill(BananaTheme.ColorToken.primary)
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(loadingDotScale(for: index))
+                        .animation(
+                            Animation.easeInOut(duration: 0.6)
+                                .repeatForever()
+                                .delay(Double(index) * 0.2),
+                            value: isViewVisible
+                        )
+                }
+            }
+        }
+    }
+    
+    private var preparingProgress: Double {
+        guard let countdownText = viewModel.preparingCountdownText.components(separatedBy: ":").compactMap({ Int($0) }),
+              countdownText.count == 2 else { return 0 }
+        
+        let totalSeconds = 120.0 // 2 minutes
+        let remainingSeconds = Double(countdownText[0] * 60 + countdownText[1])
+        return max(0, min(1, (totalSeconds - remainingSeconds) / totalSeconds))
+    }
+    
+    private func loadingDotScale(for index: Int) -> CGFloat {
+        return isViewVisible ? 1.3 : 0.8
+    }
+    
+    private func connectionErrorView(error: ConnectionError) -> some View {
+        VStack(spacing: 20) {
+            Text(error.icon)
+                .font(.system(size: 60))
+            
+            VStack(spacing: 12) {
+                Text(error.title)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                
+                Text(error.message)
+                    .font(.system(size: 16))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+        }
     }
     
     private var playingView: some View {
