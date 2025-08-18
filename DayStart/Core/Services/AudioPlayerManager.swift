@@ -168,6 +168,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
         audioPlayer?.pause()
         audioPlayer = nil
         playerItem = nil
+        
+        // Reset track ID since we're clearing the player
+        currentTrackId = nil
     }
     
     @objc private func playerDidFinishPlaying() {
@@ -255,6 +258,13 @@ class AudioPlayerManager: NSObject, ObservableObject {
     
     func play() {
         ensureSetup()
+        
+        // Debug logging
+        logger.log("🔊 Audio Debug: audioPlayer=\(audioPlayer != nil ? "exists" : "nil"), playerItem=\(playerItem != nil ? "exists" : "nil")", level: .debug)
+        if let item = playerItem {
+            logger.log("🔊 Audio Debug: playerItem status=\(item.status.rawValue), duration=\(item.duration.seconds)", level: .debug)
+        }
+        
         guard let player = audioPlayer else {
             logger.log("⚠️ Attempted to play with no audio loaded", level: .warning)
             return

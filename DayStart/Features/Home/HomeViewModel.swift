@@ -77,6 +77,7 @@ class HomeViewModel: ObservableObject {
     private var pollingStartTime: Date?
     private var pollingAttempts = 0
     private let maxPollingAttempts = 30 // 5 minutes at 10-second intervals
+    private var hasAutoStartedWelcome = false // Track if we've auto-started welcome DayStart
     private let maxPollingDuration: TimeInterval = 300 // 5 minutes total
     private var cancellables = Set<AnyCancellable>()
     
@@ -500,6 +501,17 @@ class HomeViewModel: ObservableObject {
             
             if welcomeScheduler.isWelcomeReadyToPlay {
                 state = .welcomeReady
+                
+                // Auto-start welcome DayStart if we haven't already
+                if !hasAutoStartedWelcome {
+                    hasAutoStartedWelcome = true
+                    logger.log("🚀 Auto-starting welcome DayStart after onboarding", level: .info)
+                    // Delay slightly to ensure UI has updated
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                        self?.startWelcomeDayStart()
+                    }
+                }
+                
                 return
             }
         }
@@ -575,8 +587,9 @@ class HomeViewModel: ObservableObject {
             let timeUntil = nextTime.timeIntervalSinceNow
             
             if timeUntil <= 0 {
-                self.state = .ready
                 self.timer?.invalidate()
+                // When countdown reaches 0, check if audio is ready
+                self.checkAudioReadiness(for: nextTime)
             } else {
                 self.updateCountdownText(timeInterval: timeUntil)
             }
@@ -652,6 +665,10 @@ class HomeViewModel: ObservableObject {
             if remaining <= 0 {
                 self.preparingTimer?.invalidate()
                 self.preparingCountdownText = "0:00"
+                
+                // When preparing countdown reaches 0, show timeout error
+                self.connectionError = .timeout
+                self.state = .idle
             }
         }
     }

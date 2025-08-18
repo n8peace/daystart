@@ -283,10 +283,18 @@ struct HistoryRow: View {
                         
                         // Always use direct audio player control for compact history playback
                         logger.log("🎵 History: Using direct AudioPlayerManager control for compact playback", level: .info)
+                        
+                        // Debug current audio player state
+                        logger.log("🎵 History Debug: currentTrackId=\(audioPlayer.currentTrackId?.uuidString ?? "nil"), dayStartId=\(dayStart.id.uuidString)", level: .debug)
+                        logger.log("🎵 History Debug: isPlaying=\(audioPlayer.isPlaying), currentTime=\(audioPlayer.currentTime), duration=\(audioPlayer.duration)", level: .debug)
+                        
                         if audioPlayer.currentTrackId != dayStart.id {
                             logger.log("🎵 History: Loading new audio for DayStart", level: .info)
                             audioPlayer.loadAudio(for: dayStart)
+                        } else {
+                            logger.log("🎵 History: Track ID matches, skipping load. Checking if audio is actually ready...", level: .debug)
                         }
+                        
                         audioPlayer.togglePlayPause()
                         logger.log("🎵 History: Toggle play/pause called, isPlaying: \(audioPlayer.isPlaying)", level: .info)
                     }) {

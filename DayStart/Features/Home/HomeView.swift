@@ -832,6 +832,7 @@ struct HomeView: View {
         VStack(spacing: 30) {
             VStack(spacing: 12) {
                 // Show music note when loading, waveform when playing
+                /*
                 if AudioPlayerManager.shared.isPlaying {
                     Image(systemName: "waveform")
                         .font(.system(size: 48))
@@ -852,6 +853,7 @@ struct HomeView: View {
                     .adaptiveFont(BananaTheme.Typography.title2)
                     .foregroundColor(BananaTheme.ColorToken.text)
                     .multilineTextAlignment(.center)
+                */
                 
                 // Show loading messages when not playing
                 if !AudioPlayerManager.shared.isPlaying {

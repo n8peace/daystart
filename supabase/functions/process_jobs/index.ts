@@ -790,16 +790,13 @@ function buildScriptPrompt(context: any): string {
     throw new Error(`Invalid day: ${day}. Must be between 1 and 31.`);
   }
   
-  const dateObj = new Date(year, month - 1, day);
+  // Create a date string in ISO format to use with toLocaleDateString
+  // This ensures the date is interpreted correctly in the user's timezone
+  const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T12:00:00`;
+  console.log(`📅 Using date string: ${dateString} with timezone: ${context.timezone}`);
   
-  // Validate the date object is valid
-  if (isNaN(dateObj.getTime())) {
-    throw new Error(`Invalid date object created from: ${year}-${month}-${day}`);
-  }
-  
-  console.log(`📅 Created date object: ${dateObj.toISOString()}`);
-  
-  const date = dateObj.toLocaleDateString('en-US', { 
+  // Parse the date in the user's timezone by using the date string directly
+  const date = new Date(dateString).toLocaleDateString('en-US', { 
     weekday: 'long', 
     month: 'long', 
     day: 'numeric',
