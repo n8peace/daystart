@@ -81,7 +81,7 @@ struct OnboardingView: View {
     @State private var includeQuotes = true
     @State private var selectedQuoteType: QuotePreference = .inspirational
     @State private var selectedVoice: VoiceOption? = nil
-    @State private var dayStartLength = 5
+    @State private var dayStartLength = 3
     @State private var selectedProduct: Product?
     
     // Permission states
@@ -1233,7 +1233,7 @@ struct OnboardingView: View {
                                 get: { Double(dayStartLength) },
                                 set: { dayStartLength = Int($0) }
                             ),
-                            in: 2...10,
+                            in: 2...5,
                             step: 1
                         )
                         .accentColor(BananaTheme.ColorToken.primary)

@@ -746,7 +746,7 @@ class HomeViewModel: ObservableObject {
                     
                     // Load audio services and start playing
                     Task {
-                        await loadAudioServicesAndStart()
+                        await loadAudioServicesAndStart(scheduledTime: scheduledTime)
                     }
                 } else if audioStatus.status == "failed" {
                     // Job failed
@@ -922,11 +922,32 @@ class HomeViewModel: ObservableObject {
     
     // MARK: - User Actions (Load Services On-Demand)
     
+    private func getTodayScheduledTime() -> Date? {
+        let calendar = Calendar.current
+        let now = Date()
+        let todayComponents = calendar.dateComponents([.hour, .minute], from: userPreferences.schedule.time)
+        
+        // Get today's scheduled time
+        var components = calendar.dateComponents([.year, .month, .day], from: now)
+        components.hour = todayComponents.hour
+        components.minute = todayComponents.minute
+        
+        guard let todayScheduledTime = calendar.date(from: components) else { return nil }
+        
+        // Check if today is a scheduled day
+        let weekday = calendar.component(.weekday, from: now)
+        guard let weekDay = WeekDay(weekday: weekday),
+              userPreferences.schedule.repeatDays.contains(weekDay) else { return nil }
+        
+        return todayScheduledTime
+    }
+    
     func startDayStart() {
         logger.logUserAction("Start DayStart", details: ["time": Date().description])
         
-        guard let scheduledTime = nextDayStartTime else {
-            logger.log("❌ No scheduled time for DayStart", level: .error)
+        // Use today's scheduled time instead of nextDayStartTime
+        guard let scheduledTime = getTodayScheduledTime() else {
+            logger.log("❌ No scheduled time for DayStart today", level: .error)
             return
         }
         
@@ -937,7 +958,7 @@ class HomeViewModel: ObservableObject {
             
             // LAZY: Load audio services only when needed
             Task {
-                await loadAudioServicesAndStart()
+                await loadAudioServicesAndStart(scheduledTime: scheduledTime)
             }
         } else {
             // Check network connectivity
@@ -954,7 +975,7 @@ class HomeViewModel: ObservableObject {
         }
     }
     
-    private func loadAudioServicesAndStart() async {
+    private func loadAudioServicesAndStart(scheduledTime: Date? = nil) async {
         // TIER 2: Load audio services on-demand
         let audioPlayer = serviceRegistry.audioPlayerManager
         let audioCache = serviceRegistry.audioCache
@@ -964,7 +985,7 @@ class HomeViewModel: ObservableObject {
             setupAudioObserversIfNeeded()
         }
         
-        await startDayStartWithAudio()
+        await startDayStartWithAudio(scheduledTime: scheduledTime)
     }
     
     func startWelcomeDayStart() {
@@ -1021,18 +1042,20 @@ class HomeViewModel: ObservableObject {
     
     // MARK: - Audio Playback (Services Loaded On-Demand)
     
-    private func startDayStartWithAudio() async {
+    private func startDayStartWithAudio(scheduledTime: Date? = nil) async {
         let dayStart = generateBasicDayStart(for: userPreferences.settings)
         
         var dayStartWithScheduledTime = dayStart
-        if let scheduledTime = nextDayStartTime {
-            dayStartWithScheduledTime.scheduledTime = scheduledTime
+        // Use the passed scheduledTime or fall back to nextDayStartTime
+        let effectiveScheduledTime = scheduledTime ?? nextDayStartTime
+        if let time = effectiveScheduledTime {
+            dayStartWithScheduledTime.scheduledTime = time
         }
         
         currentDayStart = dayStartWithScheduledTime
         userPreferences.addToHistory(dayStartWithScheduledTime)
         
-        guard let scheduledTime = nextDayStartTime else {
+        guard let effectiveScheduledTime = scheduledTime ?? nextDayStartTime else {
             await MainActor.run {
                 connectionError = .supabaseError
                 state = .idle
@@ -1041,14 +1064,14 @@ class HomeViewModel: ObservableObject {
         }
         
         // Check if audio is cached
-        if serviceRegistry.audioCache.hasAudio(for: scheduledTime) {
-            await playCachedAudio(for: scheduledTime)
+        if serviceRegistry.audioCache.hasAudio(for: effectiveScheduledTime) {
+            await playCachedAudio(for: effectiveScheduledTime)
         } else {
             // Stream from CDN
             do {
                 // LAZY: Load SupabaseClient only when needed
                 let supabaseClient = serviceRegistry.supabaseClient
-                let audioStatus = try await supabaseClient.getAudioStatus(for: scheduledTime)
+                let audioStatus = try await supabaseClient.getAudioStatus(for: effectiveScheduledTime)
                 
                 if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
                     await streamAudio(from: audioUrl)
@@ -1057,10 +1080,10 @@ class HomeViewModel: ObservableObject {
                     let dayStartId = dayStartWithScheduledTime.id
                     Task.detached {
                         let audioDownloader = await MainActor.run { ServiceRegistry.shared.audioDownloader }
-                        let success = await audioDownloader.download(from: audioUrl, for: scheduledTime)
+                        let success = await audioDownloader.download(from: audioUrl, for: effectiveScheduledTime)
                         if success {
                             await MainActor.run {
-                                let audioPath = ServiceRegistry.shared.audioCache.getAudioPath(for: scheduledTime)
+                                let audioPath = ServiceRegistry.shared.audioCache.getAudioPath(for: effectiveScheduledTime)
                                 UserPreferences.shared.updateHistory(
                                     with: dayStartId,
                                     audioFilePath: audioPath.path

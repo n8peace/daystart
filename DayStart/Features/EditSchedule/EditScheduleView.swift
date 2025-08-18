@@ -280,7 +280,7 @@ struct EditScheduleView: View {
                         get: { Double(dayStartLength) },
                         set: { dayStartLength = Int($0) }
                     ),
-                    in: 2...10,
+                    in: 2...5,
                     step: 1
                 )
                 .accentColor(BananaTheme.ColorToken.accent)

@@ -199,7 +199,7 @@ extension UserSettings {
             includeQuotes: true,
             quotePreference: .inspirational,
             selectedVoice: .voice1,
-            dayStartLength: 5,
+            dayStartLength: 3,
             themePreference: .system
         )
     }
