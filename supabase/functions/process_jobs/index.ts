@@ -1078,7 +1078,7 @@ FACT RULES
  - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style.
 
 CONTENT ORDER (adapt if sections are missing)
-1) One-line greeting using the user's name and day (no headings).
+1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. Welcome to DayStart!" followed by a two-second pause using "…" on its own line.
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
 4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.

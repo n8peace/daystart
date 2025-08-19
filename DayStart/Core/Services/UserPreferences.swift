@@ -361,6 +361,10 @@ class UserPreferences: ObservableObject {
             var updatedEntry = dayStart
             // Preserve the original ID so updateHistory can find it later
             updatedEntry.id = history[existingIndex].id
+            // Preserve scheduledTime if it exists in the old entry but not the new one
+            if history[existingIndex].scheduledTime != nil && dayStart.scheduledTime == nil {
+                updatedEntry.scheduledTime = history[existingIndex].scheduledTime
+            }
             // Preserve audio file path if it exists
             if history[existingIndex].audioFilePath != nil && dayStart.audioFilePath == nil {
                 updatedEntry.audioFilePath = history[existingIndex].audioFilePath

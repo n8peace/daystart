@@ -235,7 +235,7 @@ struct HistoryRow: View {
                 Text(dayStart.date, style: .date)
                     .adaptiveFont(BananaTheme.Typography.headline)
                 
-                Text(dayStart.date, style: .time)
+                Text(dayStart.scheduledTime ?? dayStart.date, style: .time)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -249,7 +249,27 @@ struct HistoryRow: View {
     // Transcript is available when there is audio or the entry is marked deleted
     private var canShowTranscript: Bool {
         if dayStart.isDeleted { return true }
-        if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path) { return true }
+        if hasAudioFile { return true }
+        return false
+    }
+    
+    // Helper to check if audio file exists, with fallback logic
+    private var hasAudioFile: Bool {
+        // First try the stored audio file path
+        if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path) {
+            return true
+        }
+        
+        // Fallback: try both scheduledTime and date in audio cache
+        let audioCache = ServiceRegistry.shared.audioCache
+        if let scheduledTime = dayStart.scheduledTime, audioCache.hasAudio(for: scheduledTime) {
+            return true
+        }
+        
+        if audioCache.hasAudio(for: dayStart.date) {
+            return true
+        }
+        
         return false
     }
     
@@ -274,7 +294,7 @@ struct HistoryRow: View {
     private var actionButtons: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path), !dayStart.isDeleted {
+                if hasAudioFile && !dayStart.isDeleted {
                     // Play button (banana yellow)
                     Button(action: {
                         let logger = DebugLogger.shared
@@ -400,7 +420,7 @@ struct HistoryRow: View {
                 .cornerRadius(8)
             )
         case .notStarted:
-            if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path), !dayStart.isDeleted {
+            if hasAudioFile && !dayStart.isDeleted {
                 return AnyView(
                     Text(formattedDuration)
                         .font(.caption)

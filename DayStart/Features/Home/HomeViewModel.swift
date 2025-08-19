@@ -505,16 +505,14 @@ class HomeViewModel: ObservableObject {
             }
             
             if welcomeScheduler.isWelcomeReadyToPlay {
-                state = .welcomeReady
+                // COMMENTED OUT FOR TESTING: Skip welcomeReady state
+                // state = .welcomeReady
                 
-                // Auto-start welcome DayStart if we haven't already
+                // Auto-start welcome DayStart directly to preparing
                 if !hasAutoStartedWelcome {
                     hasAutoStartedWelcome = true
-                    logger.log("🚀 Auto-starting welcome DayStart after onboarding", level: .info)
-                    // Delay slightly to ensure UI has updated
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                        self?.startWelcomeDayStart()
-                    }
+                    logger.log("🚀 Auto-starting welcome DayStart directly to preparing (bypassing welcomeReady)", level: .info)
+                    startWelcomeDayStart() // Go directly to preparing
                 }
                 
                 return
@@ -1249,13 +1247,19 @@ class HomeViewModel: ObservableObject {
         let audioPlayer = serviceRegistry.audioPlayerManager
         let audioCache = serviceRegistry.audioCache
         
+        // Try scheduledTime first, then fall back to date
         if let scheduledTime = dayStart.scheduledTime,
            audioCache.hasAudio(for: scheduledTime) {
             let audioUrl = audioCache.getAudioPath(for: scheduledTime)
             audioPlayer.loadAudio(from: audioUrl)
+        } else if audioCache.hasAudio(for: dayStart.date) {
+            // Fallback: try using the completion date
+            let audioUrl = audioCache.getAudioPath(for: dayStart.date)
+            audioPlayer.loadAudio(from: audioUrl)
         } else {
             // No cached audio available for replay - this shouldn't happen
             // but if it does, we'll load without audio
+            logger.log("⚠️ No cached audio found for replay - scheduledTime: \(dayStart.scheduledTime?.description ?? "nil"), date: \(dayStart.date)", level: .warning)
             audioPlayer.loadAudio()
         }
         
