@@ -183,6 +183,7 @@ struct LocationData: Codable {
     let city: String?
     let state: String?
     let country: String?
+    let neighborhood: String? // subLocality - e.g., "Mar Vista"
     let latitude: Double?
     let longitude: Double?
 }
@@ -192,6 +193,10 @@ struct WeatherData: Codable {
     let condition: String?
     let symbol: String?
     let updated_at: String?
+    // Daily forecast data
+    let highTemperatureF: Int?
+    let lowTemperatureF: Int?
+    let precipitationChance: Int? // Percentage (0-100)
 }
 
 // MARK: - CLAuthorizationStatus Extension

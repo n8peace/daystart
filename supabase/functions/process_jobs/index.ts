@@ -120,6 +120,7 @@ function sectionBudget(seconds: number, include: { weather: boolean; calendar: b
 // Extract simple locality hints (no hardcoded locales)
 function localityHints(loc: any): string[] {
   const hints: string[] = [];
+  if (loc?.neighborhood) hints.push(String(loc.neighborhood).toLowerCase());
   if (loc?.city) hints.push(String(loc.city).toLowerCase());
   if (loc?.county) hints.push(String(loc.county).toLowerCase());
   if (loc?.metro) hints.push(String(loc.metro).toLowerCase());
@@ -418,11 +419,32 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
     })
     .eq('job_id', jobId);
 
-  // Generate audio and track costs
-  const audioResult = await generateAudio(scriptResult.content, job);
+  // Generate audio with retry logic
+  let audioResult: any = null;
+  let lastError: string = '';
   
-  if (!audioResult.success) {
-    throw new Error(audioResult.error || 'Audio generation failed');
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const result = await generateAudio(scriptResult.content, job, attempt);
+    
+    if (result.success) {
+      audioResult = result;
+      if (attempt > 1) {
+        console.log(`Audio generation succeeded on attempt ${attempt} using ${result.provider}`);
+      }
+      break;
+    }
+    
+    lastError = result.error || 'Unknown error';
+    console.log(`Audio generation attempt ${attempt} failed: ${lastError}`);
+    
+    if (attempt < 3) {
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+  
+  if (!audioResult || !audioResult.success) {
+    throw new Error(`Audio generation failed after 3 attempts: ${lastError}`);
   }
 
   // Upload audio to storage
@@ -442,7 +464,7 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
   // Calculate total cost
   const totalCost = Number((scriptResult.cost + (audioResult.cost ?? 0)).toFixed(5));
 
-  // Mark job as complete with all costs
+  // Mark job as complete with all costs and TTS provider
   await supabase
     .from('jobs')
     .update({
@@ -452,6 +474,7 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
       transcript: scriptResult.content,
       script_cost: scriptResult.cost,
       tts_cost: audioResult.cost ?? 0,
+      tts_provider: audioResult.provider ?? 'elevenlabs',
       total_cost: totalCost,
       completed_at: new Date().toISOString(),
       worker_id: null,
@@ -461,7 +484,7 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
     .eq('job_id', jobId);
 
   console.log(`Completed job ${jobId} - audio saved to ${audioPath}`);
-  console.log(`Costs: Script=$${scriptResult.cost}, TTS=$${audioResult.cost}, Total=$${totalCost}`);
+  console.log(`Costs: Script=$${scriptResult.cost}, TTS=$${audioResult.cost} (${audioResult.provider}), Total=$${totalCost}`);
   return true;
 }
 
@@ -750,7 +773,14 @@ ${contextJSON}
   return j?.choices?.[0]?.message?.content?.trim() || text;
 }
 
-async function generateAudio(script: string, job: any): Promise<{success: boolean, audioData?: Uint8Array, duration?: number, cost?: number, error?: string}> {
+async function generateAudio(script: string, job: any, attemptNumber: number = 1): Promise<{success: boolean, audioData?: Uint8Array, duration?: number, cost?: number, provider?: string, error?: string}> {
+  // On attempt 3+, use OpenAI as fallback
+  if (attemptNumber >= 3) {
+    console.log(`Attempt ${attemptNumber}: Using OpenAI TTS as fallback`);
+    return await generateAudioWithOpenAI(script, job);
+  }
+
+  // Attempts 1-2: Use ElevenLabs
   const elevenlabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
   if (!elevenlabsApiKey) {
     throw new Error('ElevenLabs API key not configured');
@@ -771,6 +801,8 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
   const normalizedVoiceKey = String(job.voice_option || '').toLowerCase();
   const voiceId = voiceMap[normalizedVoiceKey] || voiceMap['voice1'];
 
+  console.log(`Attempt ${attemptNumber}: Using ElevenLabs TTS`);
+  
   const response = await withRetry(() => fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',
     headers: {
@@ -788,7 +820,7 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
         use_speaker_boost: true
       }
     }),
-  }), 3, 600, 45000, `ElevenLabs-TTS-${normalizedVoiceKey}`);
+  }), 1, 600, 45000, `ElevenLabs-TTS-${normalizedVoiceKey}`); // Only 1 try here, retries handled at higher level
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -810,8 +842,77 @@ async function generateAudio(script: string, job: any): Promise<{success: boolea
     success: true,
     audioData,
     duration: estimatedDuration,
-    cost
+    cost,
+    provider: 'elevenlabs'
   };
+}
+
+async function generateAudioWithOpenAI(script: string, job: any): Promise<{success: boolean, audioData?: Uint8Array, duration?: number, cost?: number, provider?: string, error?: string}> {
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openaiApiKey) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  // Map voice option to OpenAI voice
+  const voiceMap: Record<string, string> = {
+    'voice1': 'sage',
+    'voice2': 'shimmer',
+    'voice3': 'alloy',
+  };
+
+  const normalizedVoiceKey = String(job.voice_option || '').toLowerCase();
+  const voiceNumber = normalizedVoiceKey.match(/voice(\d)/)?.[1] || '1';
+  const voice = voiceMap[`voice${voiceNumber}`] || 'sage';
+
+  console.log(`Using OpenAI TTS with voice: ${voice}`);
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini-tts',
+        voice: voice,
+        input: script,
+        response_format: 'aac'
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { success: false, error: `OpenAI TTS API error: ${response.status} - ${errorText}` };
+    }
+
+    const audioData = new Uint8Array(await response.arrayBuffer());
+    
+    // Estimate duration based on script length (rough approximation)
+    const estimatedDuration = Math.ceil(script.length / 15); // ~15 chars per second
+
+    // Calculate cost for OpenAI TTS
+    // $0.60 per 1M input characters + ~$12 per 1M output tokens
+    // Rough estimate: ~$0.015 per minute of audio
+    const characterCount = script.length;
+    const inputCost = (characterCount / 1_000_000) * 0.60;
+    const estimatedMinutes = estimatedDuration / 60;
+    const outputCost = estimatedMinutes * 0.015;
+    const totalCost = Number((inputCost + outputCost).toFixed(5));
+    
+    console.log(`OpenAI TTS usage: ${characterCount} characters, ~${estimatedMinutes.toFixed(2)} minutes = $${totalCost}`);
+
+    return {
+      success: true,
+      audioData,
+      duration: estimatedDuration,
+      cost: totalCost,
+      provider: 'openai'
+    };
+  } catch (error) {
+    console.error('OpenAI TTS error:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 function buildScriptPrompt(context: any): string {
@@ -945,6 +1046,9 @@ STYLE
 - Use short sentences and varied rhythm.
 - Prefer specifics over generalities. If a section has no data, gracefully skip it.
 - Sprinkle one light, human moment max (a nudge, not a joke barrage).
+- IMPORTANT: For TTS readability:
+  - Always use full company names instead of stock tickers (e.g., "Apple" not "AAPL", "Tesla" not "TSLA", "S&P 500 ETF" not "SPY")
+  - Spell out all numbers and prices in words (e.g., "two hundred thirty dollars and eighty-nine cents" not "$230.89", "down zero point three percent" not "down 0.3%")
 ${styleAddendum}
  - Use 1–2 transitions between sections. Add ellipses (…) on their own line between major sections for natural pauses.
  - Keep ellipses to ≤1 per paragraph within sections and em dashes to ≤2 per paragraph.
@@ -959,7 +1063,7 @@ CONTENT PRIORITIZATION
   - News: Use up to ${storyLimits.news} stories. Choose by local relevance using user.location when available; otherwise pick the most significant stories.
 - Sports: ${storyLimits.sports} update(s) max. Only mention teams/matchups present in the sports data for today. If off-season or no fixtures, skip gracefully.
 - Stocks: ${storyLimits.stocks} market point(s) max. Prioritize user's focus symbols if provided.
- - Weather: If present, include min/max, rain chance, and wind details for the user's location.
+ - Weather: If present, include high/low temperatures (from highTemperatureF/lowTemperatureF), precipitation chance (from precipitationChance), and current conditions. Spell out all temperatures and percentages in words for TTS.
  - Astronomy: If a meteor shower is present, add viewing advice tailored to the user's location (window, direction, light pollution note). Otherwise, omit.
 - Calendar: Call out today's top 1–2 items with time ranges and one helpful nudge.
 
@@ -968,18 +1072,19 @@ FACT RULES
 - If a desired detail is missing, omit it gracefully—do not invent.
 - Never mention a team or matchup unless it appears in the sports data for today.
  - Mention ONLY teams present in sportsTeamWhitelist (exact names). If the sports array is empty, omit the sports section entirely.
- - When choosing news, prefer items that mention the user's city/county/adjacent areas; next, state-level; then national; then international.
+ - When choosing news, prefer items that mention the user's neighborhood/city/county/adjacent areas; next, state-level; then national; then international. If user.location.neighborhood exists, use it for hyper-local references (e.g., "Mar Vista" instead of just "Los Angeles").
  - Use 1–2 transitions, choosing from data.transitions.
- - Stocks: Lead with focusSymbols (if present) in one sentence. Add one broader market line only if space allows.
+ - Stocks: Lead with focusSymbols (if present) in one sentence. Add one broader market line only if space allows. Always use company names (Apple, Tesla, etc.) not tickers, and spell out all numbers/percentages in words for TTS.
+ - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style.
 
 CONTENT ORDER (adapt if sections are missing)
 1) One-line greeting using the user's name and day (no headings).
-2) Weather (only if include.weather): actionable and hyper-relevant to the user's day.
+2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
 4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.
 5) Sports (if include.sports): Brief, focused update. Mention major local teams or significant national stories.
-6) Stocks (if include.stocks): Market pulse. Call out focusSymbols prominently when present.
-7) Quote (if include.quotes): 1 line, then a one-line tie-back to today's vibe.
+6) Stocks (if include.stocks): Market pulse using company names and numbers spelled out. Call out focusSymbols prominently when present.
+7) Quote (if include.quotes): Select a quote that matches the user's quotePreference (if provided in data). The quote should align with that tradition/style (e.g., Buddhist wisdom, Stoic philosophy, Christian scripture, etc.). Follow with a one-line tie-back to today's vibe.
 8) Close with the provided signOff from the data — choose the one that fits the day's tone best.
 
 STRICT OUTPUT RULES — DO NOT BREAK
