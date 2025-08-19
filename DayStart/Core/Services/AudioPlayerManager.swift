@@ -23,10 +23,20 @@ class AudioPlayerManager: NSObject, ObservableObject {
     private var previewStopWorkItem: DispatchWorkItem?
     private var nowPlayingInfo: [String: Any] = [:]
     
+    // Intro music dual player system
+    private var introPlayer: AVPlayer?
+    private var introPlayerItem: AVPlayerItem?
+    private var introTimer: Timer?
+    private let introMusicDuration: TimeInterval = 20.0
+    
     // KVO observers for AVPlayer
     private var statusObserver: NSKeyValueObservation?
     private var timeControlStatusObserver: NSKeyValueObservation?
     private var durationObserver: NSKeyValueObservation?
+    
+    // KVO observers for intro player
+    private var introStatusObserver: NSKeyValueObservation?
+    private var introTimeControlStatusObserver: NSKeyValueObservation?
     
     // Player coordination state
     private var wasPlayingBeforePreview = false
@@ -152,7 +162,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     }
     
     private func cleanup() {
-        // Remove observers
+        // Remove observers for main player
         statusObserver?.invalidate()
         timeControlStatusObserver?.invalidate()
         durationObserver?.invalidate()
@@ -161,13 +171,24 @@ class AudioPlayerManager: NSObject, ObservableObject {
         timeControlStatusObserver = nil
         durationObserver = nil
         
+        // Remove observers for intro player
+        introStatusObserver?.invalidate()
+        introTimeControlStatusObserver?.invalidate()
+        
+        introStatusObserver = nil
+        introTimeControlStatusObserver = nil
+        
         // Remove notification observers
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
+        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: introPlayerItem)
         
-        // Stop and release player
+        // Stop and release main player
         audioPlayer?.pause()
         audioPlayer = nil
         playerItem = nil
+        
+        // Stop and release intro player
+        cleanupIntroPlayer()
         
         // Reset track ID since we're clearing the player
         currentTrackId = nil
@@ -270,8 +291,17 @@ class AudioPlayerManager: NSObject, ObservableObject {
             return
         }
         
+        // MAIN AUDIO DEPENDENCY: Only proceed if main audio is ready
+        guard playerItem?.status == .readyToPlay else {
+            logger.log("⚠️ Main audio not ready - cannot start playback", level: .warning)
+            return
+        }
+        
         // Notify other players that main player is starting
         NotificationCenter.default.post(name: Self.willStartPlayingNotification, object: self)
+        
+        // Start intro music first (if available)
+        startIntroMusicIfAvailable()
         
         logger.logAudioEvent("Playing audio", details: ["rate": playbackRate])
         player.rate = playbackRate
@@ -288,6 +318,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
         logger.logAudioEvent("Pausing audio")
         audioPlayer?.pause()
         stopTimeObserver()
+        
+        // Also pause intro music
+        pauseIntroMusic()
         
         // Notify other players that main player stopped
         NotificationCenter.default.post(name: Self.didStopPlayingNotification, object: self)
@@ -456,6 +489,106 @@ class AudioPlayerManager: NSObject, ObservableObject {
         } catch {
             logger.logError(error, context: "Failed to reactivate audio session")
         }
+    }
+    
+    // MARK: - Intro Music Dual Player System
+    
+    private func startIntroMusicIfAvailable() {
+        // Try to load intro music file
+        guard let introURL = Bundle.main.url(forResource: "daystart_intro_music", withExtension: "aac") else {
+            logger.log("📻 Intro music file not found, playing main audio only", level: .debug)
+            return
+        }
+        
+        logger.log("📻 Starting intro music with main audio", level: .info)
+        
+        // Clean up any existing intro player
+        cleanupIntroPlayer()
+        
+        // Create intro player
+        introPlayerItem = AVPlayerItem(url: introURL)
+        introPlayer = AVPlayer(playerItem: introPlayerItem)
+        
+        // Set intro volume slightly lower than main audio
+        introPlayer?.volume = 0.7
+        
+        // Set up observers for intro player
+        setupIntroObservers()
+        
+        // Start intro music
+        introPlayer?.play()
+        
+        // Schedule auto-stop after 20 seconds
+        introTimer = Timer.scheduledTimer(withTimeInterval: introMusicDuration, repeats: false) { [weak self] _ in
+            self?.stopIntroMusic()
+        }
+    }
+    
+    private func setupIntroObservers() {
+        guard let introItem = introPlayerItem else { return }
+        
+        // Observe intro player status (for error handling)
+        introStatusObserver = introItem.observe(\.status, options: [.new]) { [weak self] item, _ in
+            DispatchQueue.main.async {
+                switch item.status {
+                case .readyToPlay:
+                    self?.logger.log("📻 Intro music ready to play", level: .debug)
+                case .failed:
+                    self?.logger.log("📻 Intro music failed to load - continuing with main audio only", level: .warning)
+                    self?.cleanupIntroPlayer()
+                case .unknown:
+                    break
+                @unknown default:
+                    break
+                }
+            }
+        }
+        
+        // Listen for intro playback completion (backup to timer)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(introPlayerDidFinishPlaying),
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: introItem
+        )
+    }
+    
+    @objc private func introPlayerDidFinishPlaying() {
+        DispatchQueue.main.async { [weak self] in
+            self?.logger.log("📻 Intro music finished naturally", level: .debug)
+            self?.cleanupIntroPlayer()
+        }
+    }
+    
+    private func pauseIntroMusic() {
+        introPlayer?.pause()
+        introTimer?.invalidate()
+        introTimer = nil
+    }
+    
+    private func stopIntroMusic() {
+        logger.log("📻 Stopping intro music after 20 seconds", level: .debug)
+        cleanupIntroPlayer()
+    }
+    
+    private func cleanupIntroPlayer() {
+        introTimer?.invalidate()
+        introTimer = nil
+        
+        introPlayer?.pause()
+        introPlayer = nil
+        
+        introStatusObserver?.invalidate()
+        introTimeControlStatusObserver?.invalidate()
+        
+        introStatusObserver = nil
+        introTimeControlStatusObserver = nil
+        
+        if let introItem = introPlayerItem {
+            NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: introItem)
+        }
+        
+        introPlayerItem = nil
     }
     
     deinit {
