@@ -1,4 +1,5 @@
 import SwiftUI
+import EventKit
 
 // MARK: - Instant Response Button Style for Phase 1 Optimization
 struct InstantResponseStyle: ButtonStyle {
@@ -113,6 +114,7 @@ struct HomeView: View {
     @State private var celebrationStreak = 0
     @State private var tomorrowWeatherForecast: String?
     @State private var isLoadingForecast = false
+    @State private var tomorrowFirstEvent: String?
     @State private var isViewVisible = true
     @Environment(\.scenePhase) var scenePhase
     private let hapticManager = HapticManager.shared
@@ -616,6 +618,7 @@ struct HomeView: View {
                 .buttonStyle(PlainButtonStyle())
                 .task {
                     await loadTomorrowForecast()
+                    await loadTomorrowFirstEvent()
                 }
             }
         }
@@ -1262,6 +1265,19 @@ struct HomeView: View {
         isLoadingForecast = false
     }
     
+    private func loadTomorrowFirstEvent() async {
+        guard userPreferences.settings.includeCalendar,
+              CalendarManager.shared.hasCalendarAccess(),
+              tomorrowFirstEvent == nil else { return }
+        
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        let events = CalendarManager.shared.getEventsForDate(tomorrow)
+        
+        if let firstEvent = events.first {
+            tomorrowFirstEvent = firstEvent.title
+        }
+    }
+    
     // MARK: - Anticipation Data & Logic
     
     private var previewTopics: [String] {
@@ -1278,7 +1294,11 @@ struct HomeView: View {
         
         // 2. Calendar if enabled
         if userPreferences.settings.includeCalendar {
-            topics.append("Your schedule and reminders")
+            if let firstEvent = tomorrowFirstEvent {
+                topics.append("Your Calendar: \(firstEvent)")
+            } else if CalendarManager.shared.hasCalendarAccess() {
+                topics.append("Your schedule and reminders")
+            }
         }
         
         // 3. News if enabled

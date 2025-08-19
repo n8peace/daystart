@@ -131,7 +131,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
                 case .readyToPlay:
                     self?.duration = item.duration.seconds
                     self?.logger.logAudioEvent("Audio loaded successfully with completion", details: ["duration": item.duration.seconds])
-				self?.updateNowPlayingInfo(title: "DayStart")
+				self?.updateNowPlayingInfo(title: "DayStart", artwork: UIImage(named: "SplashIcon"))
                     completion(true, nil)
                 case .failed:
                     let error = item.error ?? NSError(domain: "AudioLoadError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Player item failed"])
@@ -249,7 +249,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
                 case .readyToPlay:
                     self?.duration = item.duration.seconds
                     self?.logger.log("✅ Preloaded audio ready to play", level: .info)
-                    self?.updateNowPlayingInfo(title: "DayStart")
+                    self?.updateNowPlayingInfo(title: "DayStart", artwork: UIImage(named: "SplashIcon"))
                 case .failed:
                     let error = item.error ?? NSError(domain: "AudioLoadError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Preloaded item failed"])
                     self?.logger.logError(error, context: "Preloaded audio item failed")

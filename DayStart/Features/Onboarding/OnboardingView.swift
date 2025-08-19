@@ -79,7 +79,7 @@ struct OnboardingView: View {
     @State private var stockSymbols = "SPY, DIA, BTC-USD"
     @State private var includeCalendar = false
     @State private var includeQuotes = true
-    @State private var selectedQuoteType: QuotePreference = .inspirational
+    @State private var selectedQuoteType: QuotePreference = .stoic
     @State private var selectedVoice: VoiceOption? = nil
     @State private var dayStartLength = 3
     @State private var selectedProduct: Product?

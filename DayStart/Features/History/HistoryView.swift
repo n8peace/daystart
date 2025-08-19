@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 struct HistoryView: View {
     @Environment(\.presentationMode) var presentationMode
@@ -310,7 +311,24 @@ struct HistoryRow: View {
                         
                         if audioPlayer.currentTrackId != dayStart.id {
                             logger.log("🎵 History: Loading new audio for DayStart", level: .info)
-                            audioPlayer.loadAudio(for: dayStart)
+                            
+                            // Try using stored audio file path first
+                            if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path) {
+                                let url = URL(fileURLWithPath: path)
+                                audioPlayer.loadAudio(from: url, trackId: dayStart.id)
+                            } else {
+                                // Fallback: get cached audio path
+                                let audioCache = ServiceRegistry.shared.audioCache
+                                let dateToUse = dayStart.scheduledTime ?? dayStart.date
+                                let audioPath = audioCache.getAudioPath(for: dateToUse)
+                                
+                                if FileManager.default.fileExists(atPath: audioPath.path) {
+                                    logger.log("🎵 History: Using cached audio path: \(audioPath.path)", level: .debug)
+                                    audioPlayer.loadAudio(from: audioPath, trackId: dayStart.id)
+                                } else {
+                                    logger.log("⚠️ History: No audio file found in cache or stored path", level: .warning)
+                                }
+                            }
                         } else {
                             logger.log("🎵 History: Track ID matches, skipping load. Checking if audio is actually ready...", level: .debug)
                         }
@@ -443,8 +461,39 @@ struct HistoryRow: View {
     }
     
     private var formattedDuration: String {
-        let minutes = Int(dayStart.duration) / 60
-        let seconds = Int(dayStart.duration) % 60
+        let actualDuration = getActualAudioDuration()
+        let minutes = Int(actualDuration) / 60
+        let seconds = Int(actualDuration) % 60
         return String(format: "%d:%02d", minutes, seconds)
+    }
+    
+    private func getActualAudioDuration() -> TimeInterval {
+        // First try to get audio file path
+        var audioURL: URL?
+        
+        if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path) {
+            audioURL = URL(fileURLWithPath: path)
+        } else {
+            // Fallback: try audio cache
+            let audioCache = ServiceRegistry.shared.audioCache
+            let dateToUse = dayStart.scheduledTime ?? dayStart.date
+            let cachePath = audioCache.getAudioPath(for: dateToUse)
+            
+            if FileManager.default.fileExists(atPath: cachePath.path) {
+                audioURL = cachePath
+            }
+        }
+        
+        // Get duration from audio file
+        if let url = audioURL {
+            let asset = AVAsset(url: url)
+            let duration = asset.duration
+            if duration.isValid && !duration.isIndefinite {
+                return duration.seconds
+            }
+        }
+        
+        // Fallback to stored duration if can't read file
+        return dayStart.duration
     }
 }
