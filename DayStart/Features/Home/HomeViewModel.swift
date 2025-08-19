@@ -32,6 +32,43 @@ enum ConnectionError {
     }
 }
 
+// MARK: - State Transition Manager
+class StateTransitionManager {
+    private weak var viewModel: HomeViewModel?
+    private let logger = DebugLogger.shared
+    
+    init(viewModel: HomeViewModel) {
+        self.viewModel = viewModel
+    }
+    
+    func transitionTo(_ newState: HomeViewModel.AppState, animated: Bool = true) {
+        guard let viewModel = viewModel else { return }
+        
+        // Validate transition
+        guard canTransition(from: viewModel.state, to: newState) else {
+            logger.log("⚠️ Invalid state transition from \(viewModel.state) to \(newState)", level: .warning)
+            return
+        }
+        
+        // Log transition
+        logger.log("🔄 State transition: \(viewModel.state) → \(newState)", level: .info)
+        
+        // Apply transition with consistent animation
+        if animated {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                viewModel.state = newState
+            }
+        } else {
+            viewModel.state = newState
+        }
+    }
+    
+    private func canTransition(from currentState: HomeViewModel.AppState, to newState: HomeViewModel.AppState) -> Bool {
+        // Allow any transition for now - can add validation logic later
+        return true
+    }
+}
+
 /// Simplified HomeViewModel with aggressive service deferral via ServiceRegistry
 /// No services loaded in init - everything loads on-demand when actually needed
 class HomeViewModel: ObservableObject {
@@ -43,13 +80,12 @@ class HomeViewModel: ObservableObject {
     // TIER 2: Services loaded only via ServiceRegistry when needed
     private var serviceRegistry: ServiceRegistry { ServiceRegistry.shared }
     
+    // State transition management
+    private lazy var stateTransitionManager = StateTransitionManager(viewModel: self)
+    
     enum AppState {
-        case idle            // Default state, no scheduled DayStart nearby
-        case welcomeCountdown
-        case welcomeReady
-        case countdown       // 0-10 hours before scheduled time
+        case idle            // Enhanced: handles countdown, welcome flows, and default state
         case preparing      // Waiting for audio to be ready
-        case ready          // Ready to play
         case playing        // Currently playing
         case completed      // Completed (replay available)
     }
@@ -224,13 +260,6 @@ class HomeViewModel: ObservableObject {
                     cleanupAllTimers()
                     startPreparingState(isWelcome: false)
                 }
-            case .countdown:
-                // Countdown should only have countdown timer
-                if timer == nil || timerCount > 1 {
-                    logger.log("🧹 Cleaning up timers for countdown state", level: .info)
-                    cleanupAllTimers()
-                    startCountdown()
-                }
             case .playing:
                 // Playing can have: pause timeout, loading timers
                 if timerCount > 3 {
@@ -269,11 +298,7 @@ class HomeViewModel: ObservableObject {
             preparingMessageTimer = nil
             loadingMessages.stopRotatingMessages()
             
-        case .countdown:
-            // Pause countdown display but keep the main timer
-            // Timer will continue to track time until DayStart is ready
-            break
-            
+        
         case .playing:
             // Audio should continue playing in background
             // But pause loading timers
@@ -306,7 +331,7 @@ class HomeViewModel: ObservableObject {
                 // Restart countdown if we have a start time
                 if let startTime = preparingStartTime {
                     let elapsed = Date().timeIntervalSince(startTime)
-                    let remaining = max(0, 120 - elapsed) // 2 minutes total
+                    let remaining = max(0, 180 - elapsed) // 3 minutes total
                     if remaining > 0 {
                         startPreparingCountdown(duration: remaining)
                     }
@@ -320,9 +345,6 @@ class HomeViewModel: ObservableObject {
                 }
             }
             
-        case .countdown:
-            // Countdown should continue automatically
-            break
             
         case .playing:
             // Check if audio is still playing, update UI accordingly
@@ -500,21 +522,18 @@ class HomeViewModel: ObservableObject {
             let welcomeScheduler = WelcomeDayStartScheduler.shared
             
             if welcomeScheduler.isWelcomePending {
-                state = .welcomeCountdown
+                // Stay in idle but show welcome countdown UI
+                stateTransitionManager.transitionTo(.idle)
                 return
             }
             
             if welcomeScheduler.isWelcomeReadyToPlay {
-                // COMMENTED OUT FOR TESTING: Skip welcomeReady state
-                // state = .welcomeReady
-                
                 // Auto-start welcome DayStart directly to preparing
                 if !hasAutoStartedWelcome {
                     hasAutoStartedWelcome = true
-                    logger.log("🚀 Auto-starting welcome DayStart directly to preparing (bypassing welcomeReady)", level: .info)
+                    logger.log("🚀 Auto-starting welcome DayStart directly to preparing", level: .info)
                     startWelcomeDayStart() // Go directly to preparing
                 }
-                
                 return
             }
         }
@@ -527,7 +546,7 @@ class HomeViewModel: ObservableObject {
         guard let nextOccurrence = userPreferences.schedule.nextOccurrence else {
             // No schedule found
             withAnimation(.none) {
-                state = .idle
+                stateTransitionManager.transitionTo(.idle, animated: false)
                 showNoScheduleMessage = true
                 nextDayStartTime = nil
                 hasCompletedCurrentOccurrence = false
@@ -561,40 +580,49 @@ class HomeViewModel: ObservableObject {
         let hasCompletedThisOccurrence = hasCompletedOccurrence(nextOccurrence)
         hasCompletedCurrentOccurrence = hasCompletedThisOccurrence
         
-        // State logic (no service dependencies)
-        if timeUntil > 300 && timeUntil <= tenHoursInSeconds {
-            // More than 5 minutes until start - show countdown
-            startCountdown()
-        } else if timeUntil > 0 && timeUntil <= 300 && !hasCompletedThisOccurrence {
-            // Less than 5 minutes until start - check if audio is ready
-            checkAudioReadiness(for: nextOccurrence)
-        } else if timeUntil <= 0 && timeUntil >= -sixHoursInSeconds && !hasCompletedThisOccurrence {
-            // Past scheduled time - check if audio is ready
-            checkAudioReadiness(for: nextOccurrence)
-        } else if hasCompletedThisOccurrence && timeUntil >= -sixHoursInSeconds {
-            state = .completed
+        // Simplified state logic - idle handles countdown display
+        if hasCompletedThisOccurrence && timeUntil >= -sixHoursInSeconds {
+            stateTransitionManager.transitionTo(.completed)
+        } else if (timeUntil > 0 && timeUntil <= 300) || (timeUntil <= 0 && timeUntil >= -sixHoursInSeconds) {
+            // Within 5 minutes of start time or past scheduled time - check if audio is ready
+            if !hasCompletedThisOccurrence {
+                checkAudioReadiness(for: nextOccurrence)
+            } else {
+                stateTransitionManager.transitionTo(.idle)
+            }
         } else {
-            state = .idle
+            // Default to idle state (which will show countdown if within 10 hours)
+            stateTransitionManager.transitionTo(.idle)
         }
         
         // Mark transition as complete
         isTransitioning = false
     }
     
-    private func startCountdown() {
-        state = .countdown
+    // Countdown functionality is now handled within idle state
+    func updateCountdownDisplay() {
+        guard let nextTime = nextDayStartTime else { return }
+        let timeUntil = nextTime.timeIntervalSinceNow
         
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self = self, let nextTime = self.nextDayStartTime else { return }
+        if timeUntil > 0 && timeUntil <= 36000 { // 10 hours
+            updateCountdownText(timeInterval: timeUntil)
             
-            let timeUntil = nextTime.timeIntervalSinceNow
-            
-            if timeUntil <= 0 {
-                self.timer?.invalidate()
-                // When countdown reaches 0, check if audio is ready
-                self.checkAudioReadiness(for: nextTime)
-            } else {
-                self.updateCountdownText(timeInterval: timeUntil)
+            // Set up timer if we don't have one
+            if timer == nil {
+                timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                    guard let self = self, let nextTime = self.nextDayStartTime else { return }
+                    
+                    let timeUntil = nextTime.timeIntervalSinceNow
+                    
+                    if timeUntil <= 0 {
+                        self.timer?.invalidate()
+                        self.timer = nil
+                        // When countdown reaches 0, update state
+                        self.updateState()
+                    } else {
+                        self.updateCountdownText(timeInterval: timeUntil)
+                    }
+                }
             }
         }
     }
@@ -616,7 +644,7 @@ class HomeViewModel: ObservableObject {
     private func checkAudioReadiness(for scheduledTime: Date) {
         // First check if we have cached audio
         if serviceRegistry.audioCache.hasAudio(for: scheduledTime) {
-            state = .ready
+            stateTransitionManager.transitionTo(.playing)
             return
         }
         
@@ -640,12 +668,12 @@ class HomeViewModel: ObservableObject {
     }
     
     private func startPreparingState(isWelcome: Bool) {
-        state = .preparing
+        stateTransitionManager.transitionTo(.preparing)
         preparingStartTime = Date()
         connectionError = nil
         
         // Start countdown timer
-        let expectedDuration: TimeInterval = isWelcome ? 120 : 120 // 2 minutes for both initially
+        let expectedDuration: TimeInterval = isWelcome ? 180 : 180 // 3 minutes for both initially
         startPreparingCountdown(duration: expectedDuration)
         
         // Start message rotation

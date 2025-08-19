@@ -78,36 +78,6 @@ struct PrimaryActionView: View {
                     )
                     .padding(.horizontal, 40)
                 }
-            case .welcomeReady:
-                Button(action: onStartTapped) {
-                    Text("DayStart")
-                        .adaptiveFont(BananaTheme.Typography.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(BananaTheme.ColorToken.background)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 80)
-                }
-                .buttonStyle(InstantResponseStyle())
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                )
-                .padding(.horizontal, 40)
-            case .ready:
-                Button(action: onStartTapped) {
-                    Text(hasCompleted ? "Replay" : "DayStart")
-                        .adaptiveFont(BananaTheme.Typography.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(BananaTheme.ColorToken.background)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 80)
-                }
-                .buttonStyle(InstantResponseStyle())
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                )
-                .padding(.horizontal, 40)
             case .completed:
                 Button(action: onReplayTapped) {
                     Label("Replay", systemImage: "arrow.clockwise")
@@ -199,11 +169,15 @@ struct HomeView: View {
                             connectionError: viewModel.connectionError,
                             onStartTapped: { 
                                 hapticManager.impact(style: .medium)
+                                // COMMENTED OUT FOR TESTING: Skip welcomeReady state check
+                                /*
                                 if viewModel.state == .welcomeReady {
                                     viewModel.startWelcomeDayStart()
                                 } else {
                                     viewModel.startDayStart()
                                 }
+                                */
+                                viewModel.startDayStart()
                             },
                             onEditTapped: { 
                                 hapticManager.impact(style: .light)
@@ -294,12 +268,8 @@ struct HomeView: View {
     private func handleStateTransition(from oldState: HomeViewModel.AppState, to newState: HomeViewModel.AppState) {
         // Provide haptic feedback based on state transitions
         switch (oldState, newState) {
-        case (_, .welcomeCountdown):
-            hapticManager.notification(type: .success)
-        case (_, .welcomeReady), (_, .ready):
+        case (_, .preparing):
             hapticManager.impact(style: .medium)
-        case (_, .countdown):
-            hapticManager.impact(style: .light)
         case (_, .playing):
             hapticManager.impact(style: .heavy)
         case (_, .completed):
@@ -441,16 +411,8 @@ struct HomeView: View {
             } else {
                 idleViewContent
             }
-        case .welcomeCountdown:
-            welcomeCountdownView
-        case .welcomeReady:
-            welcomeReadyViewContent
-        case .countdown:
-            countdownView
         case .preparing:
             preparingView
-        case .ready:
-            readyViewContent
         case .playing:
             playingView  // Playing state includes loading
         case .completed:
@@ -460,7 +422,32 @@ struct HomeView: View {
     
     // PHASE 2: Removed primaryActionView - replaced with PrimaryActionView micro-component
     
-    private var welcomeCountdownView: some View {
+    
+    
+
+    // Enhanced idle view that handles countdown, welcome flows, and default state
+    private var idleViewContent: some View {
+        VStack(spacing: 20) {
+            // Check for welcome DayStart scenarios first
+            if !userPreferences.schedule.repeatDays.isEmpty {
+                if welcomeScheduler.isWelcomePending {
+                    // Welcome countdown UI
+                    welcomeCountdownContent
+                } else if welcomeScheduler.isWelcomeReadyToPlay {
+                    // Welcome ready UI  
+                    welcomeReadyContent
+                } else {
+                    // Regular idle content
+                    regularIdleContent
+                }
+            } else {
+                // Regular idle content
+                regularIdleContent
+            }
+        }
+    }
+    
+    private var welcomeCountdownContent: some View {
         VStack(spacing: 30) {
             VStack(spacing: 12) {
                 Text("🎉")
@@ -484,7 +471,6 @@ struct HomeView: View {
             }
             
             VStack(spacing: 16) {
-                // Countdown
                 VStack(spacing: 8) {
                     Text("Ready in")
                         .font(.system(size: 24, weight: .medium))
@@ -495,7 +481,6 @@ struct HomeView: View {
                         .foregroundColor(BananaTheme.ColorToken.primary)
                 }
                 
-                // Progress indicator
                 if !welcomeScheduler.initializationProgress.isEmpty {
                     VStack(spacing: 8) {
                         ProgressView(value: Double(welcomeScheduler.initializationStep), 
@@ -516,8 +501,7 @@ struct HomeView: View {
         }
     }
     
-    
-    private var welcomeReadyViewContent: some View {
+    private var welcomeReadyContent: some View {
         VStack(spacing: 12) {
             Image(systemName: "gift.fill")
                 .font(.system(size: 60))
@@ -535,89 +519,103 @@ struct HomeView: View {
         }
     }
     
-    private var welcomeReadyViewAction: some View {
-        Button(action: { 
-            hapticManager.impact(style: .medium)
-            viewModel.startWelcomeDayStart() 
-        }) {
-            Text("DayStart")
-                .adaptiveFont(BananaTheme.Typography.title)
-                .fontWeight(.bold)
-                .foregroundColor(BananaTheme.ColorToken.background)
-                .frame(maxWidth: .infinity)
-                .frame(height: 80)
-        }
-        .buttonStyle(InstantResponseStyle())
-        .background(
-            RoundedRectangle(cornerRadius: 25)
-                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-        )
-        .padding(.horizontal, 40)
-        .scaleEffect(1.0)
-        .animation(
-            Animation.easeInOut(duration: 1.5)
-                .repeatForever(autoreverses: true),
-            value: viewModel.state
-        )
-        .accessibilityLabel("Start welcome DayStart")
-        .accessibilityHint("Tap to begin your introductory audio experience")
-    }
-
-    // Split idle view into content and action parts
-    private var idleViewContent: some View {
+    private var regularIdleContent: some View {
         VStack(spacing: 20) {
             if viewModel.showNoScheduleMessage {
                 Text("No DayStarts scheduled")
                     .adaptiveFont(BananaTheme.Typography.title2)
                     .foregroundColor(BananaTheme.ColorToken.text)
             } else if let nextTime = viewModel.nextDayStartTime {
-                // Check if today's DayStart is available and not completed
-                if viewModel.isNextDayStartToday && !viewModel.hasCompletedCurrentOccurrence {
-                    VStack(spacing: 12) {
-                        Text("Today's DayStart")
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                        
-                        Text(nextTime, style: .time)
-                            .font(.system(size: 48, weight: .bold, design: .rounded))
-                            .foregroundColor(BananaTheme.ColorToken.text)
-                            
-                        Text("Available Now")
-                            .font(.subheadline)
-                            .foregroundColor(BananaTheme.ColorToken.primary)
-                            .fontWeight(.medium)
-                    }
+                let timeUntil = nextTime.timeIntervalSinceNow
+                
+                // Show countdown if within 10 hours
+                if timeUntil > 0 && timeUntil <= 36000 { // 10 hours
+                    countdownContent(for: nextTime, timeUntil: timeUntil)
+                } else if viewModel.isNextDayStartToday && !viewModel.hasCompletedCurrentOccurrence {
+                    // Today's DayStart available now
+                    availableNowContent(for: nextTime)
                 } else {
-                    VStack(spacing: 16) {
-                        VStack(spacing: 12) {
-                            Text("Next DayStart")
-                                .font(.system(size: 24, weight: .medium))
-                                .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
-                            
-                            Text(nextTime, style: .time)
-                                .font(.system(size: 48, weight: .bold, design: .rounded))
-                                .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
-                            
-                            Text(formattedDate(for: nextTime))
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                                .opacity(viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday ? 1.0 : 0.7)
-                        }
-                        
-                        // Tomorrow's lineup preview
-                        if viewModel.isNextDayStartTomorrow {
-                            Button(action: {
-                                hapticManager.impact(style: .light)
-                                showEditSchedule = true
-                            }) {
-                                tomorrowsLineupPreview
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            .task {
-                                await loadTomorrowForecast()
-                            }
-                        }
-                    }
+                    // Next DayStart info
+                    nextDayStartContent(for: nextTime)
+                }
+            }
+        }
+    }
+    
+    private func countdownContent(for nextTime: Date, timeUntil: TimeInterval) -> some View {
+        VStack(spacing: 20) {
+            Text("Starting in")
+                .font(.system(size: 24, weight: .medium))
+                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+            
+            Text(viewModel.countdownText)
+                .font(.system(size: 48, weight: .bold, design: .monospaced))
+                .foregroundColor(BananaTheme.ColorToken.primary)
+            
+            VStack(spacing: 4) {
+                Text(nextTime, style: .time)
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                
+                Text(formattedDate(for: nextTime))
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+            }
+            
+            // Progressive anticipation reveal
+            countdownAnticipationView
+        }
+        .onAppear {
+            // Start countdown timer when this view appears
+            viewModel.updateCountdownDisplay()
+        }
+    }
+    
+    private func availableNowContent(for nextTime: Date) -> some View {
+        VStack(spacing: 12) {
+            Text("Today's DayStart")
+                .font(.system(size: 24, weight: .medium))
+                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+            
+            Text(nextTime, style: .time)
+                .font(.system(size: 48, weight: .bold, design: .rounded))
+                .foregroundColor(BananaTheme.ColorToken.text)
+                
+            Text("Available Now")
+                .font(.subheadline)
+                .foregroundColor(BananaTheme.ColorToken.primary)
+                .fontWeight(.medium)
+        }
+    }
+    
+    private func nextDayStartContent(for nextTime: Date) -> some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 12) {
+                Text("Next DayStart")
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
+                
+                Text(nextTime, style: .time)
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
+                
+                Text(formattedDate(for: nextTime))
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                    .opacity(viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday ? 1.0 : 0.7)
+            }
+            
+            // Tomorrow's lineup preview
+            if viewModel.isNextDayStartTomorrow {
+                Button(action: {
+                    hapticManager.impact(style: .light)
+                    showEditSchedule = true
+                }) {
+                    tomorrowsLineupPreview
+                }
+                .buttonStyle(PlainButtonStyle())
+                .task {
+                    await loadTomorrowForecast()
                 }
             }
         }
@@ -666,72 +664,7 @@ struct HomeView: View {
         }
     }
     
-    private var countdownView: some View {
-        VStack(spacing: 20) {
-            Text("Starting in")
-                .font(.system(size: 24, weight: .medium))
-                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-            
-            Text(viewModel.countdownText)
-                .font(.system(size: 48, weight: .bold, design: .monospaced))
-                .foregroundColor(BananaTheme.ColorToken.primary)
-            
-            if let nextTime = viewModel.nextDayStartTime {
-                VStack(spacing: 4) {
-                    Text(nextTime, style: .time)
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
-                        .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                    
-                    Text(formattedDate(for: nextTime))
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                }
-            }
-            
-            // Progressive anticipation reveal
-            countdownAnticipationView
-        }
-    }
     
-    private var readyViewContent: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "sun.max.fill")
-                .font(.system(size: 60))
-                .foregroundColor(BananaTheme.ColorToken.primary)
-            
-            Text("Ready to start your day?")
-                .adaptiveFont(BananaTheme.Typography.title2)
-                .foregroundColor(BananaTheme.ColorToken.text)
-        }
-    }
-    
-    private var readyViewAction: some View {
-        Button(action: { 
-            hapticManager.impact(style: .medium)
-            viewModel.startDayStart() 
-        }) {
-            Text(viewModel.hasCompletedCurrentOccurrence ? "Replay" : "DayStart")
-                .adaptiveFont(BananaTheme.Typography.title)
-                .fontWeight(.bold)
-                .foregroundColor(BananaTheme.ColorToken.background)
-                .frame(maxWidth: .infinity)
-                .frame(height: 80)
-        }
-        .buttonStyle(InstantResponseStyle())
-        .background(
-            RoundedRectangle(cornerRadius: 25)
-                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-        )
-        .padding(.horizontal, 40)
-        .scaleEffect(1.0)
-        .animation(
-            Animation.easeInOut(duration: 1.5)
-                .repeatForever(autoreverses: true),
-            value: viewModel.state
-        )
-        .accessibilityLabel(viewModel.hasCompletedCurrentOccurrence ? "Replay DayStart" : "Start DayStart")
-        .accessibilityHint("Tap to begin your daily audio briefing")
-    }
     
     private var preparingView: some View {
         VStack(spacing: 30) {
@@ -800,7 +733,7 @@ struct HomeView: View {
         let countdownText = viewModel.preparingCountdownText.components(separatedBy: ":").compactMap({ Int($0) })
         guard countdownText.count == 2 else { return 0 }
         
-        let totalSeconds = 120.0 // 2 minutes
+        let totalSeconds = 180.0 // 3 minutes
         let remainingSeconds = Double(countdownText[0] * 60 + countdownText[1])
         return max(0, min(1, (totalSeconds - remainingSeconds) / totalSeconds))
     }
@@ -830,6 +763,23 @@ struct HomeView: View {
     
     private var playingView: some View {
         VStack(spacing: 30) {
+            // X button to stop playback
+            HStack {
+                Spacer()
+                Button(action: {
+                    hapticManager.impact(style: .light)
+                    AudioPlayerManager.shared.pause()
+                    viewModel.state = .idle
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                }
+                .accessibilityLabel("Stop playback")
+                .accessibilityHint("Stop the current DayStart audio")
+            }
+            .padding(.top, -10)
+            
             VStack(spacing: 12) {
                 // Show music note when loading, waveform when playing
                 /*
@@ -868,21 +818,6 @@ struct HomeView: View {
     
     private var completedViewContent: some View {
         VStack(spacing: 20) {
-            HStack {
-                Spacer()
-                Button(action: {
-                    hapticManager.impact(style: .light)
-                    viewModel.exitCompletedState()
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                }
-                .accessibilityLabel("Close completed view")
-                .accessibilityHint("Return to main view")
-            }
-            .padding(.top, -10)
-            
             VStack(spacing: 12) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 60))

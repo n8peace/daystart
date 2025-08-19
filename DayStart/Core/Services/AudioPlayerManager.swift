@@ -510,7 +510,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
         introPlayer = AVPlayer(playerItem: introPlayerItem)
         
         // Set intro volume slightly lower than main audio
-        introPlayer?.volume = 0.7
+        introPlayer?.volume = 0.5
         
         // Set up observers for intro player
         setupIntroObservers()

@@ -8,6 +8,11 @@ class AudioCache {
     private let fileManager = FileManager.default
     private let cacheDirectoryName = "AudioCache"
     
+    // Memory cache for file existence checks
+    private var memoryCache: [String: Bool] = [:]
+    private var cacheTimestamps: [String: Date] = [:]
+    private let cacheValidityDuration: TimeInterval = 60 // 1 minute
+    
     private init() {
         setupCacheDirectory()
     }
@@ -33,8 +38,23 @@ class AudioCache {
     // MARK: - Public Interface
     
     func hasAudio(for date: Date) -> Bool {
+        let key = audioFilename(for: date)
+        let now = Date()
+        
+        // Check memory cache first
+        if let cached = memoryCache[key],
+           let timestamp = cacheTimestamps[key],
+           now.timeIntervalSince(timestamp) < cacheValidityDuration {
+            return cached
+        }
+        
+        // File system check
         let filePath = getAudioPath(for: date)
         let exists = fileManager.fileExists(atPath: filePath.path)
+        
+        // Cache result
+        memoryCache[key] = exists
+        cacheTimestamps[key] = now
         
         if exists {
             logger.log("Audio cache hit for \(date)", level: .debug)
@@ -53,6 +73,12 @@ class AudioCache {
         
         do {
             try data.write(to: filePath)
+            
+            // Update memory cache when file is written
+            let key = audioFilename(for: date)
+            memoryCache[key] = true
+            cacheTimestamps[key] = Date()
+            
             logger.log("Cached audio for \(date) (\(data.count) bytes)", level: .info)
             return filePath
         } catch {
@@ -63,14 +89,24 @@ class AudioCache {
     
     func removeAudio(for date: Date) -> Bool {
         let filePath = getAudioPath(for: date)
+        let key = audioFilename(for: date)
         
         guard fileManager.fileExists(atPath: filePath.path) else {
+            // Update memory cache to reflect removal
+            memoryCache[key] = false
+            cacheTimestamps[key] = Date()
+            
             logger.log("Audio file not found for removal: \(date)", level: .debug)
             return true // Already doesn't exist
         }
         
         do {
             try fileManager.removeItem(at: filePath)
+            
+            // Update memory cache when file is removed
+            memoryCache[key] = false
+            cacheTimestamps[key] = Date()
+            
             logger.log("Removed cached audio for \(date)", level: .info)
             return true
         } catch {
@@ -145,6 +181,10 @@ class AudioCache {
                 try fileManager.removeItem(at: fileURL)
                 removedCount += 1
             }
+            
+            // Clear memory cache when all files are removed
+            memoryCache.removeAll()
+            cacheTimestamps.removeAll()
             
             logger.log("Cleared all cache: \(removedCount) files removed", level: .info)
             

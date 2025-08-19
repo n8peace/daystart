@@ -299,7 +299,7 @@ struct HistoryRow: View {
                     Button(action: {
                         let logger = DebugLogger.shared
                         logger.log("🎵 History: Play button tapped for DayStart \(dayStart.id)", level: .info)
-                        logger.log("🎵 History: Audio path exists: \(path)", level: .debug)
+                        logger.log("🎵 History: Audio path exists: \(dayStart.audioFilePath ?? "nil")", level: .debug)
                         
                         // Always use direct audio player control for compact history playback
                         logger.log("🎵 History: Using direct AudioPlayerManager control for compact playback", level: .info)

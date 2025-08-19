@@ -238,8 +238,9 @@ function sanitizeForTTS(raw: string): string {
   // Remove label-y lines (e.g., "Weather:", "News:")
   s = s.replace(/^(weather|news|sports|stocks|quote|calendar)\s*:\s*/gim, '');
 
-  // Remove any "Good morning" duplicates if model adds extras
-  s = s.replace(/^(good morning[^.]*\.\s*){2,}/gi, (match, group) => group);
+  // Remove any "Good morning" duplicates if model adds extras (but preserve Welcome to DayStart)
+  // Only match true duplicates: "Good morning, Name. Good morning, Name." 
+  s = s.replace(/^(good morning,\s*[^.]*\.\s*)(good morning,\s*[^.]*\.\s*)+/gi, '$1');
 
   // Clamp excessive pauses
   s = s.replace(/\.{4,}/g, '...').replace(/—{2,}/g, '—');
@@ -569,7 +570,11 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   const fewShotExample = {
     role: 'system',
     content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
-Good morning, Jordan. It's Monday, August 18th, and welcome back to the week. The sun is sliding up over Los Angeles, and Mar Vista will be feeling downright summery today. Highs in the low 80s with just a whisper of ocean breeze, which means you'll want to keep a cold drink nearby. The good news — no sign of that sticky humidity we had last week. The bad news — traffic is still traffic, and the 405 is basically allergic to being on time.
+Good morning, Jordan, it's Monday, August eighteenth. Welcome to DayStart!
+
+…
+
+The sun is sliding up over Los Angeles, and Mar Vista will be feeling downright summery today. Highs in the low eighties with just a whisper of ocean breeze, which means you'll want to keep a cold drink nearby. The good news — no sign of that sticky humidity we had last week. The bad news — traffic is still traffic, and the four oh five is basically allergic to being on time.
 
 …
 
@@ -585,7 +590,7 @@ Sports-wise, the Dodgers pulled off a walk-off win against the Giants, which is 
 
 …
 
-Markets open steady, at least for now. Your favorite tickers — AAPL and TSLA — are looking a shade green in pre-market, while the broader indices are pretty flat. Futures traders are basically staring at each other waiting for someone to blink.
+Markets open steady, at least for now. Your favorite tickers — Apple and Tesla — are looking a shade green in pre-market, while the broader indices are pretty flat. Futures traders are basically staring at each other waiting for someone to blink.
 
 …
 
