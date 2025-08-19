@@ -27,6 +27,7 @@ class ServiceRegistry: ObservableObject {
     private var _audioDownloader: AudioDownloader?
     private var _audioPrefetchManager: AudioPrefetchManager?
     private var _snapshotBuilder: SnapshotBuilder?
+    private var _snapshotUpdateManager: SnapshotUpdateManager?
     private var _stockValidationService: StockValidationService?
     
     // TIER 5: Platform Integration Services (Load only with permissions/features enabled)
@@ -124,6 +125,14 @@ class ServiceRegistry: ObservableObject {
         return _snapshotBuilder!
     }
     
+    var snapshotUpdateManager: SnapshotUpdateManager {
+        if _snapshotUpdateManager == nil {
+            logger.log("🔄 Loading SnapshotUpdateManager on-demand", level: .info)
+            _snapshotUpdateManager = SnapshotUpdateManager.shared
+        }
+        return _snapshotUpdateManager!
+    }
+    
     var stockValidationService: StockValidationService {
         if _stockValidationService == nil {
             logger.log("📈 Loading StockValidationService on-demand", level: .info)
@@ -219,6 +228,7 @@ class ServiceRegistry: ObservableObject {
         if UserPreferences.shared.schedule.repeatDays.isEmpty {
             _audioPrefetchManager = nil
             _snapshotBuilder = nil
+            _snapshotUpdateManager = nil
             logger.log("☁️ Released content generation services - no active schedule", level: .debug)
         }
     }
@@ -237,6 +247,7 @@ class ServiceRegistry: ObservableObject {
         if _audioDownloader != nil { services.append("AudioDownloader") }
         if _audioPrefetchManager != nil { services.append("AudioPrefetchManager") }
         if _snapshotBuilder != nil { services.append("SnapshotBuilder") }
+        if _snapshotUpdateManager != nil { services.append("SnapshotUpdateManager") }
         if _stockValidationService != nil { services.append("StockValidationService") }
         if _locationManager != nil { services.append("LocationManager") }
         if _weatherService != nil { services.append("WeatherService") }

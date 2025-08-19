@@ -133,6 +133,11 @@ class HomeViewModel: ObservableObject {
         Task {
             await loadBasicObservers()
             validateAndUpdateState()
+            
+            // Initialize snapshot update system if user has active schedule
+            if !userPreferences.schedule.repeatDays.isEmpty {
+                await initializeSnapshotUpdateSystem()
+            }
         }
     }
     
@@ -968,6 +973,9 @@ class HomeViewModel: ObservableObject {
             return
         }
         
+        // Trigger snapshot update for remaining scheduled jobs
+        triggerSnapshotUpdateAfterDayStart()
+        
         // Check if audio is already cached
         if serviceRegistry.audioCache.hasAudio(for: scheduledTime) {
             // IMMEDIATE: State change for responsiveness
@@ -1064,6 +1072,25 @@ class HomeViewModel: ObservableObject {
         
         // Update to appropriate state based on schedule
         updateState()
+    }
+    
+    /// Trigger snapshot update after playing a DayStart
+    private func triggerSnapshotUpdateAfterDayStart() {
+        // Only trigger if user has active schedule
+        guard !userPreferences.schedule.repeatDays.isEmpty else {
+            return
+        }
+        
+        // Trigger update in background for remaining scheduled jobs
+        Task.detached {
+            await ServiceRegistry.shared.snapshotUpdateManager.updateSnapshotsForUpcomingJobs(trigger: .dayStartPlayed)
+        }
+    }
+    
+    /// Initialize the snapshot update system
+    private func initializeSnapshotUpdateSystem() async {
+        logger.log("🔄 Initializing snapshot update system", level: .info)
+        await serviceRegistry.snapshotUpdateManager.initialize()
     }
     
     // MARK: - Audio Playback (Services Loaded On-Demand)

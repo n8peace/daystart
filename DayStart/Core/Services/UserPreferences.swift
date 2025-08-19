@@ -249,9 +249,30 @@ class UserPreferences: ObservableObject {
             await MainActor.run {
                 logger.log("✅ Updated \(upcomingDates.count) scheduled jobs with new settings", level: .info)
             }
+            
+            // Trigger immediate snapshot update for preference changes (bypasses rate limiting)
+            await triggerSnapshotUpdateForPreferenceChange()
+            
         } catch {
             await MainActor.run {
                 logger.logError(error, context: "Failed to update scheduled jobs after settings change")
+            }
+        }
+    }
+    
+    /// Trigger snapshot update when preferences change (bypasses rate limiting)
+    private func triggerSnapshotUpdateForPreferenceChange() async {
+        await MainActor.run {
+            let registry = ServiceRegistry.shared
+            
+            // Only trigger if user has active schedule
+            guard !schedule.repeatDays.isEmpty else {
+                return
+            }
+            
+            // Initialize SnapshotUpdateManager and trigger preference change update
+            Task {
+                await registry.snapshotUpdateManager.updateSnapshotsForUpcomingJobs(trigger: .preferencesChanged)
             }
         }
     }

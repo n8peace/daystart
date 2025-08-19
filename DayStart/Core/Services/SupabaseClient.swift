@@ -261,6 +261,98 @@ class SupabaseClient {
         return UpdateJobsResult(success: true, updatedCount: resp.updated_count ?? 0)
     }
     
+    // MARK: - Snapshot Update API
+    
+    func updateJobSnapshots(
+        jobIds: [String],
+        locationData: LocationData?,
+        weatherData: WeatherData?,
+        calendarEvents: [String]?
+    ) async throws -> Bool {
+        let url = baseURL.appendingPathComponent("update_job_snapshots")
+        
+        logger.log("📤 Supabase API: POST update_job_snapshots", level: .info)
+        logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        
+        var request = createRequest(for: url, method: "POST")
+        
+        let requestBody = UpdateJobSnapshotsRequest(
+            job_ids: jobIds,
+            location_data: locationData,
+            weather_data: weatherData,
+            calendar_events: calendarEvents
+        )
+        
+        let jsonData: Data
+        do {
+            jsonData = try JSONEncoder().encode(requestBody)
+        } catch {
+            logger.logError(error, context: "Failed to encode update job snapshots request")
+            throw error
+        }
+        
+        request.httpBody = jsonData
+        
+        if let requestString = String(data: jsonData, encoding: .utf8) {
+            logger.log("📝 update_job_snapshots payload: \(requestString)", level: .debug)
+        }
+        
+        logger.logNetworkRequest(request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            logger.log("❌ Supabase API: Invalid response type (update_job_snapshots)", level: .error)
+            throw SupabaseError.invalidResponse
+        }
+        
+        logger.log("📥 Supabase API: Response status (update_job_snapshots): \(httpResponse.statusCode)", level: .info)
+        logger.logNetworkResponse(httpResponse, data: data)
+        
+        guard httpResponse.statusCode == 200 else {
+            throw SupabaseError.httpError(httpResponse.statusCode)
+        }
+        
+        if let responseString = String(data: data, encoding: .utf8) {
+            logger.log("📄 update_job_snapshots response: \(responseString)", level: .debug)
+        }
+        
+        let resp = try JSONDecoder().decode(UpdateJobSnapshotsResponse.self, from: data)
+        return resp.success
+    }
+    
+    func getJobsInDateRange(startDate: String, endDate: String) async throws -> [JobSummary] {
+        let url = baseURL.appendingPathComponent("get_jobs")
+            .appendingQueryItem(name: "start_date", value: startDate)
+            .appendingQueryItem(name: "end_date", value: endDate)
+        
+        logger.log("📤 Supabase API: GET get_jobs", level: .info)
+        logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        
+        var request = createRequest(for: url, method: "GET")
+        
+        logger.logNetworkRequest(request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            logger.log("❌ Supabase API: Invalid response type (get_jobs)", level: .error)
+            throw SupabaseError.invalidResponse
+        }
+        
+        logger.log("📥 Supabase API: Response status (get_jobs): \(httpResponse.statusCode)", level: .info)
+        logger.logNetworkResponse(httpResponse, data: data)
+        
+        guard httpResponse.statusCode == 200 else {
+            throw SupabaseError.httpError(httpResponse.statusCode)
+        }
+        
+        if let responseString = String(data: data, encoding: .utf8) {
+            logger.log("📄 get_jobs response: \(responseString)", level: .debug)
+        }
+        
+        let resp = try JSONDecoder().decode(GetJobsResponse.self, from: data)
+        return resp.success ? resp.jobs ?? [] : []
+    }
+    
     // MARK: - Authentication (Future)
     
     fileprivate func createAuthenticatedJob(_ request: CreateJobRequest) async throws -> JobResponse {
@@ -368,6 +460,45 @@ private struct UpdateJobsAPIResponse: Codable {
 struct UpdateJobsResult {
     let success: Bool
     let updatedCount: Int
+}
+
+// MARK: - Snapshot Update API Models
+
+private struct UpdateJobSnapshotsRequest: Codable {
+    let job_ids: [String]
+    let location_data: LocationData?
+    let weather_data: WeatherData?
+    let calendar_events: [String]?
+}
+
+private struct UpdateJobSnapshotsResponse: Codable {
+    let success: Bool
+    let updated_count: Int?
+    let error_code: String?
+    let error_message: String?
+    let request_id: String?
+}
+
+private struct GetJobsResponse: Codable {
+    let success: Bool
+    let jobs: [JobSummary]?
+    let error_code: String?
+    let error_message: String?
+    let request_id: String?
+}
+
+struct JobSummary: Codable {
+    let jobId: String
+    let localDate: String
+    let scheduledAt: String?
+    let status: String
+    
+    private enum CodingKeys: String, CodingKey {
+        case jobId = "job_id"
+        case localDate = "local_date"
+        case scheduledAt = "scheduled_at"
+        case status
+    }
 }
 
 private struct CreateJobAPIResponse: Codable {

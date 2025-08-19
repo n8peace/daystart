@@ -54,6 +54,11 @@ struct DayStartApp: App {
                     Task.detached {
                         await preWarmLoadedServicesOnForeground()
                     }
+                    
+                    // Trigger snapshot updates when app comes to foreground
+                    Task.detached {
+                        await triggerSnapshotUpdateOnForeground()
+                    }
                 }
                 .fullScreenCover(isPresented: $showOnboarding) {
                     OnboardingView {
@@ -155,6 +160,23 @@ struct DayStartApp: App {
                 Task {
                     _ = await locationManager.getCurrentLocation()
                 }
+            }
+        }
+    }
+    
+    /// Trigger snapshot updates when app enters foreground
+    private func triggerSnapshotUpdateOnForeground() async {
+        await MainActor.run {
+            let registry = ServiceRegistry.shared
+            
+            // Only trigger if user has active schedule
+            guard !UserPreferences.shared.schedule.repeatDays.isEmpty else {
+                return
+            }
+            
+            // Initialize SnapshotUpdateManager and trigger foreground update
+            Task {
+                await registry.snapshotUpdateManager.updateSnapshotsForUpcomingJobs(trigger: .appForeground)
             }
         }
     }
