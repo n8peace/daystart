@@ -146,6 +146,23 @@ function getRandomTransitions() {
   };
 }
 
+// Sample random sign-off for script endings
+function getRandomSignOff() {
+  const signOffOptions = [
+    "That's your morning wrapped — peel back the day slowly, and you'll find it's sweeter than it looks at first glance.",
+    "Don't trip over the small peels life leaves on the floor — step past them and keep your stride steady.",
+    "Stay yellow when the world wants you green, and stay mellow when the world tries to bruise you.",
+    "Peel into this Monday with intention — because even bananas don't get eaten in one bite.",
+    "Bananas never rush to ripen — take today one hour at a time, and let the good parts come naturally.",
+    "From the morning bunch to the evening hush, carry the sweetness with you and share it where you can.",
+    "Potassium powers possibility — give your mind the fuel it needs, and watch the energy carry you forward.",
+    "That's the whole peel, deal, and reveal — nothing more to add except your own effort.",
+    "Even bananas thrive in a bunch — lean on your people, lift up someone else, and the day gets lighter."
+  ];
+  
+  return signOffOptions[Math.floor(Math.random() * signOffOptions.length)];
+}
+
 // Enhanced retry + timeout wrapper with detailed logging
 async function withRetry<T>(fn: () => Promise<T>, tries = 3, baseMs = 600, timeoutMs = 45000, context = 'unknown'): Promise<T> {
   let lastErr: any;
@@ -528,7 +545,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   // Few-shot example to lock in the style
   const fewShotExample = {
     role: 'system',
-    content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts):
+    content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
 Good morning, Jordan. It's Monday, August 18th, and welcome back to the week. The sun is sliding up over Los Angeles, and Mar Vista will be feeling downright summery today. Highs in the low 80s with just a whisper of ocean breeze, which means you'll want to keep a cold drink nearby. The good news — no sign of that sticky humidity we had last week. The bad news — traffic is still traffic, and the 405 is basically allergic to being on time.
 
 …
@@ -555,9 +572,9 @@ A thought for the day: "Discipline is remembering what you want." It doesn't hav
 
 And that's your start, Jordan. Step out into this Monday with a little humor, a little focus, and maybe even a little patience for that dentist.
 
-Go peel the day your way — and remember, the world is better when you don't slip on the small stuff.
+Peel into this Monday with intention — because even bananas don't get eaten in one bite.
 
-Banana out.`
+- REMINDER, THIS WAS AN EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data).`
   };
 
   const systemMessage = {
@@ -902,6 +919,7 @@ function buildScriptPrompt(context: any): string {
     sportsTeamWhitelist: teamWhitelistFromSports(sportsToday),
     localityHints: localityHints(context.locationData),
     transitions: getRandomTransitions(),
+    signOff: getRandomSignOff(),
     stocks: {
       sources: (context.contentData?.stocks || []).slice(0, storyLimits.stocks),
       focusSymbols: context.stockSymbols || []
@@ -962,7 +980,7 @@ CONTENT ORDER (adapt if sections are missing)
 5) Sports (if include.sports): Brief, focused update. Mention major local teams or significant national stories.
 6) Stocks (if include.stocks): Market pulse. Call out focusSymbols prominently when present.
 7) Quote (if include.quotes): 1 line, then a one-line tie-back to today's vibe.
-8) Close with a crisp, motivating line.
+8) Close with the provided signOff from the data — choose the one that fits the day's tone best.
 
 STRICT OUTPUT RULES — DO NOT BREAK
 - Output: PLAIN TEXT ONLY.
