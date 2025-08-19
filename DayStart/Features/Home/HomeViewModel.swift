@@ -161,7 +161,7 @@ class HomeViewModel: ObservableObject {
                 if !audioPlayer.isPlaying {
                     logger.log("⚠️ Invalid state: playing but audio not playing", level: .warning)
                     // Try to recover by restarting audio or go to completed
-                    if let dayStart = currentDayStart {
+                    if currentDayStart != nil {
                         state = .completed
                     } else {
                         state = .idle
@@ -994,8 +994,8 @@ class HomeViewModel: ObservableObject {
     
     private func loadAudioServicesAndStart(scheduledTime: Date? = nil) async {
         // TIER 2: Load audio services on-demand
-        let audioPlayer = serviceRegistry.audioPlayerManager
-        let audioCache = serviceRegistry.audioCache
+        _ = serviceRegistry.audioPlayerManager
+        _ = serviceRegistry.audioCache
         
         // Setup audio observers now that services are loaded
         await MainActor.run {
@@ -1031,10 +1031,19 @@ class HomeViewModel: ObservableObject {
         logger.logUserAction("Replay DayStart", details: ["id": dayStart.id])
         
         currentDayStart = dayStart
+        state = .playing
         
         // LAZY: Load audio services when needed
         Task {
-            await loadAudioServicesAndStart()
+            // Only load audio services by accessing them (they load on-demand)
+            _ = serviceRegistry.audioPlayerManager
+            _ = serviceRegistry.audioCache
+            
+            // Setup audio observers now that services are loaded
+            await MainActor.run {
+                setupAudioObserversIfNeeded()
+            }
+            
             await replayDayStartWithAudio(dayStart)
         }
     }
@@ -1305,20 +1314,21 @@ class HomeViewModel: ObservableObject {
         stopLoadingTimers()
         
         loadingDelayTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
+            guard let weakSelf = self else { return }
             Task { @MainActor in
-                guard let self = self, self.state == .playing else { return }
-                self.loadingMessages.startRotatingMessages()
+                guard weakSelf.state == .playing else { return }
+                weakSelf.loadingMessages.startRotatingMessages()
             }
         }
     }
     
     private func startLoadingTimeoutTimer() {
         loadingTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: false) { [weak self] _ in
+            guard let weakSelf = self else { return }
             Task { @MainActor in
-                guard let self = self else { return }
-                self.stopLoadingTimers()
-                self.connectionError = .timeout
-                self.state = .idle
+                weakSelf.stopLoadingTimers()
+                weakSelf.connectionError = .timeout
+                weakSelf.state = .idle
             }
         }
     }

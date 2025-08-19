@@ -71,8 +71,9 @@ class NotificationScheduler {
                 do {
                     let status = try await SupabaseClient.shared.getAudioStatus(for: notificationDate)
                     if status.status == "not_found" || status.status == "queued" || status.status == "failed" {
-                        // Build snapshot for context data (location, weather, calendar)
-                        let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+                        // Build snapshot for context data (location, weather, calendar) using local date
+                        let localDate = Calendar.current.startOfDay(for: notificationDate)
+                        let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: localDate)
                         _ = try? await SupabaseClient.shared.createJob(
                             for: notificationDate,
                             with: UserPreferences.shared.settings,

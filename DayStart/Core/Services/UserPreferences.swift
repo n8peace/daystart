@@ -326,9 +326,33 @@ class UserPreferences: ObservableObject {
     // MARK: - History Management
     
     func addToHistory(_ dayStart: DayStartData) {
-        history.insert(dayStart, at: 0)
-        if history.count > 30 {
-            history.removeLast()
+        let calendar = Calendar.current
+        
+        // Check if we already have an entry for this date
+        if let existingIndex = history.firstIndex(where: { existing in
+            guard let existingDate = existing.scheduledTime ?? existing.date as Date?,
+                  let newDate = dayStart.scheduledTime ?? dayStart.date as Date? else {
+                return false
+            }
+            return calendar.isDate(existingDate, inSameDayAs: newDate)
+        }) {
+            // Update existing entry but preserve important fields
+            var updatedEntry = dayStart
+            // Preserve the original ID so updateHistory can find it later
+            updatedEntry.id = history[existingIndex].id
+            // Preserve audio file path if it exists
+            if history[existingIndex].audioFilePath != nil && dayStart.audioFilePath == nil {
+                updatedEntry.audioFilePath = history[existingIndex].audioFilePath
+            }
+            history[existingIndex] = updatedEntry
+            logger.log("Updated existing history entry for date: \(dayStart.date)", level: .debug)
+        } else {
+            // Add new entry
+            history.insert(dayStart, at: 0)
+            if history.count > 30 {
+                history.removeLast()
+            }
+            logger.log("Added new history entry for date: \(dayStart.date)", level: .debug)
         }
         
         // Periodically clean up old audio files (every 5th addition)

@@ -1676,7 +1676,7 @@ struct OnboardingView: View {
             do {
                 let snapshot = await SnapshotBuilder.shared.buildSnapshot()
                 
-                let jobResult = try await SupabaseClient.shared.createJob(
+                _ = try await SupabaseClient.shared.createJob(
                     for: Date(),
                     with: userPreferences.settings,
                     schedule: userPreferences.schedule,

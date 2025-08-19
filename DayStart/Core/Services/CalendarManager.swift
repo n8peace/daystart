@@ -85,6 +85,33 @@ class CalendarManager: NSObject, ObservableObject {
         return sortedEvents
     }
     
+    func getEventsForDate(_ date: Date) -> [EKEvent] {
+        guard hasCalendarAccess() else {
+            logger.log("Cannot fetch calendar events: access not granted", level: .warning)
+            return []
+        }
+        
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
+            logger.log("Failed to calculate end of day for \(date)", level: .error)
+            return []
+        }
+        
+        let predicate = eventStore.predicateForEvents(
+            withStart: startOfDay,
+            end: endOfDay,
+            calendars: nil
+        )
+        
+        let events = eventStore.events(matching: predicate)
+        let sortedEvents = events.sorted { $0.startDate < $1.startDate }
+        
+        logger.log("Retrieved \(sortedEvents.count) events for \(date)", level: .info)
+        return sortedEvents
+    }
+    
     // MARK: - Event Formatting
     
     func formatEventsForDayStart(_ events: [EKEvent]) -> [String] {

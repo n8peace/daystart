@@ -127,15 +127,24 @@ function localityHints(loc: any): string[] {
   return Array.from(new Set(hints)).filter(Boolean);
 }
 
-// Deterministic transition menu for smoother section changes
-const transitions = {
-  toWeather: ['A quick look outside —', 'First, the sky —', 'Step one: the weather —'],
-  toCalendar: ['Before you head out —', 'On your slate —', 'Two things to timebox —'],
-  toNews: ['Now to the headlines …', 'In the news —', 'Closer to home —'],
-  toSports: ['One sports note —', 'Quick sports pulse —', 'Around the diamond —'],
-  toStocks: ['On the tape —', 'For your watchlist —', 'Markets at the open —'],
-  toQuote: ['Pocket this —', 'A line to carry —', 'One thought for the morning —']
-};
+// Sample random transitions for smoother section changes
+function getRandomTransitions() {
+  const toWeatherOptions = ['A quick look outside —', 'First, the sky —', 'Step one: the weather —'];
+  const toCalendarOptions = ['Before you head out —', 'On your slate —', 'Two things to timebox —'];
+  const toNewsOptions = ['Now to the headlines …', 'In the news —', 'Closer to home —'];
+  const toSportsOptions = ['One sports note —', 'Quick sports pulse —', 'Around the diamond —'];
+  const toStocksOptions = ['On the tape —', 'For your watchlist —', 'Markets at the open —'];
+  const toQuoteOptions = ['Pocket this —', 'A line to carry —', 'One thought for the morning —'];
+  
+  return {
+    toWeather: toWeatherOptions[Math.floor(Math.random() * toWeatherOptions.length)],
+    toCalendar: toCalendarOptions[Math.floor(Math.random() * toCalendarOptions.length)],
+    toNews: toNewsOptions[Math.floor(Math.random() * toNewsOptions.length)],
+    toSports: toSportsOptions[Math.floor(Math.random() * toSportsOptions.length)],
+    toStocks: toStocksOptions[Math.floor(Math.random() * toStocksOptions.length)],
+    toQuote: toQuoteOptions[Math.floor(Math.random() * toQuoteOptions.length)]
+  };
+}
 
 // Enhanced retry + timeout wrapper with detailed logging
 async function withRetry<T>(fn: () => Promise<T>, tries = 3, baseMs = 600, timeoutMs = 45000, context = 'unknown'): Promise<T> {
@@ -520,12 +529,35 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   const fewShotExample = {
     role: 'system',
     content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts):
-Good morning, Sam. Happy Tuesday. Skies are clear and you'll hit the mid-70s by lunch, so a light layer is perfect.
-Your 9 a.m. product sync has shifted to 9:15—worth skimming the brief on the train.
-Overnight, regulators approved the chip deal; markets are cautious, but futures are flat. Keep an eye on NVDA and your QQQ position after the open.
-The Sparks edged Phoenix by two; Dodgers host the Giants tonight.
-"Discipline is remembering what you want." One focused block this morning will carry the day.
-You've got this.`
+Good morning, Jordan. It's Monday, August 18th, and welcome back to the week. The sun is sliding up over Los Angeles, and Mar Vista will be feeling downright summery today. Highs in the low 80s with just a whisper of ocean breeze, which means you'll want to keep a cold drink nearby. The good news — no sign of that sticky humidity we had last week. The bad news — traffic is still traffic, and the 405 is basically allergic to being on time.
+
+…
+
+Your calendar is looking friendly enough. The team stand-up at nine should be short, but if history is any guide, "short" will be defined differently by everyone on the Zoom call. At three, you've got that dentist appointment — and if you keep putting it off, your teeth are going to file for separation. Consider this your polite reminder not to cancel again.
+
+…
+
+Meanwhile in the wider world, the headlines are a mixed bag. Over the weekend, a coalition of state governors signed on to a renewable energy compact, promising faster timelines for solar build-outs. Critics say the deadlines are ambitious; optimists say at least somebody's trying. Abroad, markets are still churning on the back of last week's central bank moves in Europe. Closer to home, the wildfire situation up north is easing, thanks to a fortunate stretch of cooler nights. And if you needed a dose of levity, one of the top-trending stories this morning is a rescue operation for a dog that somehow managed to get itself stuck inside a pizza oven in Chicago. The pup is fine — the pizza, less so.
+
+…
+
+Sports-wise, the Dodgers pulled off a walk-off win against the Giants, which is exactly the sort of drama that makes the neighbors either cheer or swear depending on which hat they were wearing. The Sparks have a midweek game coming up, but for now they've got a few days to recover.
+
+…
+
+Markets open steady, at least for now. Your favorite tickers — AAPL and TSLA — are looking a shade green in pre-market, while the broader indices are pretty flat. Futures traders are basically staring at each other waiting for someone to blink.
+
+…
+
+A thought for the day: "Discipline is remembering what you want." It doesn't have to mean perfect routines or Instagram-worthy meal prep. Sometimes it just means shutting the laptop lid at six and remembering there's a world outside of emails.
+
+…
+
+And that's your start, Jordan. Step out into this Monday with a little humor, a little focus, and maybe even a little patience for that dentist.
+
+Go peel the day your way — and remember, the world is better when you don't slip on the small stuff.
+
+Banana out.`
   };
 
   const systemMessage = {
@@ -869,7 +901,7 @@ function buildScriptPrompt(context: any): string {
     sports: sportsToday,
     sportsTeamWhitelist: teamWhitelistFromSports(sportsToday),
     localityHints: localityHints(context.locationData),
-    transitions,
+    transitions: getRandomTransitions(),
     stocks: {
       sources: (context.contentData?.stocks || []).slice(0, storyLimits.stocks),
       focusSymbols: context.stockSymbols || []
@@ -882,6 +914,7 @@ function buildScriptPrompt(context: any): string {
 PAUSING & FLOW
 - Use em dashes (—) for short pauses and ellipses (…) for softer rests.
 - Put a blank line between sections to create a natural breath.
+- Add an ellipsis (…) on its own line between major sections for longer pauses.
 - Start each section with a short sentence. Then continue.
 - Keep sentences mostly under 18 words.
 `;
@@ -895,7 +928,8 @@ STYLE
 - Prefer specifics over generalities. If a section has no data, gracefully skip it.
 - Sprinkle one light, human moment max (a nudge, not a joke barrage).
 ${styleAddendum}
- - Use 1–2 transitions between sections. Keep ellipses to ≤1 per paragraph and em dashes to ≤2 per paragraph.
+ - Use 1–2 transitions between sections. Add ellipses (…) on their own line between major sections for natural pauses.
+ - Keep ellipses to ≤1 per paragraph within sections and em dashes to ≤2 per paragraph.
  - Stay roughly within the provided per-section word budget (±25%). If a section is omitted, redistribute its budget to News first, then Weather/Calendar.
 
 LENGTH & PACING

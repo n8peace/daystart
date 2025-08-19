@@ -90,7 +90,7 @@ class AudioCache {
             let contents = try fileManager.contentsOfDirectory(at: cacheDirectory, includingPropertiesForKeys: [.creationDateKey])
             
             for fileURL in contents {
-                guard fileURL.pathExtension == "m4a" || fileURL.pathExtension == "mp3" else { continue }
+                guard fileURL.pathExtension == "aac" || fileURL.pathExtension == "mp3" else { continue }
                 
                 let resourceValues = try fileURL.resourceValues(forKeys: [.creationDateKey])
                 if let creationDate = resourceValues.creationDate, creationDate < cutoffDate {
@@ -158,7 +158,7 @@ class AudioCache {
     private func audioFilename(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        return "daystart-\(formatter.string(from: date)).m4a"
+        return "daystart-\(formatter.string(from: date)).aac"
     }
     
     // MARK: - Cache Statistics
@@ -176,7 +176,7 @@ class AudioCache {
             )
             
             for fileURL in contents {
-                guard fileURL.pathExtension == "m4a" || fileURL.pathExtension == "mp3" else { continue }
+                guard fileURL.pathExtension == "aac" || fileURL.pathExtension == "mp3" else { continue }
                 
                 let resourceValues = try fileURL.resourceValues(forKeys: [.creationDateKey, .fileSizeKey])
                 

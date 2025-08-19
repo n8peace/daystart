@@ -165,7 +165,7 @@ class AudioPrefetchManager {
                 logger.log("📋 Audio not found for \(date), creating job with snapshot...", level: .info)
                 
                 // LAZY: Load SnapshotBuilder only when creating jobs
-                let snapshot = await ServiceRegistry.shared.snapshotBuilder.buildSnapshot()
+                let snapshot = await ServiceRegistry.shared.snapshotBuilder.buildSnapshot(for: date)
                 
                 // Create job
                 _ = try? await Task.detached(priority: .background) {
@@ -212,8 +212,9 @@ class AudioPrefetchManager {
                     continue
                 }
                 
-                // Build snapshot
-                let snapshot = await snapshotBuilder.buildSnapshot()
+                // Build snapshot for the local date of the scheduled time
+                let localDate = Calendar.current.startOfDay(for: scheduledTime)
+                let snapshot = await snapshotBuilder.buildSnapshot(for: localDate)
                 
                 // Create job
                 _ = try? await Task.detached(priority: .background) {
