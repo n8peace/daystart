@@ -763,23 +763,6 @@ struct HomeView: View {
     
     private var playingView: some View {
         VStack(spacing: 30) {
-            // X button to stop playback
-            HStack {
-                Spacer()
-                Button(action: {
-                    hapticManager.impact(style: .light)
-                    AudioPlayerManager.shared.pause()
-                    viewModel.state = .idle
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                }
-                .accessibilityLabel("Stop playback")
-                .accessibilityHint("Stop the current DayStart audio")
-            }
-            .padding(.top, -10)
-            
             VStack(spacing: 12) {
                 // Show music note when loading, waveform when playing
                 /*
@@ -1284,7 +1267,7 @@ struct HomeView: View {
     private var previewTopics: [String] {
         var topics: [String] = []
         
-        // Weather forecast if enabled and available
+        // 1. Weather forecast if enabled and available
         if userPreferences.settings.includeWeather {
             if let forecast = tomorrowWeatherForecast {
                 topics.append("Weather: \(forecast)")
@@ -1293,7 +1276,22 @@ struct HomeView: View {
             }
         }
         
-        // Stocks if enabled
+        // 2. Calendar if enabled
+        if userPreferences.settings.includeCalendar {
+            topics.append("Your schedule and reminders")
+        }
+        
+        // 3. News if enabled
+        if userPreferences.settings.includeNews {
+            topics.append("Personalized news brief")
+        }
+        
+        // 4. Sports if enabled
+        if userPreferences.settings.includeSports {
+            topics.append("Sports highlights and scores")
+        }
+        
+        // 5. Stocks if enabled
         if userPreferences.settings.includeStocks && !userPreferences.settings.stockSymbols.isEmpty {
             let symbols = userPreferences.settings.stockSymbols.prefix(3).joined(separator: ", ")
             let remaining = userPreferences.settings.stockSymbols.count - 3
@@ -1304,22 +1302,7 @@ struct HomeView: View {
             }
         }
         
-        // News if enabled
-        if userPreferences.settings.includeNews {
-            topics.append("Personalized news brief")
-        }
-        
-        // Sports if enabled
-        if userPreferences.settings.includeSports {
-            topics.append("Sports highlights and scores")
-        }
-        
-        // Calendar if enabled
-        if userPreferences.settings.includeCalendar {
-            topics.append("Your schedule and reminders")
-        }
-        
-        // Quotes if enabled
+        // 6. Quotes if enabled
         if userPreferences.settings.includeQuotes {
             topics.append("\(userPreferences.settings.quotePreference.name) inspiration")
         }

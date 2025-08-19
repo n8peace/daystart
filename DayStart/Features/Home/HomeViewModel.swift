@@ -162,6 +162,18 @@ class HomeViewModel: ObservableObject {
     init() {
         // INSTANT: No service loading, no dependencies
         logger.log("🏠 HomeViewModel initialized instantly - no services loaded", level: .info)
+        
+        // Listen for state change notifications from other components
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("HomeViewModelStateChange"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            if let stateString = notification.userInfo?["state"] as? String,
+               stateString == "completed" {
+                self?.state = .completed
+            }
+        }
     }
     
     func onViewAppear() {

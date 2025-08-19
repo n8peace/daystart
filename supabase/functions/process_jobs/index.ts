@@ -108,7 +108,7 @@ function sectionBudget(seconds: number, include: { weather: boolean; calendar: b
     ['news',      include.news ? 340 : 0],
     ['sports',    include.sports ? 90 : 0],
     ['stocks',    include.stocks ? 80 : 0],
-    ['quote',     include.quotes ? 40 : 0],
+    ['quote',     include.quotes ? 80 : 0],
     ['close',     40],
   ];
   const total = base.reduce((sum, [, w]) => sum + w, 0) || 1;
@@ -1079,7 +1079,7 @@ FACT RULES
  - Mention ONLY teams present in sportsTeamWhitelist (exact names). If the sports array is empty, omit the sports section entirely.
  - When choosing news, prefer items that mention the user's neighborhood/city/county/adjacent areas; next, state-level; then national; then international. If user.location.neighborhood exists, use it for hyper-local references (e.g., "Mar Vista" instead of just "Los Angeles").
  - Use 1–2 transitions, choosing from data.transitions.
- - Stocks: Lead with focusSymbols (if present) in one sentence. Add one broader market line only if space allows. Always use company names (Apple, Tesla, etc.) not tickers, and spell out all numbers/percentages in words for TTS.
+ - Stocks: Lead with focusSymbols (if present) in one sentence. Add one broader market line only if space allows. Always use company names (Apple, Tesla, etc.) not tickers. Format prices without cents (e.g., "one hundred fifty dollars" not "one hundred fifty dollars and twenty-five cents") and round percentages to nearest tenth (e.g., "up two point three percent" not "up two point three four percent").
  - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style.
 
 CONTENT ORDER (adapt if sections are missing)

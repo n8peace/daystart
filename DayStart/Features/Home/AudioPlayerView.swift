@@ -45,6 +45,19 @@ struct AudioPlayerView: View {
                         }
                         .accessibilityLabel("Share current DayStart")
                         .accessibilityHint("Tap to share this audio briefing")
+                        
+                        // X button to stop playback
+                        Button(action: {
+                            AudioPlayerManager.shared.pause()
+                            // Set state to completed via notification
+                            NotificationCenter.default.post(name: NSNotification.Name("HomeViewModelStateChange"), object: nil, userInfo: ["state": "completed"])
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(BananaTheme.ColorToken.tertiaryText)
+                        }
+                        .accessibilityLabel("Stop playback")
+                        .accessibilityHint("Stop the current DayStart audio")
                     }
                 }
                 
