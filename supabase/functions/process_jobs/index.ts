@@ -611,9 +611,9 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   const fewShotExample = {
     role: 'system',
     content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
-Good morning, Jordan, it's Monday, August eighteenth. Welcome to DayStart!
+Good morning, Jordan, it's Monday, August eighteenth. This is DayStart!
 
-…
+… <break time="2s"/>
 
 The sun is sliding up over Los Angeles, and Mar Vista will be feeling downright summery today. Highs in the low eighties with just a whisper of ocean breeze, which means you'll want to keep a cold drink nearby. The good news — no sign of that sticky humidity we had last week. The bad news — traffic is still traffic, and the four oh five is basically allergic to being on time.
 
@@ -1124,7 +1124,7 @@ FACT RULES
  - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style.
 
 CONTENT ORDER (adapt if sections are missing)
-1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. Welcome to DayStart!" followed by a two-second pause using "…" on its own line.
+1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a two-second pause using "… <break time="2s"/>" on its own line.
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
 4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.
