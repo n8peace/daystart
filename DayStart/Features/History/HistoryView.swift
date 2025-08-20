@@ -208,6 +208,9 @@ struct HistoryRow: View {
     @State private var isExpanded = false
     @StateObject private var audioPlayer = AudioPlayerManager.shared
     @ObservedObject private var streakManager = StreakManager.shared
+    @State private var transcriptPollingTimer: Timer?
+    @State private var pollingAttempt: Int = 0
+    @State private var isPollingTranscript = false
     
     init(dayStart: DayStartData, onPlay: (() -> Void)? = nil) {
         self.dayStart = dayStart
@@ -228,6 +231,10 @@ struct HistoryRow: View {
         }
         .padding(.vertical, 8)
         .animation(.easeInOut(duration: 0.3), value: isExpanded)
+        .onDisappear {
+            // Clean up polling timer when view disappears
+            stopTranscriptPolling()
+        }
     }
     
     private var headerView: some View {
@@ -329,11 +336,13 @@ struct HistoryRow: View {
                                     logger.log("⚠️ History: No audio file found in cache or stored path", level: .warning)
                                 }
                             }
+                            
+                            // Auto-play after loading new audio
+                            audioPlayer.play()
                         } else {
-                            logger.log("🎵 History: Track ID matches, skipping load. Checking if audio is actually ready...", level: .debug)
+                            logger.log("🎵 History: Track ID matches, toggling play/pause", level: .debug)
+                            audioPlayer.togglePlayPause()
                         }
-                        
-                        audioPlayer.togglePlayPause()
                         logger.log("🎵 History: Toggle play/pause called, isPlaying: \(audioPlayer.isPlaying)", level: .info)
                     }) {
                         Label(audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "Pause" : "Play",
@@ -357,11 +366,27 @@ struct HistoryRow: View {
                 Spacer()
 
                 if canShowTranscript {
-                    Button(action: { isExpanded.toggle() }) {
+                    Button(action: { 
+                        isExpanded.toggle()
+                        
+                        // Start polling when transcript is expanded and needs updating
+                        if isExpanded && shouldStartPolling() {
+                            startTranscriptPolling()
+                        } else if !isExpanded {
+                            // Stop polling when transcript is collapsed
+                            stopTranscriptPolling()
+                        }
+                    }) {
                         HStack(spacing: 6) {
                             Text("Transcript")
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .foregroundColor(BananaTheme.ColorToken.accent)
+                            if isPollingTranscript {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .frame(width: 12, height: 12)
+                            } else {
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .foregroundColor(BananaTheme.ColorToken.accent)
+                            }
                         }
                         .font(.subheadline)
                     }
@@ -495,5 +520,76 @@ struct HistoryRow: View {
         
         // Fallback to stored duration if can't read file
         return dayStart.duration
+    }
+    
+    // MARK: - Transcript Polling
+    
+    private func isFallbackTranscript(_ transcript: String) -> Bool {
+        return transcript.contains("Welcome to your DayStart! Please connect to the internet") ||
+               transcript.isEmpty ||
+               transcript.count < 50 // Very short transcript likely placeholder
+    }
+    
+    private func shouldStartPolling() -> Bool {
+        return isFallbackTranscript(dayStart.transcript) && 
+               hasAudioFile && 
+               !dayStart.isDeleted &&
+               pollingAttempt < 6 // Max 6 attempts
+    }
+    
+    private func startTranscriptPolling() {
+        guard shouldStartPolling() else { return }
+        
+        isPollingTranscript = true
+        let delay = min(5.0 * pow(2.0, Double(pollingAttempt)), 120.0) // Cap at 2 minutes
+        
+        transcriptPollingTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
+            Task {
+                await fetchTranscriptUpdate()
+            }
+        }
+    }
+    
+    private func stopTranscriptPolling() {
+        transcriptPollingTimer?.invalidate()
+        transcriptPollingTimer = nil
+        isPollingTranscript = false
+    }
+    
+    private func fetchTranscriptUpdate() async {
+        pollingAttempt += 1
+        
+        do {
+            let supabaseClient = ServiceRegistry.shared.supabaseClient
+            let dateToUse = dayStart.scheduledTime ?? dayStart.date
+            let audioStatus = try await supabaseClient.getAudioStatus(for: dateToUse)
+            
+            await MainActor.run {
+                if let transcript = audioStatus.transcript, !isFallbackTranscript(transcript) {
+                    // Success! Update the transcript and stop polling
+                    UserPreferences.shared.updateHistory(
+                        with: dayStart.id,
+                        transcript: transcript,
+                        duration: audioStatus.duration.map { TimeInterval($0) }
+                    )
+                    stopTranscriptPolling()
+                } else if pollingAttempt < 6 {
+                    // Continue polling with exponential backoff
+                    startTranscriptPolling()
+                } else {
+                    // Max attempts reached, stop polling
+                    stopTranscriptPolling()
+                }
+            }
+        } catch {
+            await MainActor.run {
+                // On error, continue polling if we haven't hit max attempts
+                if pollingAttempt < 6 {
+                    startTranscriptPolling()
+                } else {
+                    stopTranscriptPolling()
+                }
+            }
+        }
     }
 }

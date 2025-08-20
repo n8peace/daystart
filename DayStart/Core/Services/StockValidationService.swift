@@ -48,20 +48,27 @@ class StockValidationService: ObservableObject {
     private var lastAPICall: Date = .distantPast
     private let apiCooldown: TimeInterval = 1.0 // 1 second between API calls
     
-    // Known valid symbols for offline validation (including crypto pairs and forex)
+    // Known valid symbols for offline validation (matches backend expanded list)
     private let knownValidSymbols: Set<String> = [
-        "AAPL", "GOOGL", "GOOG", "MSFT", "AMZN", "TSLA", "META", "NVDA", 
-        "JPM", "JNJ", "V", "PG", "UNH", "HD", "DIS", "MA", "PYPL", "BAC",
-        "NFLX", "ADBE", "CRM", "CMCSA", "XOM", "VZ", "KO", "PFE", "INTC",
-        "CSCO", "PEP", "T", "MRK", "WMT", "ABT", "CVX", "COST", "TMO",
-        "AVGO", "DHR", "TXN", "LLY", "ACN", "NEE", "UPS", "PM", "BMY",
-        "QCOM", "HON", "LIN", "UNP", "ORCL", "AMD", "COP", "WFC", "SPGI",
-        "GS", "BLK", "LOW", "C", "MS", "CAT", "RTX", "IBM", "AMGN", "AXP",
-        "SPY", "QQQ", "IWM", "VTI", "VOO", "VEA", "IEFA", "AGG", "LQD",
-        // Crypto pairs
-        "BTC-USD", "ETH-USD", "ADA-USD", "DOT-USD", "SOL-USD",
-        // Forex pairs  
-        "EUR=X", "GBP=X", "JPY=X", "AUD=X", "CAD=X"
+        // Original tech stocks
+        "AAPL", "GOOGL", "GOOG", "MSFT", "AMZN", "TSLA", "META", "NVDA", "NFLX",
+        // Additional popular stocks (matching backend expansion)
+        "SPY", "QQQ", "IWM", "VTI", "VOO", "JPM", "JNJ", "V", "PG", "UNH",
+        "HD", "DIS", "MA", "PYPL", "BAC", "ADBE", "CRM", "AMD", "INTC",
+        // Extended list (existing validation symbols)
+        "CMCSA", "XOM", "VZ", "KO", "PFE", "CSCO", "PEP", "T", "MRK", "WMT", 
+        "ABT", "CVX", "COST", "TMO", "AVGO", "DHR", "TXN", "LLY", "ACN", "NEE", 
+        "UPS", "PM", "BMY", "QCOM", "HON", "LIN", "UNP", "ORCL", "COP", "WFC", 
+        "SPGI", "GS", "BLK", "LOW", "C", "MS", "CAT", "RTX", "IBM", "AMGN", "AXP",
+        "VEA", "IEFA", "AGG", "LQD",
+        // Crypto pairs (matching backend)
+        "BTC-USD", "ETH-USD", "ADA-USD", "SOL-USD",
+        // Additional crypto pairs
+        "DOT-USD",
+        // Forex pairs (matching backend)
+        "EUR=X", "GBP=X", "JPY=X",
+        // Additional forex pairs  
+        "AUD=X", "CAD=X"
     ]
     
     private init() {}

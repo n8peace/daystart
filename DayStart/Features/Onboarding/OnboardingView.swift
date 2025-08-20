@@ -81,7 +81,6 @@ struct OnboardingView: View {
     @State private var includeQuotes = true
     @State private var selectedQuoteType: QuotePreference = .stoic
     @State private var selectedVoice: VoiceOption? = nil
-    @State private var dayStartLength = 3
     @State private var selectedProduct: Product?
     
     // Permission states
@@ -1150,12 +1149,7 @@ struct OnboardingView: View {
                         
                         // Sound wave lines
                         ForEach(0..<4) { index in
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(BananaTheme.ColorToken.primary.opacity(0.6))
-                                .frame(width: 4, height: CGFloat(20 + index * 10))
-                                .offset(x: CGFloat(30 + index * 8))
-                                .scaleEffect(y: animationTrigger ? 1.0 + Double(index) * 0.2 : 0.6)
-                                .animation(.easeInOut(duration: 0.8).repeatForever().delay(Double(index) * 0.1), value: animationTrigger)
+                            soundWaveLine(for: index)
                         }
                     }
                     
@@ -1213,38 +1207,8 @@ struct OnboardingView: View {
                         }
                         .transition(.opacity.combined(with: .scale))
                     }
-                    
-                    // Length slider
-                    VStack(spacing: 12) {
-                        HStack {
-                            Text("Perfect length")
-                                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
-                                .foregroundColor(BananaTheme.ColorToken.text)
-                            
-                            Spacer()
-                            
-                            Text("\(dayStartLength) minutes")
-                                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .bold))
-                                .foregroundColor(BananaTheme.ColorToken.primary)
-                        }
-                        
-                        Slider(
-                            value: Binding(
-                                get: { Double(dayStartLength) },
-                                set: { dayStartLength = Int($0) }
-                            ),
-                            in: 2...5,
-                            step: 1
-                        )
-                        .accentColor(BananaTheme.ColorToken.primary)
-                        
-                        Text("Perfect for your commute")
-                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    }
-                    .padding(.horizontal, geometry.size.width * 0.08)
-                    .opacity(textOpacity)
                 }
+                .opacity(textOpacity)
                 
                 Spacer(minLength: geometry.size.height * 0.06)
                 
@@ -1637,8 +1601,7 @@ struct OnboardingView: View {
             "includeCalendar": includeCalendar,
             "includeQuotes": includeQuotes,
             "selectedQuoteType": selectedQuoteType.name,
-            "selectedVoice": selectedVoice?.name ?? "[none]",
-            "dayStartLength": dayStartLength
+            "selectedVoice": selectedVoice?.name ?? "[none]"
         ])
         
         // Save settings
@@ -1666,7 +1629,7 @@ struct OnboardingView: View {
             includeQuotes: includeQuotes,
             quotePreference: selectedQuoteType,
             selectedVoice: selectedVoice ?? .voice1,
-            dayStartLength: dayStartLength,
+            dayStartLength: 3, // Default 3 minutes
             themePreference: .system
         )
         userPreferences.saveSettings()
@@ -1758,6 +1721,15 @@ struct OnboardingView: View {
     }
     
     // MARK: - Helper Views
+    private func soundWaveLine(for index: Int) -> some View {
+        RoundedRectangle(cornerRadius: 2)
+            .fill(BananaTheme.ColorToken.primary.opacity(0.6))
+            .frame(width: 4, height: CGFloat(20 + index * 10))
+            .offset(x: CGFloat(30 + index * 8))
+            .scaleEffect(y: animationTrigger ? 1.0 + Double(index) * 0.2 : 0.6)
+            .animation(.easeInOut(duration: 0.8).repeatForever().delay(Double(index) * 0.1), value: animationTrigger)
+    }
+    
     private func animatedPhoneView(geometry: GeometryProxy) -> some View {
         ZStack {
             phoneShape(geometry: geometry)

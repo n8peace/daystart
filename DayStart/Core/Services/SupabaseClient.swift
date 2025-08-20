@@ -222,7 +222,7 @@ class SupabaseClient {
                 include_quotes: settings.includeQuotes,
                 quote_preference: settings.quotePreference.rawValue,
                 voice_option: "voice\(settings.selectedVoice.rawValue + 1)",
-                daystart_length: settings.dayStartLength * 60,
+                daystart_length: settings.dayStartLength * 60, // Convert minutes to seconds
                 timezone: TimeZone.current.identifier
             ),
             force_requeue: forceRequeue
@@ -365,6 +365,58 @@ class SupabaseClient {
         // TODO: Implement anonymous job creation
         // This would not save to user history
         throw SupabaseError.notImplemented
+    }
+    
+    // MARK: - Job Management
+    
+    func markJobAsFailed(jobId: String, errorCode: String) async throws {
+        let url = baseURL.appendingPathComponent("jobs")
+        
+        logger.log("📤 Supabase API: PATCH jobs - marking job as failed", level: .info)
+        
+        var request = createRequest(for: url, method: "PATCH")
+        
+        let updateData = [
+            "job_id": "eq.\(jobId)",
+            "status": "failed",
+            "error_code": errorCode,
+            "error_message": "Job failed due to timeout or processing error",
+            "updated_at": ISO8601DateFormatter().string(from: Date())
+        ]
+        
+        // Create query parameters for the update
+        var urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        urlComponents.queryItems = [URLQueryItem(name: "job_id", value: "eq.\(jobId)")]
+        request.url = urlComponents.url
+        
+        let jsonData = try JSONEncoder().encode([
+            "status": "failed",
+            "error_code": errorCode,
+            "error_message": "Job failed due to timeout or processing error",
+            "updated_at": ISO8601DateFormatter().string(from: Date())
+        ])
+        request.httpBody = jsonData
+        
+        do {
+            logger.logNetworkRequest(request)
+            let (_, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw SupabaseError.invalidResponse
+            }
+            
+            guard httpResponse.statusCode == 200 || httpResponse.statusCode == 204 else {
+                logger.logError(NSError(domain: "SupabaseError", code: httpResponse.statusCode),
+                               context: "HTTP error in markJobAsFailed: \(httpResponse.statusCode)")
+                throw SupabaseError.httpError(httpResponse.statusCode)
+            }
+            
+            logger.log("✅ Job \(jobId) marked as failed with error: \(errorCode)", level: .info)
+            
+        } catch {
+            logger.logError(error, context: "Failed to mark job as failed: \(jobId)")
+            throw error
+        }
     }
     
     // MARK: - Edge Function Invocation

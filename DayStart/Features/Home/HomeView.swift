@@ -79,20 +79,20 @@ struct PrimaryActionView: View {
                     )
                     .padding(.horizontal, 40)
                 }
-            case .completed:
-                Button(action: onReplayTapped) {
-                    Label("Replay", systemImage: "arrow.clockwise")
-                        .adaptiveFont(BananaTheme.Typography.headline)
-                        .foregroundColor(BananaTheme.ColorToken.background)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 60)
-                }
-                .buttonStyle(InstantResponseStyle())
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(BananaTheme.ColorToken.primary)
-                )
-                .padding(.horizontal, 40)
+            // case .completed:
+            //     Button(action: onReplayTapped) {
+            //         Label("Replay", systemImage: "arrow.clockwise")
+            //             .adaptiveFont(BananaTheme.Typography.headline)
+            //             .foregroundColor(BananaTheme.ColorToken.background)
+            //             .frame(maxWidth: .infinity)
+            //             .frame(height: 60)
+            //     }
+            //     .buttonStyle(InstantResponseStyle())
+            //     .background(
+            //         RoundedRectangle(cornerRadius: 20)
+            //             .fill(BananaTheme.ColorToken.primary)
+            //     )
+            //     .padding(.horizontal, 40)
             case .welcomeReady:
                 Button(action: onStartTapped) {
                     Text("DayStart")
@@ -132,6 +132,8 @@ struct HomeView: View {
     @State private var isLoadingForecast = false
     @State private var tomorrowFirstEvent: String?
     @State private var isViewVisible = true
+    @State private var showToast = false
+    @State private var toastMessage = ""
     @Environment(\.scenePhase) var scenePhase
     private let hapticManager = HapticManager.shared
     // Removed early LocationManager init - will access when needed
@@ -236,6 +238,11 @@ struct HomeView: View {
                     handleStateTransition(from: previousState, to: newState)
                     previousState = newState
                 }
+                .onChange(of: viewModel.toastMessage) { message in
+                    if let message = message {
+                        showToastNotification(message)
+                    }
+                }
                 .onAppear {
                     previousState = viewModel.state
                 }
@@ -268,6 +275,13 @@ struct HomeView: View {
                     .tint(BananaTheme.ColorToken.primary)
                 }
             }
+            .overlay(alignment: .top) {
+                if showToast {
+                    toastView
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .zIndex(999)
+                }
+            }
             .sheet(isPresented: $showEditSchedule) {
                 EditScheduleView()
                     .environmentObject(userPreferences)
@@ -279,15 +293,72 @@ struct HomeView: View {
         }
     }
     
+    // MARK: - Toast View
+    
+    private var toastView: some View {
+        VStack {
+            HStack {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                    .font(.system(size: 16))
+                
+                Text(toastMessage)
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                    .multilineTextAlignment(.leading)
+                
+                Spacer()
+                
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showToast = false
+                    }
+                }) {
+                    Image(systemName: "xmark")
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .font(.system(size: 14))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(BananaTheme.ColorToken.card)
+                    .stroke(BananaTheme.ColorToken.primary.opacity(0.3), lineWidth: 1)
+                    .shadow(color: BananaTheme.ColorToken.text.opacity(0.1), radius: 8, x: 0, y: 4)
+            )
+            .padding(.horizontal, 20)
+            .padding(.top, 60) // Account for safe area
+            
+            Spacer()
+        }
+    }
+    
+    private func showToastNotification(_ message: String) {
+        toastMessage = message
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showToast = true
+        }
+        
+        // Auto-dismiss after 4 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showToast = false
+            }
+        }
+    }
+    
     private func handleStateTransition(from oldState: HomeViewModel.AppState, to newState: HomeViewModel.AppState) {
         // Provide haptic feedback based on state transitions
         switch (oldState, newState) {
         case (_, .preparing):
             hapticManager.impact(style: .medium)
+        case (_, .buffering):
+            hapticManager.impact(style: .light)
         case (_, .playing):
             hapticManager.impact(style: .heavy)
-        case (_, .completed):
-            hapticManager.notification(type: .success)
+        // case (_, .completed):
+        //     hapticManager.notification(type: .success)
         default:
             break
         }
@@ -429,10 +500,13 @@ struct HomeView: View {
             welcomeReadyContent
         case .preparing:
             preparingView
+        case .buffering:
+            bufferingView
         case .playing:
             playingView  // Playing state includes loading
         case .completed:
-            completedViewContent
+            // Transition directly to idle view instead of showing completed state
+            idleViewContent
         }
     }
     
@@ -757,22 +831,73 @@ struct HomeView: View {
     }
     
     private func connectionErrorView(error: ConnectionError) -> some View {
-        VStack(spacing: 20) {
-            Text(error.icon)
-                .font(.system(size: 60))
-            
-            VStack(spacing: 12) {
-                Text(error.title)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(BananaTheme.ColorToken.text)
+        VStack(spacing: 30) {
+            VStack(spacing: 20) {
+                Text(error.icon)
+                    .font(.system(size: 60))
                 
-                Text(error.message)
-                    .font(.system(size: 16))
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    .multilineTextAlignment(.center)
+                VStack(spacing: 12) {
+                    Text(error.title)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                    
+                    Text(error.message)
+                        .font(.system(size: 16))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+            }
+            
+            VStack(spacing: 16) {
+                // Retry button for retryable errors
+                if error == .noInternet || error == .streamingFailed || error == .streamingTimeout {
+                    Button(action: {
+                        viewModel.connectionError = nil
+                        viewModel.startDayStart()
+                    }) {
+                        Label("Retry", systemImage: "arrow.clockwise")
+                            .adaptiveFont(BananaTheme.Typography.headline)
+                            .foregroundColor(BananaTheme.ColorToken.background)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                    }
+                    .buttonStyle(InstantResponseStyle())
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(BananaTheme.ColorToken.primary)
+                    )
                     .padding(.horizontal, 40)
+                }
+                
+                // Auto-dismiss indicator
+                Text("This will auto-dismiss in 2 minutes")
+                    .font(.caption)
+                    .foregroundColor(BananaTheme.ColorToken.tertiaryText)
             }
         }
+    }
+    
+    private var bufferingView: some View {
+        VStack(spacing: 30) {
+            VStack(spacing: 12) {
+                // Loading spinner
+                ProgressView()
+                    .scaleEffect(2.0)
+                    .progressViewStyle(CircularProgressViewStyle(tint: BananaTheme.ColorToken.primary))
+                
+                Text("Loading...")
+                    .adaptiveFont(BananaTheme.Typography.title2)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                
+                Text("Buffering your DayStart audio")
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BananaTheme.ColorToken.background)
     }
     
     private var playingView: some View {
@@ -813,6 +938,7 @@ struct HomeView: View {
         }
     }
     
+    /*
     private var completedViewContent: some View {
         VStack(spacing: 20) {
             VStack(spacing: 12) {
@@ -844,6 +970,7 @@ struct HomeView: View {
             }
         }
     }
+    */
     
     private var recentlyPlayedViewAction: some View {
         VStack(spacing: 16) {
@@ -868,7 +995,8 @@ struct HomeView: View {
                 .accessibilityLabel("Replay DayStart")
                 .accessibilityHint("Tap to replay the audio briefing you just completed")
                 
-                // Secondary Share button
+                // Secondary Share button - Commented out for now
+                /*
                 Button(action: { 
                     hapticManager.impact(style: .light)
                     shareDayStart(dayStart) 
@@ -884,6 +1012,7 @@ struct HomeView: View {
                 .padding(.horizontal, 40)
                 .accessibilityLabel("Share DayStart achievement")
                 .accessibilityHint("Tap to share your morning briefing completion")
+                */
             }
         }
     }
@@ -1149,8 +1278,8 @@ struct HomeView: View {
         }
     }
     
-    // MARK: - Share Functionality
-    
+    // MARK: - Share Functionality - Commented out for now
+    /*
     private func shareDayStart(_ dayStart: DayStartData) {
         let duration = Int(dayStart.duration / 60) // Convert to minutes
         let shareText = "📈 Just got my personalized morning brief - market insights, weather, and productivity tips in \(duration) minutes! #DayStart"
@@ -1183,6 +1312,7 @@ struct HomeView: View {
             topController.present(activityVC, animated: true)
         }
     }
+    */
     
     // MARK: - Anticipation Design Components
     

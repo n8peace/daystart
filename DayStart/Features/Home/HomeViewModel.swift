@@ -6,28 +6,56 @@ enum ConnectionError {
     case noInternet
     case supabaseError
     case timeout
+    case generationFailed
+    case streamingFailed
+    case generationTimeout
+    case streamingTimeout
     
     var icon: String {
         switch self {
         case .noInternet: return "📡"
         case .supabaseError: return "🔧"
         case .timeout: return "⏳"
+        case .generationFailed: return "🔧"
+        case .streamingFailed: return "📱"
+        case .generationTimeout: return "⏰"
+        case .streamingTimeout: return "⏰"
         }
     }
     
     var title: String {
         switch self {
-        case .noInternet: return "Looks like you're offline!"
+        case .noInternet: return "No internet connection"
         case .supabaseError: return "Our servers are taking a coffee break"
         case .timeout: return "Taking longer than expected..."
+        case .generationFailed: return "Sorry, content generation failed"
+        case .streamingFailed: return "Sorry, audio loading failed"
+        case .generationTimeout: return "Content generation timed out"
+        case .streamingTimeout: return "Audio loading timed out"
         }
     }
     
     var message: String {
         switch self {
-        case .noInternet: return "Check your connection and we'll sync up when you're back online."
+        case .noInternet: return "Will retry when connected..."
         case .supabaseError: return "We'll have your DayStart ready shortly!"
         case .timeout: return "Your personalized brief is worth the wait!"
+        case .generationFailed: return "Our team has been notified. Please try again tomorrow."
+        case .streamingFailed: return "Please check your connection and try again later."
+        case .generationTimeout: return "Please try again later."
+        case .streamingTimeout: return "Please check your connection and try again later."
+        }
+    }
+    
+    var errorCode: String {
+        switch self {
+        case .noInternet: return "NETWORK_UNAVAILABLE"
+        case .supabaseError: return "SERVER_ERROR"
+        case .timeout: return "GENERAL_TIMEOUT"
+        case .generationFailed: return "GENERATION_FAILED"
+        case .streamingFailed: return "STREAMING_FAILED"
+        case .generationTimeout: return "GENERATION_TIMEOUT"
+        case .streamingTimeout: return "STREAMING_TIMEOUT"
         }
     }
 }
@@ -72,8 +100,8 @@ class StateTransitionManager {
             if viewModel.state == .welcomeReady || viewModel.state == .preparing {
                 WelcomeDayStartScheduler.shared.stopAudioPolling()
             }
-        case .preparing, .playing:
-            // Keep polling active during preparing and playing for welcome
+        case .preparing, .buffering, .playing:
+            // Keep polling active during preparing, buffering, and playing for welcome
             break
         }
     }
@@ -102,6 +130,7 @@ class HomeViewModel: ObservableObject {
         case idle            // Enhanced: handles countdown, welcome flows, and default state
         case welcomeReady   // Welcome DayStart is ready, waiting for user tap
         case preparing      // Waiting for audio to be ready
+        case buffering      // Loading/buffering audio (show loading icon)
         case playing        // Currently playing
         case completed      // Completed (replay available)
     }
@@ -117,6 +146,7 @@ class HomeViewModel: ObservableObject {
     @Published var preparingCountdownText = ""
     @Published var preparingMessage = ""
     @Published var connectionError: ConnectionError?
+    @Published var toastMessage: String?
     
     private var timer: Timer?
     private var pauseTimeoutTimer: Timer?
@@ -125,11 +155,17 @@ class HomeViewModel: ObservableObject {
     private var preparingTimer: Timer?
     private var preparingMessageTimer: Timer?
     private var pollingTimer: Timer?
+    private var errorDismissTimer: Timer?
+    private var retryTimer: Timer?
     private var preparingStartTime: Date?
     private var pollingStartTime: Date?
     private var pollingAttempts = 0
     private let maxPollingAttempts = 30 // 5 minutes at 10-second intervals
     private let maxPollingDuration: TimeInterval = 300 // 5 minutes total
+    private var retryAttempts = 0
+    private let maxRetryAttempts = 5
+    private var currentJobId: String?
+    private var failureStartTime: Date?
     private var cancellables = Set<AnyCancellable>()
     
     // Debouncing and state transition protection
@@ -140,6 +176,10 @@ class HomeViewModel: ObservableObject {
     // Background/foreground handling
     private var stateBeforeBackground: AppState?
     private var wasPollingBeforeBackground = false
+    
+    // Background failure persistence
+    private let backgroundFailureKey = "DayStart_BackgroundFailure"
+    private let backgroundFailureTimestampKey = "DayStart_BackgroundFailureTimestamp"
     
     // Preparing state messages
     private let preparingMessages = [
@@ -287,6 +327,12 @@ class HomeViewModel: ObservableObject {
                     cleanupAllTimers()
                     startPreparingState(isWelcome: false)
                 }
+            case .buffering:
+                // Buffering should only have loading timers (2 max)
+                if timerCount > 2 {
+                    logger.log("🧹 Cleaning up excess timers in buffering state", level: .info)
+                    stopLoadingTimers()
+                }
             case .playing:
                 // Playing can have: pause timeout, loading timers
                 if timerCount > 3 {
@@ -325,6 +371,9 @@ class HomeViewModel: ObservableObject {
             preparingMessageTimer = nil
             loadingMessages.stopRotatingMessages()
             
+        case .buffering:
+            // Stop loading timers while in background
+            stopLoadingTimers()
         
         case .playing:
             // Audio should continue playing in background
@@ -343,6 +392,17 @@ class HomeViewModel: ObservableObject {
     
     func onAppForeground() {
         logger.log("📱 App entering foreground, state: \(state)", level: .info)
+        
+        // Check for background failures first
+        if let backgroundFailure = loadAndCheckBackgroundFailure() {
+            connectionError = backgroundFailure
+            state = .idle
+            // Show toast notification for background failure
+            showBackgroundFailureToast(backgroundFailure)
+            // Start auto-dismiss timer
+            startErrorDismissTimer()
+            return
+        }
         
         // Validate state after returning from background
         validateAndUpdateState()
@@ -372,6 +432,11 @@ class HomeViewModel: ObservableObject {
                 }
             }
             
+        case .buffering:
+            // If we were buffering before background, the audio loading likely failed
+            // Transition back to idle
+            connectionError = .timeout
+            state = .idle
             
         case .playing:
             // Check if audio is still playing, update UI accordingly
@@ -786,14 +851,14 @@ class HomeViewModel: ObservableObject {
         pollingAttempts += 1
         let elapsed = Date().timeIntervalSince(startTime)
         
-        // Check if we've exceeded limits
+        // Check if we've exceeded limits (3 minutes preparing + 5 minutes buffering attempts)
         if pollingAttempts >= maxPollingAttempts || elapsed >= maxPollingDuration {
             logger.log("⚠️ Polling timeout after \(pollingAttempts) attempts in \(elapsed)s", level: .warning)
             
             await MainActor.run {
-                connectionError = .timeout
-                stopPreparingState()
-                state = .idle
+                // Use appropriate error type based on elapsed time
+                let error: ConnectionError = elapsed >= 180 ? .generationTimeout : .streamingTimeout
+                handleFinalFailure(error: error, jobId: currentJobId)
             }
             return
         }
@@ -811,12 +876,11 @@ class HomeViewModel: ObservableObject {
                 if audioStatus.success && audioStatus.status == "ready" {
                     // Audio is ready!
                     stopPreparingState()
-                    state = .playing
                     
                     // Haptic feedback for early completion
                     HapticManager.shared.notification(type: .success)
                     
-                    // Load audio services and start playing
+                    // Load audio services and start playing (will handle state transitions)
                     Task {
                         await loadAudioServicesAndStart(scheduledTime: scheduledTime)
                     }
@@ -854,6 +918,136 @@ class HomeViewModel: ObservableObject {
         preparingStartTime = nil
         pollingStartTime = nil
         pollingAttempts = 0
+    }
+    
+    // MARK: - Background Failure Persistence
+    
+    private func saveBackgroundFailure(_ error: ConnectionError) {
+        UserDefaults.standard.set(error.errorCode, forKey: backgroundFailureKey)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: backgroundFailureTimestampKey)
+        logger.log("💾 Saved background failure: \(error.errorCode)", level: .info)
+    }
+    
+    private func loadAndCheckBackgroundFailure() -> ConnectionError? {
+        guard let errorCode = UserDefaults.standard.string(forKey: backgroundFailureKey) else {
+            return nil
+        }
+        
+        let timestamp = UserDefaults.standard.double(forKey: backgroundFailureTimestampKey)
+        let failureTime = Date(timeIntervalSince1970: timestamp)
+        
+        // Only show failures from the last hour
+        if Date().timeIntervalSince(failureTime) > 3600 {
+            clearBackgroundFailure()
+            return nil
+        }
+        
+        // Convert error code back to ConnectionError
+        let error: ConnectionError
+        switch errorCode {
+        case "NETWORK_UNAVAILABLE": error = .noInternet
+        case "SERVER_ERROR": error = .supabaseError
+        case "GENERAL_TIMEOUT": error = .timeout
+        case "GENERATION_FAILED": error = .generationFailed
+        case "STREAMING_FAILED": error = .streamingFailed
+        case "GENERATION_TIMEOUT": error = .generationTimeout
+        case "STREAMING_TIMEOUT": error = .streamingTimeout
+        default: return nil
+        }
+        
+        logger.log("📱 Loaded background failure: \(errorCode)", level: .info)
+        return error
+    }
+    
+    private func clearBackgroundFailure() {
+        UserDefaults.standard.removeObject(forKey: backgroundFailureKey)
+        UserDefaults.standard.removeObject(forKey: backgroundFailureTimestampKey)
+    }
+    
+    private func showBackgroundFailureToast(_ error: ConnectionError) {
+        logger.log("🍞 Background failure toast: \(error.title)", level: .info)
+        toastMessage = "DayStart failed while app was in background: \(error.title)"
+        
+        // Auto-clear toast message after 4 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+            self.toastMessage = nil
+        }
+    }
+    
+    // MARK: - Enhanced Error Handling
+    
+    private func handleFinalFailure(error: ConnectionError, jobId: String? = nil) {
+        logger.log("🚨 Final failure: \(error.errorCode)", level: .error)
+        
+        // Stop all timers and polling
+        stopAllTimers()
+        
+        // Save failure for background persistence
+        saveBackgroundFailure(error)
+        
+        // Mark job as failed if we have a job ID
+        if let jobId = jobId {
+            Task {
+                do {
+                    try await SupabaseClient.shared.markJobAsFailed(jobId: jobId, errorCode: error.errorCode)
+                } catch {
+                    logger.logError(error, context: "Failed to mark job as failed")
+                }
+            }
+        }
+        
+        // Set error state
+        connectionError = error
+        state = .idle
+        
+        // Start auto-dismiss timer (2 minutes)
+        startErrorDismissTimer()
+    }
+    
+    private func startErrorDismissTimer() {
+        errorDismissTimer?.invalidate()
+        
+        errorDismissTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.dismissError()
+            }
+        }
+    }
+    
+    private func dismissError() {
+        errorDismissTimer?.invalidate()
+        errorDismissTimer = nil
+        connectionError = nil
+        retryAttempts = 0
+        currentJobId = nil
+        failureStartTime = nil
+        
+        // Clear background failure
+        clearBackgroundFailure()
+        
+        // Return to normal state
+        updateState()
+    }
+    
+    private func stopAllTimers() {
+        timer?.invalidate()
+        timer = nil
+        pauseTimeoutTimer?.invalidate()
+        pauseTimeoutTimer = nil
+        loadingDelayTimer?.invalidate()
+        loadingDelayTimer = nil
+        loadingTimeoutTimer?.invalidate()
+        loadingTimeoutTimer = nil
+        preparingTimer?.invalidate()
+        preparingTimer = nil
+        preparingMessageTimer?.invalidate()
+        preparingMessageTimer = nil
+        pollingTimer?.invalidate()
+        pollingTimer = nil
+        errorDismissTimer?.invalidate()
+        errorDismissTimer = nil
+        retryTimer?.invalidate()
+        retryTimer = nil
     }
     
     private func checkAndCreateJobIfNeeded(for scheduledTime: Date) async {
@@ -959,9 +1153,8 @@ class HomeViewModel: ObservableObject {
                 if audioStatus.success && audioStatus.status == "ready" {
                     // Welcome audio is ready!
                     stopPreparingState()
-                    state = .playing
                     
-                    // Load audio services and play
+                    // Load audio services and play (will handle state transitions)
                     Task {
                         await loadAudioServicesAndStart()
                         await startWelcomeDayStartWithSupabase()
@@ -1178,6 +1371,25 @@ class HomeViewModel: ObservableObject {
                 let audioStatus = try await supabaseClient.getAudioStatus(for: effectiveScheduledTime)
                 
                 if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
+                    // Update transcript from audio status if available
+                    if let transcript = audioStatus.transcript, !transcript.isEmpty {
+                        dayStartWithScheduledTime.transcript = transcript
+                        currentDayStart?.transcript = transcript
+                    }
+                    
+                    // Update duration from audio status if available
+                    if let duration = audioStatus.duration {
+                        dayStartWithScheduledTime.duration = TimeInterval(duration)
+                        currentDayStart?.duration = TimeInterval(duration)
+                    }
+                    
+                    // Update history with transcript and duration
+                    userPreferences.updateHistory(
+                        with: dayStartWithScheduledTime.id,
+                        transcript: audioStatus.transcript,
+                        duration: audioStatus.duration.map { TimeInterval($0) }
+                    )
+                    
                     await streamAudio(from: audioUrl)
                     
                     // Background download
@@ -1227,14 +1439,24 @@ class HomeViewModel: ObservableObject {
         welcomeDayStart.id = UUID()
         welcomeDayStart.scheduledTime = Date()
         
-        currentDayStart = welcomeDayStart
-        userPreferences.addToHistory(welcomeDayStart)
-        
         do {
             // LAZY: SupabaseClient already loaded from previous call
             let audioStatus = try await serviceRegistry.supabaseClient.getAudioStatus(for: Date())
             
             if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
+                // Update transcript from audio status if available
+                if let transcript = audioStatus.transcript, !transcript.isEmpty {
+                    welcomeDayStart.transcript = transcript
+                }
+                
+                // Update duration from audio status if available
+                if let duration = audioStatus.duration {
+                    welcomeDayStart.duration = TimeInterval(duration)
+                }
+                
+                currentDayStart = welcomeDayStart
+                userPreferences.addToHistory(welcomeDayStart)
+                
                 await streamAudio(from: audioUrl)
             } else {
                 await MainActor.run {
@@ -1270,6 +1492,11 @@ class HomeViewModel: ObservableObject {
     }
     
     private func streamAudio(from url: URL) async {
+        // Start buffering state immediately
+        await MainActor.run {
+            self.state = .buffering
+        }
+        
         startLoadingDelayTimer()
         startLoadingTimeoutTimer()
         
@@ -1400,17 +1627,13 @@ class HomeViewModel: ObservableObject {
     private func startLoadingDelayTimer() {
         stopLoadingTimers()
         
-        loadingDelayTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
-            guard let weakSelf = self else { return }
-            Task { @MainActor in
-                guard weakSelf.state == .playing else { return }
-                weakSelf.loadingMessages.startRotatingMessages()
-            }
-        }
+        // No delay needed since buffering state shows immediate feedback
+        // Start loading messages immediately for buffering state
+        loadingMessages.startRotatingMessages()
     }
     
     private func startLoadingTimeoutTimer() {
-        loadingTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: false) { [weak self] _ in
+        loadingTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
             guard let weakSelf = self else { return }
             Task { @MainActor in
                 weakSelf.stopLoadingTimers()

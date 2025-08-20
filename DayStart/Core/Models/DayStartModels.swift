@@ -164,7 +164,7 @@ struct UserSettings: Codable, Equatable {
     var includeQuotes: Bool
     var quotePreference: QuotePreference
     var selectedVoice: VoiceOption
-    var dayStartLength: Int
+    var dayStartLength: Int // Always 3 minutes for now, UI hidden
     var themePreference: ThemePreference
     
     static func isValidStockSymbol(_ symbol: String) -> Bool {
@@ -199,7 +199,7 @@ extension UserSettings {
             includeQuotes: true,
             quotePreference: .stoic,
             selectedVoice: .voice1,
-            dayStartLength: 3,
+            dayStartLength: 3, // Default 3 minutes
             themePreference: .system
         )
     }

@@ -18,7 +18,6 @@ struct EditScheduleView: View {
     @State private var quotePreference: QuotePreference
     @State private var stockSymbolItems: [StockSymbolItem] = []
     @State private var selectedVoice: VoiceOption
-    @State private var dayStartLength: Int
     @State private var showResetConfirmation = false
     @EnvironmentObject var themeManager: ThemeManager
     @State private var showVoicePicker = false
@@ -86,7 +85,6 @@ struct EditScheduleView: View {
         let quotesChanged = includeQuotes != userPreferences.settings.includeQuotes
         let quotePrefChanged = quotePreference != userPreferences.settings.quotePreference
         let voiceChanged = selectedVoice != userPreferences.settings.selectedVoice
-        let lengthChanged = dayStartLength != userPreferences.settings.dayStartLength
         
         // Normalize stock symbols for comparison (uppercase, trimmed, no empties)
         let currentSymbols = stockSymbolItems
@@ -109,7 +107,6 @@ struct EditScheduleView: View {
             || quotesChanged
             || quotePrefChanged
             || voiceChanged
-            || lengthChanged
             || symbolsChanged
     }
     
@@ -132,7 +129,6 @@ struct EditScheduleView: View {
         _quotePreference = State(initialValue: prefs.settings.quotePreference)
         _stockSymbolItems = State(initialValue: prefs.settings.stockSymbols.asStockSymbolItems)
         _selectedVoice = State(initialValue: prefs.settings.selectedVoice)
-        _dayStartLength = State(initialValue: prefs.settings.dayStartLength)
     }
     
     var body: some View {
@@ -266,26 +262,6 @@ struct EditScheduleView: View {
             .buttonStyle(PlainButtonStyle())
             .disabled(isLocked)
             
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("DayStart Length")
-                    Spacer()
-                    Text("\(dayStartLength) minutes")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                
-                Slider(
-                    value: Binding(
-                        get: { Double(dayStartLength) },
-                        set: { dayStartLength = Int($0) }
-                    ),
-                    in: 2...5,
-                    step: 1
-                )
-                .accentColor(BananaTheme.ColorToken.accent)
-                .disabled(isLocked)
-            }
         }
     }
     
@@ -533,7 +509,6 @@ struct EditScheduleView: View {
         settings.includeQuotes = includeQuotes
         settings.quotePreference = quotePreference
         settings.selectedVoice = selectedVoice
-        settings.dayStartLength = dayStartLength
         userPreferences.settings = settings
         userPreferences.saveSettings()
         

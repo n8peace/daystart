@@ -158,7 +158,7 @@ async function refreshContentAsync(request_id: string): Promise<void> {
       contentSources.push({ type: 'news', source: 'gnews', ttlHours: 168, fetchFunction: () => fetchGNews() })
     } else { missingEnvs.push('GNEWS_API_KEY') }
     if (Deno.env.get('RAPIDAPI_KEY')) {
-      contentSources.push({ type: 'stocks', source: 'yahoo_finance', ttlHours: 168, fetchFunction: () => fetchYahooFinance() })
+      contentSources.push({ type: 'stocks', source: 'yahoo_finance', ttlHours: 168, fetchFunction: () => fetchYahooFinance(supabase) })
     } else { missingEnvs.push('RAPIDAPI_KEY') }
     contentSources.push({ type: 'sports', source: 'espn', ttlHours: 168, fetchFunction: () => fetchESPN() })
     contentSources.push({ type: 'sports', source: 'thesportdb', ttlHours: 168, fetchFunction: () => fetchTheSportDB() })
@@ -326,12 +326,48 @@ async function fetchGNews(): Promise<any> {
 }
 
 // Yahoo Finance fetch function (via RapidAPI)
-async function fetchYahooFinance(): Promise<any> {
+async function fetchYahooFinance(supabase: any): Promise<any> {
   const rapidApiKey = Deno.env.get('RAPIDAPI_KEY')
   if (!rapidApiKey) throw new Error('RAPIDAPI_KEY not configured')
 
-  const symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX']
-  const symbolString = symbols.join('%2C') // URL encode commas
+  // Expanded base symbols list with popular stocks, ETFs, and crypto
+  const baseSymbols = [
+    // Original tech stocks
+    'AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX',
+    // Additional popular stocks
+    'SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'JPM', 'JNJ', 'V', 'PG', 'UNH',
+    'HD', 'DIS', 'MA', 'PYPL', 'BAC', 'ADBE', 'CRM', 'AMD', 'INTC',
+    // Crypto pairs
+    'BTC-USD', 'ETH-USD', 'ADA-USD', 'SOL-USD',
+    // Forex pairs
+    'EUR=X', 'GBP=X', 'JPY=X'
+  ]
+
+  // Get user-requested symbols from active jobs (next 48 hours)
+  const next48Hours = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+  let userSymbols: string[] = []
+  
+  try {
+    const { data: jobs } = await supabase
+      .from('jobs')
+      .select('stock_symbols')
+      .not('stock_symbols', 'is', null)
+      .gte('scheduled_at', new Date().toISOString())
+      .lte('scheduled_at', next48Hours)
+    
+    if (jobs) {
+      userSymbols = [...new Set(jobs.flatMap((job: any) => job.stock_symbols || []))]
+      console.log(`📈 Found ${userSymbols.length} user-requested stock symbols: ${userSymbols.join(', ')}`)
+    }
+  } catch (error) {
+    console.warn('⚠️ Failed to fetch user stock symbols, using base symbols only:', error)
+  }
+
+  // Combine base symbols with user symbols, remove duplicates
+  const allSymbols = [...new Set([...baseSymbols, ...userSymbols])]
+  console.log(`📈 Fetching ${allSymbols.length} total stock symbols (${baseSymbols.length} base + ${userSymbols.length} user)`)
+  
+  const symbolString = allSymbols.join('%2C') // URL encode commas
   
   const url = `https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-quotes?region=US&symbols=${symbolString}`
   const data = await getJSON<any>(url, {

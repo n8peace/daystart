@@ -219,6 +219,32 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 3, baseMs = 600, timeo
   throw lastErr;
 }
 
+// Fix any unclosed or malformed break tags
+function fixBreakTags(script: string): string {
+  // Fix unclosed break tags (e.g., "<break time="2s"/" -> "<break time="2s"/>")
+  script = script.replace(/<break\s+time="(\d+s)"\/(?!>)/g, '<break time="$1"/>');
+  
+  // Fix break tags missing closing angle bracket (e.g., "<break time="2s" -> "<break time="2s"/>")
+  script = script.replace(/<break\s+time="(\d+s)"(?!\/?>)/g, '<break time="$1"/>');
+  
+  // Fix break tags with missing quotes or other malformations
+  script = script.replace(/<break\s+time=(\d+s)\s*\/?>/g, '<break time="$1"/>');
+  
+  // Validate all break tags are properly closed
+  const breakTagPattern = /<break\s+time="(\d+s)"\s*\/>/g;
+  const validBreakTags = script.match(breakTagPattern) || [];
+  
+  // Log if we fixed any break tags
+  const originalBreakCount = (script.match(/<break/g) || []).length;
+  const fixedBreakCount = validBreakTags.length;
+  
+  if (originalBreakCount !== fixedBreakCount) {
+    console.log(`[DEBUG] Fixed break tags: ${originalBreakCount} original, ${fixedBreakCount} valid after fixes`);
+  }
+  
+  return script;
+}
+
 // Sanitize script output for TTS (preserve em-dashes, ellipses, and section breaks)
 function sanitizeForTTS(raw: string): string {
   let s = raw.trim();
@@ -708,6 +734,20 @@ Peel into this Monday with intention — because even bananas don't get eaten in
   if (!script) {
     throw new Error('Script was empty after sanitization');
   }
+  
+  // Fix any unclosed break tags
+  script = fixBreakTags(script);
+  
+  // Log final script for debugging if break tags were found
+  const breakCount = (script.match(/<break/g) || []).length;
+  if (breakCount > 0) {
+    console.log(`[DEBUG] Script contains ${breakCount} break tags after fixing`);
+    // Log a sample of the break tags for verification
+    const breakMatches = script.match(/<break[^>]*>/g) || [];
+    breakMatches.slice(0, 3).forEach((tag, i) => {
+      console.log(`[DEBUG] Break tag ${i + 1}: ${tag}`);
+    });
+  }
 
   // Post-process: adjust to target band if outside bounds, without inventing new facts
   try {
@@ -1081,7 +1121,8 @@ function buildScriptPrompt(context: any): string {
 PAUSING & FLOW
 - Use em dashes (—) for short pauses and ellipses (…) for softer rests.
 - Put a blank line between sections to create a natural breath.
-- Add an ellipsis (…) on its own line between major sections for longer pauses using "… <break time="1s"/>".
+- Add an ellipsis (…) on its own line between major sections for longer pauses using EXACTLY this format: "… <break time="1s"/>" (note the closing />)
+- CRITICAL: All break tags MUST be properly closed with /> at the end. Example: <break time="2s"/> NOT <break time="2s"/
 - Start each section with a short sentence. Then continue.
 - Keep sentences mostly under 18 words.
 `;
@@ -1098,7 +1139,7 @@ STYLE
   - Always use full company names instead of stock tickers (e.g., "Apple" not "AAPL", "Tesla" not "TSLA", "S&P 500 ETF" not "SPY")
   - Spell out all numbers and prices in words (e.g., "two hundred thirty dollars and eighty-nine cents" not "$230.89", "down zero point three percent" not "down 0.3%")
 ${styleAddendum}
- - Use 1–2 transitions between sections. Add ellipses (…) on their own line between major sections for natural pauses using "… <break time="1s"/>".
+ - Use 1–2 transitions between sections. Add ellipses (…) on their own line between major sections for natural pauses using EXACTLY this format: "… <break time="1s"/>" (with closing />).
  - Keep ellipses to ≤1 per paragraph within sections and em dashes to ≤2 per paragraph.
  - Stay roughly within the provided per-section word budget (±25%). If a section is omitted, redistribute its budget to News first, then Weather/Calendar.
 
@@ -1126,7 +1167,7 @@ FACT RULES
  - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style.
 
 CONTENT ORDER (adapt if sections are missing)
-1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a two-second pause using "… <break time="2s"/>" on its own line.
+1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a two-second pause using EXACTLY "… <break time="2s"/>" on its own line (note the closing />).
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
 4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.
@@ -1134,7 +1175,7 @@ CONTENT ORDER (adapt if sections are missing)
 6) Stocks (if include.stocks): Market pulse using company names and numbers spelled out. Call out focusSymbols prominently when present.
 7) Quote (if include.quotes): Select a quote that matches the user's quotePreference (if provided in data). The quote should align with that tradition/style (e.g., Buddhist wisdom, Stoic philosophy, Christian scripture, etc.). Follow with a one-line tie-back to today's vibe.
 8) Close with the provided signOff from the data — choose the one that fits the day's tone best.
-9) End the script with a final pause using "… <break time="1s"/>" on its own line.
+9) End the script with a final pause using EXACTLY "… <break time="1s"/>" on its own line (with closing />).
 
 STRICT OUTPUT RULES — DO NOT BREAK
 - Output: PLAIN TEXT ONLY.

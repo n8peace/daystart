@@ -4,7 +4,7 @@ struct AudioPlayerView: View {
     let dayStart: DayStartData?
     @ObservedObject private var audioPlayer = AudioPlayerManager.shared
     @State private var isDragging = false
-    @AppStorage("playbackSpeed") private var savedPlaybackSpeed: Double = 1.0
+    // @AppStorage("playbackSpeed") private var savedPlaybackSpeed: Double = 1.0
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -30,7 +30,8 @@ struct AudioPlayerView: View {
                         
                         Spacer()
                         
-                        // Share button in audio player
+                        // Share button in audio player - Commented out for now
+                        /*
                         Button(action: { 
                             shareDayStart(dayStart) 
                         }) {
@@ -45,12 +46,13 @@ struct AudioPlayerView: View {
                         }
                         .accessibilityLabel("Share current DayStart")
                         .accessibilityHint("Tap to share this audio briefing")
+                        */
                         
                         // X button to stop playback
                         Button(action: {
                             AudioPlayerManager.shared.pause()
-                            // Set state to completed via notification
-                            NotificationCenter.default.post(name: NSNotification.Name("HomeViewModelStateChange"), object: nil, userInfo: ["state": "completed"])
+                            // Set state to idle via notification
+                            NotificationCenter.default.post(name: NSNotification.Name("HomeViewModelStateChange"), object: nil, userInfo: ["state": "idle"])
                         }) {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 24))
@@ -63,14 +65,14 @@ struct AudioPlayerView: View {
                 
                 progressView
                 controlsView
-                playbackSpeedView
+                // playbackSpeedView
             }
             .padding(.horizontal)
             .padding(.bottom, 30)
         }
-        .onAppear {
-            audioPlayer.setPlaybackRate(Float(savedPlaybackSpeed))
-        }
+        // .onAppear {
+        //     audioPlayer.setPlaybackRate(Float(savedPlaybackSpeed))
+        // }
     }
     
     private var progressView: some View {
@@ -162,6 +164,7 @@ struct AudioPlayerView: View {
         }
     }
     
+    /*
     private var playbackSpeedView: some View {
         VStack(spacing: 8) {
             HStack {
@@ -208,6 +211,7 @@ struct AudioPlayerView: View {
         }
         .padding(.horizontal, 4)
     }
+    */
     
     private func timeString(_ time: TimeInterval) -> String {
         let minutes = Int(time) / 60
@@ -219,8 +223,8 @@ struct AudioPlayerView: View {
         return FormatterCache.shared.fullDateFormatter.string(from: date)
     }
     
-    // MARK: - Share Functionality
-    
+    // MARK: - Share Functionality - Commented out for now
+    /*
     private func shareDayStart(_ dayStart: DayStartData) {
         let duration = Int(dayStart.duration / 60) // Convert to minutes
         let shareText = "📈 Just got my personalized morning brief - market insights, weather, and productivity tips in \(duration) minutes! #DayStart"
@@ -253,4 +257,5 @@ struct AudioPlayerView: View {
             topController.present(activityVC, animated: true)
         }
     }
+    */
 }
