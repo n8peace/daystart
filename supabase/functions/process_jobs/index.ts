@@ -617,31 +617,33 @@ Good morning, Jordan, it's Monday, August eighteenth. This is DayStart!
 
 The sun is sliding up over Los Angeles, and Mar Vista will be feeling downright summery today. Highs in the low eighties with just a whisper of ocean breeze, which means you'll want to keep a cold drink nearby. The good news — no sign of that sticky humidity we had last week. The bad news — traffic is still traffic, and the four oh five is basically allergic to being on time.
 
-…
+… <break time="1s"/>
 
 Your calendar is looking friendly enough. The team stand-up at nine should be short, but if history is any guide, "short" will be defined differently by everyone on the Zoom call. At three, you've got that dentist appointment — and if you keep putting it off, your teeth are going to file for separation. Consider this your polite reminder not to cancel again.
 
-…
+… <break time="1s"/>
 
 Meanwhile in the wider world, the headlines are a mixed bag. Over the weekend, a coalition of state governors signed on to a renewable energy compact, promising faster timelines for solar build-outs. Critics say the deadlines are ambitious; optimists say at least somebody's trying. Abroad, markets are still churning on the back of last week's central bank moves in Europe. Closer to home, the wildfire situation up north is easing, thanks to a fortunate stretch of cooler nights. And if you needed a dose of levity, one of the top-trending stories this morning is a rescue operation for a dog that somehow managed to get itself stuck inside a pizza oven in Chicago. The pup is fine — the pizza, less so.
 
-…
+… <break time="1s"/>
 
 Sports-wise, the Dodgers pulled off a walk-off win against the Giants, which is exactly the sort of drama that makes the neighbors either cheer or swear depending on which hat they were wearing. The Sparks have a midweek game coming up, but for now they've got a few days to recover.
 
-…
+… <break time="1s"/>
 
 Markets open steady, at least for now. Your favorite tickers — Apple and Tesla — are looking a shade green in pre-market, while the broader indices are pretty flat. Futures traders are basically staring at each other waiting for someone to blink.
 
-…
+… <break time="1s"/>
 
 A thought for the day: "Discipline is remembering what you want." It doesn't have to mean perfect routines or Instagram-worthy meal prep. Sometimes it just means shutting the laptop lid at six and remembering there's a world outside of emails.
 
-…
+… <break time="1s"/>
 
 And that's your start, Jordan. Step out into this Monday with a little humor, a little focus, and maybe even a little patience for that dentist.
 
 Peel into this Monday with intention — because even bananas don't get eaten in one bite.
+
+… <break time="1s"/>
 
 - REMINDER, THIS WAS AN EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data).`
   };
@@ -858,7 +860,7 @@ async function generateAudio(script: string, job: any, attemptNumber: number = 1
     },
     body: JSON.stringify({
       text: script,
-      model_id: 'eleven_monolingual_v1',
+      model_id: 'eleven_flash_v2_5',
       voice_settings: {
         stability: 0.5,
         similarity_boost: 0.7,
@@ -1079,7 +1081,7 @@ function buildScriptPrompt(context: any): string {
 PAUSING & FLOW
 - Use em dashes (—) for short pauses and ellipses (…) for softer rests.
 - Put a blank line between sections to create a natural breath.
-- Add an ellipsis (…) on its own line between major sections for longer pauses.
+- Add an ellipsis (…) on its own line between major sections for longer pauses using "… <break time="1s"/>".
 - Start each section with a short sentence. Then continue.
 - Keep sentences mostly under 18 words.
 `;
@@ -1096,7 +1098,7 @@ STYLE
   - Always use full company names instead of stock tickers (e.g., "Apple" not "AAPL", "Tesla" not "TSLA", "S&P 500 ETF" not "SPY")
   - Spell out all numbers and prices in words (e.g., "two hundred thirty dollars and eighty-nine cents" not "$230.89", "down zero point three percent" not "down 0.3%")
 ${styleAddendum}
- - Use 1–2 transitions between sections. Add ellipses (…) on their own line between major sections for natural pauses.
+ - Use 1–2 transitions between sections. Add ellipses (…) on their own line between major sections for natural pauses using "… <break time="1s"/>".
  - Keep ellipses to ≤1 per paragraph within sections and em dashes to ≤2 per paragraph.
  - Stay roughly within the provided per-section word budget (±25%). If a section is omitted, redistribute its budget to News first, then Weather/Calendar.
 
@@ -1132,6 +1134,7 @@ CONTENT ORDER (adapt if sections are missing)
 6) Stocks (if include.stocks): Market pulse using company names and numbers spelled out. Call out focusSymbols prominently when present.
 7) Quote (if include.quotes): Select a quote that matches the user's quotePreference (if provided in data). The quote should align with that tradition/style (e.g., Buddhist wisdom, Stoic philosophy, Christian scripture, etc.). Follow with a one-line tie-back to today's vibe.
 8) Close with the provided signOff from the data — choose the one that fits the day's tone best.
+9) End the script with a final pause using "… <break time="1s"/>" on its own line.
 
 STRICT OUTPUT RULES — DO NOT BREAK
 - Output: PLAIN TEXT ONLY.
