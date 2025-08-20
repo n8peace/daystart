@@ -1676,7 +1676,7 @@ struct OnboardingView: View {
             do {
                 let snapshot = await SnapshotBuilder.shared.buildSnapshot()
                 
-                _ = try await SupabaseClient.shared.createJob(
+                let jobResponse = try await SupabaseClient.shared.createJob(
                     for: Date(),
                     with: userPreferences.settings,
                     schedule: userPreferences.schedule,
@@ -1685,7 +1685,18 @@ struct OnboardingView: View {
                     calendarEvents: snapshot.calendar
                 )
                 
-                logger.log("✅ ONBOARDING: First job created successfully", level: .info)
+                logger.log("✅ ONBOARDING: First job created successfully with ID: \(jobResponse.jobId ?? "unknown")", level: .info)
+                
+                // Immediately trigger processing of this specific job
+                if let jobId = jobResponse.jobId {
+                    do {
+                        try await SupabaseClient.shared.invokeProcessJob(jobId: jobId)
+                        logger.log("🚀 ONBOARDING: Triggered immediate processing of welcome job", level: .info)
+                    } catch {
+                        // Non-critical - job will be picked up by cron if this fails
+                        logger.logError(error, context: "Failed to trigger immediate job processing (will be processed by cron)")
+                    }
+                }
                 
                 // Start the welcome countdown for UI purposes
                 WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()

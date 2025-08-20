@@ -313,11 +313,23 @@ serve(async (req: Request): Promise<Response> => {
       return createResponse(false, 0, 0, 'Unauthorized', request_id);
     }
 
+    // Parse optional jobId from request body
+    let specificJobId: string | null = null;
+    try {
+      const body = await req.json();
+      if (body?.jobId && typeof body.jobId === 'string') {
+        specificJobId = body.jobId;
+        console.log(`Worker ${worker_id} processing specific job: ${specificJobId}`);
+      }
+    } catch {
+      // Body parsing is optional - if it fails, proceed with normal batch processing
+    }
+
     // Return success immediately to prevent timeout
     console.log(`Worker ${worker_id} accepted job processing request`);
     
     // Start async processing without waiting
-    processJobsAsync(worker_id, request_id).catch(error => {
+    processJobsAsync(worker_id, request_id, specificJobId).catch(error => {
       console.error('Async job processing error:', error);
     });
 
@@ -330,7 +342,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 });
 
-async function processJobsAsync(worker_id: string, request_id: string): Promise<void> {
+async function processJobsAsync(worker_id: string, request_id: string, specificJobId?: string | null): Promise<void> {
   try {
     // Initialize Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -342,15 +354,43 @@ async function processJobsAsync(worker_id: string, request_id: string): Promise<
 
     let processedCount = 0;
     let failedCount = 0;
-    const maxJobs = 5; // Process up to 5 jobs per run
 
-    // Process jobs in batches
-    for (let i = 0; i < maxJobs; i++) {
-      // Lease next available job
-      const { data: jobId, error } = await supabase.rpc('lease_next_job', {
+    // If specific job ID provided, process only that job
+    if (specificJobId) {
+      console.log(`Processing specific job: ${specificJobId}`);
+      
+      // Try to lease the specific job
+      const { data: leasedJobId, error: leaseError } = await supabase.rpc('lease_specific_job', {
+        job_id: specificJobId,
         worker_id,
         lease_duration_minutes: 15
       });
+
+      if (leaseError || !leasedJobId) {
+        // If we can't lease it, it might already be processed or leased
+        console.log(`Could not lease job ${specificJobId}: ${leaseError?.message || 'Job may already be processed'}`);
+        return;
+      }
+
+      // Process the specific job
+      try {
+        await processJob(supabase, leasedJobId, worker_id);
+        processedCount++;
+      } catch (error) {
+        console.error(`Failed to process job ${leasedJobId}:`, error);
+        failedCount++;
+      }
+    } else {
+      // Normal batch processing
+      const maxJobs = 5; // Process up to 5 jobs per run
+
+      // Process jobs in batches
+      for (let i = 0; i < maxJobs; i++) {
+        // Lease next available job
+        const { data: jobId, error } = await supabase.rpc('lease_next_job', {
+          worker_id,
+          lease_duration_minutes: 15
+        });
 
       if (error || !jobId) {
         console.log('No more jobs to process:', error);
@@ -383,6 +423,7 @@ async function processJobsAsync(worker_id: string, request_id: string): Promise<
           })
           .eq('job_id', jobId);
       }
+    }
     }
 
     const message = `Processed ${processedCount} jobs, ${failedCount} failed`;
@@ -794,13 +835,13 @@ async function generateAudio(script: string, job: any, attemptNumber: number = 1
   // Map voice option to ElevenLabs voice ID
   const voiceMap: Record<string, string> = {
     // Numbered keys
-    'voice1': 'pNInz6obpgDQGcFmaJgB',
+    'voice1': 'wdRkW5c5eYi8vKR8E4V9',
     'voice2': '21m00Tcm4TlvDq8ikWAM',
-    'voice3': 'ErXwobaYiN019PkySvjV',
+    'voice3': 'QczW7rKFMVYyubTC1QDk',
     // Name keys (accepted for compatibility)
-    'grace': 'pNInz6obpgDQGcFmaJgB',
+    'grace': 'wdRkW5c5eYi8vKR8E4V9',
     'rachel': '21m00Tcm4TlvDq8ikWAM',
-    'matthew': 'ErXwobaYiN019PkySvjV',
+    'matthew': 'QczW7rKFMVYyubTC1QDk',
   };
 
   const normalizedVoiceKey = String(job.voice_option || '').toLowerCase();

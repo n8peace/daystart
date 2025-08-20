@@ -83,6 +83,12 @@ class WelcomeDayStartScheduler: ObservableObject {
         isWelcomeReadyToPlay = false
     }
     
+    func stopAudioPolling() {
+        logger.log("🛑 Stopping audio polling for welcome DayStart", level: .info)
+        audioStatusTimer?.invalidate()
+        audioStatusTimer = nil
+    }
+    
     private func checkIfReadyToShow() {
         logger.log("🔍 Checking if welcome ready to show: countdown=\(hasCountdownCompleted), audio=\(isAudioReady)", level: .debug)
         
@@ -97,6 +103,11 @@ class WelcomeDayStartScheduler: ObservableObject {
         } else {
             logger.log("⏳ Not ready yet: countdown=\(hasCountdownCompleted), audio=\(isAudioReady)", level: .debug)
         }
+    }
+    
+    func startAudioPollingImmediately() {
+        logger.log("🔍 Starting immediate audio polling for welcome DayStart", level: .info)
+        beginPolling()
     }
     
     private func startAudioStatusPolling(startTime: Date) {

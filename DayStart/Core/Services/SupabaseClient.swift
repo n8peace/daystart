@@ -367,6 +367,41 @@ class SupabaseClient {
         throw SupabaseError.notImplemented
     }
     
+    // MARK: - Edge Function Invocation
+    
+    func invokeProcessJob(jobId: String) async throws {
+        let url = URL(string: "\(baseURL.absoluteString.replacingOccurrences(of: "/rest/v1", with: ""))/functions/v1/process_jobs")!
+        
+        logger.log("🚀 Invoking process_jobs for specific job: \(jobId)", level: .info)
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let payload = ["jobId": jobId]
+        request.httpBody = try JSONEncoder().encode(payload)
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw SupabaseError.invalidResponse
+            }
+            
+            // Edge functions return 200 for success
+            guard httpResponse.statusCode == 200 else {
+                logger.log("❌ Edge function returned status: \(httpResponse.statusCode)", level: .error)
+                throw SupabaseError.httpError(httpResponse.statusCode)
+            }
+            
+            logger.log("✅ Successfully invoked process_jobs for job: \(jobId)", level: .info)
+        } catch {
+            logger.logError(error, context: "Failed to invoke process_jobs for job: \(jobId)")
+            throw error
+        }
+    }
+    
     // MARK: - Private Helpers
     
     private func createRequest(for url: URL, method: String) -> URLRequest {

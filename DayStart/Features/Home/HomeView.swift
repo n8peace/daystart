@@ -93,6 +93,22 @@ struct PrimaryActionView: View {
                         .fill(BananaTheme.ColorToken.primary)
                 )
                 .padding(.horizontal, 40)
+            case .welcomeReady:
+                Button(action: onStartTapped) {
+                    Text("DayStart")
+                        .adaptiveFont(BananaTheme.Typography.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(BananaTheme.ColorToken.background)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 80)
+                }
+                .buttonStyle(InstantResponseStyle())
+                .background(
+                    RoundedRectangle(cornerRadius: 25)
+                        .fill(BananaTheme.ColorToken.text)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+                )
+                .padding(.horizontal, 40)
             default:
                 EmptyView()
             }
@@ -171,15 +187,11 @@ struct HomeView: View {
                             connectionError: viewModel.connectionError,
                             onStartTapped: { 
                                 hapticManager.impact(style: .medium)
-                                // COMMENTED OUT FOR TESTING: Skip welcomeReady state check
-                                /*
                                 if viewModel.state == .welcomeReady {
                                     viewModel.startWelcomeDayStart()
                                 } else {
                                     viewModel.startDayStart()
                                 }
-                                */
-                                viewModel.startDayStart()
                             },
                             onEditTapped: { 
                                 hapticManager.impact(style: .light)
@@ -413,6 +425,8 @@ struct HomeView: View {
             } else {
                 idleViewContent
             }
+        case .welcomeReady:
+            welcomeReadyContent
         case .preparing:
             preparingView
         case .playing:
@@ -435,9 +449,6 @@ struct HomeView: View {
                 if welcomeScheduler.isWelcomePending {
                     // Welcome countdown UI
                     welcomeCountdownContent
-                } else if welcomeScheduler.isWelcomeReadyToPlay {
-                    // Welcome ready UI  
-                    welcomeReadyContent
                 } else {
                     // Regular idle content
                     regularIdleContent

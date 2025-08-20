@@ -61,6 +61,21 @@ class StateTransitionManager {
         } else {
             viewModel.state = newState
         }
+        
+        // Handle state-specific actions
+        switch newState {
+        case .welcomeReady:
+            // Start polling for audio status when entering welcome ready state
+            WelcomeDayStartScheduler.shared.startAudioPollingImmediately()
+        case .idle, .completed:
+            // Stop polling when going back to idle or completed
+            if viewModel.state == .welcomeReady || viewModel.state == .preparing {
+                WelcomeDayStartScheduler.shared.stopAudioPolling()
+            }
+        case .preparing, .playing:
+            // Keep polling active during preparing and playing for welcome
+            break
+        }
     }
     
     private func canTransition(from currentState: HomeViewModel.AppState, to newState: HomeViewModel.AppState) -> Bool {
@@ -85,6 +100,7 @@ class HomeViewModel: ObservableObject {
     
     enum AppState {
         case idle            // Enhanced: handles countdown, welcome flows, and default state
+        case welcomeReady   // Welcome DayStart is ready, waiting for user tap
         case preparing      // Waiting for audio to be ready
         case playing        // Currently playing
         case completed      // Completed (replay available)
@@ -113,7 +129,6 @@ class HomeViewModel: ObservableObject {
     private var pollingStartTime: Date?
     private var pollingAttempts = 0
     private let maxPollingAttempts = 30 // 5 minutes at 10-second intervals
-    private var hasAutoStartedWelcome = false // Track if we've auto-started welcome DayStart
     private let maxPollingDuration: TimeInterval = 300 // 5 minutes total
     private var cancellables = Set<AnyCancellable>()
     
@@ -540,12 +555,9 @@ class HomeViewModel: ObservableObject {
             }
             
             if welcomeScheduler.isWelcomeReadyToPlay {
-                // Auto-start welcome DayStart directly to preparing
-                if !hasAutoStartedWelcome {
-                    hasAutoStartedWelcome = true
-                    logger.log("🚀 Auto-starting welcome DayStart directly to preparing", level: .info)
-                    startWelcomeDayStart() // Go directly to preparing
-                }
+                // Show welcome ready screen - user must tap to start
+                stateTransitionManager.transitionTo(.welcomeReady)
+                logger.log("🎁 Welcome DayStart is ready - showing welcome ready screen", level: .info)
                 return
             }
         }
@@ -1054,8 +1066,9 @@ class HomeViewModel: ObservableObject {
     func startWelcomeDayStart() {
         logger.logUserAction("Start Welcome DayStart", details: ["time": Date().description])
         
-        // Cancel welcome scheduler
-        WelcomeDayStartScheduler.shared.cancelWelcomeDayStart()
+        // Don't cancel the entire welcome scheduler - we want polling to continue
+        // Just update the UI state
+        WelcomeDayStartScheduler.shared.isWelcomeReadyToPlay = false
         
         // Check network connectivity first
         guard NetworkMonitor.shared.isConnected else {
@@ -1273,6 +1286,9 @@ class HomeViewModel: ObservableObject {
                     self.state = .playing
                     self.stopPauseTimeoutTimer()
                     await self.cancelTodaysNotifications()
+                    
+                    // Stop polling since audio is now ready and playing
+                    WelcomeDayStartScheduler.shared.stopAudioPolling()
                     self.scheduleNextNotifications()
                 } else {
                     self.connectionError = .timeout
