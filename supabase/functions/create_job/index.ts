@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { corsHeaders, createErrorResponse } from "../_shared/cors.ts";
-import { authenticateRequest } from "../_shared/auth.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 interface CreateJobRequest {
   local_date: string; // YYYY-MM-DD
@@ -53,7 +52,7 @@ serve(async (req: Request): Promise<Response> => {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
         },
       });
     }
@@ -62,7 +61,10 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('METHOD_NOT_ALLOWED', 'Only POST method allowed', request_id, 405);
     }
 
-    // Supabase client will be initialized after JWT validation
+    // Initialize Supabase client with service role
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Parse request body
     let body: CreateJobRequest;
@@ -79,13 +81,12 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('VALIDATION_ERROR', validation.error!, request_id);
     }
 
-    // Authenticate request and get user context
-    const authResult = await authenticateRequest(req, request_id);
-    if (!authResult.success) {
-      return authResult.error!;
+    // Extract user ID from client info (receipt-based auth)
+    const clientInfo = req.headers.get('x-client-info');
+    if (!clientInfo) {
+      return createErrorResponse('MISSING_USER_ID', 'x-client-info header required', request_id);
     }
-    
-    const { userId: user_id, supabase } = authResult;
+    const user_id = clientInfo;
 
     // Calculate estimated ready time (1-2 minutes from now with 1-minute cron schedule)
     const estimated_ready_time = new Date(Date.now() + (1.5 * 60 * 1000)).toISOString();

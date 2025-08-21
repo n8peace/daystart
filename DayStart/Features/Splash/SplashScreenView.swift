@@ -12,11 +12,12 @@ struct SplashScreenView: View {
             Color.black
                 .ignoresSafeArea()
             
-            // Centered image
+            // Full screen centered image
             Image("SplashIcon")
                 .resizable()
-                .aspectRatio(contentMode: .fit)
+                .aspectRatio(contentMode: .fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
                 .opacity(opacity)
             
             // Loading indicator at bottom

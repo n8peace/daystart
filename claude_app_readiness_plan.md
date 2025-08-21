@@ -4,9 +4,9 @@
 
 This document outlines the remaining compliance and technical items needed before DayStart can be released to the App Store. The app now uses a **purchase-based identity system** where users are identified by their StoreKit receipt IDs (paid = access).
 
-**Timeline Recommendation:** Ready for App Store submission in ~1 week.
+**Timeline Recommendation:** Ready for App Store submission in ~1-2 weeks.
 
-**Risk Level:** 🟢 **LOW** - Core functionality complete; remaining items are App Store compliance.
+**Risk Level:** 🟢 **LOW** - Core functionality complete, critical backend auth issues resolved; remaining items are App Store compliance and testing.
 
 ---
 
@@ -18,7 +18,9 @@ This document outlines the remaining compliance and technical items needed befor
 - ✅ **Receipt IDs** used as stable user identifiers
 - ✅ **No traditional auth** - massively simplified architecture
 - ✅ **API Integration** - x-client-info header contains receipt ID
-- ✅ **Supabase Migration 022** created for backend updates
+- ✅ **Backend Auth Fixed** - create_job and get_jobs now use receipt-based auth
+- ✅ **CORS Headers** - x-client-info added to all required functions
+- ✅ **RLS Policies** - Migration 023 created for proper receipt-based access control
 
 **Benefits:**
 - No passwords, no account management
@@ -28,9 +30,22 @@ This document outlines the remaining compliance and technical items needed befor
 
 ---
 
-## 🔴 Phase 1: Pre-Release Requirements (~1 week)
+## 🔴 Phase 1: Critical Deployment Items (1-2 days)
 
-### 1. App Store Product Configuration
+### 1. Deploy Backend Fixes
+**Status:** Critical - Required for app functionality
+**Effort:** 30 minutes
+
+**Action Items:**
+- [ ] Apply migration `023_fix_rls_for_receipt_auth.sql` to production Supabase
+- [ ] Verify create_job and get_jobs work with x-client-info auth
+- [ ] Test purchase flow end-to-end with backend
+
+---
+
+## 🟡 Phase 2: App Store Compliance (~1 week)
+
+### 2. App Store Product Configuration
 **Status:** Required for production
 **Effort:** 2-3 hours
 
@@ -42,7 +57,7 @@ This document outlines the remaining compliance and technical items needed befor
 - [ ] Configure free trial periods if desired
 - [ ] Add subscription descriptions and screenshots
 
-### 2. Privacy Manifest (PrivacyInfo.xcprivacy)
+### 3. Privacy Manifest (PrivacyInfo.xcprivacy)
 **Status:** Required by Apple
 **Effort:** 1 hour
 
@@ -51,7 +66,7 @@ This document outlines the remaining compliance and technical items needed befor
 - [ ] File timestamp APIs
 - [ ] System boot time APIs (for audio scheduling)
 
-### 3. Legal Documents
+### 4. Legal Documents
 **Status:** Critical for App Store approval
 **Effort:** 2-3 hours
 
@@ -60,7 +75,7 @@ This document outlines the remaining compliance and technical items needed befor
 - [ ] Terms of Service URL
 - [ ] Update Info.plist with URLs
 
-### 4. App Store Metadata
+### 5. App Store Metadata
 **Status:** Required for submission
 **Effort:** 3-4 hours
 
@@ -72,19 +87,21 @@ This document outlines the remaining compliance and technical items needed befor
 - [ ] Support URL
 - [ ] Marketing URL (optional)
 
-### 5. Update Supabase Edge Functions
-**Status:** Required for production
-**Effort:** 2-3 hours
+### 6. StoreKit Testing
+**Status:** Required for production confidence
+**Effort:** 4-6 hours
 
 **Action Items:**
-- [ ] Deploy migration 022 changes
-- [ ] Update all Edge Functions to accept receipt IDs
-- [ ] Test with mock receipts (tx_*)
-- [ ] Add receipt validation for production
+- [ ] Create sandbox test accounts
+- [ ] Test monthly subscription flow end-to-end
+- [ ] Test annual subscription flow
+- [ ] Verify restore purchases works
+- [ ] Test Family Sharing functionality
+- [ ] Test receipt validation in production environment
 
 ---
 
-## 🟡 Phase 2: Post-Launch Improvements
+## 🟢 Phase 3: Post-Launch Improvements
 
 ### 1. Enhanced Analytics
 - Track subscription conversions
@@ -105,6 +122,10 @@ This document outlines the remaining compliance and technical items needed befor
 ## Testing Checklist
 
 ### Before Submission:
+- [x] Backend auth issues resolved (create_job, get_jobs fixed)
+- [x] CORS headers include x-client-info
+- [x] RLS policies support receipt-based auth
+- [ ] Deploy migration 023 to production
 - [ ] Test purchase flow with sandbox account
 - [ ] Verify receipt validation works
 - [ ] Test restore purchases
@@ -125,6 +146,7 @@ This document outlines the remaining compliance and technical items needed befor
 
 | Item | Risk Level | Impact |
 |------|------------|---------|
+| Backend migration not deployed | HIGH | App won't work for users |
 | Missing products in App Store Connect | HIGH | Cannot test real purchases |
 | No privacy manifest | HIGH | Automatic rejection |
 | Missing legal documents | HIGH | Rejection |
@@ -134,12 +156,13 @@ This document outlines the remaining compliance and technical items needed befor
 
 ## Next Steps
 
-1. **Immediate:** Configure products in App Store Connect
-2. **Day 2:** Add privacy manifest and legal documents
-3. **Day 3:** Prepare App Store metadata and screenshots
-4. **Day 4:** Update Supabase Edge Functions
-5. **Day 5-6:** Testing with TestFlight
-6. **Day 7:** Submit for review
+1. **IMMEDIATE:** Deploy migration 023 to production Supabase
+2. **Day 1:** Test backend fixes work end-to-end
+3. **Day 2:** Configure products in App Store Connect
+4. **Day 3:** Add privacy manifest and legal documents
+5. **Day 4:** Prepare App Store metadata and screenshots
+6. **Day 5-7:** Comprehensive testing with TestFlight
+7. **Week 2:** Submit for review
 
 ---
 
@@ -161,3 +184,6 @@ This approach aligns perfectly with the app's value proposition: pay once, get y
 For implementation questions about the purchase-based system, refer to:
 - `/DayStart/Core/Services/PurchaseManager.swift`
 - `/supabase/migrations/022_receipt_based_auth.sql`
+- `/supabase/migrations/023_fix_rls_for_receipt_auth.sql`
+- `/supabase/functions/create_job/index.ts` (updated for receipt auth)
+- `/supabase/functions/get_jobs/index.ts` (updated for receipt auth)

@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { corsHeaders, createErrorResponse } from "../_shared/cors.ts";
-import { authenticateRequest } from "../_shared/auth.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 interface GetJobsResponse {
   success: boolean;
@@ -26,7 +25,11 @@ serve(async (req: Request): Promise<Response> => {
     if (req.method === 'OPTIONS') {
       return new Response(null, {
         status: 200,
-        headers: corsHeaders(),
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        },
       });
     }
 
@@ -34,13 +37,17 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('METHOD_NOT_ALLOWED', 'Only GET method allowed', request_id, 405);
     }
 
-    // Authenticate request and get user context
-    const authResult = await authenticateRequest(req, request_id);
-    if (!authResult.success) {
-      return authResult.error!;
+    // Initialize Supabase client with service role
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Extract user ID from client info (receipt-based auth)
+    const clientInfo = req.headers.get('x-client-info');
+    if (!clientInfo) {
+      return createErrorResponse('MISSING_USER_ID', 'x-client-info header required', request_id);
     }
-    
-    const { userId, supabase } = authResult;
+    const userId = clientInfo;
 
     // Parse query parameters
     const url = new URL(req.url);
@@ -85,7 +92,7 @@ serve(async (req: Request): Promise<Response> => {
     // Log request for analytics
     await logRequest(supabase, {
       request_id,
-      user_id: clientInfo,
+      user_id: userId,
       endpoint: '/get_jobs',
       method: 'GET',
       status_code: 200,
@@ -102,7 +109,10 @@ serve(async (req: Request): Promise<Response> => {
 
     return new Response(JSON.stringify(response), {
       status: 200,
-      headers: corsHeaders(),
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
 
   } catch (error) {
@@ -121,17 +131,11 @@ function createErrorResponse(errorCode: string, message: string, requestId: stri
 
   return new Response(JSON.stringify(response), {
     status: 200, // Always return 200 for consistency
-    headers: corsHeaders(),
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    },
   });
-}
-
-function corsHeaders() {
-  return {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  };
 }
 
 async function logRequest(supabase: any, logData: any) {
