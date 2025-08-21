@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { corsHeaders, createErrorResponse } from "../_shared/cors.ts";
+import { authenticateRequest } from "../_shared/auth.ts";
 
 interface CreateJobRequest {
   local_date: string; // YYYY-MM-DD
@@ -52,7 +53,7 @@ serve(async (req: Request): Promise<Response> => {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+          'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
         },
       });
     }
@@ -61,10 +62,7 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('METHOD_NOT_ALLOWED', 'Only POST method allowed', request_id, 405);
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Supabase client will be initialized after JWT validation
 
     // Parse request body
     let body: CreateJobRequest;
@@ -81,9 +79,13 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('VALIDATION_ERROR', validation.error!, request_id);
     }
 
-    // Extract user ID from client info (device-specific) or generate anonymous ID
-    const clientInfo = req.headers.get('x-client-info');
-    const user_id = clientInfo || `anonymous_${crypto.randomUUID()}`;
+    // Authenticate request and get user context
+    const authResult = await authenticateRequest(req, request_id);
+    if (!authResult.success) {
+      return authResult.error!;
+    }
+    
+    const { userId: user_id, supabase } = authResult;
 
     // Calculate estimated ready time (1-2 minutes from now with 1-minute cron schedule)
     const estimated_ready_time = new Date(Date.now() + (1.5 * 60 * 1000)).toISOString();

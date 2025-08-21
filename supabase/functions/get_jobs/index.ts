@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { corsHeaders, createErrorResponse } from "../_shared/cors.ts";
+import { authenticateRequest } from "../_shared/auth.ts";
 
 interface GetJobsResponse {
   success: boolean;
@@ -33,16 +34,13 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('METHOD_NOT_ALLOWED', 'Only GET method allowed', request_id, 405);
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Extract user ID from client info (device-specific)
-    const clientInfo = req.headers.get('x-client-info');
-    if (!clientInfo) {
-      return createErrorResponse('MISSING_USER_ID', 'x-client-info header required', request_id);
+    // Authenticate request and get user context
+    const authResult = await authenticateRequest(req, request_id);
+    if (!authResult.success) {
+      return authResult.error!;
     }
+    
+    const { userId, supabase } = authResult;
 
     // Parse query parameters
     const url = new URL(req.url);
@@ -59,13 +57,13 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('VALIDATION_ERROR', 'Dates must be in YYYY-MM-DD format', request_id);
     }
 
-    console.log(`📋 Getting jobs for user ${clientInfo} from ${startDate} to ${endDate}`);
+    console.log(`📋 Getting jobs for authenticated user ${userId} from ${startDate} to ${endDate}`);
 
-    // Query jobs in date range
+    // Query jobs in date range for authenticated user
     const { data: jobs, error: queryError } = await supabase
       .from('jobs')
       .select('job_id, local_date, scheduled_at, status')
-      .eq('user_id', clientInfo)
+      .eq('user_id', userId)
       .gte('local_date', startDate)
       .lte('local_date', endDate)
       .order('local_date', { ascending: true });

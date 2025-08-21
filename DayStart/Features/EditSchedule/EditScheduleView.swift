@@ -403,6 +403,9 @@ struct EditScheduleView: View {
     
     private var advancedSection: some View {
         Section(header: Text("Advanced")) {
+            // Account Management
+            AccountManagementRow()
+            
             HStack {
                 Text("Theme")
                 Spacer()
@@ -813,6 +816,69 @@ struct StockSymbolRow: View {
     }
 }
 
+// MARK: - Account Management Component
+
+struct AccountManagementRow: View {
+    @StateObject private var authManager = AuthManager.shared
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Account")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                
+                Text(accountStatusText)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+            }
+            
+            Spacer()
+            
+            Button(action: {
+                Task {
+                    if authManager.isAuthenticated {
+                        try? await authManager.signOut()
+                    } else {
+                        // This will be handled by showing authentication flow
+                        // For now, user can go through onboarding to sign in
+                    }
+                }
+            }) {
+                Text(buttonText)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(authManager.isAuthenticated ? .red : BananaTheme.ColorToken.primary)
+            }
+            .disabled(authManager.isLoading)
+        }
+    }
+    
+    private var accountStatusText: String {
+        switch authManager.authState {
+        case .authenticated(let userId):
+            return "Signed in • ID: \(userId.prefix(8))..."
+        case .unauthenticated:
+            return "Using app locally"
+        case .unknown:
+            return "Checking status..."
+        }
+    }
+    
+    private var buttonText: String {
+        if authManager.isLoading {
+            return "..."
+        }
+        
+        switch authManager.authState {
+        case .authenticated:
+            return "Sign Out"
+        case .unauthenticated:
+            return "Create Account"
+        case .unknown:
+            return "..."
+        }
+    }
+}
 
 // MARK: - Extensions  
 private extension DateFormatter {

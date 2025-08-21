@@ -14,8 +14,15 @@ struct DayStartApp: App {
     
     // TIER 1: Only essential services (no lazy loading needed)
     private var userPreferences: UserPreferences { UserPreferences.shared }
-    @StateObject private var themeManager = ThemeManager.shared
-    @State private var showOnboarding = false
+    @StateObject var themeManager = ThemeManager.shared  // Made internal for auth extension
+    @State var showOnboarding = false  // Made internal for auth extension
+    
+    // Authentication state
+    @StateObject var authManager = AuthManager.shared  // Made internal for auth extension
+    @State private var showAuthentication = false
+    
+    // Logger for auth extension  
+    internal let logger = DebugLogger.shared
     
     private static var audioConfigRetryCount = 0
     private static let maxAudioConfigRetries = 3
@@ -23,19 +30,15 @@ struct DayStartApp: App {
     init() {
         // MINIMAL: Only essential UI setup (no service initialization)
         configureBasicNavigationAppearance()
+        
+        // IMMEDIATE: Check onboarding status synchronously to avoid UI flicker
+        let needsOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        _showOnboarding = State(initialValue: needsOnboarding)
     }
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(UserPreferences.shared)
-                .environmentObject(themeManager)
-                .preferredColorScheme(themeManager.effectiveColorScheme)
-                .accentColor(BananaTheme.ColorToken.primary)
-                .id("theme-\(themeManager.effectiveColorScheme.hashValue)")
-                .onReceive(themeManager.$effectiveColorScheme) { colorScheme in
-                    updateNavigationAppearance(for: colorScheme)
-                }
+            authenticatedContentView()
                 .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.mediaServicesWereResetNotification)) { _ in
                     Self.audioConfigRetryCount = 0
                     Task {
@@ -61,12 +64,6 @@ struct DayStartApp: App {
                         await triggerSnapshotUpdateOnForeground()
                     }
                 }
-                .fullScreenCover(isPresented: $showOnboarding) {
-                    OnboardingView {
-                        UserPreferences.shared.hasCompletedOnboarding = true
-                        showOnboarding = false
-                    }
-                }
         }
     }
     
@@ -86,7 +83,7 @@ struct DayStartApp: App {
         UINavigationBar.appearance().tintColor = UIColor(BananaTheme.ColorToken.accent)
     }
     
-    private func updateNavigationAppearance(for colorScheme: ColorScheme) {
+    func updateNavigationAppearance(for colorScheme: ColorScheme) {  // Made internal for auth extension
         // Dynamic appearance updates (lightweight)
         configureBasicNavigationAppearance()
     }
@@ -94,19 +91,14 @@ struct DayStartApp: App {
     // MARK: - Deferred Initialization (Background)
     
     private func deferredAppInitialization() async {
-        // Check onboarding status (fast UserDefaults read)
-        let needsOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-        await MainActor.run {
-            showOnboarding = needsOnboarding
-        }
-        
         // CRITICAL: Pre-warm only what prevents keyboard lag
         Task.detached(priority: .background) {
             await self.preWarmKeyboardLagFix()
         }
         
         // DEFERRED: Background cleanup (non-blocking)
-        if !needsOnboarding {
+        // Only run cleanup if user has completed onboarding
+        if !showOnboarding {
             Task.detached(priority: .background) {
                 await UserPreferences.shared.cleanupOldAudioFiles()
             }
@@ -229,9 +221,44 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // DEFERRED: No background task registration at launch
-        // Will be registered only when user has active schedule
+        // CRITICAL: Register all background tasks immediately during app launch
+        // This must happen before the app finishes launching to avoid crashes
+        registerAllBackgroundTasks()
         return true
+    }
+    
+    private func registerAllBackgroundTasks() {
+        // Register AudioPrefetchManager background tasks
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: "ai.bananaintelligence.DayStart.audio-prefetch", using: nil) { [weak self] task in
+            self?.handleAudioPrefetchTask(task: task as! BGProcessingTask)
+        }
+        
+        // Register SnapshotUpdateManager background tasks  
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: "ai.bananaintelligence.DayStart.snapshot-update", using: nil) { [weak self] task in
+            self?.handleSnapshotUpdateTask(task: task as! BGProcessingTask)
+        }
+        
+        print("✅ Background tasks registered during app launch")
+    }
+    
+    private func handleAudioPrefetchTask(task: BGProcessingTask) {
+        // Delegate to AudioPrefetchManager if it's loaded
+        let registry = ServiceRegistry.shared
+        if registry.loadedServices.contains("AudioPrefetchManager") {
+            registry.audioPrefetchManager.handleAudioPrefetch(task: task)
+        } else {
+            task.setTaskCompleted(success: false)
+        }
+    }
+    
+    private func handleSnapshotUpdateTask(task: BGProcessingTask) {
+        // Delegate to SnapshotUpdateManager if it's loaded
+        let registry = ServiceRegistry.shared
+        if registry.loadedServices.contains("SnapshotUpdateManager") {
+            registry.snapshotUpdateManager.handleBackgroundSnapshotUpdate(task: task)
+        } else {
+            task.setTaskCompleted(success: false)
+        }
     }
     
     func applicationWillEnterForeground(_ application: UIApplication) {

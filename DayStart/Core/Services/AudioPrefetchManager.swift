@@ -53,21 +53,24 @@ class AudioPrefetchManager {
             return
         }
         
-        // DEFERRED: Register background tasks only when actually needed
-        Task.detached(priority: .background) { [weak self] in
-            await self?.performBackgroundTaskRegistration()
+        // Background tasks are registered during app launch - just mark as registered
+        isBackgroundTaskRegistered = true
+        logger.log("✅ AudioPrefetchManager using pre-registered background tasks", level: .info)
+    }
+    
+    private func performBackgroundTaskRegistrationSync() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { [weak self] task in
+            guard let self = self else { return }
+            self.handleAudioPrefetch(task: task as! BGProcessingTask)
         }
+        
+        isBackgroundTaskRegistered = true
+        logger.log("✅ Background tasks registered synchronously", level: .info)
     }
     
     private func performBackgroundTaskRegistration() async {
         await MainActor.run {
-            BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { [weak self] task in
-                guard let self = self else { return }
-                self.handleAudioPrefetch(task: task as! BGProcessingTask)
-            }
-            
-            isBackgroundTaskRegistered = true
-            logger.log("✅ Background tasks registered on-demand", level: .info)
+            performBackgroundTaskRegistrationSync()
         }
     }
     
@@ -96,7 +99,7 @@ class AudioPrefetchManager {
         }
     }
     
-    private func handleAudioPrefetch(task: BGProcessingTask) {
+    func handleAudioPrefetch(task: BGProcessingTask) {
         task.expirationHandler = {
             task.setTaskCompleted(success: false)
         }

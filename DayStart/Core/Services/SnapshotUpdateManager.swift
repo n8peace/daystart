@@ -169,16 +169,12 @@ class SnapshotUpdateManager: NSObject {
     private func registerBackgroundTaskIfNeeded() {
         guard !isBackgroundTaskRegistered else { return }
         
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundTaskIdentifier, using: nil) { [weak self] task in
-            guard let self = self else { return }
-            self.handleBackgroundSnapshotUpdate(task: task as! BGProcessingTask)
-        }
-        
+        // Background tasks are registered during app launch - just mark as registered
         isBackgroundTaskRegistered = true
-        logger.log("✅ Background snapshot update tasks registered", level: .info)
+        logger.log("✅ SnapshotUpdateManager using pre-registered background tasks", level: .info)
     }
     
-    private func handleBackgroundSnapshotUpdate(task: BGProcessingTask) {
+    func handleBackgroundSnapshotUpdate(task: BGProcessingTask) {
         task.expirationHandler = {
             task.setTaskCompleted(success: false)
         }

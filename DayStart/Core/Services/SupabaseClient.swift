@@ -6,27 +6,38 @@ class SupabaseClient {
     
     private let logger = DebugLogger.shared
     private let baseURL: URL
+    private let restURL: URL
+    private let functionsURL: URL
     private let anonKey: String
     
     private init() {
         // Load configuration from Info.plist
         guard let baseURLString = Bundle.main.object(forInfoDictionaryKey: "SupabaseBaseURL") as? String,
               let baseURL = URL(string: baseURLString),
+              let restURLString = Bundle.main.object(forInfoDictionaryKey: "SupabaseRestURL") as? String,
+              let restURL = URL(string: restURLString),
+              let functionsURLString = Bundle.main.object(forInfoDictionaryKey: "SupabaseFunctionsURL") as? String,
+              let functionsURL = URL(string: functionsURLString),
               let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String else {
-            fatalError("SupabaseClient configuration missing from Info.plist. Add SupabaseBaseURL and SupabaseAnonKey keys.")
+            fatalError("SupabaseClient configuration missing from Info.plist. Add SupabaseBaseURL, SupabaseRestURL, SupabaseFunctionsURL and SupabaseAnonKey keys.")
         }
         
         self.baseURL = baseURL
+        self.restURL = restURL
+        self.functionsURL = functionsURL
         self.anonKey = anonKey
         
-        DebugLogger.shared.log("SupabaseClient configured with base URL: \(baseURL.absoluteString)", level: .info)
+        DebugLogger.shared.log("SupabaseClient configured:", level: .info)
+        DebugLogger.shared.log("  Base URL: \(baseURL.absoluteString)", level: .info)
+        DebugLogger.shared.log("  REST URL: \(restURL.absoluteString)", level: .info)
+        DebugLogger.shared.log("  Functions URL: \(functionsURL.absoluteString)", level: .info)
     }
     
     // MARK: - Audio Status API
     
     func getAudioStatus(for date: Date) async throws -> AudioStatusResponse {
         let dateString = localDateString(from: date) // Canonical local calendar day (YYYY-MM-DD)
-        let url = baseURL.appendingPathComponent("get_audio_status")
+        let url = functionsURL.appendingPathComponent("get_audio_status")
             .appendingQueryItem(name: "date", value: String(dateString))
         
         logger.log("🔍 Supabase API: GET audio_status for date: \(dateString)", level: .info)
@@ -102,7 +113,7 @@ class SupabaseClient {
         weatherData: WeatherData? = nil,
         calendarEvents: [String]? = nil
     ) async throws -> JobResponse {
-        let url = baseURL.appendingPathComponent("create_job")
+        let url = functionsURL.appendingPathComponent("create_job")
         
         logger.log("📤 Supabase API: POST create_job", level: .info)
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
@@ -194,7 +205,7 @@ class SupabaseClient {
         with settings: UserSettings,
         forceRequeue: Bool = false
     ) async throws -> UpdateJobsResult {
-        let url = baseURL.appendingPathComponent("update_jobs")
+        let url = functionsURL.appendingPathComponent("update_jobs")
 
         logger.log("📤 Supabase API: POST update_jobs", level: .info)
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
@@ -269,7 +280,7 @@ class SupabaseClient {
         weatherData: WeatherData?,
         calendarEvents: [String]?
     ) async throws -> Bool {
-        let url = baseURL.appendingPathComponent("update_job_snapshots")
+        let url = functionsURL.appendingPathComponent("update_job_snapshots")
         
         logger.log("📤 Supabase API: POST update_job_snapshots", level: .info)
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
@@ -321,7 +332,7 @@ class SupabaseClient {
     }
     
     func getJobsInDateRange(startDate: String, endDate: String) async throws -> [JobSummary] {
-        let url = baseURL.appendingPathComponent("get_jobs")
+        let url = functionsURL.appendingPathComponent("get_jobs")
             .appendingQueryItem(name: "start_date", value: startDate)
             .appendingQueryItem(name: "end_date", value: endDate)
         
@@ -370,7 +381,7 @@ class SupabaseClient {
     // MARK: - Job Management
     
     func markJobAsFailed(jobId: String, errorCode: String) async throws {
-        let url = baseURL.appendingPathComponent("jobs")
+        let url = restURL.appendingPathComponent("jobs")
         
         logger.log("📤 Supabase API: PATCH jobs - marking job as failed", level: .info)
         
@@ -422,14 +433,11 @@ class SupabaseClient {
     // MARK: - Edge Function Invocation
     
     func invokeProcessJob(jobId: String) async throws {
-        let url = URL(string: "\(baseURL.absoluteString.replacingOccurrences(of: "/rest/v1", with: ""))/functions/v1/process_jobs")!
+        let url = functionsURL.appendingPathComponent("process_jobs")
         
         logger.log("🚀 Invoking process_jobs for specific job: \(jobId)", level: .info)
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var request = createRequest(for: url, method: "POST")
         
         let payload = ["jobId": jobId]
         request.httpBody = try JSONEncoder().encode(payload)
@@ -459,18 +467,14 @@ class SupabaseClient {
     private func createRequest(for url: URL, method: String) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("DayStart-iOS/1.0", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 10
+        request.timeoutInterval = 30
         
-        // Add device ID as client info for tracking
-        if let deviceId = UIDevice.current.identifierForVendor?.uuidString {
-            request.setValue(deviceId, forHTTPHeaderField: "x-client-info")
-            logger.log("📎 x-client-info set: \(deviceId)", level: .debug)
+        // Use anon key for now (auth will be added later)
+        if let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String {
+            request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
         }
-        
-        logger.log("🔑 Auth headers set, timeout: 30s", level: .debug)
         
         return request
     }
@@ -686,6 +690,8 @@ extension SupabaseClient {
     
     var isConfigured: Bool {
         return !anonKey.contains("your-anon-key-here") && 
-               !baseURL.absoluteString.contains("your-project")
+               !baseURL.absoluteString.contains("your-project") &&
+               !restURL.absoluteString.contains("your-project") &&
+               !functionsURL.absoluteString.contains("your-project")
     }
 }

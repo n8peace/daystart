@@ -104,7 +104,7 @@ struct OnboardingView: View {
     @StateObject private var themeManager = ThemeManager.shared
     @Environment(\.colorScheme) var colorScheme
     
-    private let totalPages = 10
+    private let totalPages = 11
     
     enum PermissionStatus {
         case notDetermined, granted, denied
@@ -182,6 +182,7 @@ struct OnboardingView: View {
                     voiceSelectionPage.tag(7)
                     finalPreviewPage.tag(8)
                     paywallPage.tag(9)
+                    authenticationPage.tag(10)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
@@ -1578,6 +1579,7 @@ struct OnboardingView: View {
         case 7: return "Voice Selection"
         case 8: return "Final Preview"
         case 9: return "Paywall"
+        case 10: return "Authentication"
         default: return "Unknown"
         }
     }
@@ -1588,41 +1590,75 @@ struct OnboardingView: View {
         // In a real implementation, this would:
         // 1. Initiate StoreKit purchase
         // 2. Handle purchase result
-        // 3. If successful, call completeOnboarding()
+        // 3. If successful, proceed to auth and start processing
         // 4. If failed, show error and stay on paywall
         
-        // For now, simulate successful purchase and complete onboarding
+        // For now, simulate successful purchase
         Task {
             // Simulate purchase delay
             try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
             
             await MainActor.run {
                 logger.log("✅ Purchase flow completed successfully", level: .info)
-                completeOnboarding()
+                
+                // CRITICAL: Start Welcome DayStart processing immediately after purchase
+                startWelcomeDayStartProcessing()
+                
+                // Move to authentication page
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                    currentPage = 10
+                }
             }
         }
     }
     
-    private func completeOnboarding() {
-        logger.log("🎓 Starting onboarding completion process", level: .info)
+    private func startWelcomeDayStartProcessing() {
+        logger.log("🚀 Starting Welcome DayStart processing immediately after purchase", level: .info)
         
-        // Log all collected settings
-        logger.logUserAction("Onboarding settings collected", details: [
-            "name": name.isEmpty ? "[empty]" : name,
-            "scheduledTime": shortTimeFormatter.string(from: selectedTime),
-            "selectedDays": selectedDays.map(\.name).joined(separator: ", "),
-            "includeWeather": includeWeather,
-            "includeNews": includeNews,
-            "includeSports": includeSports,
-            "includeStocks": includeStocks,
-            "stockSymbols": stockSymbols.isEmpty ? "[none]" : stockSymbols,
-            "includeCalendar": includeCalendar,
-            "includeQuotes": includeQuotes,
-            "selectedQuoteType": selectedQuoteType.name,
-            "selectedVoice": selectedVoice?.name ?? "[none]"
-        ])
+        // Save settings first so they're available for job creation
+        saveOnboardingSettings()
         
-        // Save settings
+        // CRITICAL: Create the first job immediately after successful paywall conversion
+        Task {
+            do {
+                let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+                
+                let jobResponse = try await SupabaseClient.shared.createJob(
+                    for: Date(),
+                    with: UserPreferences.shared.settings,
+                    schedule: UserPreferences.shared.schedule,
+                    locationData: snapshot.location,
+                    weatherData: snapshot.weather,
+                    calendarEvents: snapshot.calendar
+                )
+                
+                logger.log("✅ ONBOARDING: First job created successfully with ID: \(jobResponse.jobId ?? "unknown")", level: .info)
+                
+                // Immediately trigger processing of this specific job
+                if let jobId = jobResponse.jobId {
+                    do {
+                        try await SupabaseClient.shared.invokeProcessJob(jobId: jobId)
+                        logger.log("🚀 ONBOARDING: Triggered immediate processing of welcome job", level: .info)
+                    } catch {
+                        // Non-critical - job will be picked up by cron if this fails
+                        logger.logError(error, context: "Failed to trigger immediate job processing (will be processed by cron)")
+                    }
+                }
+                
+                // Start the welcome countdown for UI purposes
+                WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
+                logger.log("🎉 Welcome DayStart scheduled - user's first briefing is being prepared", level: .info)
+                
+            } catch {
+                logger.logError(error, context: "CRITICAL: Failed to create first job after paywall conversion")
+                // Continue with flow even if job creation fails
+            }
+        }
+    }
+    
+    private func saveOnboardingSettings() {
+        logger.log("💾 Saving onboarding settings", level: .info)
+        
         let userPreferences = UserPreferences.shared
         
         userPreferences.schedule = DayStartSchedule(
@@ -1652,45 +1688,27 @@ struct OnboardingView: View {
         )
         userPreferences.saveSettings()
         
-        // CRITICAL: Create the first job immediately after successful paywall conversion
-        Task {
-            do {
-                let snapshot = await SnapshotBuilder.shared.buildSnapshot()
-                
-                let jobResponse = try await SupabaseClient.shared.createJob(
-                    for: Date(),
-                    with: userPreferences.settings,
-                    schedule: userPreferences.schedule,
-                    locationData: snapshot.location,
-                    weatherData: snapshot.weather,
-                    calendarEvents: snapshot.calendar
-                )
-                
-                logger.log("✅ ONBOARDING: First job created successfully with ID: \(jobResponse.jobId ?? "unknown")", level: .info)
-                
-                // Immediately trigger processing of this specific job
-                if let jobId = jobResponse.jobId {
-                    do {
-                        try await SupabaseClient.shared.invokeProcessJob(jobId: jobId)
-                        logger.log("🚀 ONBOARDING: Triggered immediate processing of welcome job", level: .info)
-                    } catch {
-                        // Non-critical - job will be picked up by cron if this fails
-                        logger.logError(error, context: "Failed to trigger immediate job processing (will be processed by cron)")
-                    }
-                }
-                
-                // Start the welcome countdown for UI purposes
-                WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
-                logger.log("🎉 Welcome DayStart scheduled - user's first briefing is being prepared", level: .info)
-                
-            } catch {
-                logger.logError(error, context: "CRITICAL: Failed to create first job after paywall conversion")
-                // Still proceed with onboarding completion even if job creation fails
-                // The user has paid, so we should complete the flow
-            }
-        }
+        logger.log("✅ Onboarding settings saved successfully", level: .info)
+    }
+    
+    private func completeOnboarding() {
+        logger.log("🎓 Completing onboarding flow", level: .info)
         
-        // Complete onboarding immediately - job creation happens in background
+        // Log final completion
+        logger.logUserAction("Onboarding completed", details: [
+            "name": name.isEmpty ? "[empty]" : name,
+            "scheduledTime": shortTimeFormatter.string(from: selectedTime),
+            "selectedDays": selectedDays.map(\.name).joined(separator: ", "),
+            "includeWeather": includeWeather,
+            "includeNews": includeNews,
+            "includeSports": includeSports,
+            "includeStocks": includeStocks,
+            "includeCalendar": includeCalendar,
+            "includeQuotes": includeQuotes,
+            "selectedVoice": selectedVoice?.name ?? "[none]"
+        ])
+        
+        // Complete onboarding - settings already saved and job already processing
         onComplete()
     }
     
@@ -1843,6 +1861,23 @@ struct OnboardingView: View {
                     .font(.system(size: fontSize))
                     .scaleEffect(scale)
                     .animation(animation, value: animationTrigger)
+            }
+        }
+    }
+    
+    // MARK: - Page 11: Authentication (after paywall)
+    private var authenticationPage: some View {
+        AuthenticationView(onSkip: {
+            // User chose to skip authentication
+            logger.logUserAction("Authentication skipped in onboarding")
+            completeOnboarding()
+        })
+        .environmentObject(themeManager)
+        .onReceive(AuthManager.shared.$authState) { authState in
+            // Complete onboarding when user successfully signs in
+            if case .authenticated = authState {
+                logger.logUserAction("Authentication completed in onboarding")
+                completeOnboarding()
             }
         }
     }
