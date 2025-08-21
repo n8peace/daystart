@@ -14,7 +14,7 @@ struct DayStartApp: App {
     
     // TIER 1: Only essential services (no lazy loading needed)
     private var userPreferences: UserPreferences { UserPreferences.shared }
-    private var themeManager: ThemeManager { ThemeManager.shared }
+    @StateObject private var themeManager = ThemeManager.shared
     @State private var showOnboarding = false
     
     private static var audioConfigRetryCount = 0
@@ -29,9 +29,10 @@ struct DayStartApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(UserPreferences.shared)
-                .environmentObject(ThemeManager.shared)
+                .environmentObject(themeManager)
                 .preferredColorScheme(themeManager.effectiveColorScheme)
                 .accentColor(BananaTheme.ColorToken.primary)
+                .id("theme-\(themeManager.effectiveColorScheme.hashValue)")
                 .onReceive(themeManager.$effectiveColorScheme) { colorScheme in
                     updateNavigationAppearance(for: colorScheme)
                 }

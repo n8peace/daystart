@@ -194,6 +194,24 @@ struct OnboardingView: View {
                         startPageAnimation()
                     }
                 }
+                .onReceive(LocationManager.shared.$authorizationStatus) { newStatus in
+                    // Update location permission status when LocationManager status changes
+                    DispatchQueue.main.async {
+                        switch newStatus {
+                        case .authorizedWhenInUse, .authorizedAlways:
+                            locationPermissionStatus = .granted
+                            showingLocationError = false
+                        case .denied, .restricted:
+                            locationPermissionStatus = .denied
+                            showingLocationError = true
+                        case .notDetermined:
+                            locationPermissionStatus = .notDetermined
+                            showingLocationError = false
+                        @unknown default:
+                            break
+                        }
+                    }
+                }
                 .onChange(of: currentPage) { oldPage, newPage in
                     AudioPlayerManager.shared.stopVoicePreview()
                     hideKeyboard()
@@ -1681,9 +1699,19 @@ struct OnboardingView: View {
     private func requestLocationPermission() async {
         let locationManager = LocationManager.shared
         
-        // Check current status
+        // Check current status first
         let currentStatus = locationManager.authorizationStatus
         
+        // If already granted, update UI immediately
+        if currentStatus == .authorizedWhenInUse || currentStatus == .authorizedAlways {
+            await MainActor.run {
+                locationPermissionStatus = .granted
+                showingLocationError = false
+            }
+            return
+        }
+        
+        // If denied/restricted, show error
         if currentStatus == .denied || currentStatus == .restricted {
             await MainActor.run {
                 locationPermissionStatus = .denied
@@ -1692,17 +1720,12 @@ struct OnboardingView: View {
             return
         }
         
+        // Otherwise, request permission
         let granted = await locationManager.requestLocationPermission()
         
-        await MainActor.run {
-            if granted {
-                locationPermissionStatus = .granted
-                showingLocationError = false
-            } else {
-                locationPermissionStatus = .denied
-                showingLocationError = true
-            }
-        }
+        // Note: The onReceive observer will handle UI updates automatically
+        // when the LocationManager's authorizationStatus changes
+        logger.log("Location permission request completed: \(granted)", level: .info)
     }
     
     private func requestCalendarPermission() async {

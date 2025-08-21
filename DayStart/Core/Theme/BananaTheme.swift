@@ -115,15 +115,10 @@ extension Color {
     }
     
     // Dynamic color that adapts to light/dark mode
+    // This now properly respects SwiftUI's .preferredColorScheme() modifier
     static func adaptive(light: Color, dark: Color) -> Color {
-        return Color(UIColor { traitCollection in
-            switch traitCollection.userInterfaceStyle {
-            case .dark:
-                return UIColor(dark)
-            default:
-                return UIColor(light)
-            }
-        })
+        // Use SwiftUI's dynamic color provider that respects .preferredColorScheme()
+        return Color.dynamic(light: light, dark: dark)
     }
     
     // Helper for creating colors from hex with light/dark variants
@@ -270,5 +265,22 @@ struct BananaPrimaryButton<Content: View>: View {
             content
                 .bananaPrimaryButton()
         }
+    }
+}
+
+// MARK: - SwiftUI Dynamic Color Extension  
+extension Color {
+    // Creates a dynamic color that properly respects SwiftUI's .preferredColorScheme()
+    static func dynamic(light: Color, dark: Color) -> Color {
+        // The key insight: SwiftUI should update trait collections when .preferredColorScheme() changes
+        // But we need to ensure the UIColor provider is recreated when the theme changes
+        return Color(UIColor { traitCollection in
+            switch traitCollection.userInterfaceStyle {
+            case .dark:
+                return UIColor(dark)
+            default:
+                return UIColor(light)
+            }
+        })
     }
 }

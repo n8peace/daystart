@@ -433,10 +433,20 @@ class HomeViewModel: ObservableObject {
             }
             
         case .buffering:
-            // If we were buffering before background, the audio loading likely failed
-            // Transition back to idle
-            connectionError = .timeout
-            state = .idle
+            // If buffering on foreground, check if audio actually started
+            if serviceRegistry.loadedServices.contains("AudioPlayerManager") {
+                let audioPlayer = serviceRegistry.audioPlayerManager
+                if audioPlayer.isPlaying {
+                    state = .playing
+                } else {
+                    // Give a brief grace period by restarting loading timers
+                    startLoadingDelayTimer()
+                    startLoadingTimeoutTimer()
+                }
+            } else {
+                startLoadingDelayTimer()
+                startLoadingTimeoutTimer()
+            }
             
         case .playing:
             // Check if audio is still playing, update UI accordingly
@@ -787,8 +797,10 @@ class HomeViewModel: ObservableObject {
                 self.preparingCountdownText = "0:00"
                 
                 // When preparing countdown reaches 0, show timeout error
-                self.connectionError = .timeout
-                self.state = .idle
+                if self.state == .preparing {
+                    self.connectionError = .timeout
+                    self.state = .idle
+                }
             }
         }
     }
@@ -1633,12 +1645,20 @@ class HomeViewModel: ObservableObject {
     }
     
     private func startLoadingTimeoutTimer() {
-        loadingTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
-            guard let weakSelf = self else { return }
+        loadingTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
             Task { @MainActor in
-                weakSelf.stopLoadingTimers()
-                weakSelf.connectionError = .timeout
-                weakSelf.state = .idle
+                // Only act if we're still buffering and not actually playing
+                if self.state == .buffering,
+                   self.serviceRegistry.loadedServices.contains("AudioPlayerManager"),
+                   self.serviceRegistry.audioPlayerManager.isPlaying == false {
+                    self.stopLoadingTimers()
+                    self.connectionError = .timeout
+                    self.state = .idle
+                } else {
+                    // No error if playback started or state moved on
+                    self.stopLoadingTimers()
+                }
             }
         }
     }

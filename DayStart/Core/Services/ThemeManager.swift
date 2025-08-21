@@ -38,25 +38,10 @@ class ThemeManager: ObservableObject {
             self.themePreference = .system // Default
         }
         
-        // Listen to system color scheme changes
+        // Set up real-time system appearance monitoring
         #if os(iOS)
-        NotificationCenter.default
-            .publisher(for: UIApplication.didBecomeActiveNotification)
-            .sink { [weak self] _ in
-                print("🎨 ThemeManager: App became active, updating color scheme")
-                self?.updateEffectiveColorScheme()
-            }
-            .store(in: &cancellables)
+        setupSystemAppearanceMonitoring()
         #endif
-        
-        // Also listen for trait collection changes if available
-        NotificationCenter.default
-            .publisher(for: NSNotification.Name("NSSystemColorsDidChangeNotification"))
-            .sink { [weak self] _ in
-                print("🎨 ThemeManager: System colors changed, updating color scheme")
-                self?.updateEffectiveColorScheme()
-            }
-            .store(in: &cancellables)
         
         // Initial color scheme calculation
         updateEffectiveColorScheme()
@@ -121,4 +106,58 @@ class ThemeManager: ObservableObject {
         return .light
         #endif
     }
+    
+    #if os(iOS)
+    private func setupSystemAppearanceMonitoring() {
+        // Method 1: Monitor app lifecycle changes (existing fallback)
+        NotificationCenter.default
+            .publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in
+                print("🎨 ThemeManager: App became active, checking for appearance changes")
+                self?.updateEffectiveColorScheme()
+            }
+            .store(in: &cancellables)
+        
+        // Method 2: Monitor scene-level trait collection changes
+        NotificationCenter.default
+            .publisher(for: UIScene.willEnterForegroundNotification)
+            .sink { [weak self] _ in
+                print("🎨 ThemeManager: Scene entering foreground, updating appearance")
+                self?.updateEffectiveColorScheme()
+            }
+            .store(in: &cancellables)
+        
+        // Method 3: Use timer-based monitoring for real-time changes
+        // This catches Control Center theme toggles while app is active
+        Timer.publish(every: 0.5, on: .main, in: .common)
+            .autoconnect()
+            .map { _ in UIScreen.main.traitCollection.userInterfaceStyle }
+            .removeDuplicates()
+            .sink { [weak self] userInterfaceStyle in
+                guard let self = self else { return }
+                // Only update if we're in system mode and the system appearance actually changed
+                if self.themePreference == .system {
+                    let newSystemScheme: ColorScheme = userInterfaceStyle == .dark ? .dark : .light
+                    if self.effectiveColorScheme != newSystemScheme {
+                        print("🎨 ThemeManager: Real-time system appearance change detected: \(userInterfaceStyle == .dark ? "dark" : "light")")
+                        self.updateEffectiveColorScheme()
+                    }
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Method 4: Monitor specific system appearance notifications
+        NotificationCenter.default
+            .publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in
+                // Force a check when returning from Control Center
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self?.updateEffectiveColorScheme()
+                }
+            }
+            .store(in: &cancellables)
+        
+        print("🎨 ThemeManager: System appearance monitoring initialized")
+    }
+    #endif
 }
