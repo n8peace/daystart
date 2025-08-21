@@ -224,9 +224,15 @@ class HomeViewModel: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            if let stateString = notification.userInfo?["state"] as? String,
-               stateString == "completed" {
-                self?.state = .completed
+            if let stateString = notification.userInfo?["state"] as? String {
+                switch stateString {
+                case "completed":
+                    self?.state = .completed
+                case "idle":
+                    self?.exitPlayingState()
+                default:
+                    break
+                }
             }
         }
     }
@@ -1325,6 +1331,25 @@ class HomeViewModel: ObservableObject {
         
         // Reset current DayStart
         currentDayStart = nil
+        
+        // Update to appropriate state based on schedule
+        updateState()
+    }
+    
+    func exitPlayingState() {
+        logger.logUserAction("Exit Playing State", details: ["time": Date().description])
+        
+        // Clean up pause timeout timer
+        stopPauseTimeoutTimer()
+        
+        // Stop loading timers if any
+        stopLoadingTimers()
+        
+        // Reset current DayStart
+        currentDayStart = nil
+        
+        // Transition to idle state
+        state = .idle
         
         // Update to appropriate state based on schedule
         updateState()

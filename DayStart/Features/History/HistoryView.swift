@@ -42,16 +42,18 @@ struct HistoryView: View {
                     .foregroundColor(BananaTheme.ColorToken.text)
                 }
             }
-			.overlay(alignment: .bottom) {
-				if !userPreferences.history.isEmpty {
-					searchOverlay
-				}
-			}
+			// COMMENTED OUT - Search functionality disabled for now
+			// .overlay(alignment: .bottom) {
+			// 	if !userPreferences.history.isEmpty {
+			// 		searchOverlay
+			// 	}
+			// }
         }
-        .onChange(of: searchQuery) { _ in
-            // Reset pagination when search changes
-            visibleCount = 10
-        }
+        // COMMENTED OUT - Search functionality disabled for now
+        // .onChange(of: searchQuery) { _ in
+        //     // Reset pagination when search changes
+        //     visibleCount = 10
+        // }
         .onDisappear {
             dismissTask?.cancel()
             textInputTask?.cancel()
@@ -161,12 +163,14 @@ struct HistoryView: View {
         return FormatterCache.shared.weekdayAbbrevFormatter.string(from: date)
     }
 
+    // COMMENTED OUT - Search functionality disabled for now
     // Filtered by transcript search
     private var filteredHistory: [DayStartData] {
         let all = userPreferences.history
-        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return all }
-        return all.filter { $0.transcript.localizedCaseInsensitiveContains(q) }
+        // let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        // guard !q.isEmpty else { return all }
+        // return all.filter { $0.transcript.localizedCaseInsensitiveContains(q) }
+        return all // Return all history without filtering for now
     }
 
     // Visible subset based on pagination
@@ -176,30 +180,31 @@ struct HistoryView: View {
         return Array(source.prefix(count))
     }
 
+    // COMMENTED OUT - Search functionality disabled for now
     // Bottom overlay search bar
-    private var searchOverlay: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-            TextField("Search transcripts", text: Binding(
-                get: { searchQuery },
-                set: { newValue in
-                    textInputTask?.cancel()
-                    let sanitized = String(newValue.prefix(100)).trimmingCharacters(in: .whitespacesAndNewlines)
-                    searchQuery = sanitized
-                }
-            ))
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(BananaTheme.ColorToken.card)
-        .cornerRadius(14)
-        .shadow(color: BananaTheme.ColorToken.shadow, radius: 8, x: 0, y: 4)
-        .padding(.horizontal)
-        .padding(.bottom)
-    }
+    // private var searchOverlay: some View {
+    //     HStack(spacing: 8) {
+    //         Image(systemName: "magnifyingglass")
+    //             .foregroundColor(BananaTheme.ColorToken.secondaryText)
+    //         TextField("Search transcripts", text: Binding(
+    //             get: { searchQuery },
+    //             set: { newValue in
+    //                 textInputTask?.cancel()
+    //                 let sanitized = String(newValue.prefix(100)).trimmingCharacters(in: .whitespacesAndNewlines)
+    //                 searchQuery = sanitized
+    //             }
+    //         ))
+    //             .textInputAutocapitalization(.never)
+    //             .disableAutocorrection(true)
+    //     }
+    //     .padding(.horizontal, 14)
+    //     .padding(.vertical, 10)
+    //     .background(BananaTheme.ColorToken.card)
+    //     .cornerRadius(14)
+    //     .shadow(color: BananaTheme.ColorToken.shadow, radius: 8, x: 0, y: 4)
+    //     .padding(.horizontal)
+    //     .padding(.bottom)
+    // }
 }
 
 struct HistoryRow: View {
@@ -254,11 +259,9 @@ struct HistoryRow: View {
         }
     }
 
-    // Transcript is available when there is audio or the entry is marked deleted
+    // Simplified: Always show transcript if it exists and is not empty
     private var canShowTranscript: Bool {
-        if dayStart.isDeleted { return true }
-        if hasAudioFile { return true }
-        return false
+        return !dayStart.transcript.isEmpty && !dayStart.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
     // Helper to check if audio file exists, with fallback logic
@@ -283,9 +286,11 @@ struct HistoryRow: View {
     
     private var transcriptView: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Divider()
+            
             Text("Transcript")
                 .font(.caption)
-                .adaptiveFontWeight(light: .semibold, dark: .bold)
+                .fontWeight(.semibold)
                 .foregroundColor(.secondary)
             
             Text(dayStart.transcript)
@@ -294,9 +299,7 @@ struct HistoryRow: View {
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding()
-        .background(BananaTheme.ColorToken.card)
-        .cornerRadius(12)
+        .padding(.top, 8)
     }
     
     private var actionButtons: some View {
@@ -307,14 +310,6 @@ struct HistoryRow: View {
                     Button(action: {
                         let logger = DebugLogger.shared
                         logger.log("🎵 History: Play button tapped for DayStart \(dayStart.id)", level: .info)
-                        logger.log("🎵 History: Audio path exists: \(dayStart.audioFilePath ?? "nil")", level: .debug)
-                        
-                        // Always use direct audio player control for compact history playback
-                        logger.log("🎵 History: Using direct AudioPlayerManager control for compact playback", level: .info)
-                        
-                        // Debug current audio player state
-                        logger.log("🎵 History Debug: currentTrackId=\(audioPlayer.currentTrackId?.uuidString ?? "nil"), dayStartId=\(dayStart.id.uuidString)", level: .debug)
-                        logger.log("🎵 History Debug: isPlaying=\(audioPlayer.isPlaying), currentTime=\(audioPlayer.currentTime), duration=\(audioPlayer.duration)", level: .debug)
                         
                         if audioPlayer.currentTrackId != dayStart.id {
                             logger.log("🎵 History: Loading new audio for DayStart", level: .info)
@@ -323,6 +318,7 @@ struct HistoryRow: View {
                             if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path) {
                                 let url = URL(fileURLWithPath: path)
                                 audioPlayer.loadAudio(from: url, trackId: dayStart.id)
+                                audioPlayer.play()
                             } else {
                                 // Fallback: get cached audio path
                                 let audioCache = ServiceRegistry.shared.audioCache
@@ -332,18 +328,15 @@ struct HistoryRow: View {
                                 if FileManager.default.fileExists(atPath: audioPath.path) {
                                     logger.log("🎵 History: Using cached audio path: \(audioPath.path)", level: .debug)
                                     audioPlayer.loadAudio(from: audioPath, trackId: dayStart.id)
+                                    audioPlayer.play()
                                 } else {
                                     logger.log("⚠️ History: No audio file found in cache or stored path", level: .warning)
                                 }
                             }
-                            
-                            // Auto-play after loading new audio
-                            audioPlayer.play()
                         } else {
                             logger.log("🎵 History: Track ID matches, toggling play/pause", level: .debug)
                             audioPlayer.togglePlayPause()
                         }
-                        logger.log("🎵 History: Toggle play/pause called, isPlaying: \(audioPlayer.isPlaying)", level: .info)
                     }) {
                         Label(audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "Pause" : "Play",
                               systemImage: audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "pause.circle.fill" : "play.circle.fill")
@@ -369,24 +362,13 @@ struct HistoryRow: View {
                     Button(action: { 
                         isExpanded.toggle()
                         
-                        // Start polling when transcript is expanded and needs updating
-                        if isExpanded && shouldStartPolling() {
-                            startTranscriptPolling()
-                        } else if !isExpanded {
-                            // Stop polling when transcript is collapsed
-                            stopTranscriptPolling()
-                        }
+                        // Simplified: removed complex polling logic
+                        // Transcripts should be available immediately from the stored data
                     }) {
                         HStack(spacing: 6) {
                             Text("Transcript")
-                            if isPollingTranscript {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                    .frame(width: 12, height: 12)
-                            } else {
-                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                    .foregroundColor(BananaTheme.ColorToken.accent)
-                            }
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .foregroundColor(BananaTheme.ColorToken.accent)
                         }
                         .font(.subheadline)
                     }

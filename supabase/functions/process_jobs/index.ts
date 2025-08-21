@@ -639,7 +639,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
 Good morning, Jordan, it's Monday, August eighteenth. This is DayStart!
 
-… <break time="2s"/>
+… <break time="3s"/>
 
 The sun is sliding up over Los Angeles, and Mar Vista will be feeling downright summery today. Highs in the low eighties with just a whisper of ocean breeze, which means you'll want to keep a cold drink nearby. The good news — no sign of that sticky humidity we had last week. The bad news — traffic is still traffic, and the four oh five is basically allergic to being on time.
 
@@ -1137,6 +1137,7 @@ STYLE
 - Sprinkle one light, human moment max (a nudge, not a joke barrage).
 - IMPORTANT: For TTS readability:
   - Always use full company names instead of stock tickers (e.g., "Apple" not "AAPL", "Tesla" not "TSLA", "S&P 500 ETF" not "SPY")
+  - Don't add "Inc" at the end of company names (use "Apple", not "Apple Inc.")
   - Spell out all numbers and prices in words (e.g., "two hundred thirty dollars and eighty-nine cents" not "$230.89", "down zero point three percent" not "down 0.3%")
 ${styleAddendum}
  - Use 1–2 transitions between sections. Add ellipses (…) on their own line between major sections for natural pauses using EXACTLY this format: "… <break time="1s"/>" (with closing />).
@@ -1167,7 +1168,7 @@ FACT RULES
  - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style.
 
 CONTENT ORDER (adapt if sections are missing)
-1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a two-second pause using EXACTLY "… <break time="2s"/>" on its own line (note the closing />).
+1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a three-second pause using EXACTLY "… <break time="3s"/>" on its own line (note the closing />).
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
 4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.

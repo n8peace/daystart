@@ -51,6 +51,7 @@ struct AudioPlayerView: View {
                         // X button to stop playback
                         Button(action: {
                             AudioPlayerManager.shared.pause()
+                            AudioPlayerManager.shared.reset()
                             // Set state to idle via notification
                             NotificationCenter.default.post(name: NSNotification.Name("HomeViewModelStateChange"), object: nil, userInfo: ["state": "idle"])
                         }) {
