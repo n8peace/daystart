@@ -119,6 +119,68 @@ class PurchaseManager: ObservableObject {
         logger.log("✅ Purchase simulation complete: \(mockReceiptId)", level: .info)
     }
     
+    func purchase(productId: String) async throws {
+        logger.log("💳 Starting real StoreKit purchase for product: \(productId)", level: .info)
+        await MainActor.run { isLoading = true }
+        
+        defer { 
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
+        
+        // Fetch products from App Store
+        let products = try await Product.products(for: [productId])
+        guard let product = products.first else {
+            logger.log("❌ Product not found: \(productId)", level: .error)
+            throw PurchaseError.purchaseFailed("Product not found")
+        }
+        
+        // Initiate purchase
+        let result = try await product.purchase()
+        
+        switch result {
+        case .success(let verification):
+            // Verify the transaction
+            switch verification {
+            case .verified(let transaction):
+                // Use the original transaction ID as our stable user identifier
+                let receiptId = String(transaction.originalID)
+                
+                // Store for future use
+                keychainManager.store(receiptId, forKey: receiptKey)
+                
+                await MainActor.run {
+                    self.purchaseState = .purchased(receiptId: receiptId)
+                    self.currentReceiptId = receiptId
+                }
+                
+                // Always finish transactions
+                await transaction.finish()
+                
+                logger.log("✅ Purchase successful: \(receiptId.prefix(8))...", level: .info)
+                
+            case .unverified(let transaction, let error):
+                // Failed verification
+                await transaction.finish()
+                logger.logError(error, context: "Purchase verification failed")
+                throw PurchaseError.purchaseFailed("Verification failed")
+            }
+            
+        case .userCancelled:
+            logger.log("👤 User cancelled purchase", level: .info)
+            throw PurchaseError.purchaseFailed("Purchase cancelled")
+            
+        case .pending:
+            logger.log("⏳ Purchase pending (parental approval, etc.)", level: .info)
+            throw PurchaseError.purchaseFailed("Purchase pending approval")
+            
+        @unknown default:
+            logger.log("❌ Unknown purchase result", level: .error)
+            throw PurchaseError.purchaseFailed("Unknown error")
+        }
+    }
+    
     // MARK: - Computed Properties
     
     var isPurchased: Bool {

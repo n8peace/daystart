@@ -2,6 +2,7 @@ import SwiftUI
 import StoreKit
 import CoreLocation
 
+
 struct ContentToggleRow: View {
     let icon: String
     let title: String
@@ -50,7 +51,7 @@ struct ContentToggleRow: View {
     }
 }
 
-struct Product {
+struct MockProduct {
     let id: String
     let displayName: String
     let description: String
@@ -81,7 +82,7 @@ struct OnboardingView: View {
     @State private var includeQuotes = true
     @State private var selectedQuoteType: QuotePreference = .stoic
     @State private var selectedVoice: VoiceOption? = nil
-    @State private var selectedProduct: Product?
+    @State private var selectedProduct: MockProduct?
     
     // Permission states
     @State private var locationPermissionStatus: PermissionStatus = .notDetermined
@@ -1429,7 +1430,7 @@ struct OnboardingView: View {
                         isSelected: selectedProduct?.id == "annual",
                         geometry: geometry,
                         action: {
-                            selectedProduct = Product(id: "annual", displayName: "Annual Pass", description: "Annual subscription", price: 39.99, displayPrice: "$39.99", type: .autoRenewable)
+                            selectedProduct = MockProduct(id: "annual", displayName: "Annual Pass", description: "Annual subscription", price: 39.99, displayPrice: "$39.99", type: .autoRenewable)
                             impactFeedback()
                         }
                     )
@@ -1444,7 +1445,7 @@ struct OnboardingView: View {
                         isSelected: selectedProduct?.id == "monthly",
                         geometry: geometry,
                         action: {
-                            selectedProduct = Product(id: "monthly", displayName: "Monthly Pass", description: "Monthly subscription", price: 4.99, displayPrice: "$4.99", type: .autoRenewable)
+                            selectedProduct = MockProduct(id: "monthly", displayName: "Monthly Pass", description: "Monthly subscription", price: 4.99, displayPrice: "$4.99", type: .autoRenewable)
                             impactFeedback()
                         }
                     )
@@ -1492,25 +1493,20 @@ struct OnboardingView: View {
                     VStack(spacing: 4) {
                         Text("Start Free Trial")
                             .font(.system(size: min(22, geometry.size.width * 0.055), weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(BananaTheme.ColorToken.background)
                         
                         Text("Then \(selectedProduct?.displayPrice ?? "$3.33")/month")
                             .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                            .foregroundColor(.white.opacity(0.9))
+                            .foregroundColor(BananaTheme.ColorToken.background.opacity(0.9))
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: max(64, geometry.size.height * 0.08))
-                    .background(
-                        LinearGradient(
-                            colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent, Color.purple],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(20)
-                    .shadow(color: BananaTheme.ColorToken.primary.opacity(0.4), radius: 12, x: 0, y: 6)
                 }
-                .scaleEffect(animationTrigger ? 1.02 : 1.0)
+                .buttonStyle(InstantResponseStyle())
+                .background(
+                    RoundedRectangle(cornerRadius: 25)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+                )
                 .padding(.horizontal, geometry.size.width * 0.08)
                 .opacity(textOpacity)
                 
@@ -1585,25 +1581,38 @@ struct OnboardingView: View {
     private func startPurchaseFlow() {
         logger.log("🛒 Starting purchase flow from paywall", level: .info)
         
-        // In a real implementation, this would:
-        // 1. Initiate StoreKit purchase
-        // 2. Handle purchase result
-        // 3. If successful, proceed to auth and start processing
-        // 4. If failed, show error and stay on paywall
-        
-        // For now, simulate successful purchase
         Task {
-            // Simulate purchase delay
-            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-            
-            await MainActor.run {
-                logger.log("✅ Purchase flow completed successfully", level: .info)
+            do {
+                guard let product = selectedProduct else {
+                    logger.log("❌ No product selected", level: .error)
+                    return
+                }
                 
-                // CRITICAL: Start Welcome DayStart processing immediately after purchase
-                startWelcomeDayStartProcessing()
+                #if DEBUG
+                // Testing: Use simulated purchase to generate mock receipt ID
+                logger.log("🧪 DEBUG: Using simulated purchase", level: .info)
+                try await PurchaseManager.shared.simulatePurchase(for: product.id)
+                #else
+                // Production: Use real StoreKit purchase
+                logger.log("💳 PRODUCTION: Initiating real StoreKit purchase", level: .info)
+                try await PurchaseManager.shared.purchase(productId: product.id)
+                #endif
                 
-                // Complete onboarding directly after purchase
-                completeOnboarding()
+                await MainActor.run {
+                    logger.log("✅ Purchase flow completed successfully", level: .info)
+                    
+                    // CRITICAL: Start Welcome DayStart processing immediately after purchase
+                    startWelcomeDayStartProcessing()
+                    
+                    // Complete onboarding directly after purchase
+                    completeOnboarding()
+                }
+            } catch {
+                await MainActor.run {
+                    logger.logError(error, context: "Purchase flow failed")
+                    // TODO: Show error alert to user
+                    // For now, just log the error
+                }
             }
         }
     }
