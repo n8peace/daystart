@@ -819,16 +819,16 @@ struct StockSymbolRow: View {
 // MARK: - Account Management Component
 
 struct AccountManagementRow: View {
-    @StateObject private var authManager = AuthManager.shared
+    @StateObject private var purchaseManager = PurchaseManager.shared
     
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Account")
+                Text("Purchase Status")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(BananaTheme.ColorToken.text)
                 
-                Text(accountStatusText)
+                Text(purchaseStatusText)
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(BananaTheme.ColorToken.secondaryText)
             }
@@ -837,43 +837,44 @@ struct AccountManagementRow: View {
             
             Button(action: {
                 Task {
-                    if authManager.isAuthenticated {
-                        try? await authManager.signOut()
+                    if !purchaseManager.isPurchased {
+                        // Guide user back to paywall
+                        // In practice, this might restart onboarding or show paywall directly
                     } else {
-                        // This will be handled by showing authentication flow
-                        // For now, user can go through onboarding to sign in
+                        // Restore purchases option
+                        try? await purchaseManager.restorePurchases()
                     }
                 }
             }) {
                 Text(buttonText)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(authManager.isAuthenticated ? .red : BananaTheme.ColorToken.primary)
+                    .foregroundColor(purchaseManager.isPurchased ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.primary)
             }
-            .disabled(authManager.isLoading)
+            .disabled(purchaseManager.isLoading)
         }
     }
     
-    private var accountStatusText: String {
-        switch authManager.authState {
-        case .authenticated(let userId):
-            return "Signed in • ID: \(userId.prefix(8))..."
-        case .unauthenticated:
-            return "Using app locally"
+    private var purchaseStatusText: String {
+        switch purchaseManager.purchaseState {
+        case .purchased(let receiptId):
+            return "Premium • ID: \(receiptId.prefix(8))..."
+        case .notPurchased:
+            return "Free version"
         case .unknown:
             return "Checking status..."
         }
     }
     
     private var buttonText: String {
-        if authManager.isLoading {
+        if purchaseManager.isLoading {
             return "..."
         }
         
-        switch authManager.authState {
-        case .authenticated:
-            return "Sign Out"
-        case .unauthenticated:
-            return "Create Account"
+        switch purchaseManager.purchaseState {
+        case .purchased:
+            return "Restore Purchases"
+        case .notPurchased:
+            return "Upgrade to Premium"
         case .unknown:
             return "..."
         }

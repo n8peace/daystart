@@ -364,19 +364,6 @@ class SupabaseClient {
         return resp.success ? resp.jobs ?? [] : []
     }
     
-    // MARK: - Authentication (Future)
-    
-    fileprivate func createAuthenticatedJob(_ request: CreateJobRequest) async throws -> JobResponse {
-        // TODO: Implement when authentication is added
-        // This would include the auth token in headers
-        throw SupabaseError.notImplemented
-    }
-    
-    fileprivate func createAnonymousJob(_ request: CreateJobRequest) async throws -> JobResponse {
-        // TODO: Implement anonymous job creation
-        // This would not save to user history
-        throw SupabaseError.notImplemented
-    }
     
     // MARK: - Job Management
     
@@ -471,10 +458,25 @@ class SupabaseClient {
         request.setValue("DayStart-iOS/1.0", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 30
         
-        // Use anon key for now (auth will be added later)
-        if let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String {
-            request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        // Use receipt ID as user identifier if available
+        if let receiptId = PurchaseManager.shared.userIdentifier {
+            // Use anon key for authorization (server validates receipt separately)
+            if let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String {
+                request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+            }
+            
+            // Receipt ID becomes our user identifier
+            request.setValue(receiptId, forHTTPHeaderField: "x-client-info")
+            request.setValue("purchase", forHTTPHeaderField: "x-auth-type")
+        } else {
+            // No purchase - limited functionality
+            if let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String {
+                request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+            }
+            request.setValue("anonymous", forHTTPHeaderField: "x-auth-type")
         }
+        
+        logger.log("🔑 Request headers set: x-auth-type=\(request.value(forHTTPHeaderField: "x-auth-type") ?? "none")", level: .debug)
         
         return request
     }

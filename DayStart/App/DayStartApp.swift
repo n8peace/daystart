@@ -17,9 +17,8 @@ struct DayStartApp: App {
     @StateObject var themeManager = ThemeManager.shared  // Made internal for auth extension
     @State var showOnboarding = false  // Made internal for auth extension
     
-    // Authentication state
-    @StateObject var authManager = AuthManager.shared  // Made internal for auth extension
-    @State private var showAuthentication = false
+    // Purchase state
+    @StateObject var purchaseManager = PurchaseManager.shared
     
     // Logger for auth extension  
     internal let logger = DebugLogger.shared
@@ -221,44 +220,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // CRITICAL: Register all background tasks immediately during app launch
-        // This must happen before the app finishes launching to avoid crashes
-        registerAllBackgroundTasks()
+        // Background task registration happens when services are loaded on-demand
         return true
-    }
-    
-    private func registerAllBackgroundTasks() {
-        // Register AudioPrefetchManager background tasks
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: "ai.bananaintelligence.DayStart.audio-prefetch", using: nil) { [weak self] task in
-            self?.handleAudioPrefetchTask(task: task as! BGProcessingTask)
-        }
-        
-        // Register SnapshotUpdateManager background tasks  
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: "ai.bananaintelligence.DayStart.snapshot-update", using: nil) { [weak self] task in
-            self?.handleSnapshotUpdateTask(task: task as! BGProcessingTask)
-        }
-        
-        print("✅ Background tasks registered during app launch")
-    }
-    
-    private func handleAudioPrefetchTask(task: BGProcessingTask) {
-        // Delegate to AudioPrefetchManager if it's loaded
-        let registry = ServiceRegistry.shared
-        if registry.loadedServices.contains("AudioPrefetchManager") {
-            registry.audioPrefetchManager.handleAudioPrefetch(task: task)
-        } else {
-            task.setTaskCompleted(success: false)
-        }
-    }
-    
-    private func handleSnapshotUpdateTask(task: BGProcessingTask) {
-        // Delegate to SnapshotUpdateManager if it's loaded
-        let registry = ServiceRegistry.shared
-        if registry.loadedServices.contains("SnapshotUpdateManager") {
-            registry.snapshotUpdateManager.handleBackgroundSnapshotUpdate(task: task)
-        } else {
-            task.setTaskCompleted(success: false)
-        }
     }
     
     func applicationWillEnterForeground(_ application: UIApplication) {

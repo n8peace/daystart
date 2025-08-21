@@ -182,7 +182,6 @@ struct OnboardingView: View {
                     voiceSelectionPage.tag(7)
                     finalPreviewPage.tag(8)
                     paywallPage.tag(9)
-                    authenticationPage.tag(10)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
@@ -1579,7 +1578,6 @@ struct OnboardingView: View {
         case 7: return "Voice Selection"
         case 8: return "Final Preview"
         case 9: return "Paywall"
-        case 10: return "Authentication"
         default: return "Unknown"
         }
     }
@@ -1604,10 +1602,8 @@ struct OnboardingView: View {
                 // CRITICAL: Start Welcome DayStart processing immediately after purchase
                 startWelcomeDayStartProcessing()
                 
-                // Move to authentication page
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                    currentPage = 10
-                }
+                // Complete onboarding directly after purchase
+                completeOnboarding()
             }
         }
     }
@@ -1865,22 +1861,6 @@ struct OnboardingView: View {
         }
     }
     
-    // MARK: - Page 11: Authentication (after paywall)
-    private var authenticationPage: some View {
-        AuthenticationView(onSkip: {
-            // User chose to skip authentication
-            logger.logUserAction("Authentication skipped in onboarding")
-            completeOnboarding()
-        })
-        .environmentObject(themeManager)
-        .onReceive(AuthManager.shared.$authState) { authState in
-            // Complete onboarding when user successfully signs in
-            if case .authenticated = authState {
-                logger.logUserAction("Authentication completed in onboarding")
-                completeOnboarding()
-            }
-        }
-    }
 }
 
 // MARK: - Supporting Views
