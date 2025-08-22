@@ -324,11 +324,22 @@ serve(async (req: Request): Promise<Response> => {
       return createResponse(false, 0, 0, 'Only POST method allowed', request_id);
     }
 
-    // Basic auth check (can be enhanced with proper API keys)
-    const authHeader = req.headers.get('x-worker-token');
-    const expectedToken = Deno.env.get('WORKER_AUTH_TOKEN');
+    // Basic auth check - accept either service role key or worker token
+    const authHeader = req.headers.get('authorization');
+    const workerTokenHeader = req.headers.get('x-worker-token');
+    const expectedWorkerToken = Deno.env.get('WORKER_AUTH_TOKEN');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!expectedToken || !authHeader || authHeader !== expectedToken) {
+    // Check if it's the worker token
+    if (workerTokenHeader && expectedWorkerToken && workerTokenHeader === expectedWorkerToken) {
+      // Valid worker token
+    } 
+    // Check if it's the service role key
+    else if (authHeader && supabaseServiceKey && authHeader === `Bearer ${supabaseServiceKey}`) {
+      // Valid service role key
+    }
+    // Otherwise unauthorized
+    else {
       return createResponse(false, 0, 0, 'Unauthorized', request_id);
     }
 
