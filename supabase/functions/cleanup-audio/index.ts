@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-worker-token',
 }
 
 interface CleanupResult {
@@ -26,16 +26,27 @@ serve(async (req) => {
   const request_id = crypto.randomUUID()
 
   try {
-    // Verify authorization
+    // Verify authorization - accept either service role key or worker token
     const authHeader = req.headers.get('authorization')
-    const expectedToken = Deno.env.get('WORKER_AUTH_TOKEN')
-    if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
+    const workerTokenHeader = req.headers.get('x-worker-token')
+    const expectedWorkerToken = Deno.env.get('WORKER_AUTH_TOKEN')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    // Check if it's the worker token
+    if (workerTokenHeader && expectedWorkerToken && workerTokenHeader === expectedWorkerToken) {
+      // Valid worker token
+    } 
+    // Check if it's the service role key
+    else if (authHeader && supabaseServiceKey && authHeader === `Bearer ${supabaseServiceKey}`) {
+      // Valid service role key
+    }
+    // Otherwise unauthorized
+    else {
       throw new Error('Unauthorized')
     }
 
     // Check if cleanup should run (prevents too frequent runs)
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {

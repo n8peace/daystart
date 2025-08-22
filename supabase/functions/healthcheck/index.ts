@@ -23,7 +23,7 @@ interface HealthReport {
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-worker-token',
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -39,9 +39,22 @@ serve(async (req: Request): Promise<Response> => {
       return json({ success: false, message: 'Only POST method allowed', request_id }, 405)
     }
 
+    // Verify authorization - accept either service role key or worker token
     const authHeader = req.headers.get('authorization')
-    const expectedToken = Deno.env.get('WORKER_AUTH_TOKEN')
-    if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
+    const workerTokenHeader = req.headers.get('x-worker-token')
+    const expectedWorkerToken = Deno.env.get('WORKER_AUTH_TOKEN')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    // Check if it's the worker token
+    if (workerTokenHeader && expectedWorkerToken && workerTokenHeader === expectedWorkerToken) {
+      // Valid worker token
+    } 
+    // Check if it's the service role key
+    else if (authHeader && supabaseServiceKey && authHeader === `Bearer ${supabaseServiceKey}`) {
+      // Valid service role key
+    }
+    // Otherwise unauthorized
+    else {
       return json({ success: false, message: 'Unauthorized', request_id }, 401)
     }
 

@@ -5,7 +5,7 @@ declare const Deno: any
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-worker-token',
 }
 
 interface ContentSource {
@@ -75,10 +75,22 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // Bearer auth guard
+  // Bearer auth guard - accept either service role key or worker token
   const authHeader = req.headers.get('authorization') || ''
-  const expected = Deno.env.get('WORKER_AUTH_TOKEN') || ''
-  if (!expected || !safeEq(authHeader, `Bearer ${expected}`)) {
+  const workerTokenHeader = req.headers.get('x-worker-token') || ''
+  const expectedWorkerToken = Deno.env.get('WORKER_AUTH_TOKEN') || ''
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+
+  // Check if it's the worker token
+  if (workerTokenHeader && expectedWorkerToken && safeEq(workerTokenHeader, expectedWorkerToken)) {
+    // Valid worker token
+  } 
+  // Check if it's the service role key
+  else if (authHeader && supabaseServiceKey && safeEq(authHeader, `Bearer ${supabaseServiceKey}`)) {
+    // Valid service role key
+  }
+  // Otherwise unauthorized
+  else {
     return new Response('Unauthorized', { status: 401, headers: corsHeaders })
   }
 
