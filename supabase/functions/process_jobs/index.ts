@@ -328,14 +328,7 @@ serve(async (req: Request): Promise<Response> => {
     const authHeader = req.headers.get('authorization');
     const expectedToken = Deno.env.get('WORKER_AUTH_TOKEN');
 
-    function safeEq(a: string = '', b: string = ''): boolean {
-      if (a.length !== b.length) return false;
-      let res = 0;
-      for (let i = 0; i < a.length; i++) res |= a.charCodeAt(i) ^ b.charCodeAt(i);
-      return res === 0;
-    }
-    
-    if (!authHeader || !safeEq(authHeader, `Bearer ${expectedToken}`)) {
+    if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
       return createResponse(false, 0, 0, 'Unauthorized', request_id);
     }
 
