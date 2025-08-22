@@ -27,9 +27,10 @@ serve(async (req) => {
 
   try {
     // Verify authorization
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing authorization header')
+    const authHeader = req.headers.get('authorization')
+    const expectedToken = Deno.env.get('WORKER_AUTH_TOKEN')
+    if (!authHeader || authHeader !== `Bearer ${expectedToken}`) {
+      throw new Error('Unauthorized')
     }
 
     // Check if cleanup should run (prevents too frequent runs)
