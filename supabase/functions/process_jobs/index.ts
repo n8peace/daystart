@@ -314,7 +314,7 @@ serve(async (req: Request): Promise<Response> => {
         status: 204,
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'x-worker-auth, x-client-info, content-type',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, content-type',
           'Access-Control-Allow-Methods': 'POST, OPTIONS'
         }
       });
@@ -324,11 +324,11 @@ serve(async (req: Request): Promise<Response> => {
       return createResponse(false, 0, 0, 'Only POST method allowed', request_id);
     }
 
-    // Basic auth check using custom header to avoid Supabase edge validation
-    const workerToken = req.headers.get('x-worker-auth');
+    // Basic auth check (can be enhanced with proper API keys)
+    const authHeader = req.headers.get('authorization');
     const expectedToken = Deno.env.get('WORKER_AUTH_TOKEN');
 
-    if (!expectedToken || !workerToken || workerToken !== expectedToken) {
+    if (!expectedToken || !authHeader || authHeader !== `Bearer ${expectedToken}`) {
       return createResponse(false, 0, 0, 'Unauthorized', request_id);
     }
 
