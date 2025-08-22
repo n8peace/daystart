@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { clientCorsHeaders } from "../_shared/cors.ts";
 
 interface UpdateJobsRequest {
   dates?: string[];
@@ -36,7 +37,7 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     if (req.method === 'OPTIONS') {
-      return new Response(null, { status: 200, headers: corsHeaders() });
+      return new Response(null, { status: 200, headers: clientCorsHeaders() });
     }
     if (req.method !== 'POST') {
       return errorResponse('METHOD_NOT_ALLOWED', 'Only POST method allowed', request_id);
@@ -100,7 +101,7 @@ serve(async (req: Request): Promise<Response> => {
       request_id
     };
 
-    return new Response(JSON.stringify(response), { status: 200, headers: corsHeaders() });
+    return new Response(JSON.stringify(response), { status: 200, headers: clientCorsHeaders() });
   } catch (e) {
     console.error('Unexpected error:', e);
     return errorResponse('INTERNAL_ERROR', 'Internal server error', request_id);
@@ -148,16 +149,9 @@ function errorResponse(code: string, message: string, request_id: string): Respo
     error_message: message,
     request_id
   };
-  return new Response(JSON.stringify(resp), { status: 200, headers: corsHeaders() });
+  return new Response(JSON.stringify(resp), { status: 200, headers: clientCorsHeaders() });
 }
 
-function corsHeaders() {
-  return {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, content-type'
-  };
-}
+// Removed duplicate clientCorsHeaders function - now using shared version
 
 

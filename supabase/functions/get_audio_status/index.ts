@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { clientCorsHeaders } from "../_shared/cors.ts";
 
 interface GetAudioStatusResponse {
   success: boolean;
@@ -24,9 +25,7 @@ serve(async (req: Request): Promise<Response> => {
       return new Response(null, {
         status: 200,
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, content-type',
+          ...clientCorsHeaders(),
         },
       });
     }

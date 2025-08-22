@@ -3,11 +3,22 @@
  * Centralized CORS configuration for all DayStart Edge Functions
  */
 
+// CORS headers for worker/system functions (cron jobs, healthcheck)
 export function corsHeaders(): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'authorization, content-type',
+    'Access-Control-Max-Age': '86400', // 24 hours
+  };
+}
+
+// CORS headers for client-facing functions (need x-client-info for user identification)
+export function clientCorsHeaders(): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, content-type',
     'Access-Control-Max-Age': '86400', // 24 hours
   };
 }

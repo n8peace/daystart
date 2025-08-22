@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { clientCorsHeaders } from "../_shared/cors.ts";
 
 interface UpdateJobSnapshotsRequest {
   job_ids: string[];
@@ -36,7 +37,7 @@ serve(async (req: Request): Promise<Response> => {
     if (req.method === 'OPTIONS') {
       return new Response(null, {
         status: 200,
-        headers: corsHeaders(),
+        headers: clientCorsHeaders(),
       });
     }
 
@@ -126,7 +127,7 @@ serve(async (req: Request): Promise<Response> => {
 
     return new Response(JSON.stringify(response), {
       status: 200,
-      headers: corsHeaders(),
+      headers: clientCorsHeaders(),
     });
 
   } catch (error) {
@@ -145,18 +146,11 @@ function createErrorResponse(errorCode: string, message: string, requestId: stri
 
   return new Response(JSON.stringify(response), {
     status: 200, // Always return 200 for consistency
-    headers: corsHeaders(),
+    headers: clientCorsHeaders(),
   });
 }
 
-function corsHeaders() {
-  return {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, content-type',
-  };
-}
+// Removed duplicate corsHeaders function - now using shared clientCorsHeaders()
 
 async function logRequest(supabase: any, logData: any) {
   try {
