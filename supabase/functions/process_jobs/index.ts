@@ -314,7 +314,7 @@ serve(async (req: Request): Promise<Response> => {
         status: 204,
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, content-type',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, content-type, x-worker-token',
           'Access-Control-Allow-Methods': 'POST, OPTIONS'
         }
       });
@@ -325,10 +325,10 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // Basic auth check (can be enhanced with proper API keys)
-    const authHeader = req.headers.get('authorization');
+    const authHeader = req.headers.get('x-worker-token');
     const expectedToken = Deno.env.get('WORKER_AUTH_TOKEN');
 
-    if (!expectedToken || !authHeader || authHeader !== `Bearer ${expectedToken}`) {
+    if (!expectedToken || !authHeader || authHeader !== expectedToken) {
       return createResponse(false, 0, 0, 'Unauthorized', request_id);
     }
 

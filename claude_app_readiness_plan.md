@@ -30,74 +30,279 @@ This document outlines the remaining compliance and technical items needed befor
 
 ---
 
-## 🔴 Phase 1: Critical Deployment Items (1-2 days)
+## ✅ Phase 1: Critical Deployment Items - COMPLETED
 
-### 1. Deploy Backend Fixes
-**Status:** Critical - Required for app functionality
-**Effort:** 30 minutes
+### 1. Deploy Backend Fixes ✅
+**Status:** COMPLETED
+**Time Taken:** ~90 minutes
 
-**Action Items:**
-- [ ] Apply migration `023_fix_rls_for_receipt_auth.sql` to production Supabase
-- [ ] Verify create_job and get_jobs work with x-client-info auth
-- [ ] Test purchase flow end-to-end with backend
+**Completed Items:**
+- ✅ Applied migration `023_fix_rls_for_receipt_auth.sql` to production Supabase
+- ✅ Verified create_job and get_jobs work with x-client-info auth
+- ✅ Tested purchase flow end-to-end with backend
+- ✅ No more 401 authentication errors
+- ✅ Receipt-based auth working in production
 
 ---
 
-## 🟡 Phase 2: App Store Compliance (~1 week)
+## 🔴 Phase 2: App Store Compliance (~1 week)
 
-### 2. App Store Product Configuration
+### 2. App Store Connect: Product Configuration
 **Status:** Required for production
 **Effort:** 2-3 hours
 
-**Action Items:**
-- [ ] Create products in App Store Connect:
-  - Monthly subscription: `ai.bananaintelligence.DayStart.monthly`
-  - Annual subscription: `ai.bananaintelligence.DayStart.annual`
-- [ ] Set pricing tiers (e.g., $4.99/month, $39.99/year)
-- [ ] Configure free trial periods if desired
-- [ ] Add subscription descriptions and screenshots
+**Detailed Steps:**
+
+#### A. Navigate to App Store Connect
+1. Go to [appstoreconnect.apple.com](https://appstoreconnect.apple.com)
+2. Select "My Apps" → "DayStart" (or create new app)
+3. Go to "Features" → "In-App Purchases"
+
+#### B. Create Subscription Products
+1. Click "Create" → "Auto-Renewable Subscription"
+2. **Monthly Product:**
+   - Product ID: `ai.bananaintelligence.DayStart.monthly`
+   - Reference Name: `DayStart Monthly`
+   - Subscription Group: Create "DayStart Premium"
+   - Pricing: $4.99/month (or your preferred tier)
+   - Free Trial: 7 days (recommended)
+
+3. **Annual Product:**
+   - Product ID: `ai.bananaintelligence.DayStart.annual` 
+   - Reference Name: `DayStart Annual`
+   - Subscription Group: "DayStart Premium"
+   - Pricing: $39.99/year (20% discount)
+   - Free Trial: 7 days
+
+#### C. Subscription Group Setup
+- Group Reference Name: "DayStart Premium"
+- Localizations: Add description for each supported language
+- Subscription Names and Descriptions:
+  - Monthly: "Get personalized morning audio briefings"
+  - Annual: "Get personalized morning audio briefings (20% savings)"
 
 ### 3. Privacy Manifest (PrivacyInfo.xcprivacy)
-**Status:** Required by Apple
+**Status:** Required by Apple (automatic rejection without this)
 **Effort:** 1 hour
 
-**Required Declarations:**
-- [ ] User defaults usage
-- [ ] File timestamp APIs
-- [ ] System boot time APIs (for audio scheduling)
+**File Location:** Add to main app bundle root
+
+**Required API Declarations:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <!-- UserDefaults usage -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string> <!-- App functionality -->
+            </array>
+        </dict>
+        <!-- File timestamps -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>C617.1</string> <!-- App functionality -->
+            </array>
+        </dict>
+        <!-- System boot time (for audio scheduling) -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>35F9.1</string> <!-- App functionality -->
+            </array>
+        </dict>
+    </array>
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array>
+        <!-- Location for weather -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeLocation</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>
+```
 
 ### 4. Legal Documents
-**Status:** Critical for App Store approval
+**Status:** Critical for App Store approval (automatic rejection without valid URLs)
 **Effort:** 2-3 hours
 
-**Required:**
-- [ ] Privacy Policy URL (must be hosted and accessible)
-- [ ] Terms of Service URL
-- [ ] Update Info.plist with URLs
+**Requirements:**
 
-### 5. App Store Metadata
+#### A. Privacy Policy (REQUIRED)
+- **Must be hosted** at publicly accessible URL
+- **Must be specific** to DayStart's functionality
+- **Required sections:**
+  - What data is collected (location, calendar events, usage analytics)
+  - How data is used (personalized audio generation)
+  - Data sharing (mention Supabase hosting)
+  - User rights (data deletion, access)
+  - StoreKit transaction data handling
+
+#### B. Terms of Service (REQUIRED)
+- **Must be hosted** at publicly accessible URL  
+- **Required sections:**
+  - Subscription terms and billing
+  - Content usage rights
+  - AI-generated content disclaimers
+  - Service availability
+  - Cancellation policy
+
+#### C. Update Info.plist
+```xml
+<key>NSHumanReadableCopyright</key>
+<string>© 2025 Banana Intelligence. All rights reserved.</string>
+<key>NSPrivacyPolicyURL</key>
+<string>https://yourdomain.com/privacy</string>
+<key>NSTermsOfServiceURL</key>
+<string>https://yourdomain.com/terms</string>
+```
+
+#### D. App Store Connect Legal Setup
+1. Go to "App Information" → "General Information"
+2. Add Privacy Policy URL
+3. Add Terms of Service URL (optional but recommended)
+4. Ensure copyright notice is current
+
+### 5. App Store Metadata & Assets
 **Status:** Required for submission
-**Effort:** 3-4 hours
-
-**Action Items:**
-- [ ] App description (4000 chars max)
-- [ ] Keywords (100 chars)
-- [ ] Screenshots (6.5", 5.5" required)
-- [ ] App preview video (optional but recommended)
-- [ ] Support URL
-- [ ] Marketing URL (optional)
-
-### 6. StoreKit Testing
-**Status:** Required for production confidence
 **Effort:** 4-6 hours
 
-**Action Items:**
-- [ ] Create sandbox test accounts
-- [ ] Test monthly subscription flow end-to-end
-- [ ] Test annual subscription flow
-- [ ] Verify restore purchases works
-- [ ] Test Family Sharing functionality
-- [ ] Test receipt validation in production environment
+#### A. App Store Connect → "App Store" Tab
+
+**App Information:**
+- Name: "DayStart" (must match CFBundleDisplayName)
+- Subtitle: "AI Morning Briefings" (30 chars max)
+- Category: Primary: "News", Secondary: "Productivity"
+
+**App Description (4000 characters max):**
+```
+Start every morning perfectly informed with DayStart's AI-generated audio briefings.
+
+Personalized for you:
+• Weather updates for your location
+• Today's top news stories
+• Your calendar events
+• Stock market updates
+• Daily inspiration quotes
+• Sports scores for your teams
+
+Key Features:
+✓ Hands-free audio briefings
+✓ Smart scheduling with alarms
+✓ Customizable content preferences
+✓ High-quality AI voice synthesis
+✓ Offline listening capability
+✓ Privacy-focused design
+
+Perfect for busy professionals, commuters, and anyone who wants to start their day informed without scrolling through apps.
+
+Premium subscription includes unlimited briefings, advanced customization, and priority processing.
+```
+
+**Keywords (100 characters max):**
+`morning,news,briefing,audio,ai,weather,calendar,productivity,alarm,voice`
+
+#### B. Screenshots (REQUIRED)
+**6.7" Display (iPhone 14 Pro Max):** 1290 × 2796 pixels
+**6.5" Display (iPhone XS Max):** 1242 × 2688 pixels  
+**5.5" Display (iPhone 8 Plus):** 1242 × 2208 pixels
+
+**Required Screenshots (minimum 3, maximum 10):**
+1. Main onboarding screen
+2. Content preferences setup
+3. Subscription screen
+4. Audio player with briefing
+5. Settings/customization screen
+
+#### C. App Preview Video (Recommended)
+- Duration: 15-30 seconds
+- Same sizes as screenshots
+- Show key user flow: setup → preferences → listening
+
+#### D. Additional Metadata
+- **Support URL:** Required (create simple support page)
+- **Marketing URL:** Optional
+- **Version Notes:** "Initial release with AI-powered morning briefings"
+- **Rating:** Choose appropriate age rating (likely 4+)
+- **Content Rights:** Declare use of third-party content (news, weather data)
+
+### 6. StoreKit Testing & TestFlight
+**Status:** Required for production confidence
+**Effort:** 6-8 hours
+
+#### A. Sandbox Testing Setup
+1. **App Store Connect → "Users and Access" → "Sandbox Testers"**
+   - Create 2-3 test Apple IDs
+   - Use different regions if targeting multiple markets
+   - Verify email addresses
+
+2. **Device Setup:**
+   - Sign out of production App Store on test device
+   - Sign in with sandbox account
+   - Ensure "Sandbox Environment" appears in Settings
+
+#### B. Subscription Testing Checklist
+- [ ] **Monthly subscription purchase**
+  - Complete purchase flow
+  - Verify receipt generated
+  - Confirm API calls succeed with receipt
+  - Test DayStart creation works
+
+- [ ] **Annual subscription purchase**
+  - Complete purchase flow
+  - Verify pricing discount shows correctly
+  - Test receipt validation
+
+- [ ] **Restore Purchases**
+  - Delete app, reinstall
+  - Tap "Restore Purchases"
+  - Verify subscription status restored
+
+- [ ] **Family Sharing** (if enabled)
+  - Test with family member account
+  - Verify shared subscription access
+
+- [ ] **Subscription Management**
+  - Test cancellation flow
+  - Verify grace period behavior
+  - Test resubscription
+
+#### C. TestFlight Distribution
+1. **Upload Build:**
+   - Archive app in Xcode
+   - Upload to App Store Connect
+   - Wait for processing (30-90 minutes)
+
+2. **Internal Testing:**
+   - Add internal testers
+   - Test on multiple devices/iOS versions
+   - Verify all functionality works
+
+3. **External Testing (Optional):**
+   - Submit for beta review (24-48 hours)
+   - Add external testers
+   - Gather feedback before submission
 
 ---
 
@@ -156,13 +361,15 @@ This document outlines the remaining compliance and technical items needed befor
 
 ## Next Steps
 
-1. **IMMEDIATE:** Deploy migration 023 to production Supabase
-2. **Day 1:** Test backend fixes work end-to-end
-3. **Day 2:** Configure products in App Store Connect
-4. **Day 3:** Add privacy manifest and legal documents
-5. **Day 4:** Prepare App Store metadata and screenshots
-6. **Day 5-7:** Comprehensive testing with TestFlight
-7. **Week 2:** Submit for review
+1. **COMPLETED:** ✅ Deploy migration 023 to production Supabase
+2. **COMPLETED:** ✅ Test backend fixes work end-to-end
+3. **Day 1:** Configure subscription products in App Store Connect
+4. **Day 2:** Create and add PrivacyInfo.xcprivacy manifest
+5. **Day 3:** Create and host legal documents (privacy policy, terms)
+6. **Day 4:** Prepare App Store metadata, description, and screenshots
+7. **Day 5:** Upload TestFlight build and begin sandbox testing
+8. **Day 6-7:** Complete comprehensive StoreKit testing
+9. **Week 2:** Submit for App Store review
 
 ---
 
