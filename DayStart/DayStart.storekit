@@ -1,0 +1,134 @@
+{
+  "identifier" : "DayStart",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "0",
+    "_developerTeamID" : "0",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21526490",
+      "localizations" : [
+
+      ],
+      "name" : "DayStart Premium",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6740144074",
+          "introductoryOffer" : {
+            "internalID" : "6740144075",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
+          "localizations" : [
+            {
+              "description" : "Get unlimited personalized morning briefings",
+              "displayName" : "DayStart Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "daystart_monthly_subscription",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "DayStart Monthly",
+          "subscriptionGroupID" : "21526490",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "39.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6740144076",
+          "introductoryOffer" : {
+            "internalID" : "6740144077",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P7D"
+          },
+          "localizations" : [
+            {
+              "description" : "Get unlimited personalized morning briefings (Save 33%)",
+              "displayName" : "DayStart Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "daystart_annual_subscription",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "DayStart Annual",
+          "subscriptionGroupID" : "21526490",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

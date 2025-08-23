@@ -45,103 +45,33 @@ This document outlines the remaining compliance and technical items needed befor
 
 ---
 
-## 🔴 Phase 2: App Store Compliance (~1 week)
+## 🟡 Phase 2: App Store Compliance (In Progress)
 
-### 2. App Store Connect: Product Configuration
-**Status:** Required for production
-**Effort:** 2-3 hours
+### 2. App Store Connect: Product Configuration ✅
+**Status:** COMPLETED
+**Time Taken:** ~2 hours
 
-**Detailed Steps:**
+**Completed Items:**
+- ✅ App record created in App Store Connect
+- ✅ App icon (1024x1024) uploaded
+- ✅ In-App Purchase products created with new IDs:
+  - Monthly: `daystart_monthly_subscription` ($4.99, 3-day trial)
+  - Annual: `daystart_annual_subscription` ($39.99, 7-day trial)
+- ✅ Subscription Group "DayStart Premium" configured
+- ✅ StoreKit configuration file created and added to Xcode
+- ✅ StoreKit testing enabled in Xcode scheme
 
-#### A. Navigate to App Store Connect
-1. Go to [appstoreconnect.apple.com](https://appstoreconnect.apple.com)
-2. Select "My Apps" → "DayStart" (or create new app)
-3. Go to "Features" → "In-App Purchases"
+### 3. Privacy Manifest (PrivacyInfo.xcprivacy) ✅
+**Status:** COMPLETED
+**Time Taken:** ~15 minutes
 
-#### B. Create Subscription Products
-1. Click "Create" → "Auto-Renewable Subscription"
-2. **Monthly Product:**
-   - Product ID: `ai.bananaintelligence.DayStart.monthly`
-   - Reference Name: `DayStart Monthly`
-   - Subscription Group: Create "DayStart Premium"
-   - Pricing: $4.99/month (or your preferred tier)
-   - Free Trial: 7 days (recommended)
-
-3. **Annual Product:**
-   - Product ID: `ai.bananaintelligence.DayStart.annual` 
-   - Reference Name: `DayStart Annual`
-   - Subscription Group: "DayStart Premium"
-   - Pricing: $39.99/year (20% discount)
-   - Free Trial: 7 days
-
-#### C. Subscription Group Setup
-- Group Reference Name: "DayStart Premium"
-- Localizations: Add description for each supported language
-- Subscription Names and Descriptions:
-  - Monthly: "Get personalized morning audio briefings"
-  - Annual: "Get personalized morning audio briefings (20% savings)"
-
-### 3. Privacy Manifest (PrivacyInfo.xcprivacy)
-**Status:** Required by Apple (automatic rejection without this)
-**Effort:** 1 hour
-
-**File Location:** Add to main app bundle root
-
-**Required API Declarations:**
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>NSPrivacyAccessedAPITypes</key>
-    <array>
-        <!-- UserDefaults usage -->
-        <dict>
-            <key>NSPrivacyAccessedAPIType</key>
-            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
-            <key>NSPrivacyAccessedAPITypeReasons</key>
-            <array>
-                <string>CA92.1</string> <!-- App functionality -->
-            </array>
-        </dict>
-        <!-- File timestamps -->
-        <dict>
-            <key>NSPrivacyAccessedAPIType</key>
-            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
-            <key>NSPrivacyAccessedAPITypeReasons</key>
-            <array>
-                <string>C617.1</string> <!-- App functionality -->
-            </array>
-        </dict>
-        <!-- System boot time (for audio scheduling) -->
-        <dict>
-            <key>NSPrivacyAccessedAPIType</key>
-            <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
-            <key>NSPrivacyAccessedAPITypeReasons</key>
-            <array>
-                <string>35F9.1</string> <!-- App functionality -->
-            </array>
-        </dict>
-    </array>
-    <key>NSPrivacyCollectedDataTypes</key>
-    <array>
-        <!-- Location for weather -->
-        <dict>
-            <key>NSPrivacyCollectedDataType</key>
-            <string>NSPrivacyCollectedDataTypeLocation</string>
-            <key>NSPrivacyCollectedDataTypeLinked</key>
-            <false/>
-            <key>NSPrivacyCollectedDataTypeTracking</key>
-            <false/>
-            <key>NSPrivacyCollectedDataTypePurposes</key>
-            <array>
-                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-            </array>
-        </dict>
-    </array>
-</dict>
-</plist>
-```
+**Completed Items:**
+- ✅ Created PrivacyInfo.xcprivacy file at project root
+- ✅ Declared required API usages:
+  - UserDefaults (CA92.1)
+  - File timestamps (C617.1)
+- ✅ Declared data collection:
+  - Audio data for app functionality (no tracking)
 
 ### 4. Legal Documents
 **Status:** Critical for App Store approval (automatic rejection without valid URLs)
@@ -330,7 +260,11 @@ Premium subscription includes unlimited briefings, advanced customization, and p
 - [x] Backend auth issues resolved (create_job, get_jobs fixed)
 - [x] CORS headers include x-client-info
 - [x] RLS policies support receipt-based auth
-- [ ] Deploy migration 023 to production
+- [x] Deploy migration 023 to production
+- [x] App record created in App Store Connect
+- [x] In-App Purchase products configured
+- [x] Privacy manifest (PrivacyInfo.xcprivacy) created
+- [x] StoreKit configuration added to Xcode
 - [ ] Test purchase flow with sandbox account
 - [ ] Verify receipt validation works
 - [ ] Test restore purchases
@@ -363,13 +297,16 @@ Premium subscription includes unlimited briefings, advanced customization, and p
 
 1. **COMPLETED:** ✅ Deploy migration 023 to production Supabase
 2. **COMPLETED:** ✅ Test backend fixes work end-to-end
-3. **Day 1:** Configure subscription products in App Store Connect
-4. **Day 2:** Create and add PrivacyInfo.xcprivacy manifest
-5. **Day 3:** Create and host legal documents (privacy policy, terms)
-6. **Day 4:** Prepare App Store metadata, description, and screenshots
-7. **Day 5:** Upload TestFlight build and begin sandbox testing
-8. **Day 6-7:** Complete comprehensive StoreKit testing
-9. **Week 2:** Submit for App Store review
+3. **COMPLETED:** ✅ Configure subscription products in App Store Connect
+4. **COMPLETED:** ✅ Create and add PrivacyInfo.xcprivacy manifest
+5. **COMPLETED:** ✅ Add StoreKit configuration to Xcode
+6. **TODAY:** Test In-App Purchases in sandbox environment
+7. **Day 1:** Create and host legal documents (privacy policy, terms)
+8. **Day 2:** Prepare App Store screenshots (iPhone & iPad sizes)
+9. **Day 3:** Prepare App Store metadata and description
+10. **Day 4:** Upload TestFlight build and begin testing
+11. **Day 5-6:** Complete comprehensive StoreKit testing
+12. **Week 2:** Submit for App Store review
 
 ---
 

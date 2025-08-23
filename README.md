@@ -4,6 +4,14 @@ A personalized, AI-powered iOS morning briefing app that combines your local wea
 
 Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speech.
 
+## 🚀 App Store Readiness Status
+
+**Current Status**: Ready for TestFlight testing
+- ✅ Backend deployed and tested in production
+- ✅ App Store Connect configured with products
+- ✅ Privacy manifest and StoreKit integration complete
+- 🔄 Pending: Screenshots, legal documents, and final testing
+
 ## Table of Contents
 - [Features](#features)
 - [Requirements](#requirements)
@@ -46,6 +54,8 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 - **Haptic Feedback**: Contextual haptic responses throughout the app
 - **Local Notifications**: Reminder and ready notifications
 - **Portrait-Only Design**: Optimized for morning routine usage
+- **StoreKit 2 Integration**: Modern subscription handling with receipt-based auth
+- **Privacy Manifest**: Full compliance with Apple's privacy requirements
 
 ### ✅ Backend Infrastructure
 - **Supabase Integration**: Production-ready backend with PostgreSQL
@@ -171,6 +181,13 @@ DayStart/
 
 4. **Update bundle identifier** and development team in project settings
 
+5. **Configure StoreKit**:
+   - The project includes `DayStart.storekit` configuration file
+   - Enable StoreKit testing in scheme: Edit Scheme → Run → Options → StoreKit Configuration
+   - Products configured:
+     - `daystart_monthly_subscription` ($4.99/month, 3-day trial)
+     - `daystart_annual_subscription` ($39.99/year, 7-day trial)
+
 ### 2. Supabase Backend Setup
 
 1. **Create Supabase project**:
@@ -264,9 +281,24 @@ SPORTS_API_KEY=your-sports-api-key (optional)
 
 ### iOS App Store Preparation
 
-1. **Build and archive** in Xcode
-2. **Upload to App Store Connect**
-3. **Submit for review** with required app metadata
+1. **App Store Connect Setup**:
+   - ✅ App record created
+   - ✅ App icon (1024x1024) uploaded
+   - ✅ In-App Purchase products configured
+   - ✅ Privacy manifest (PrivacyInfo.xcprivacy) included
+   - ✅ StoreKit configuration ready for testing
+
+2. **Required Assets**:
+   - [ ] App screenshots (iPhone 6.7" and 6.5" required)
+   - [ ] App Store description and keywords
+   - [ ] Privacy Policy URL
+   - [ ] Terms of Service URL
+
+3. **Build and Submit**:
+   - Build and archive in Xcode
+   - Upload to App Store Connect via Xcode
+   - Test with TestFlight
+   - Submit for App Store review
 
 ## Usage
 
