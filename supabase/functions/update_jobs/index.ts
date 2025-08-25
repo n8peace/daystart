@@ -21,12 +21,18 @@ interface UpdateJobsRequest {
     timezone?: string;
   };
   force_requeue?: boolean;
+  cancel_for_removed_dates?: string[]; // NEW: dates to cancel jobs for due to schedule changes
+  reactivate_for_added_dates?: string[]; // NEW: dates to reactivate cancelled jobs for
 }
 
 interface UpdateJobsResponse {
   success: boolean;
   updated_count?: number;
+  cancelled_count?: number; // NEW: number of jobs cancelled
+  reactivated_count?: number; // NEW: number of jobs reactivated
   affected_jobs?: Array<{ job_id: string; local_date: string; status: string }>;
+  cancelled_jobs?: Array<{ job_id: string; local_date: string; status: string }>; // NEW: cancelled jobs list
+  reactivated_jobs?: Array<{ job_id: string; local_date: string; status: string }>; // NEW: reactivated jobs list
   error_code?: string;
   error_message?: string;
   request_id: string;
@@ -94,10 +100,69 @@ serve(async (req: Request): Promise<Response> => {
       return errorResponse('DATABASE_ERROR', 'Failed to update jobs', request_id);
     }
 
+    // Handle job cancellation for removed schedule dates
+    let cancelled: any[] = [];
+    if (Array.isArray(body.cancel_for_removed_dates) && body.cancel_for_removed_dates.length > 0) {
+      const cancelPayload = {
+        status: 'cancelled',
+        error_code: 'SCHEDULE_CHANGED',
+        error_message: 'Job cancelled due to schedule change',
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: cancelledJobs, error: cancelError } = await supabase
+        .from('jobs')
+        .update(cancelPayload)
+        .eq('user_id', user_id)
+        .in('local_date', body.cancel_for_removed_dates)
+        .in('status', ['queued', 'failed']) // Only cancel pending jobs (not processing/ready)
+        .select('job_id, local_date, status');
+
+      if (cancelError) {
+        console.error('Cancel jobs error:', cancelError);
+        return errorResponse('DATABASE_ERROR', 'Failed to cancel jobs', request_id);
+      }
+      
+      cancelled = cancelledJobs || [];
+      console.log(`Cancelled ${cancelled.length} jobs for removed dates: ${body.cancel_for_removed_dates.join(', ')}`);
+    }
+
+    // Handle job reactivation for newly added schedule dates
+    let reactivated: any[] = [];
+    if (Array.isArray(body.reactivate_for_added_dates) && body.reactivate_for_added_dates.length > 0) {
+      const reactivatePayload = {
+        status: 'queued',
+        error_code: null,
+        error_message: null,
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: reactivatedJobs, error: reactivateError } = await supabase
+        .from('jobs')
+        .update(reactivatePayload)
+        .eq('user_id', user_id)
+        .in('local_date', body.reactivate_for_added_dates)
+        .eq('status', 'cancelled')
+        .eq('error_code', 'SCHEDULE_CHANGED') // Only reactivate schedule-cancelled jobs
+        .select('job_id, local_date, status');
+
+      if (reactivateError) {
+        console.error('Reactivate jobs error:', reactivateError);
+        return errorResponse('DATABASE_ERROR', 'Failed to reactivate jobs', request_id);
+      }
+      
+      reactivated = reactivatedJobs || [];
+      console.log(`Reactivated ${reactivated.length} jobs for added dates: ${body.reactivate_for_added_dates.join(', ')}`);
+    }
+
     const response: UpdateJobsResponse = {
       success: true,
       updated_count: updated?.length ?? 0,
+      cancelled_count: cancelled.length,
+      reactivated_count: reactivated.length,
       affected_jobs: (updated || []).map(r => ({ job_id: r.job_id, local_date: r.local_date, status: r.status })),
+      cancelled_jobs: cancelled.map(r => ({ job_id: r.job_id, local_date: r.local_date, status: r.status })),
+      reactivated_jobs: reactivated.map(r => ({ job_id: r.job_id, local_date: r.local_date, status: r.status })),
       request_id
     };
 

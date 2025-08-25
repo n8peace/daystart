@@ -203,11 +203,13 @@ class SupabaseClient {
     func updateJobs(
         dates: [Date],
         with settings: UserSettings,
+        cancelDates: [Date] = [],
+        reactivateDates: [Date] = [],
         forceRequeue: Bool = false
     ) async throws -> UpdateJobsResult {
         let url = functionsURL.appendingPathComponent("update_jobs")
 
-        logger.log("📤 Supabase API: POST update_jobs", level: .info)
+        logger.log("📤 Supabase API: POST update_jobs (update: \(dates.count), cancel: \(cancelDates.count), reactivate: \(reactivateDates.count))", level: .info)
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
 
         var request = createRequest(for: url, method: "POST")
@@ -217,6 +219,8 @@ class SupabaseClient {
         formatter.timeZone = TimeZone.current
 
         let dateStrings = dates.map { formatter.string(from: $0) }
+        let cancelDateStrings = cancelDates.isEmpty ? nil : cancelDates.map { formatter.string(from: $0) }
+        let reactivateDateStrings = reactivateDates.isEmpty ? nil : reactivateDates.map { formatter.string(from: $0) }
 
         let payload = UpdateJobsRequest(
             dates: dateStrings,
@@ -236,7 +240,9 @@ class SupabaseClient {
                 daystart_length: settings.dayStartLength * 60, // Convert minutes to seconds
                 timezone: TimeZone.current.identifier
             ),
-            force_requeue: forceRequeue
+            force_requeue: forceRequeue,
+            cancel_for_removed_dates: cancelDateStrings,
+            reactivate_for_added_dates: reactivateDateStrings
         )
 
         let jsonData = try JSONEncoder().encode(payload)
@@ -269,7 +275,7 @@ class SupabaseClient {
         if !resp.success {
             throw SupabaseError.apiError(resp.error_code, resp.error_message ?? "Unknown error")
         }
-        return UpdateJobsResult(success: true, updatedCount: resp.updated_count ?? 0)
+        return UpdateJobsResult(success: true, updatedCount: resp.updated_count ?? 0, cancelledCount: resp.cancelled_count ?? 0, reactivatedCount: resp.reactivated_count ?? 0)
     }
     
     // MARK: - Snapshot Update API
@@ -520,6 +526,8 @@ private struct UpdateJobsRequest: Codable {
     let statuses: [String]?
     let settings: UpdateSettings?
     let force_requeue: Bool?
+    let cancel_for_removed_dates: [String]?
+    let reactivate_for_added_dates: [String]?
 }
 
 private struct DateRangeFilter: Codable {
@@ -545,6 +553,8 @@ private struct UpdateSettings: Codable {
 private struct UpdateJobsAPIResponse: Codable {
     let success: Bool
     let updated_count: Int?
+    let cancelled_count: Int?
+    let reactivated_count: Int?
     let error_code: String?
     let error_message: String?
     let request_id: String?
@@ -553,6 +563,8 @@ private struct UpdateJobsAPIResponse: Codable {
 struct UpdateJobsResult {
     let success: Bool
     let updatedCount: Int
+    let cancelledCount: Int
+    let reactivatedCount: Int
 }
 
 // MARK: - Snapshot Update API Models

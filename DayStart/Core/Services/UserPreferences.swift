@@ -23,6 +23,8 @@ class UserPreferences: ObservableObject {
     @Published var schedule: DayStartSchedule {
         didSet {
             saveSchedule()
+            // Handle schedule changes in background
+            handleScheduleChange()
         }
     }
     
@@ -212,6 +214,14 @@ class UserPreferences: ObservableObject {
         }
     }
     
+    /// Handle schedule changes to update/cancel jobs when days are added/removed
+    private func handleScheduleChange() {
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+            await self.updateJobsForScheduleChange()
+        }
+    }
+    
     func saveSettings() {
         let settingsToSave = settings
         
@@ -237,6 +247,77 @@ class UserPreferences: ObservableObject {
         }
     }
     
+    /// Update upcoming jobs for schedule changes (add/remove days)
+    private func updateJobsForScheduleChange() async {
+        do {
+            let supabaseClient = ServiceRegistry.shared.supabaseClient
+            let settings = await MainActor.run { self.settings }
+            let currentSchedule = await MainActor.run { self.schedule }
+            
+            // Get the next 3 days to check for schedule changes
+            let calendar = Calendar.current
+            let now = Date()
+            let threeDaysFromNow = calendar.date(byAdding: .day, value: 3, to: now) ?? now
+            
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            formatter.timeZone = TimeZone.current
+            
+            let startDate = formatter.string(from: now)
+            let endDate = formatter.string(from: threeDaysFromNow)
+            
+            // Get existing jobs from backend
+            let existingJobs = try await supabaseClient.getJobsInDateRange(startDate: startDate, endDate: endDate)
+            
+            // Calculate dates that should be scheduled based on current schedule
+            let shouldBeScheduledDates = await MainActor.run { self.upcomingScheduledDates(windowHours: 72) }
+            
+            // Find dates that have jobs but shouldn't be scheduled anymore (to cancel)
+            let datesToCancel: [Date] = existingJobs.compactMap { job in
+                guard let jobDate = formatter.date(from: job.localDate) else { return nil }
+                let jobShouldExist = shouldBeScheduledDates.contains { scheduledDate in
+                    calendar.isDate(jobDate, inSameDayAs: scheduledDate)
+                }
+                return jobShouldExist ? nil : jobDate
+            }
+            
+            // Find dates that should be scheduled but might have cancelled jobs (to reactivate)
+            let datesToReactivate: [Date] = shouldBeScheduledDates.compactMap { scheduledDate in
+                // Check if we have any existing jobs (including cancelled ones) for this date
+                let hasExistingJob = existingJobs.contains { job in
+                    guard let jobDate = formatter.date(from: job.localDate) else { return false }
+                    return calendar.isDate(jobDate, inSameDayAs: scheduledDate)
+                }
+                // If we should schedule this date but have no existing job, it might be a newly cancelled job to reactivate
+                return hasExistingJob ? scheduledDate : nil
+            }
+            
+            // Update jobs with current settings, cancel removed dates, and reactivate added dates
+            if !shouldBeScheduledDates.isEmpty || !datesToCancel.isEmpty || !datesToReactivate.isEmpty {
+                let result = try await supabaseClient.updateJobs(
+                    dates: shouldBeScheduledDates, 
+                    with: settings, 
+                    cancelDates: datesToCancel,
+                    reactivateDates: datesToReactivate
+                )
+                
+                await MainActor.run {
+                    logger.log("✅ Schedule change: Updated \(result.updatedCount) jobs, cancelled \(result.cancelledCount) jobs, reactivated \(result.reactivatedCount) jobs", level: .info)
+                }
+                
+                // Trigger snapshot update if there are still scheduled jobs
+                if !shouldBeScheduledDates.isEmpty {
+                    await triggerSnapshotUpdateForPreferenceChange()
+                }
+            }
+            
+        } catch {
+            await MainActor.run {
+                logger.logError(error, context: "Failed to update jobs for schedule change")
+            }
+        }
+    }
+    
     /// Update upcoming jobs only when content generation services are needed
     private func updateUpcomingJobsIfNeeded(with settings: UserSettings) async {
         let upcomingDates = await MainActor.run { self.upcomingScheduledDates(windowHours: 48) }
@@ -245,9 +326,9 @@ class UserPreferences: ObservableObject {
         do {
             // LAZY: Only load SupabaseClient when actually updating jobs
             let supabaseClient = ServiceRegistry.shared.supabaseClient
-            _ = try await supabaseClient.updateJobs(dates: upcomingDates, with: settings, forceRequeue: false)
+            let result = try await supabaseClient.updateJobs(dates: upcomingDates, with: settings)
             await MainActor.run {
-                logger.log("✅ Updated \(upcomingDates.count) scheduled jobs with new settings", level: .info)
+                logger.log("✅ Updated \(result.updatedCount) scheduled jobs with new settings", level: .info)
             }
             
             // Trigger immediate snapshot update for preference changes (bypasses rate limiting)
