@@ -1078,7 +1078,7 @@ class HomeViewModel: ObservableObject {
                 logger.log("🔄 Creating job for \(scheduledTime) - status: \(audioStatus.status)", level: .info)
                 
                 // Load snapshot builder to get current data
-                let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot()
+                let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot(for: scheduledTime)
                 
                 let jobResponse = try await supabaseClient.createJob(
                     for: scheduledTime,
@@ -1135,7 +1135,7 @@ class HomeViewModel: ObservableObject {
                 logger.log("🔄 Creating welcome job - status: \(audioStatus.status)", level: .info)
                 
                 // Load snapshot builder to get current data
-                let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot()
+                let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot(for: currentDate)
                 
                 let jobResponse = try await supabaseClient.createJob(
                     for: currentDate,
@@ -1223,6 +1223,13 @@ class HomeViewModel: ObservableObject {
               userPreferences.schedule.repeatDays.contains(weekDay) else { return nil }
         
         return todayScheduledTime
+    }
+    
+    func isDayStartScheduled(for date: Date) -> Bool {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: date)
+        guard let weekDay = WeekDay(weekday: weekday) else { return false }
+        return userPreferences.schedule.repeatDays.contains(weekDay)
     }
     
     func startDayStart() {
@@ -1476,6 +1483,11 @@ class HomeViewModel: ObservableObject {
         welcomeDayStart.id = UUID()
         welcomeDayStart.scheduledTime = Date()
         
+        // Add to history immediately with placeholder (like regular DayStart)
+        currentDayStart = welcomeDayStart
+        userPreferences.addToHistory(welcomeDayStart)
+        let welcomeDayStartId = welcomeDayStart.id
+        
         do {
             // LAZY: SupabaseClient already loaded from previous call
             let audioStatus = try await serviceRegistry.supabaseClient.getAudioStatus(for: Date())
@@ -1484,17 +1496,38 @@ class HomeViewModel: ObservableObject {
                 // Update transcript from audio status if available
                 if let transcript = audioStatus.transcript, !transcript.isEmpty {
                     welcomeDayStart.transcript = transcript
+                    currentDayStart?.transcript = transcript
                 }
                 
                 // Update duration from audio status if available
                 if let duration = audioStatus.duration {
                     welcomeDayStart.duration = TimeInterval(duration)
+                    currentDayStart?.duration = TimeInterval(duration)
                 }
                 
-                currentDayStart = welcomeDayStart
-                userPreferences.addToHistory(welcomeDayStart)
+                // Update history with transcript and duration (like regular DayStart)
+                userPreferences.updateHistory(
+                    with: welcomeDayStartId,
+                    transcript: audioStatus.transcript,
+                    duration: audioStatus.duration.map { TimeInterval($0) }
+                )
                 
                 await streamAudio(from: audioUrl)
+                
+                // Background download (like regular DayStart)
+                Task.detached {
+                    let audioDownloader = await MainActor.run { ServiceRegistry.shared.audioDownloader }
+                    let success = await audioDownloader.download(from: audioUrl, for: Date())
+                    if success {
+                        await MainActor.run {
+                            let audioPath = ServiceRegistry.shared.audioCache.getAudioPath(for: Date())
+                            UserPreferences.shared.updateHistory(
+                                with: welcomeDayStartId,
+                                audioFilePath: audioPath.path
+                            )
+                        }
+                    }
+                }
             } else {
                 await MainActor.run {
                     connectionError = .supabaseError

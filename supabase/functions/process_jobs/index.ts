@@ -31,7 +31,7 @@ function getStoryLimits(seconds: number): { news: number; sports: number; stocks
     return { news: 3, sports: 1, stocks: 2 };
   } else {
     // 5+ minutes: comprehensive coverage
-    return { news: 4, sports: 2, stocks: 2 };
+    return { news: 6, sports: 2, stocks: 3 };
   }
 }
 
@@ -105,10 +105,10 @@ function sectionBudget(seconds: number, include: { weather: boolean; calendar: b
     ['greeting',  40],
     ['weather',   include.weather ? 120 : 0],
     ['calendar',  include.calendar ? 120 : 0],
-    ['news',      include.news ? 340 : 0],
+    ['news',      include.news ? 500 : 0],
     ['sports',    include.sports ? 90 : 0],
     ['stocks',    include.stocks ? 80 : 0],
-    ['quote',     include.quotes ? 80 : 0],
+    ['quote',     include.quotes ? 150 : 0],
     ['close',     40],
   ];
   const total = base.reduce((sum, [, w]) => sum + w, 0) || 1;
@@ -839,8 +839,8 @@ async function adjustToTargetBand(text: string, band: { min: number; max: number
   const instruction = `
 You previously wrote a morning TTS script. ${direction.toUpperCase()} it by ${requested} words (±15 words).
 - Keep exactly the same facts; do NOT add names/teams not in JSON.
-- If expanding: add one concrete detail in weather, the first news item, and calendar (if present).
-- If tightening: remove the least important detail from stocks or the last news item.
+- If expanding: prioritize news and quotes first - add deeper context to the top news stories, then enrich the quote with brief reflection, then add details to weather and calendar.
+- If tightening: remove the least important detail from stocks first, then trim the last news item, avoiding cuts to quotes.
 - Preserve the pausing style (—, …, blank lines) and tone.
 Return ONLY the revised script.
 DATA YOU CAN USE (JSON):
@@ -1154,7 +1154,7 @@ LENGTH & PACING
   - If the draft is shorter than ${lowerBound}, expand by adding one concrete, relevant detail in the highest-priority sections (weather, calendar, top news) until within range. If longer than ${upperBound}, tighten by removing the least important detail. No filler.
 
 CONTENT PRIORITIZATION
-  - News: Use up to ${storyLimits.news} stories. Choose by local relevance using user.location when available; otherwise pick the most significant stories.
+  - News: Use up to ${storyLimits.news} stories. Choose by local relevance using user.location when available; otherwise pick the most significant stories. For longer scripts, include deeper context and background for major stories.
 - Sports: ${storyLimits.sports} update(s) max. Only mention teams/matchups present in the sports data for today. If off-season or no fixtures, skip gracefully.
 - Stocks: ${storyLimits.stocks} market point(s) max. Prioritize user's focus symbols if provided.
  - Weather: If present, include high/low temperatures (from highTemperatureF/lowTemperatureF), precipitation chance (from precipitationChance), and current conditions. Spell out all temperatures and percentages in words for TTS.
@@ -1169,7 +1169,7 @@ FACT RULES
  - When choosing news, prefer items that mention the user's neighborhood/city/county/adjacent areas; next, state-level; then national; then international. If user.location.neighborhood exists, use it for hyper-local references (e.g., "Mar Vista" instead of just "Los Angeles").
  - Use 1–2 transitions, choosing from data.transitions.
  - Stocks: Lead with focusSymbols (if present) in one sentence. Add one broader market line only if space allows. Always use company names (Apple, Tesla, etc.) not tickers. Format prices without cents (e.g., "one hundred fifty dollars" not "one hundred fifty dollars and twenty-five cents") and round percentages to nearest tenth (e.g., "up two point three percent" not "up two point three four percent").
- - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style.
+ - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style. For longer scripts, add more context or a brief reflection to enrich the quote section.
 
 CONTENT ORDER (adapt if sections are missing)
 1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a three-second pause using EXACTLY "… <break time="3s"/>" on its own line (note the closing />).

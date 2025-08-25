@@ -73,7 +73,7 @@ struct EditScheduleView: View {
         // Compare schedule fields
         let timeChanged = selectedTime != userPreferences.schedule.time
         let daysChanged = selectedDays != userPreferences.schedule.repeatDays
-        let skipTomorrowChanged = skipTomorrow != userPreferences.schedule.skipTomorrow
+        // let skipTomorrowChanged = skipTomorrow != userPreferences.schedule.skipTomorrow // Skip tomorrow disabled
         
         // Compare settings fields
         let nameChanged = preferredName != userPreferences.settings.preferredName
@@ -97,7 +97,7 @@ struct EditScheduleView: View {
         
         return timeChanged
             || daysChanged
-            || skipTomorrowChanged
+            // || skipTomorrowChanged // Skip tomorrow disabled
             || nameChanged
             || weatherChanged
             || newsChanged
@@ -118,7 +118,7 @@ struct EditScheduleView: View {
         let prefs = UserPreferences.shared
         _selectedTime = State(initialValue: prefs.schedule.time)
         _selectedDays = State(initialValue: prefs.schedule.repeatDays)
-        _skipTomorrow = State(initialValue: prefs.schedule.skipTomorrow)
+        _skipTomorrow = State(initialValue: false) // Always false - skip tomorrow feature disabled
         _preferredName = State(initialValue: prefs.settings.preferredName)
         _includeWeather = State(initialValue: prefs.settings.includeWeather)
         _includeNews = State(initialValue: prefs.settings.includeNews)
@@ -309,13 +309,13 @@ struct EditScheduleView: View {
             .disabled(isLocked || selectedDays.isEmpty)
             .opacity(selectedDays.isEmpty ? 0.6 : 1.0)
             
-            Toggle("Tomorrow's DayStart", isOn: Binding(
-                get: { !skipTomorrow },
-                set: { skipTomorrow = !$0 }
-            ))
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked || selectedDays.isEmpty || !isTomorrowInSchedule)
-                .opacity(selectedDays.isEmpty || !isTomorrowInSchedule ? 0.6 : 1.0)
+            // Toggle("Tomorrow's DayStart", isOn: Binding(
+            //     get: { !skipTomorrow },
+            //     set: { skipTomorrow = !$0 }
+            // ))
+            //     .tint(BananaTheme.ColorToken.primary)
+            //     .disabled(isLocked || selectedDays.isEmpty || !isTomorrowInSchedule)
+            //     .opacity(selectedDays.isEmpty || !isTomorrowInSchedule ? 0.6 : 1.0)
             
             if !selectedDays.isEmpty, let nextTime = previewNextOccurrence {
                 HStack {
@@ -418,6 +418,7 @@ struct EditScheduleView: View {
                 .accentColor(BananaTheme.ColorToken.primary)
             }
             
+            #if DEBUG
             Button(action: {
                 showResetConfirmation = true
             }) {
@@ -428,7 +429,9 @@ struct EditScheduleView: View {
                         .foregroundColor(.red)
                 }
             }
+            #endif
         }
+        #if DEBUG
         .alert("Reset Onboarding?", isPresented: $showResetConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Reset", role: .destructive) {
@@ -437,8 +440,10 @@ struct EditScheduleView: View {
         } message: {
             Text("This will clear all your settings and show the onboarding flow again.")
         }
+        #endif
     }
     
+    #if DEBUG
     private func resetOnboarding() {
         // Clear all user preferences
         userPreferences.hasCompletedOnboarding = false
@@ -455,6 +460,7 @@ struct EditScheduleView: View {
             presentationMode.wrappedValue.dismiss()
         }
     }
+    #endif
     
     private func getEnabledFeaturesCount() -> Int {
         var count = 0
@@ -492,7 +498,7 @@ struct EditScheduleView: View {
         userPreferences.schedule = DayStartSchedule(
             time: selectedTime,
             repeatDays: selectedDays,
-            skipTomorrow: skipTomorrow
+            skipTomorrow: false // Always false - skip tomorrow feature disabled
         )
         
         // Settings (mutate only fields we expose here)

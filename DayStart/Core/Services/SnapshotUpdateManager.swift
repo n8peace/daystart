@@ -61,25 +61,54 @@ class SnapshotUpdateManager: NSObject {
             
             logger.log("📋 Found \(jobs.count) jobs to update in next 48 hours", level: .info)
             
-            // Build fresh snapshot
-            let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+            // Get current location/weather once (shared across all updates)
+            let currentSnapshot = await SnapshotBuilder.shared.buildSnapshot()
             
-            // Update all jobs with fresh snapshot data
-            let success = try await SupabaseClient.shared.updateJobSnapshots(
-                jobIds: jobs.map { $0.jobId },
-                locationData: snapshot.location,
-                weatherData: snapshot.weather,
-                calendarEvents: snapshot.calendar
-            )
+            // Group jobs by local date to minimize redundant calendar fetches
+            let jobsByDate = Dictionary(grouping: jobs, by: { $0.localDate })
+            logger.log("📅 Grouped into \(jobsByDate.count) unique dates", level: .info)
             
-            if success {
+            // Update each group with date-appropriate calendar events
+            var allUpdatesSuccessful = true
+            for (localDateString, jobsForDate) in jobsByDate {
+                // Parse the local date string (YYYY-MM-DD) to Date
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                dateFormatter.timeZone = TimeZone.current
+                
+                guard let date = dateFormatter.date(from: localDateString) else {
+                    logger.log("⚠️ Failed to parse date: \(localDateString)", level: .warning)
+                    continue
+                }
+                
+                // Build snapshot for this specific date (will fetch correct calendar events)
+                let dateSnapshot = await SnapshotBuilder.shared.buildSnapshot(for: date)
+                
+                // Update jobs for this date with:
+                // - Current location/weather from currentSnapshot
+                // - Date-specific calendar events from dateSnapshot
+                let success = try await SupabaseClient.shared.updateJobSnapshots(
+                    jobIds: jobsForDate.map { $0.jobId },
+                    locationData: currentSnapshot.location,
+                    weatherData: currentSnapshot.weather,
+                    calendarEvents: dateSnapshot.calendar
+                )
+                
+                if !success {
+                    allUpdatesSuccessful = false
+                }
+                
+                logger.log("📝 Updated \(jobsForDate.count) jobs for \(localDateString): \(success ? "✅" : "❌")", level: .info)
+            }
+            
+            if allUpdatesSuccessful {
                 lastSnapshotUpdate = Date()
-                logger.log("✅ Updated \(jobs.count) jobs with fresh snapshot data", level: .info)
+                logger.log("✅ Successfully updated all \(jobs.count) jobs with fresh snapshot data", level: .info)
                 
                 // Reschedule progressive updates if needed
                 scheduleProgressiveUpdatesForUpcomingJobs()
             } else {
-                logger.log("❌ Failed to update job snapshots", level: .error)
+                logger.log("⚠️ Some job snapshot updates failed", level: .warning)
             }
             
         } catch {

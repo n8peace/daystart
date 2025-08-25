@@ -24,6 +24,7 @@ struct PrimaryActionView: View {
     let hasCompleted: Bool
     let showNoSchedule: Bool
     let connectionError: ConnectionError?
+    let viewModel: HomeViewModel
     let onStartTapped: () -> Void
     let onEditTapped: () -> Void
     let onReplayTapped: () -> Void
@@ -49,7 +50,7 @@ struct PrimaryActionView: View {
                             .fill(BananaTheme.ColorToken.text)
                     )
                     .padding(.horizontal, 40)
-                } else if let _ = nextTime, !hasCompleted {
+                } else if let _ = nextTime, !hasCompleted, viewModel.isDayStartScheduled(for: Date()) {
                     Button(action: onStartTapped) {
                         Text("DayStart")
                             .adaptiveFont(BananaTheme.Typography.title)
@@ -173,6 +174,7 @@ struct HomeView: View {
                             hasCompleted: viewModel.hasCompletedCurrentOccurrence,
                             showNoSchedule: viewModel.showNoScheduleMessage,
                             connectionError: viewModel.connectionError,
+                            viewModel: viewModel,
                             onStartTapped: { 
                                 hapticManager.impact(style: .medium)
                                 if viewModel.state == .welcomeReady {
@@ -679,7 +681,7 @@ struct HomeView: View {
             }
             
             // Tomorrow's lineup preview
-            if viewModel.isNextDayStartTomorrow {
+            if viewModel.isNextDayStartTomorrow && viewModel.isDayStartScheduled(for: Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()) {
                 Button(action: {
                     hapticManager.impact(style: .light)
                     showEditSchedule = true

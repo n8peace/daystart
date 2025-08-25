@@ -59,12 +59,13 @@ struct DayStartSchedule: Codable, Equatable {
             guard let candidateDate = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
             
             // Skip tomorrow's occurrence if skipTomorrow is true
-            if skipTomorrow {
-                let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))!
-                if calendar.isDate(candidateDate, inSameDayAs: tomorrow) {
-                    continue
-                }
-            }
+            // Commented out - skip tomorrow feature disabled
+            // if skipTomorrow {
+            //     let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))!
+            //     if calendar.isDate(candidateDate, inSameDayAs: tomorrow) {
+            //         continue
+            //     }
+            // }
             
             let weekday = calendar.component(.weekday, from: candidateDate)
             if let weekDay = WeekDay(weekday: weekday), repeatDays.contains(weekDay) {

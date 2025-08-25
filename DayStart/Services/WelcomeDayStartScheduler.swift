@@ -290,7 +290,7 @@ class WelcomeDayStartScheduler: ObservableObject {
         
         do {
             // Build snapshot for context
-            let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+            let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: localDate)
             
             // Create job for today
             _ = try await SupabaseClient.shared.createJob(
@@ -312,7 +312,7 @@ class WelcomeDayStartScheduler: ObservableObject {
     private func prepareWelcomeContentInBackground() async {
         logger.log("📦 Preparing welcome content in background", level: .info)
         
-        let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+        let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: Date())
         
         do {
             _ = try await SupabaseClient.shared.createJob(

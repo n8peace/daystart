@@ -6,11 +6,16 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 
 ## 🚀 App Store Readiness Status
 
-**Current Status**: Ready for TestFlight testing
-- ✅ Backend deployed and tested in production
-- ✅ App Store Connect configured with products
-- ✅ Privacy manifest and StoreKit integration complete
-- 🔄 Pending: Screenshots, legal documents, and final testing
+**Current Status**: Near App Store submission - comprehensive preparation complete
+- ✅ Backend deployed and tested in production with receipt-based authentication
+- ✅ App Store Connect configured with subscription products ($4.99/month, $39.99/year)
+- ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete
+- ✅ Legal documents created: Privacy Policy and Terms of Service
+- ✅ Comprehensive App Store metadata prepared (see [app-store-metadata.md](app-store-metadata.md))
+- ✅ Enhanced script generation with longer, richer content (up to 6 news stories)
+- 🔄 Final items: App Store screenshots and TestFlight testing
+
+📋 **Complete readiness documentation**: [App Readiness Plan](claude_app_readiness_plan.md)
 
 ## Table of Contents
 - [Features](#features)
@@ -38,12 +43,19 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 ### ✅ Content & Personalization
 - **Weather Integration**: WeatherKit-powered local weather and forecasts
 - **Calendar Events**: EventKit integration for today's schedule highlights
-- **News**: Curated news articles relevant to user location
-- **Sports**: Team-specific updates for favorite sports teams
-- **Stock Market**: Custom stock symbols with market insights
-- **Motivational Quotes**: Daily inspiration and productivity tips
-- **Voice Selection**: 3 AI-generated voice options with preview samples
-- **Length Control**: Customizable briefing length (2-10 minutes)
+- **Enhanced News Coverage**: Up to 6 curated news stories with deeper context and local relevance
+- **Sports**: Team-specific updates for favorite sports teams (up to 2 stories)
+- **Stock Market**: Custom stock symbols with expanded market insights (up to 3 stories)
+- **Enriched Motivational Quotes**: Daily inspiration with deeper reflection and context (150+ words)
+- **Voice Selection**: 3 AI-generated voice options with high-quality ElevenLabs synthesis
+- **Dynamic Length Control**: Intelligent content scaling (2-10 minutes) with priority-based expansion
+
+### ✅ Enhanced Script Generation
+- **Intelligent Content Allocation**: Dynamic word budgets that scale with briefing length
+- **Priority-Based Expansion**: News and quotes prioritized for longer scripts
+- **Local Relevance**: Smart news selection based on user location (neighborhood → city → state → national)
+- **Context-Rich Content**: Longer briefings include deeper analysis and background
+- **Advanced TTS Optimization**: Scripts optimized for natural speech patterns and pacing
 
 ### ✅ Advanced Technical Features
 - **Background Audio Prefetching**: BGTaskScheduler integration for seamless playback
@@ -58,13 +70,17 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 - **Privacy Manifest**: Full compliance with Apple's privacy requirements
 
 ### ✅ Backend Infrastructure
-- **Supabase Integration**: Production-ready backend with PostgreSQL
-- **Job Queue System**: `FOR UPDATE SKIP LOCKED` for scalable processing
-- **Content Caching**: Efficient content refresh and storage
-- **Audio Generation**: OpenAI GPT-4 script generation + ElevenLabs TTS
-- **Automatic Cleanup**: Scheduled cleanup of old audio files and data
-- **Cost Tracking**: Monitoring of OpenAI and ElevenLabs usage
-- **Timezone Handling**: Accurate date/time calculations across timezones
+- **Supabase Integration**: Production-ready backend with PostgreSQL and receipt-based authentication
+- **Advanced Job Queue System**: `FOR UPDATE SKIP LOCKED` for scalable processing with retry logic
+- **Intelligent Content Caching**: Hourly content refresh with deduplication and source trust scoring
+- **Enhanced Audio Generation**: 
+  - OpenAI GPT-4o-mini for cost-effective script generation
+  - ElevenLabs eleven_flash_v2_5 TTS model for superior voice quality
+  - Dynamic content scaling (6 news, 3 stocks, 150-word quotes)
+  - Context-aware expansion and contraction algorithms
+- **Automated Cleanup**: Scheduled cleanup of old audio files and data with RLS policies
+- **Comprehensive Cost Tracking**: Monitoring of OpenAI and ElevenLabs usage with detailed logging
+- **Timezone Handling**: Accurate date/time calculations across timezones with local date awareness
 
 ## Requirements
 
@@ -75,10 +91,10 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 - **Permissions**: Location (when in use), Calendar (full access)
 
 ### Backend
-- **Supabase**: PostgreSQL database and edge functions
-- **OpenAI API**: GPT-4 for script generation
-- **ElevenLabs API**: Text-to-speech conversion
-- **Node.js**: For Supabase edge functions
+- **Supabase**: PostgreSQL database and edge functions with receipt-based authentication
+- **OpenAI API**: GPT-4o-mini for cost-effective script generation with dynamic scaling
+- **ElevenLabs API**: Text-to-speech conversion using eleven_flash_v2_5 model
+- **Deno**: For Supabase edge functions with TypeScript support
 
 ## Architecture
 
@@ -155,6 +171,10 @@ DayStart/
 │   └── storage/                        # Storage bucket config
 └── Documentation/
     ├── REQUIREMENTS.md                 # System requirements
+    ├── PRIVACY_POLICY.md              # Privacy policy document
+    ├── TERMS_OF_SERVICE.md            # Terms of service document
+    ├── app-store-metadata.md          # Complete App Store submission data
+    ├── claude_app_readiness_plan.md   # Comprehensive deployment checklist
     └── claude-*.md                     # Implementation guides
 ```
 
@@ -185,8 +205,9 @@ DayStart/
    - The project includes `DayStart.storekit` configuration file
    - Enable StoreKit testing in scheme: Edit Scheme → Run → Options → StoreKit Configuration
    - Products configured:
-     - `daystart_monthly_subscription` ($4.99/month, 3-day trial)
-     - `daystart_annual_subscription` ($39.99/year, 7-day trial)
+     - `daystart_monthly_subscription` ($4.99/month, 3-day free trial)
+     - `daystart_annual_subscription` ($39.99/year, 7-day free trial, save 33%)
+   - Receipt-based authentication system eliminates need for traditional user accounts
 
 ### 2. Supabase Backend Setup
 
@@ -282,23 +303,30 @@ SPORTS_API_KEY=your-sports-api-key (optional)
 ### iOS App Store Preparation
 
 1. **App Store Connect Setup**:
-   - ✅ App record created
+   - ✅ App record created with comprehensive metadata
    - ✅ App icon (1024x1024) uploaded
-   - ✅ In-App Purchase products configured
+   - ✅ In-App Purchase products configured ($4.99/month, $39.99/year)
    - ✅ Privacy manifest (PrivacyInfo.xcprivacy) included
    - ✅ StoreKit configuration ready for testing
+   - ✅ Receipt-based authentication system implemented
 
-2. **Required Assets**:
+2. **Legal Documentation**:
+   - ✅ Privacy Policy created and documented ([PRIVACY_POLICY.md](PRIVACY_POLICY.md))
+   - ✅ Terms of Service created and documented ([TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md))
+   - ✅ Complete App Store metadata prepared ([app-store-metadata.md](app-store-metadata.md))
+
+3. **Remaining Assets**:
    - [ ] App screenshots (iPhone 6.7" and 6.5" required)
-   - [ ] App Store description and keywords
-   - [ ] Privacy Policy URL
-   - [ ] Terms of Service URL
+   - [ ] Host legal documents on public URLs
+   - [ ] TestFlight testing and feedback collection
 
-3. **Build and Submit**:
+4. **Build and Submit**:
    - Build and archive in Xcode
    - Upload to App Store Connect via Xcode
    - Test with TestFlight
    - Submit for App Store review
+
+📋 **Complete submission checklist**: [App Readiness Plan](claude_app_readiness_plan.md)
 
 ## Usage
 
