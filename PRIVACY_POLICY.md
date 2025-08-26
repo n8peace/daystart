@@ -74,5 +74,3 @@ If you have questions or requests regarding privacy, contact us at: [Privacy con
 - Account model: The App identifies users using a pseudonymous Apple purchase receipt ID and does not require creating a username/password.
 - Permissions summary: Location (When In Use) for weather, Calendar for event summaries, Local notifications for reminders.
 - Data minimization: Calendar lines are summarized locally (title/time only) before optional inclusion in backend requests; we avoid sending full event details.
-
-

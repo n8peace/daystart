@@ -189,20 +189,9 @@ class ServiceRegistry: ObservableObject {
     
     // MARK: - Background Task Management
     
-    /// Register background tasks only when needed (user has active schedule)
+    /// Background tasks are now registered in AppDelegate - this method is kept for compatibility
     func registerBackgroundTasksIfNeeded() {
-        guard !UserPreferences.shared.schedule.repeatDays.isEmpty else {
-            logger.log("🔄 Background tasks not registered - no active schedule", level: .debug)
-            return
-        }
-        
-        Task.detached(priority: .background) {
-            // Load AudioPrefetchManager in background only when needed
-            await MainActor.run {
-                _ = ServiceRegistry.shared.audioPrefetchManager
-            }
-            await DebugLogger.shared.log("✅ Background tasks registered on-demand", level: .info)
-        }
+        logger.log("✅ Background tasks already registered in AppDelegate", level: .info)
     }
     
     // MARK: - Memory Management

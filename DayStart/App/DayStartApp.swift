@@ -220,8 +220,36 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // Background task registration happens when services are loaded on-demand
+        // REQUIRED: Register all background task handlers before app finishes launching
+        registerBackgroundTasks()
         return true
+    }
+    
+    /// Register background task handlers (required in didFinishLaunchingWithOptions)
+    private func registerBackgroundTasks() {
+        // Audio prefetch background task
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: "ai.bananaintelligence.DayStart.audio-prefetch", using: nil) { task in
+            // Handler will be set up when AudioPrefetchManager is loaded
+            if ServiceRegistry.shared.loadedServices.contains("AudioPrefetchManager") {
+                ServiceRegistry.shared.audioPrefetchManager.handleBackgroundTask(task: task as! BGProcessingTask)
+            } else {
+                // Service not loaded yet, fail the task
+                task.setTaskCompleted(success: false)
+            }
+        }
+        
+        // Snapshot update background task  
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: "ai.bananaintelligence.DayStart.snapshot-update", using: nil) { task in
+            // Handler will be set up when SnapshotUpdateManager is loaded
+            if ServiceRegistry.shared.loadedServices.contains("SnapshotUpdateManager") {
+                ServiceRegistry.shared.snapshotUpdateManager.handleBackgroundTask(task: task as! BGProcessingTask)
+            } else {
+                // Service not loaded yet, fail the task
+                task.setTaskCompleted(success: false)
+            }
+        }
+        
+        DebugLogger.shared.log("✅ Background task handlers registered in AppDelegate", level: .info)
     }
     
     func applicationWillEnterForeground(_ application: UIApplication) {

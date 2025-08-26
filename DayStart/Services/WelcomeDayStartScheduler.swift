@@ -223,11 +223,10 @@ class WelcomeDayStartScheduler: ObservableObject {
         await updateInitializationProgress("Requesting permissions...", step: 5)
         await requestPermissionsAsync()
         
-        // Register background tasks
+        // Background tasks are already registered in AppDelegate
         await updateInitializationProgress("Setting up background tasks...", step: 6)
         await MainActor.run {
-            AudioPrefetchManager.shared.registerBackgroundTasks()
-            logger.log("✅ Background tasks registered", level: .info)
+            logger.log("✅ Background tasks already registered in AppDelegate", level: .info)
         }
         
         // Start pre-creating today's audio

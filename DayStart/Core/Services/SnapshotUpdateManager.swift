@@ -25,8 +25,6 @@ class SnapshotUpdateManager: NSObject {
     private var lastKnownLocation: CLLocation?
     private let significantLocationThreshold: CLLocationDistance = 1000 // 1km
     
-    // Background task registration
-    private var isBackgroundTaskRegistered = false
     
     override init() {
         super.init()
@@ -37,7 +35,6 @@ class SnapshotUpdateManager: NSObject {
     
     /// Initialize the snapshot update system
     func initialize() {
-        registerBackgroundTaskIfNeeded()
         startSignificantLocationChangeMonitoring()
         scheduleProgressiveUpdatesForUpcomingJobs()
     }
@@ -159,7 +156,7 @@ class SnapshotUpdateManager: NSObject {
     }
     
     private func scheduleBackgroundUpdate(for date: Date, jobId: String, type: ProgressiveUpdateType) {
-        guard isBackgroundTaskRegistered && date > Date() else { return }
+        guard date > Date() else { return }
         
         let request = BGProcessingTaskRequest(identifier: backgroundTaskIdentifier)
         request.earliestBeginDate = date
@@ -195,16 +192,9 @@ class SnapshotUpdateManager: NSObject {
     
     // MARK: - Background Tasks
     
-    private func registerBackgroundTaskIfNeeded() {
-        guard !isBackgroundTaskRegistered else { return }
-        
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundTaskIdentifier, using: nil) { [weak self] task in
-            guard let self = self else { return }
-            self.handleBackgroundSnapshotUpdate(task: task as! BGProcessingTask)
-        }
-        
-        isBackgroundTaskRegistered = true
-        logger.log("✅ Background snapshot update tasks registered", level: .info)
+    /// Handle background task (called from AppDelegate)
+    func handleBackgroundTask(task: BGProcessingTask) {
+        handleBackgroundSnapshotUpdate(task: task)
     }
     
     private func handleBackgroundSnapshotUpdate(task: BGProcessingTask) {

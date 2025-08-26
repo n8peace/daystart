@@ -12,8 +12,6 @@ class AudioPrefetchManager {
     private let taskIdentifier = "ai.bananaintelligence.DayStart.audio-prefetch"
     private lazy var logger = DebugLogger.shared // Lazy logger
     
-    // Background task registration state
-    private var isBackgroundTaskRegistered = false
     
     // PHASE 4: AVPlayerItem prefetching for instant audio start
     private var preloadedPlayerItems: [String: (item: AVPlayerItem, created: Date)] = [:]
@@ -37,53 +35,14 @@ class AudioPrefetchManager {
         clearPlayerItemCache()
     }
     
-    // MARK: - Conditional Background Task Registration
+    // MARK: - Background Task Handling
     
-    /// Register background tasks only when user has an active schedule
-    func registerBackgroundTasksIfNeeded() {
-        // Don't register if already registered
-        guard !isBackgroundTaskRegistered else {
-            logger.log("🔄 Background tasks already registered", level: .debug)
-            return
-        }
-        
-        // Don't register if user doesn't have an active schedule
-        guard !UserPreferences.shared.schedule.repeatDays.isEmpty else {
-            logger.log("🔄 Background tasks not registered - no active schedule", level: .debug)
-            return
-        }
-        
-        // DEFERRED: Register background tasks only when actually needed
-        Task.detached(priority: .background) { [weak self] in
-            await self?.performBackgroundTaskRegistration()
-        }
-    }
-    
-    private func performBackgroundTaskRegistration() async {
-        await MainActor.run {
-            BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { [weak self] task in
-                guard let self = self else { return }
-                self.handleAudioPrefetch(task: task as! BGProcessingTask)
-            }
-            
-            isBackgroundTaskRegistered = true
-            logger.log("✅ Background tasks registered on-demand", level: .info)
-        }
-    }
-    
-    /// Force registration (for migration/legacy support)
-    func registerBackgroundTasks() {
-        isBackgroundTaskRegistered = false // Reset flag
-        registerBackgroundTasksIfNeeded()
+    /// Handle background task (called from AppDelegate)
+    func handleBackgroundTask(task: BGProcessingTask) {
+        handleAudioPrefetch(task: task)
     }
     
     func scheduleAudioPrefetch(for scheduledTime: Date) {
-        // Only schedule if background tasks are registered
-        guard isBackgroundTaskRegistered else {
-            logger.log("🔄 Cannot schedule audio prefetch - background tasks not registered", level: .debug)
-            return
-        }
-        
         let request = BGProcessingTaskRequest(identifier: taskIdentifier)
         request.earliestBeginDate = scheduledTime.addingTimeInterval(-2 * 3600) // 2 hours before
         request.requiresNetworkConnectivity = true
@@ -124,9 +83,6 @@ class AudioPrefetchManager {
         }
         
         logger.log("🔍 Checking \(upcomingSchedules.count) upcoming DayStarts for ready audio", level: .info)
-        
-        // Ensure background tasks are registered if we have upcoming schedules
-        registerBackgroundTasksIfNeeded()
         
         for schedule in upcomingSchedules {
             _ = await checkAndDownloadAudio(for: schedule.date)
@@ -276,10 +232,8 @@ class AudioPrefetchManager {
                scheduledTime > now && scheduledTime <= endTime {
                 schedules.append(ScheduleInfo(date: candidateDate, scheduledTime: scheduledTime))
                 
-                // Schedule background task only if registered
-                if isBackgroundTaskRegistered {
-                    scheduleAudioPrefetch(for: scheduledTime)
-                }
+                // Schedule background task (handlers are registered in AppDelegate)
+                scheduleAudioPrefetch(for: scheduledTime)
             }
         }
         
@@ -293,11 +247,6 @@ class AudioPrefetchManager {
     }
     
     func cancelAllBackgroundTasks() {
-        guard isBackgroundTaskRegistered else {
-            logger.log("🔄 No background tasks to cancel - not registered", level: .debug)
-            return
-        }
-        
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         logger.log("❌ Cancelled all background audio prefetch tasks", level: .info)
     }
@@ -373,10 +322,8 @@ class AudioPrefetchManager {
     var backgroundTaskStatus: String {
         if !hasActiveSchedule {
             return "No active schedule"
-        } else if isBackgroundTaskRegistered {
-            return "Registered"
         } else {
-            return "Not registered (will register on demand)"
+            return "Registered in AppDelegate"
         }
     }
 }
