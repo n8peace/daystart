@@ -580,9 +580,21 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   let contentData: any = {};
   if (contentTypes.length > 0) {
     console.log(`[DEBUG] Requesting content types: ${contentTypes.join(', ')}`);
-    const { data: freshContent, error: contentError } = await supabase.rpc('get_fresh_content', {
-      requested_types: contentTypes
+    // Try enhanced content first (with AI-curated top 10), fall back to regular content
+    let { data: freshContent, error: contentError } = await supabase.rpc('get_fresh_content_enhanced', {
+      requested_types: contentTypes,
+      prefer_ai_curated: true
     });
+    
+    // If enhanced function doesn't exist (during migration), fall back to regular function
+    if (contentError && contentError.message?.includes('function') && contentError.message?.includes('does not exist')) {
+      console.log('[DEBUG] Enhanced function not available, using regular get_fresh_content');
+      const fallback = await supabase.rpc('get_fresh_content', {
+        requested_types: contentTypes
+      });
+      freshContent = fallback.data;
+      contentError = fallback.error;
+    }
     
     if (contentError) {
       console.error('[DEBUG] Error fetching content:', contentError);
@@ -643,37 +655,41 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
 Good morning, Jordan, it's Monday, August eighteenth. This is DayStart!
 
-… <break time="3s"/>
+<break time="3s"/>
 
 The sun is sliding up over Los Angeles, and Mar Vista will be feeling downright summery today. Highs in the low eighties with just a whisper of ocean breeze, which means you'll want to keep a cold drink nearby. The good news — no sign of that sticky humidity we had last week. The bad news — traffic is still traffic, and the four oh five is basically allergic to being on time.
 
-… <break time="1s"/>
+<break time="1s"/>
 
 Your calendar is looking friendly enough. The team stand-up at nine should be short, but if history is any guide, "short" will be defined differently by everyone on the Zoom call. At three, you've got that dentist appointment — and if you keep putting it off, your teeth are going to file for separation. Consider this your polite reminder not to cancel again.
 
-… <break time="1s"/>
+<break time="1s"/>
 
 Meanwhile in the wider world, the headlines are a mixed bag. Over the weekend, a coalition of state governors signed on to a renewable energy compact, promising faster timelines for solar build-outs. Critics say the deadlines are ambitious; optimists say at least somebody's trying. Abroad, markets are still churning on the back of last week's central bank moves in Europe. Closer to home, the wildfire situation up north is easing, thanks to a fortunate stretch of cooler nights. And if you needed a dose of levity, one of the top-trending stories this morning is a rescue operation for a dog that somehow managed to get itself stuck inside a pizza oven in Chicago. The pup is fine — the pizza, less so.
 
-… <break time="1s"/>
+<break time="1s"/>
 
 Sports-wise, the Dodgers pulled off a walk-off win against the Giants, which is exactly the sort of drama that makes the neighbors either cheer or swear depending on which hat they were wearing. The Sparks have a midweek game coming up, but for now they've got a few days to recover.
 
-… <break time="1s"/>
+<break time="1s"/>
 
 Markets open steady, at least for now. Your favorite tickers — Apple and Tesla — are looking a shade green in pre-market, while the broader indices are pretty flat. Futures traders are basically staring at each other waiting for someone to blink.
 
-… <break time="1s"/>
+<break time="1s"/>
 
 A thought for the day: "Discipline is remembering what you want." It doesn't have to mean perfect routines or Instagram-worthy meal prep. Sometimes it just means shutting the laptop lid at six and remembering there's a world outside of emails.
 
-… <break time="1s"/>
+<break time="1s"/>
 
 And that's your start, Jordan. Step out into this Monday with a little humor, a little focus, and maybe even a little patience for that dentist.
 
 Peel into this Monday with intention — because even bananas don't get eaten in one bite.
 
-… <break time="1s"/>
+<break time="1s"/>
+
+That's it for today. Have a good DayStart.
+
+<break time="2s"/>
 
 - REMINDER, THIS WAS AN EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data).`
   };
@@ -867,7 +883,7 @@ ${contextJSON}
 
 async function generateAudio(script: string, job: any, attemptNumber: number = 1): Promise<{success: boolean, audioData?: Uint8Array, duration?: number, cost?: number, provider?: string, error?: string}> {
   // On attempt 3+, use OpenAI as fallback
-  if (attemptNumber >= 3) {
+  if (attemptNumber >= 1) {
     console.log(`Attempt ${attemptNumber}: Using OpenAI TTS as fallback`);
     return await generateAudioWithOpenAI(script, job);
   }
@@ -1125,7 +1141,7 @@ function buildScriptPrompt(context: any): string {
 PAUSING & FLOW
 - Use em dashes (—) for short pauses and ellipses (…) for softer rests.
 - Put a blank line between sections to create a natural breath.
-- Add an ellipsis (…) on its own line between major sections for longer pauses using EXACTLY this format: "… <break time="1s"/>" (note the closing />)
+- Add SSML breaks on their own line between major sections for longer pauses using EXACTLY this format: "<break time="1s"/>" (note the closing />)
 - CRITICAL: All break tags MUST be properly closed with /> at the end. Example: <break time="2s"/> NOT <break time="2s"/
 - Start each section with a short sentence. Then continue.
 - Keep sentences mostly under 18 words.
@@ -1144,7 +1160,7 @@ STYLE
   - Don't add "Inc" at the end of company names (use "Apple", not "Apple Inc.")
   - Spell out all numbers and prices in words (e.g., "two hundred thirty dollars and eighty-nine cents" not "$230.89", "down zero point three percent" not "down 0.3%")
 ${styleAddendum}
- - Use 1–2 transitions between sections. Add ellipses (…) on their own line between major sections for natural pauses using EXACTLY this format: "… <break time="1s"/>" (with closing />).
+ - Use 1–2 transitions between sections. Add SSML breaks on their own line between major sections for natural pauses using EXACTLY this format: "<break time="1s"/>" (with closing />).
  - Keep ellipses to ≤1 per paragraph within sections and em dashes to ≤2 per paragraph.
  - Stay roughly within the provided per-section word budget (±25%). If a section is omitted, redistribute its budget to News first, then Weather/Calendar.
 
@@ -1172,7 +1188,7 @@ FACT RULES
  - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style. For longer scripts, add more context or a brief reflection to enrich the quote section.
 
 CONTENT ORDER (adapt if sections are missing)
-1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a three-second pause using EXACTLY "… <break time="3s"/>" on its own line (note the closing />).
+1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a three-second pause using EXACTLY "<break time="3s"/>" on its own line (note the closing />).
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
 4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.
@@ -1180,7 +1196,9 @@ CONTENT ORDER (adapt if sections are missing)
 6) Stocks (if include.stocks): Market pulse using company names and numbers spelled out. Call out focusSymbols prominently when present.
 7) Quote (if include.quotes): Select a quote that matches the user's quotePreference (if provided in data). The quote should align with that tradition/style (e.g., Buddhist wisdom, Stoic philosophy, Christian scripture, etc.). Follow with a one-line tie-back to today's vibe.
 8) Close with the provided signOff from the data — choose the one that fits the day's tone best.
-9) End the script with a final pause using EXACTLY "… <break time="1s"/>" on its own line (with closing />).
+9) Add a 1-second pause after the signOff using EXACTLY "<break time="1s"/>" on its own line (with closing />).
+10) Add the standardized ending phrase: "That's it for today. Have a good DayStart."
+11) End the script with a final 2-second pause using EXACTLY "<break time="2s"/>" on its own line (with closing />).
 
 STRICT OUTPUT RULES — DO NOT BREAK
 - Output: PLAIN TEXT ONLY.

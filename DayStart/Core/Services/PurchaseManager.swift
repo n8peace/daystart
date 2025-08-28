@@ -39,10 +39,16 @@ class PurchaseManager: ObservableObject {
     private let logger = DebugLogger.shared
     private let keychainManager = KeychainManager.shared
     private let receiptKey = "purchase_receipt_id"
+    private var updateListenerTask: Task<Void, Never>?
     
     private init() {
         Task {
             await checkPurchaseStatus()
+        }
+        
+        // Start listening for transaction updates
+        updateListenerTask = Task {
+            await observeTransactionUpdates()
         }
     }
     
@@ -90,34 +96,6 @@ class PurchaseManager: ObservableObject {
         }
     }
     
-    func simulatePurchase(for productId: String) async throws {
-        // This simulates a successful purchase for testing
-        // In production, this would be replaced with actual StoreKit purchase flow
-        logger.log("🛒 Simulating purchase for product: \(productId)", level: .info)
-        await MainActor.run { isLoading = true }
-        
-        defer { 
-            Task { @MainActor in
-                isLoading = false
-            }
-        }
-        
-        // Simulate network delay
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-        
-        // Generate a mock receipt ID (in production this comes from StoreKit)
-        let mockReceiptId = "tx_\(UUID().uuidString.prefix(16))"
-        
-        // Store the receipt ID
-        keychainManager.store(mockReceiptId, forKey: receiptKey)
-        
-        await MainActor.run {
-            self.purchaseState = .purchased(receiptId: mockReceiptId)
-            self.currentReceiptId = mockReceiptId
-        }
-        
-        logger.log("✅ Purchase simulation complete: \(mockReceiptId)", level: .info)
-    }
     
     func purchase(productId: String) async throws {
         logger.log("💳 Starting real StoreKit purchase for product: \(productId)", level: .info)
@@ -231,5 +209,37 @@ class PurchaseManager: ObservableObject {
         currentReceiptId = nil
         purchaseState = .notPurchased
         logger.log("🧹 Cleared stored receipt", level: .info)
+    }
+    
+    private func observeTransactionUpdates() async {
+        logger.log("🔄 Starting transaction update observer", level: .info)
+        
+        for await result in Transaction.updates {
+            guard case .verified(let transaction) = result else {
+                continue
+            }
+            
+            logger.log("📦 Processing transaction update: \(transaction.productID)", level: .info)
+            
+            // Use the original transaction ID as our stable user identifier
+            let receiptId = String(transaction.originalID)
+            
+            // Store for future use
+            keychainManager.store(receiptId, forKey: receiptKey)
+            
+            await MainActor.run {
+                self.purchaseState = .purchased(receiptId: receiptId)
+                self.currentReceiptId = receiptId
+            }
+            
+            // Always finish transactions
+            await transaction.finish()
+            
+            logger.log("✅ Transaction processed: \(receiptId.prefix(8))...", level: .info)
+        }
+    }
+    
+    deinit {
+        updateListenerTask?.cancel()
     }
 }

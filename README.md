@@ -6,14 +6,14 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 
 ## 🚀 App Store Readiness Status
 
-**Current Status**: Near App Store submission - comprehensive preparation complete
+**Current Status**: Ready for final preparation before App Store submission
 - ✅ Backend deployed and tested in production with receipt-based authentication
 - ✅ App Store Connect configured with subscription products ($4.99/month, $39.99/year)
 - ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete
-- ✅ Legal documents created: Privacy Policy and Terms of Service
+- ✅ Legal documents prepared (need hosting): Privacy Policy and Terms of Service
 - ✅ Comprehensive App Store metadata prepared (see [app-store-metadata.md](app-store-metadata.md))
 - ✅ Enhanced script generation with longer, richer content (up to 6 news stories)
-- 🔄 Final items: App Store screenshots and TestFlight testing
+- 🔴 **Critical blockers**: See [App Readiness Plan](claude_app_readiness_plan.md#critical-review-blockers-fix-before-submission)
 
 📋 **Complete readiness documentation**: [App Readiness Plan](claude_app_readiness_plan.md)
 
@@ -193,15 +193,18 @@ DayStart/
    open DayStart.xcodeproj
    ```
 
-3. **Configure capabilities in Xcode**:
-   - Background Modes: Audio, Background Processing, Background Fetch
+3. **Remove test code before submission**:
+   - Delete `simulatePurchase` function from `PurchaseManager.swift`
+
+4. **Configure capabilities in Xcode**:
+   - Background Modes: Audio, Processing (only these two)
    - Push Notifications (for local notifications)
    - Location Services
    - Calendar Access
 
-4. **Update bundle identifier** and development team in project settings
+5. **Update bundle identifier** and development team in project settings
 
-5. **Configure StoreKit**:
+6. **Configure StoreKit**:
    - The project includes `DayStart.storekit` configuration file
    - Enable StoreKit testing in scheme: Edit Scheme → Run → Options → StoreKit Configuration
    - Products configured:
@@ -249,7 +252,7 @@ DayStart/
 1. **Update Info.plist** with your Supabase credentials:
    ```xml
    <key>SupabaseBaseURL</key>
-   <string>https://your-project.supabase.co/functions/v1</string>
+   <string>https://your-project.supabase.co</string>
    <key>SupabaseAnonKey</key>
    <string>your-anon-key</string>
    ```
@@ -311,13 +314,20 @@ SPORTS_API_KEY=your-sports-api-key (optional)
    - ✅ Receipt-based authentication system implemented
 
 2. **Legal Documentation**:
-   - ✅ Privacy Policy created and documented ([PRIVACY_POLICY.md](PRIVACY_POLICY.md))
-   - ✅ Terms of Service created and documented ([TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md))
+   - ✅ Privacy Policy template created ([PRIVACY_POLICY.md](PRIVACY_POLICY.md))
+   - ✅ Terms of Service template created ([TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md))
+   - ⚠️ **IMPORTANT**: Replace all [bracketed] placeholders with real information
+   - ⚠️ **IMPORTANT**: Host documents at:
+     - https://daystart.bananaintelligence.ai/privacy
+     - https://daystart.bananaintelligence.ai/terms
    - ✅ Complete App Store metadata prepared ([app-store-metadata.md](app-store-metadata.md))
 
-3. **Remaining Assets**:
+3. **Pre-Submission Checklist**:
+   - [ ] Remove `simulatePurchase` function from PurchaseManager.swift
+   - [ ] Wire up paywall buttons (Restore, Terms, Privacy) in OnboardingView.swift
+   - [ ] Fix Info.plist background modes (remove invalid entries)
+   - [ ] Replace placeholders and host legal documents on public URLs
    - [ ] App screenshots (iPhone 6.7" and 6.5" required)
-   - [ ] Host legal documents on public URLs
    - [ ] TestFlight testing and feedback collection
 
 4. **Build and Submit**:
@@ -348,8 +358,9 @@ SPORTS_API_KEY=your-sports-api-key (optional)
 
 ### Performance Optimizations
 - **Lazy service loading**: Only essential services load at startup
-- **Background prefetching**: Audio downloads before user wakes up
-- **Local caching**: Prevents unnecessary re-downloads
+- **Background prefetching**: Audio downloads before user wakes up via BGTaskScheduler
+- **Local caching**: Prevents unnecessary re-downloads with AudioCache
+- **Receipt-based auth**: No user accounts needed - StoreKit receipt ID as user identity
 - **Debounced state updates**: Smooth UI transitions
 
 ### User Experience

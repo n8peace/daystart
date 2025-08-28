@@ -43,7 +43,7 @@ class SupabaseClient {
         logger.log("🔍 Supabase API: GET audio_status for date: \(dateString)", level: .info)
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
         
-        let request = createRequest(for: url, method: "GET")
+        let request = await createRequest(for: url, method: "GET")
         logger.logNetworkRequest(request)
         
         do {
@@ -118,7 +118,7 @@ class SupabaseClient {
         logger.log("📤 Supabase API: POST create_job", level: .info)
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
         
-        var request = createRequest(for: url, method: "POST")
+        var request = await createRequest(for: url, method: "POST")
         
         let jobRequest = CreateJobRequest(
             local_date: localDateString(from: date),
@@ -212,7 +212,7 @@ class SupabaseClient {
         logger.log("📤 Supabase API: POST update_jobs (update: \(dates.count), cancel: \(cancelDates.count), reactivate: \(reactivateDates.count))", level: .info)
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
 
-        var request = createRequest(for: url, method: "POST")
+        var request = await createRequest(for: url, method: "POST")
 
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -291,7 +291,7 @@ class SupabaseClient {
         logger.log("📤 Supabase API: POST update_job_snapshots", level: .info)
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
         
-        var request = createRequest(for: url, method: "POST")
+        var request = await createRequest(for: url, method: "POST")
         
         let requestBody = UpdateJobSnapshotsRequest(
             job_ids: jobIds,
@@ -345,7 +345,7 @@ class SupabaseClient {
         logger.log("📤 Supabase API: GET get_jobs", level: .info)
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
         
-        var request = createRequest(for: url, method: "GET")
+        var request = await createRequest(for: url, method: "GET")
         
         logger.logNetworkRequest(request)
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -378,7 +378,7 @@ class SupabaseClient {
         
         logger.log("📤 Supabase API: PATCH jobs - marking job as failed", level: .info)
         
-        var request = createRequest(for: url, method: "PATCH")
+        var request = await createRequest(for: url, method: "PATCH")
         
         let updateData = [
             "job_id": "eq.\(jobId)",
@@ -430,7 +430,7 @@ class SupabaseClient {
         
         logger.log("🚀 Invoking process_jobs for specific job: \(jobId)", level: .info)
         
-        var request = createRequest(for: url, method: "POST")
+        var request = await createRequest(for: url, method: "POST")
         
         let payload = ["jobId": jobId]
         request.httpBody = try JSONEncoder().encode(payload)
@@ -457,7 +457,7 @@ class SupabaseClient {
     
     // MARK: - Private Helpers
     
-    private func createRequest(for url: URL, method: String) -> URLRequest {
+    private func createRequest(for url: URL, method: String) async -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -465,7 +465,7 @@ class SupabaseClient {
         request.timeoutInterval = 30
         
         // Use receipt ID as user identifier if available
-        if let receiptId = PurchaseManager.shared.userIdentifier {
+        if let receiptId = await PurchaseManager.shared.userIdentifier {
             // Use anon key for authorization (server validates receipt separately)
             if let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String {
                 request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")

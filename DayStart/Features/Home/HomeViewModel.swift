@@ -61,6 +61,7 @@ enum ConnectionError {
 }
 
 // MARK: - State Transition Manager
+@MainActor
 class StateTransitionManager {
     private weak var viewModel: HomeViewModel?
     private let logger = DebugLogger.shared
@@ -114,6 +115,7 @@ class StateTransitionManager {
 
 /// Simplified HomeViewModel with aggressive service deferral via ServiceRegistry
 /// No services loaded in init - everything loads on-demand when actually needed
+@MainActor
 class HomeViewModel: ObservableObject {
     // TIER 1: Only essential dependencies (no service loading)
     private let userPreferences = UserPreferences.shared
@@ -498,20 +500,59 @@ class HomeViewModel: ObservableObject {
         loadingMessages.stopRotatingMessages()
     }
     
+    private func cleanupTimersExceptCountdown() {
+        // Preserve countdown timer when transitioning to/from idle state
+        let shouldPreserveCountdownTimer = (state == .idle || isTransitioningToIdle())
+        
+        if !shouldPreserveCountdownTimer {
+            timer?.invalidate()
+            timer = nil
+        }
+        
+        pauseTimeoutTimer?.invalidate()
+        pauseTimeoutTimer = nil
+        preparingTimer?.invalidate()
+        preparingTimer = nil
+        preparingMessageTimer?.invalidate()
+        preparingMessageTimer = nil
+        pollingTimer?.invalidate()
+        pollingTimer = nil
+        loadingDelayTimer?.invalidate()
+        loadingDelayTimer = nil
+        loadingTimeoutTimer?.invalidate()
+        loadingTimeoutTimer = nil
+        
+        // Reset preparing state data
+        preparingStartTime = nil
+        pollingStartTime = nil
+        pollingAttempts = 0
+        
+        // Stop any rotating messages
+        loadingMessages.stopRotatingMessages()
+    }
+    
+    private func isTransitioningToIdle() -> Bool {
+        // Check if we're likely transitioning to idle based on current conditions
+        guard let nextOccurrence = userPreferences.schedule.nextOccurrence else { return true }
+        
+        let timeUntil = nextOccurrence.timeIntervalSinceNow
+        let hasCompleted = hasCompletedOccurrence(nextOccurrence)
+        
+        // Will likely end up in idle if completed or far from next occurrence
+        return hasCompleted || timeUntil > 300 || timeUntil < -21600 // 5 min before or 6 hours after
+    }
+    
     // MARK: - Lazy Service Loading
     
     /// Load only basic observers (no heavy services)
     private func loadBasicObservers() async {
-        await MainActor.run {
-            // Only observe user preferences changes (no service dependencies)
-            setupBasicObservers()
-        }
+        // Only observe user preferences changes (no service dependencies)
+        setupBasicObservers()
     }
     
     private func setupBasicObservers() {
         // Lightweight observers (no service loading)
         userPreferences.$schedule
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.debouncedUpdateState()
                 self?.scheduleNotificationsIfNeeded()
@@ -519,10 +560,10 @@ class HomeViewModel: ObservableObject {
             .store(in: &cancellables)
         
         userPreferences.$settings
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     self?.objectWillChange.send()
+                    self?.performStateUpdate()
                 }
             }
             .store(in: &cancellables)
@@ -539,14 +580,12 @@ class HomeViewModel: ObservableObject {
         let welcomeScheduler = WelcomeDayStartScheduler.shared
         
         welcomeScheduler.$isWelcomePending
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.debouncedUpdateState()
             }
             .store(in: &cancellables)
         
         welcomeScheduler.$isWelcomeReadyToPlay
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.debouncedUpdateState()
             }
@@ -591,7 +630,7 @@ class HomeViewModel: ObservableObject {
         }
         
         if let workItem = updateStateWorkItem {
-            DispatchQueue.main.async(execute: workItem)
+            workItem.perform()
         }
     }
     
@@ -614,7 +653,8 @@ class HomeViewModel: ObservableObject {
         // Minimum 100ms between state changes to prevent flicker
         guard timeSinceLastChange > 0.1 else {
             logger.log("⚠️ State change too rapid, debouncing", level: .debug)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                 self?.performStateUpdate()
             }
             return
@@ -623,7 +663,7 @@ class HomeViewModel: ObservableObject {
         isTransitioning = true
         lastStateChangeTime = now
         
-        cleanupAllTimers()
+        cleanupTimersExceptCountdown()
         
         // Check for welcome DayStart first (only if enabled)
         if !userPreferences.schedule.repeatDays.isEmpty {
@@ -680,7 +720,6 @@ class HomeViewModel: ObservableObject {
         
         let timeUntil = nextOccurrence.timeIntervalSinceNow
         let sixHoursInSeconds: TimeInterval = 6 * 3600
-        let tenHoursInSeconds: TimeInterval = 10 * 3600
         
         let hasCompletedThisOccurrence = hasCompletedOccurrence(nextOccurrence)
         hasCompletedCurrentOccurrence = hasCompletedThisOccurrence
@@ -698,6 +737,8 @@ class HomeViewModel: ObservableObject {
         } else {
             // Default to idle state (which will show countdown if within 10 hours)
             stateTransitionManager.transitionTo(.idle)
+            // Restart countdown display when returning to idle
+            updateCountdownDisplay()
         }
         
         // Mark transition as complete
@@ -714,7 +755,7 @@ class HomeViewModel: ObservableObject {
             
             // Set up timer if we don't have one
             if timer == nil {
-                timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { @MainActor [weak self] _ in
                     guard let self = self, let nextTime = self.nextDayStartTime else { return }
                     
                     let timeUntil = nextTime.timeIntervalSinceNow
@@ -788,7 +829,7 @@ class HomeViewModel: ObservableObject {
     private func startPreparingCountdown(duration: TimeInterval) {
         preparingTimer?.invalidate()
         
-        preparingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        preparingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { @MainActor [weak self] _ in
             guard let self = self, let startTime = self.preparingStartTime else { return }
             
             let elapsed = Date().timeIntervalSince(startTime)
@@ -819,7 +860,7 @@ class HomeViewModel: ObservableObject {
         preparingMessageTimer?.invalidate()
         
         // Rotate messages every 5-7 seconds
-        preparingMessageTimer = Timer.scheduledTimer(withTimeInterval: Double.random(in: 5...7), repeats: true) { [weak self] _ in
+        preparingMessageTimer = Timer.scheduledTimer(withTimeInterval: Double.random(in: 5...7), repeats: true) { @MainActor [weak self] _ in
             guard let self = self else { return }
             
             self.currentMessageIndex = (self.currentMessageIndex + 1) % self.preparingMessages.count
@@ -830,7 +871,7 @@ class HomeViewModel: ObservableObject {
             
             // Reset timer with new random interval
             self.preparingMessageTimer?.invalidate()
-            self.preparingMessageTimer = Timer.scheduledTimer(withTimeInterval: Double.random(in: 5...7), repeats: true) { _ in
+            self.preparingMessageTimer = Timer.scheduledTimer(withTimeInterval: Double.random(in: 5...7), repeats: true) { @MainActor _ in
                 self.rotatePreparingMessage()
             }
         }
@@ -856,7 +897,7 @@ class HomeViewModel: ObservableObject {
         }
         
         // Poll every 10 seconds with safety limits
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { @MainActor [weak self] _ in
             Task {
                 await self?.checkAudioStatusWithLimits(for: scheduledTime)
             }
@@ -987,8 +1028,9 @@ class HomeViewModel: ObservableObject {
         toastMessage = "DayStart failed while app was in background: \(error.title)"
         
         // Auto-clear toast message after 4 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-            self.toastMessage = nil
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 4_000_000_000) // 4 seconds
+            self?.toastMessage = nil
         }
     }
     
@@ -1025,10 +1067,8 @@ class HomeViewModel: ObservableObject {
     private func startErrorDismissTimer() {
         errorDismissTimer?.invalidate()
         
-        errorDismissTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                self?.dismissError()
-            }
+        errorDismissTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: false) { @MainActor [weak self] _ in
+            self?.dismissError()
         }
     }
     
@@ -1113,7 +1153,7 @@ class HomeViewModel: ObservableObject {
         await MainActor.run {
             pollingTimer?.invalidate()
             
-            pollingTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            pollingTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { @MainActor [weak self] _ in
                 Task {
                     await self?.checkWelcomeAudioStatusOnce()
                 }
@@ -1370,7 +1410,7 @@ class HomeViewModel: ObservableObject {
         }
         
         // Trigger update in background for remaining scheduled jobs
-        Task.detached {
+        Task {
             await ServiceRegistry.shared.snapshotUpdateManager.updateSnapshotsForUpcomingJobs(trigger: .dayStartPlayed)
         }
     }
@@ -1438,8 +1478,8 @@ class HomeViewModel: ObservableObject {
                     
                     // Background download
                     let dayStartId = dayStartWithScheduledTime.id
-                    Task.detached {
-                        let audioDownloader = await MainActor.run { ServiceRegistry.shared.audioDownloader }
+                    Task {
+                        let audioDownloader = ServiceRegistry.shared.audioDownloader
                         let success = await audioDownloader.download(from: audioUrl, for: effectiveScheduledTime)
                         if success {
                             await MainActor.run {
@@ -1515,8 +1555,8 @@ class HomeViewModel: ObservableObject {
                 await streamAudio(from: audioUrl)
                 
                 // Background download (like regular DayStart)
-                Task.detached {
-                    let audioDownloader = await MainActor.run { ServiceRegistry.shared.audioDownloader }
+                Task {
+                    let audioDownloader = ServiceRegistry.shared.audioDownloader
                     let success = await audioDownloader.download(from: audioUrl, for: Date())
                     if success {
                         await MainActor.run {
@@ -1658,7 +1698,8 @@ class HomeViewModel: ObservableObject {
         state = .completed
         stopPauseTimeoutTimer()
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
             if self?.state == .completed {
                 self?.updateState()
             }
@@ -1703,20 +1744,18 @@ class HomeViewModel: ObservableObject {
     }
     
     private func startLoadingTimeoutTimer() {
-        loadingTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
+        loadingTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { @MainActor [weak self] _ in
             guard let self = self else { return }
-            Task { @MainActor in
-                // Only act if we're still buffering and not actually playing
-                if self.state == .buffering,
-                   self.serviceRegistry.loadedServices.contains("AudioPlayerManager"),
-                   self.serviceRegistry.audioPlayerManager.isPlaying == false {
-                    self.stopLoadingTimers()
-                    self.connectionError = .timeout
-                    self.state = .idle
-                } else {
-                    // No error if playback started or state moved on
-                    self.stopLoadingTimers()
-                }
+            // Only act if we're still buffering and not actually playing
+            if self.state == .buffering,
+               self.serviceRegistry.loadedServices.contains("AudioPlayerManager"),
+               self.serviceRegistry.audioPlayerManager.isPlaying == false {
+                self.stopLoadingTimers()
+                self.connectionError = .timeout
+                self.state = .idle
+            } else {
+                // No error if playback started or state moved on
+                self.stopLoadingTimers()
             }
         }
     }
@@ -1736,7 +1775,7 @@ class HomeViewModel: ObservableObject {
     private func startPauseTimeoutTimer() {
         stopPauseTimeoutTimer()
         
-        pauseTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        pauseTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { @MainActor [weak self] _ in
             self?.checkIfShouldExitPlayingState()
         }
     }

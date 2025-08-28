@@ -164,10 +164,12 @@ async function refreshContentAsync(request_id: string): Promise<void> {
     const contentSources: ContentSource[] = []
     const missingEnvs: string[] = []
     if (Deno.env.get('NEWSAPI_KEY')) {
-      contentSources.push({ type: 'news', source: 'newsapi', ttlHours: 168, fetchFunction: () => fetchNewsAPI() })
+      contentSources.push({ type: 'news', source: 'newsapi_general', ttlHours: 168, fetchFunction: () => fetchNewsAPIGeneral() })
+      contentSources.push({ type: 'news', source: 'newsapi_business', ttlHours: 168, fetchFunction: () => fetchNewsAPIBusiness() })
+      contentSources.push({ type: 'news', source: 'newsapi_targeted', ttlHours: 168, fetchFunction: () => fetchNewsAPITargeted() })
     } else { missingEnvs.push('NEWSAPI_KEY') }
     if (Deno.env.get('GNEWS_API_KEY')) {
-      contentSources.push({ type: 'news', source: 'gnews', ttlHours: 168, fetchFunction: () => fetchGNews() })
+      contentSources.push({ type: 'news', source: 'gnews_comprehensive', ttlHours: 168, fetchFunction: () => fetchGNewsComprehensive() })
     } else { missingEnvs.push('GNEWS_API_KEY') }
     if (Deno.env.get('RAPIDAPI_KEY')) {
       contentSources.push({ type: 'stocks', source: 'yahoo_finance', ttlHours: 168, fetchFunction: () => fetchYahooFinance(supabase) })
@@ -194,10 +196,21 @@ async function refreshContentAsync(request_id: string): Promise<void> {
           // Attach compact content before caching to reduce downstream token usage
           try {
             if (source.type === 'news') {
-              const articles = Array.isArray((data as any).articles) ? (data as any).articles.slice(0, 12) : []
-              const compactNews = await summarizeNewsMini(articles, source.source)
-              if (Array.isArray(compactNews) && compactNews.length > 0) {
-                ;(data as any).compact = { ...((data as any).compact || {}), news: compactNews.slice(0, 12) }
+              const articles = Array.isArray((data as any).articles) ? (data as any).articles : []
+              
+              // For news, we now process all articles for intelligence
+              if (articles.length > 0) {
+                // Apply importance scoring and categorization
+                const enhancedArticles = articles.map(article => enhanceArticleWithIntelligence(article, source.source))
+                
+                // Store enhanced articles in data
+                ;(data as any).articles = enhancedArticles
+                
+                // Create compact summaries for backwards compatibility
+                const compactNews = await summarizeNewsMini(enhancedArticles.slice(0, 12), source.source)
+                if (Array.isArray(compactNews) && compactNews.length > 0) {
+                  ;(data as any).compact = { ...((data as any).compact || {}), news: compactNews.slice(0, 12) }
+                }
               }
             } else if (source.type === 'sports') {
               const compactSports = compactSportsLocal(data)
@@ -247,6 +260,18 @@ async function refreshContentAsync(request_id: string): Promise<void> {
 
     await Promise.all(fetchPromises)
 
+    // Enhanced News Processing: Generate Top 10 Stories
+    try {
+      if (results.successful > 0) {
+        console.log('🧠 Starting enhanced news intelligence processing...')
+        await generateTopTenStories(supabase, request_id)
+        console.log('✅ Enhanced news processing completed')
+      }
+    } catch (error) {
+      console.error('❌ Enhanced news processing failed:', error)
+      // Don't fail the entire refresh if this fails
+    }
+
     // Clean up expired content
     try {
       const { data: cleanupCount } = await supabase.rpc('cleanup_expired_content')
@@ -285,38 +310,103 @@ async function refreshContentAsync(request_id: string): Promise<void> {
   }
 }
 
-// News API fetch function
-async function fetchNewsAPI(): Promise<any> {
+// Enhanced NewsAPI fetch functions - Multiple endpoints for comprehensive coverage
+
+// General top headlines
+async function fetchNewsAPIGeneral(): Promise<any> {
   const apiKey = Deno.env.get('NEWSAPI_KEY')
   if (!apiKey) throw new Error('NEWSAPI_KEY not configured')
 
-  const url = `https://newsapi.org/v2/top-headlines?country=us&pageSize=10&apiKey=${apiKey}`
+  const url = `https://newsapi.org/v2/top-headlines?country=us&pageSize=25&apiKey=${apiKey}`
   const data = await getJSON<any>(url)
   
   if (data.status !== 'ok') {
-    throw new Error(`NewsAPI error: ${data.message || 'Unknown error'}`)
+    throw new Error(`NewsAPI General error: ${data.message || 'Unknown error'}`)
   }
 
   return {
-    articles: (data.articles || []).slice(0, 5).map((a: any) => ({
+    articles: (data.articles || []).map((a: any) => ({
       title: a.title || '',
       description: String(a.description || '').slice(0, 300),
       url: a.url || '',
       publishedAt: a.publishedAt || '',
-      source: a.source?.name || 'NewsAPI'
+      source: a.source?.name || 'NewsAPI',
+      category: 'general'
     })),
     total_results: data.totalResults,
     fetched_at: new Date().toISOString(),
-    source: 'newsapi'
+    source: 'newsapi_general',
+    endpoint: 'top-headlines'
   }
 }
 
-// GNews API fetch function
-async function fetchGNews(): Promise<any> {
+// Business-focused headlines  
+async function fetchNewsAPIBusiness(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSAPI_KEY')
+  if (!apiKey) throw new Error('NEWSAPI_KEY not configured')
+
+  const url = `https://newsapi.org/v2/top-headlines?country=us&category=business&pageSize=25&apiKey=${apiKey}`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'ok') {
+    throw new Error(`NewsAPI Business error: ${data.message || 'Unknown error'}`)
+  }
+
+  return {
+    articles: (data.articles || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.url || '',
+      publishedAt: a.publishedAt || '',
+      source: a.source?.name || 'NewsAPI',
+      category: 'business'
+    })),
+    total_results: data.totalResults,
+    fetched_at: new Date().toISOString(),
+    source: 'newsapi_business',
+    endpoint: 'top-headlines/business'
+  }
+}
+
+// Targeted high-impact keywords
+async function fetchNewsAPITargeted(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSAPI_KEY')
+  if (!apiKey) throw new Error('NEWSAPI_KEY not configured')
+
+  // High-impact search terms
+  const searchTerms = 'election OR economy OR "supreme court" OR "federal reserve" OR climate OR inflation OR recession'
+  const from = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString() // Last 12 hours
+  
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&language=en&sortBy=popularity&from=${from}&pageSize=30&apiKey=${apiKey}`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'ok') {
+    throw new Error(`NewsAPI Targeted error: ${data.message || 'Unknown error'}`)
+  }
+
+  return {
+    articles: (data.articles || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.url || '',
+      publishedAt: a.publishedAt || '',
+      source: a.source?.name || 'NewsAPI',
+      category: 'targeted'
+    })),
+    total_results: data.totalResults,
+    fetched_at: new Date().toISOString(),
+    source: 'newsapi_targeted',
+    endpoint: 'everything/targeted',
+    search_terms: searchTerms
+  }
+}
+
+// Enhanced GNews comprehensive fetch
+async function fetchGNewsComprehensive(): Promise<any> {
   const apiKey = Deno.env.get('GNEWS_API_KEY')
   if (!apiKey) throw new Error('GNEWS_API_KEY not configured')
 
-  const url = `https://gnews.io/api/v4/top-headlines?country=us&max=10&token=${apiKey}`
+  const url = `https://gnews.io/api/v4/top-headlines?country=us&max=25&token=${apiKey}`
   const data = await getJSON<any>(url)
   
   if (!data.articles) {
@@ -324,16 +414,18 @@ async function fetchGNews(): Promise<any> {
   }
 
   return {
-    articles: (data.articles || []).slice(0, 5).map((a: any) => ({
+    articles: (data.articles || []).map((a: any) => ({
       title: a.title || '',
       description: String(a.description || '').slice(0, 300),
       url: a.url || '',
       publishedAt: a.publishedAt || '',
-      source: a.source?.name || 'GNews'
+      source: a.source?.name || 'GNews',
+      category: 'general'
     })),
     total_results: data.totalArticles,
     fetched_at: new Date().toISOString(),
-    source: 'gnews'
+    source: 'gnews_comprehensive',
+    endpoint: 'top-headlines'
   }
 }
 
@@ -470,6 +562,387 @@ async function fetchTheSportDB(): Promise<any> {
     date: `${today},${tomorrow}`,
     fetched_at: new Date().toISOString(),
     source: 'thesportdb'
+  }
+}
+
+// ============================================================================
+// ENHANCED NEWS INTELLIGENCE SYSTEM
+// ============================================================================
+
+// Intelligence enhancement for individual articles
+function enhanceArticleWithIntelligence(article: any, sourceName: string): any {
+  return {
+    ...article,
+    importance_score: calculateImportanceScore(article),
+    topic_category: categorizeStory(article),
+    geographic_scope: determineGeographicScope(article),
+    enhanced_at: new Date().toISOString(),
+    source_name: sourceName
+  }
+}
+
+// Calculate importance score based on content analysis
+function calculateImportanceScore(article: any): number {
+  let score = 0
+  const text = `${article.title || ''} ${article.description || ''}`.toLowerCase()
+  
+  // Source authority (basic trust scoring)
+  const source = (article.source || '').toLowerCase()
+  if (['reuters', 'associated press', 'ap', 'bbc', 'npr'].includes(source)) score += 10
+  else if (['wall street journal', 'new york times', 'washington post', 'bloomberg'].includes(source)) score += 8
+  else if (['cnn', 'fox news', 'msnbc', 'abc news', 'cbs news'].includes(source)) score += 6
+  else score += 3 // Default for other sources
+  
+  // High-impact topic keywords
+  if (text.includes('election') || text.includes('vote') || text.includes('ballot')) score += 20
+  if (text.includes('economy') || text.includes('recession') || text.includes('inflation') || text.includes('unemployment')) score += 15
+  if (text.includes('war') || text.includes('conflict') || text.includes('crisis') || text.includes('attack')) score += 15
+  if (text.includes('supreme court') || text.includes('scotus') || text.includes('constitutional')) score += 12
+  if (text.includes('federal reserve') || text.includes('fed') || text.includes('interest rate')) score += 12
+  if (text.includes('climate') || text.includes('disaster') || text.includes('hurricane') || text.includes('wildfire')) score += 10
+  if (text.includes('president') || text.includes('congress') || text.includes('senate') || text.includes('house')) score += 8
+  if (text.includes('market') || text.includes('stock') || text.includes('trading')) score += 8
+  if (text.includes('technology') || text.includes('ai') || text.includes('artificial intelligence')) score += 6
+  if (text.includes('health') || text.includes('pandemic') || text.includes('outbreak') || text.includes('vaccine')) score += 7
+  
+  // Business impact indicators
+  if (text.includes('billion') || text.includes('trillion')) score += 5
+  if (text.includes('merger') || text.includes('acquisition') || text.includes('ipo')) score += 4
+  if (text.includes('earnings') || text.includes('revenue') || text.includes('profit')) score += 3
+  
+  // Government/policy indicators
+  if (text.includes('bill') || text.includes('law') || text.includes('policy') || text.includes('regulation')) score += 6
+  if (text.includes('investigation') || text.includes('indictment') || text.includes('lawsuit')) score += 5
+  
+  // Urgency indicators
+  if (text.includes('breaking') || text.includes('urgent')) score += 8
+  if (text.includes('developing') || text.includes('live') || text.includes('update')) score += 4
+  
+  // Recency boost (more recent = higher impact)
+  if (article.publishedAt) {
+    const hoursOld = (Date.now() - new Date(article.publishedAt).getTime()) / (1000 * 60 * 60)
+    if (hoursOld < 1) score += 10
+    else if (hoursOld < 6) score += 5
+    else if (hoursOld < 12) score += 2
+  }
+  
+  return Math.max(0, Math.min(100, score)) // Clamp to 0-100
+}
+
+// Categorize story by topic
+function categorizeStory(article: any): string {
+  const text = `${article.title || ''} ${article.description || ''}`.toLowerCase()
+  
+  if (text.includes('election') || text.includes('congress') || text.includes('senate') || 
+      text.includes('president') || text.includes('government') || text.includes('policy')) return 'politics'
+  if (text.includes('economy') || text.includes('market') || text.includes('stock') || 
+      text.includes('business') || text.includes('company') || text.includes('earnings')) return 'business'  
+  if (text.includes('technology') || text.includes('tech') || text.includes('ai') || 
+      text.includes('software') || text.includes('internet')) return 'technology'
+  if (text.includes('health') || text.includes('medical') || text.includes('hospital') || 
+      text.includes('doctor') || text.includes('disease')) return 'health'
+  if (text.includes('climate') || text.includes('environment') || text.includes('weather') || 
+      text.includes('hurricane') || text.includes('earthquake')) return 'climate'
+  if (text.includes('sports') || text.includes('game') || text.includes('team') || 
+      text.includes('player') || text.includes('championship')) return 'sports'
+  if (text.includes('international') || text.includes('foreign') || text.includes('global') || 
+      text.includes('china') || text.includes('russia') || text.includes('europe')) return 'international'
+  
+  return 'general'
+}
+
+// Determine geographic scope
+function determineGeographicScope(article: any): string {
+  const text = `${article.title || ''} ${article.description || ''}`.toLowerCase()
+  
+  // Check for international indicators
+  if (text.includes('china') || text.includes('russia') || text.includes('europe') || 
+      text.includes('ukraine') || text.includes('international') || text.includes('global')) return 'international'
+  
+  // Check for state/local indicators (this is basic - could be enhanced)
+  if (text.includes('california') || text.includes('texas') || text.includes('florida') || 
+      text.includes('new york') || text.includes('los angeles') || text.includes('chicago')) return 'state'
+  
+  // Check for federal/national indicators
+  if (text.includes('federal') || text.includes('congress') || text.includes('senate') || 
+      text.includes('supreme court') || text.includes('president')) return 'national'
+  
+  return 'national' // Default assumption
+}
+
+// Article deduplication across sources
+function deduplicateArticles(articles: any[]): any[] {
+  const seen = new Set<string>()
+  const deduped: any[] = []
+  
+  for (const article of articles) {
+    // Create a key from URL, title, or description
+    const key = (article.url || article.title || article.description || '').toLowerCase().slice(0, 100)
+    if (!key || seen.has(key)) continue
+    
+    seen.add(key)
+    deduped.push(article)
+  }
+  
+  return deduped
+}
+
+// Ensure topic diversity in article selection
+function ensureTopicDiversity(articles: any[], maxCount: number = 25): any[] {
+  const categories = ['politics', 'business', 'technology', 'international', 'health', 'climate']
+  const result: any[] = []
+  const used = new Set<any>()
+  
+  // First pass: ensure at least one from each major category
+  for (const category of categories) {
+    const best = articles
+      .filter(a => a.topic_category === category && !used.has(a))
+      .sort((a, b) => b.importance_score - a.importance_score)[0]
+    
+    if (best) {
+      result.push(best)
+      used.add(best)
+    }
+  }
+  
+  // Second pass: fill remaining slots with highest scoring articles
+  const remaining = articles
+    .filter(a => !used.has(a))
+    .sort((a, b) => b.importance_score - a.importance_score)
+  
+  for (const article of remaining) {
+    if (result.length >= maxCount) break
+    result.push(article)
+  }
+  
+  return result.slice(0, maxCount)
+}
+
+// Main function to generate top 10 stories from all sources
+async function generateTopTenStories(supabase: any, requestId: string): Promise<void> {
+  console.log(`[${requestId}] 🧠 Starting top 10 story generation...`)
+  
+  try {
+    // 1. Fetch all news content from cache
+    const { data: newsContent, error } = await supabase.rpc('get_fresh_content', {
+      requested_types: ['news']
+    })
+    
+    if (error || !newsContent?.news) {
+      console.log(`[${requestId}] ⚠️ No news content available for processing`)
+      return
+    }
+    
+    console.log(`[${requestId}] 📰 Found ${newsContent.news.length} news sources`)
+    
+    // 2. Collect all articles from all sources
+    const allArticles: any[] = []
+    for (const source of newsContent.news) {
+      const articles = source.data?.articles || []
+      allArticles.push(...articles)
+    }
+    
+    console.log(`[${requestId}] 📊 Collected ${allArticles.length} total articles`)
+    
+    if (allArticles.length === 0) {
+      console.log(`[${requestId}] ⚠️ No articles found in any source`)
+      return
+    }
+    
+    // 3. Deduplicate articles
+    const dedupedArticles = deduplicateArticles(allArticles)
+    console.log(`[${requestId}] 🔄 Deduplication: ${allArticles.length} → ${dedupedArticles.length} articles`)
+    
+    // 4. Sort by importance and ensure diversity
+    const rankedArticles = ensureTopicDiversity(
+      dedupedArticles.sort((a, b) => b.importance_score - a.importance_score),
+      25
+    )
+    
+    console.log(`[${requestId}] 🎯 Selected top 25 diverse articles for AI analysis`)
+    
+    // 5. Use GPT-4o-mini for final top 10 selection  
+    const topTenStories = await selectFinalTopTen(rankedArticles, requestId)
+    
+    // 6. Cache the top 10 stories as a special source
+    const topTenData = {
+      stories: topTenStories,
+      generation_metadata: {
+        articles_processed: allArticles.length,
+        articles_deduped: dedupedArticles.length,
+        articles_analyzed: rankedArticles.length,
+        ai_model: 'gpt-4o-mini',
+        generated_at: new Date().toISOString(),
+        request_id: requestId
+      },
+      // Maintain backwards compatibility - provide articles array
+      articles: topTenStories.map(story => ({
+        title: story.title,
+        description: story.description,
+        url: story.url,
+        publishedAt: story.publishedAt,
+        source: story.source
+      })),
+      // Enhanced compact format
+      compact: {
+        news: topTenStories.map(story => ({
+          id: story.id || story.url || `story_${Date.now()}`,
+          source: story.source_name || story.source,
+          publishedAt: story.publishedAt,
+          speakable: story.ai_summary || story.title,
+          geo: story.geographic_scope,
+          category: story.topic_category,
+          importance_score: story.importance_score,
+          ai_rank: story.ai_rank
+        }))
+      }
+    }
+    
+    // Store as a special "top_ten" source
+    const { error: cacheError } = await supabase.rpc('cache_content', {
+      p_content_type: 'news',
+      p_source: 'top_ten_ai_curated',
+      p_data: topTenData,
+      p_expires_hours: 12
+    })
+    
+    if (cacheError) {
+      console.error(`[${requestId}] ❌ Failed to cache top 10 stories:`, cacheError)
+    } else {
+      console.log(`[${requestId}] ✅ Successfully cached top 10 AI-curated stories`)
+    }
+    
+  } catch (error) {
+    console.error(`[${requestId}] ❌ Top 10 generation failed:`, error)
+    throw error
+  }
+}
+
+// Use GPT-4o-mini to select final top 10 from top 25
+async function selectFinalTopTen(candidates: any[], requestId: string): Promise<any[]> {
+  const openaiKey = Deno.env.get('OPENAI_API_KEY')
+  if (!openaiKey) {
+    console.log(`[${requestId}] ⚠️ No OpenAI key - using basic ranking for top 10`)
+    return candidates.slice(0, 10).map((article, index) => ({
+      ...article,
+      ai_rank: index + 1,
+      ai_summary: article.title,
+      selection_reason: 'High importance score'
+    }))
+  }
+  
+  console.log(`[${requestId}] 🤖 Using GPT-4o-mini to select final top 10 stories...`)
+  
+  try {
+    const payload = {
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a senior news editor selecting exactly 10 stories for a national morning briefing.
+
+SELECTION CRITERIA (in order of priority):
+1. IMPACT: Stories affecting the most people or having major consequences
+2. TIMELINESS: Recent developments, breaking news, or evolving situations
+3. RELEVANCE: Important for informed citizens to know today
+4. DIVERSITY: Ensure breadth - avoid too many stories on the same topic
+
+MANDATORY REQUIREMENTS:
+- Select EXACTLY 10 stories
+- Include at least 1 political/government story (if available)
+- Include at least 1 economic/business story (if available)  
+- Include at least 1 international story (if available)
+- Maximum 3 stories from any single category
+- Prioritize stories with high importance_score but ensure variety
+
+Return JSON only:
+{
+  "selections": [
+    {
+      "article_index": 0,
+      "importance_rank": 1,
+      "selection_reason": "Brief reason why this story is important",
+      "story_summary": "Enhanced summary for TTS readability"
+    }
+  ]
+}`
+        },
+        {
+          role: 'user',
+          content: `Select exactly 10 stories from these ${candidates.length} candidates for today's morning briefing:
+
+${JSON.stringify(candidates.map((article, index) => ({
+  index,
+  title: article.title,
+  description: article.description?.slice(0, 200),
+  source: article.source,
+  importance_score: article.importance_score,
+  topic_category: article.topic_category,
+  geographic_scope: article.geographic_scope,
+  publishedAt: article.publishedAt
+})), null, 2)}`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 2000
+    }
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${openaiKey}`, 
+        'Content-Type': 'application/json' 
+      },
+      body: JSON.stringify(payload)
+    })
+    
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    const content = data.choices?.[0]?.message?.content
+    
+    if (!content) {
+      throw new Error('No content in OpenAI response')
+    }
+    
+    const parsed = JSON.parse(content)
+    const selections = parsed.selections || []
+    
+    if (!Array.isArray(selections) || selections.length === 0) {
+      throw new Error('Invalid selections format from OpenAI')
+    }
+    
+    console.log(`[${requestId}] ✅ GPT-4o-mini selected ${selections.length} stories`)
+    
+    // Build final top 10 with AI enhancements
+    return selections.map(selection => {
+      const originalArticle = candidates[selection.article_index]
+      if (!originalArticle) {
+        console.warn(`[${requestId}] ⚠️ Invalid article index: ${selection.article_index}`)
+        return null
+      }
+      
+      return {
+        ...originalArticle,
+        ai_rank: selection.importance_rank,
+        selection_reason: selection.selection_reason,
+        ai_summary: selection.story_summary || originalArticle.title,
+        id: originalArticle.url || `story_${selection.article_index}_${Date.now()}`
+      }
+    }).filter(Boolean).slice(0, 10) // Ensure exactly 10 and filter nulls
+    
+  } catch (error) {
+    console.error(`[${requestId}] ❌ GPT-4o-mini selection failed:`, error)
+    // Fallback to basic ranking
+    return candidates.slice(0, 10).map((article, index) => ({
+      ...article,
+      ai_rank: index + 1,
+      ai_summary: article.title,
+      selection_reason: 'Fallback: High importance score',
+      id: article.url || `story_fallback_${index}_${Date.now()}`
+    }))
   }
 }
 

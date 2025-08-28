@@ -1407,7 +1407,7 @@ struct OnboardingView: View {
                             .multilineTextAlignment(.center)
                             .opacity(textOpacity)
                         
-                        Text("Join thousands who've transformed their mornings")
+                        Text("Skip the scrolling, get briefed")
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
@@ -1427,10 +1427,10 @@ struct OnboardingView: View {
                         badge: "🔥 Most Popular",
                         trialText: "7-Day Free Trial",
                         savings: "Save 33%",
-                        isSelected: selectedProduct?.id == "annual",
+                        isSelected: selectedProduct?.id == "daystart_annual_subscription",
                         geometry: geometry,
                         action: {
-                            selectedProduct = MockProduct(id: "annual", displayName: "Annual Pass", description: "Annual subscription", price: 39.99, displayPrice: "$39.99", type: .autoRenewable)
+                            selectedProduct = MockProduct(id: "daystart_annual_subscription", displayName: "Annual Pass", description: "Annual subscription", price: 39.99, displayPrice: "$39.99", type: .autoRenewable)
                             impactFeedback()
                         }
                     )
@@ -1442,10 +1442,10 @@ struct OnboardingView: View {
                         badge: nil,
                         trialText: "3-Day Free Trial",
                         savings: nil,
-                        isSelected: selectedProduct?.id == "monthly",
+                        isSelected: selectedProduct?.id == "daystart_monthly_subscription",
                         geometry: geometry,
                         action: {
-                            selectedProduct = MockProduct(id: "monthly", displayName: "Monthly Pass", description: "Monthly subscription", price: 4.99, displayPrice: "$4.99", type: .autoRenewable)
+                            selectedProduct = MockProduct(id: "daystart_monthly_subscription", displayName: "Monthly Pass", description: "Monthly subscription", price: 4.99, displayPrice: "$4.99", type: .autoRenewable)
                             impactFeedback()
                         }
                     )
@@ -1459,7 +1459,7 @@ struct OnboardingView: View {
                 HStack {
                     Image(systemName: "clock.fill")
                         .foregroundColor(.red)
-                    Text("Limited Time: \(selectedProduct?.id == "annual" ? "7-Day" : "3-Day") Free Trial")
+                    Text("Limited Time: \(selectedProduct?.id == "daystart_annual_subscription" ? "7-Day" : "3-Day") Free Trial")
                         .font(.system(size: min(14, geometry.size.width * 0.035), weight: .bold))
                         .foregroundColor(.red)
                 }
@@ -1515,15 +1515,25 @@ struct OnboardingView: View {
                 // Legal links
                 HStack(spacing: 16) {
                     Button("Terms") {
-                        // Open terms
+                        if let url = URL(string: "https://daystart.bananaintelligence.ai/terms") {
+                            UIApplication.shared.open(url)
+                        }
                     }
                     Text("•")
                     Button("Privacy") {
-                        // Open privacy
+                        if let url = URL(string: "https://daystart.bananaintelligence.ai/privacy") {
+                            UIApplication.shared.open(url)
+                        }
                     }
                     Text("•")
                     Button("Restore") {
-                        // Restore purchases
+                        Task {
+                            do {
+                                try await PurchaseManager.shared.restorePurchases()
+                            } catch {
+                                logger.logError(error, context: "Failed to restore purchases")
+                            }
+                        }
                     }
                 }
                 .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
@@ -1588,15 +1598,9 @@ struct OnboardingView: View {
                     return
                 }
                 
-                #if DEBUG
-                // Testing: Use simulated purchase to generate mock receipt ID
-                logger.log("🧪 DEBUG: Using simulated purchase", level: .info)
-                try await PurchaseManager.shared.simulatePurchase(for: product.id)
-                #else
-                // Production: Use real StoreKit purchase
-                logger.log("💳 PRODUCTION: Initiating real StoreKit purchase", level: .info)
+                // Use real StoreKit purchase (works in both debug and production)
+                logger.log("💳 Initiating StoreKit purchase", level: .info)
                 try await PurchaseManager.shared.purchase(productId: product.id)
-                #endif
                 
                 await MainActor.run {
                     logger.log("✅ Purchase flow completed successfully", level: .info)

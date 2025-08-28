@@ -273,7 +273,7 @@ class WelcomeDayStartScheduler: ObservableObject {
         }
         
         // Request location permissions if weather is enabled
-        let settings = UserPreferences.shared.settings
+        let settings = await UserPreferences.shared.settings
         if settings.includeWeather {
             _ = await LocationManager.shared.requestLocationPermission()
             logger.log("📍 Location permission requested", level: .info)
@@ -284,8 +284,8 @@ class WelcomeDayStartScheduler: ObservableObject {
         logger.log("📦 Pre-creating today's audio during countdown", level: .info)
         
         let localDate = Date()
-        let scheduler = UserPreferences.shared.schedule
-        let settings = UserPreferences.shared.settings
+        let scheduler = await UserPreferences.shared.schedule
+        let settings = await UserPreferences.shared.settings
         
         do {
             // Build snapshot for context

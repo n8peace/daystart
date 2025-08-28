@@ -6,7 +6,7 @@ This document outlines the remaining compliance and technical items needed befor
 
 **Timeline Recommendation:** Ready for App Store submission in ~1-2 weeks.
 
-**Risk Level:** 🟢 **LOW** - Core functionality complete, critical backend auth issues resolved; remaining items are App Store compliance and testing.
+**Risk Level:** 🟡 **MEDIUM** - Core functionality complete but several App Store review blockers need immediate attention.
 
 ---
 
@@ -233,6 +233,34 @@ Premium subscription includes unlimited briefings, advanced customization, and p
    - Submit for beta review (24-48 hours)
    - Add external testers
    - Gather feedback before submission
+
+---
+
+## 🔴 Critical Review Blockers (Fix Before Submission)
+
+### 1. Privacy/Terms Documents
+**Issue:** PRIVACY_POLICY.md and TERMS_OF_SERVICE.md have placeholders
+**Fix:** Replace all bracketed placeholders with real info and host at:
+- https://daystart.bananaintelligence.ai/privacy
+- https://daystart.bananaintelligence.ai/terms
+
+### 2. Paywall Button Functionality
+**Issue:** "Restore," "Terms," "Privacy" buttons do nothing (OnboardingView.swift L1515-1527)
+**Fix:** Wire up:
+- Restore → Call `purchaseManager.restorePurchases()`
+- Terms → Open terms URL in Safari
+- Privacy → Open privacy URL in Safari
+
+### 3. Info.plist Background Modes
+**Issue:** Over-declared modes including invalid "background-processing"
+**Fix:** Keep only:
+- audio
+- processing
+Remove: background-processing, fetch, remote-notification
+
+### 4. Remove simulatePurchase Function
+**Issue:** Test function in PurchaseManager.swift will cause rejection
+**Fix:** Delete entire `simulatePurchase` function
 
 ---
 

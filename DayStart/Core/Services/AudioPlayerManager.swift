@@ -61,6 +61,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
         logger.log("🎵 AudioPlayerManager setup complete", level: .info)
     }
     
+    @MainActor
     func loadAudio() {
         ensureSetup()
         // Get selected voice from preferences
@@ -210,6 +211,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     }
     
     // PHASE 4: Try to load from preloaded items first, fallback to URL loading
+    @MainActor
     func loadAudioInstantly(for date: Date, trackId: UUID? = nil) -> Bool {
         ensureSetup()
         
