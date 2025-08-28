@@ -15,16 +15,19 @@ This document provides a comprehensive overview of all external APIs used in the
 ## AI & Text-to-Speech APIs
 
 ### OpenAI API
-- **Purpose**: GPT-4 script generation, TTS audio synthesis
+- **Purpose**: GPT-4o-mini script generation, TTS audio synthesis
 - **Endpoints Used**:
-  - `/v1/chat/completions` (GPT-4 script generation)
-  - `/v1/audio/speech` (text-to-speech)
-- **Rate Limits**:
-  - **GPT-4**: 10,000 requests/minute (Tier 1), 90,000 requests/minute (Tier 5)
-  - **TTS**: 50 requests/minute
+  - `/v1/chat/completions` (GPT-4o-mini script generation)
+  - `/v1/audio/speech` (GPT-4o-mini-tts)
+- **Models Used**:
+  - **gpt-4o-mini**: Script generation and content adjustment
+  - **gpt-4o-mini-tts**: Text-to-speech audio synthesis
+- **Rate Limits** (Current Account):
+  - **gpt-4o-mini**: 4,000,000 TPM, 5,000 RPM, 40,000,000 TPD
+  - **gpt-4o-mini-tts**: 600,000 TPM, 5,000 RPM
 - **Pricing**: Pay-per-use
-  - GPT-4: ~$30/1M input tokens, ~$60/1M output tokens
-  - TTS: $15/1M characters
+  - gpt-4o-mini: ~$0.15/1M input tokens, ~$0.60/1M output tokens
+  - gpt-4o-mini-tts: $15/1M characters
 - **Usage Pattern**: 1-2 script generations + 1-2 TTS calls per job
 - **Configuration**: `OPENAI_API_KEY` environment variable
 
@@ -35,16 +38,11 @@ This document provides a comprehensive overview of all external APIs used in the
   - `pNInz6obpgDQGcFmaJgB` (Adam)
   - `21m00Tcm4TlvDq8ikWAM` (Rachel)  
   - `AZnzlk1XvdvUeBnXmlld` (Domi)
-- **Rate Limits**: ⚠️ **PLAN DEPENDENT** - Please specify your current plan
-  - Free: 10,000 characters/month
-  - Starter: 30,000 characters/month
-  - Creator: 100,000 characters/month
-  - Pro: 500,000 characters/month
-- **Pricing**: Character-based
-  - Free: $0 (10K chars)
-  - Starter: $5/month (30K chars)
-  - Creator: $22/month (100K chars)
-  - Pro: $99/month (500K chars)
+- **Current Plan**: Creator Plan
+- **Rate Limits**:
+  - **Concurrency**: 5 concurrent requests
+  - **Characters**: 100,000 characters/month
+- **Pricing**: $0.30/1,000 characters (Creator Plan)
 - **Usage Pattern**: ~500-1500 characters per job (fallback when OpenAI TTS fails)
 - **Configuration**: `ELEVENLABS_API_KEY` environment variable
 
@@ -55,29 +53,32 @@ This document provides a comprehensive overview of all external APIs used in the
 - **Endpoints Used**:
   - `/v2/top-headlines` (general + business category)
   - `/v2/everything` (targeted keyword search)
-- **Rate Limits**: ⚠️ **PLAN DEPENDENT** - Please specify your current plan
-  - Developer (Free): 1,000 requests/month
-  - Business: 250,000 requests/month
-- **Pricing**:
-  - Developer: Free (1K requests/month)
-  - Business: $449/month (250K requests/month)
+- **Current Plan**: Business ($500/month)
+- **Rate Limits**:
+  - **Monthly Requests**: 250,000 requests/month
+  - **Rate Limiting**: 1,000 requests/hour (no official concurrent limit)
 - **Usage Pattern**: 
   - 3 calls per refresh cycle (general, business, targeted)
   - ~80 articles fetched per cycle
   - Refresh cycles: Every hour
+  - **Monthly Usage**: ~2,160 requests/month (3 × 24 × 30)
 - **Configuration**: `NEWSAPI_KEY` environment variable (optional)
 
 ### GNews API
 - **Purpose**: Additional news source for content diversity
 - **Endpoint**: `/v4/top-headlines`
-- **Rate Limits**: ⚠️ **PLAN DEPENDENT** - Please specify your current plan
-  - Free: 100 requests/day
-  - Basic: 10,000 requests/month
-  - Professional: 100,000 requests/month
-- **Pricing**:
-  - Free: $0 (100 requests/day)
-  - Basic: $9/month (10K requests/month)
-  - Professional: $99/month (100K requests/month)
+- **Current Plan**: Essential ($60/month)
+- **Rate Limits**:
+  - **Daily Requests**: 1,000 requests/day
+  - **Concurrent Requests**: 4 requests/second
+  - **Articles per Request**: Up to 25 articles
+- **Features**:
+  - Real-time article availability
+  - Access to all sources
+  - Historical data from 2020
+  - CORS enabled for all origins
+  - No truncated content
+  - Email support
 - **Usage Pattern**: 1 call per refresh cycle (25 articles)
 - **Configuration**: `GNEWS_API_KEY` environment variable (optional)
 
@@ -86,18 +87,15 @@ This document provides a comprehensive overview of all external APIs used in the
 ### Yahoo Finance (via RapidAPI)
 - **Purpose**: Stock market data, forex, cryptocurrency prices
 - **Endpoint**: `/market/v2/get-quotes` (apidojo-yahoo-finance-v1)
-- **Rate Limits**: ⚠️ **PLAN DEPENDENT** - Please specify your RapidAPI plan
-  - Free: 500 requests/month
-  - Basic: 10,000 requests/month
-  - Pro: 100,000 requests/month
-- **Pricing**:
-  - Free: $0 (500 requests/month)
-  - Basic: $10/month (10K requests/month)
-  - Pro: $100/month (100K requests/month)
+- **Current Plan**: Basic ($10/month)
+- **Rate Limits**:
+  - **Monthly Requests**: 10,000 requests/month
+  - **Rate Limit**: 5 requests/second
 - **Usage Pattern**: 
   - 1 call per refresh cycle
   - 50+ symbols per call (base symbols + user-requested)
   - Base symbols include: AAPL, GOOGL, MSFT, AMZN, TSLA, etc.
+  - **Monthly Usage**: ~720 requests/month (1 × 24 × 30)
 - **Configuration**: `RAPIDAPI_KEY` environment variable (optional)
 
 ## Sports APIs
@@ -112,13 +110,14 @@ This document provides a comprehensive overview of all external APIs used in the
 
 ### TheSportDB API
 - **Purpose**: Additional sports data and scores
-- **Rate Limits**: ⚠️ **PLAN DEPENDENT** - Please specify your current plan
-  - Free: 10 requests/hour per IP
-  - Patreon Supporter: Higher limits
-- **Pricing**:
-  - Free: $0 (10 requests/hour)
-  - Patreon: $2+/month (higher limits)
+- **Current Plan**: Free
+- **Rate Limits**: ⚠️ **Unclear/Undocumented**
+  - Free tier has informal limits but no official documentation
+  - Generally allows reasonable usage for small applications
+  - May implement throttling during high traffic periods
+- **Pricing**: Free (no cost)
 - **Usage Pattern**: 1 call per refresh cycle
+- **Risk Assessment**: Low priority API - graceful degradation if limits hit
 - **Configuration**: None required for free tier
 
 ## Weather APIs
@@ -142,12 +141,18 @@ This document provides a comprehensive overview of all external APIs used in the
   - Edge functions
   - Storage buckets
   - Real-time subscriptions
-- **Rate Limits**: ⚠️ **PLAN DEPENDENT** - Please specify your current plan
-  - Free: 500MB database, 2GB bandwidth, 500K edge function invocations
-  - Pro: 8GB database, 50GB bandwidth, 2M edge function invocations
-- **Pricing**:
-  - Free: $0 (with limits)
-  - Pro: $25/month + usage
+- **Current Plan**: Pro ($25/month base)
+- **Included Resources**:
+  - **Monthly Active Users**: 100,000 (then $0.00325/MAU)
+  - **Database Storage**: 8 GB (then $0.125/GB)
+  - **Egress**: 250 GB (then $0.09/GB)
+  - **Cached Egress**: 250 GB (then $0.03/GB)
+  - **File Storage**: 100 GB (then $0.021/GB)
+  - **Edge Functions**: 2M invocations/month
+- **Features**:
+  - Email support
+  - Daily backups (7-day retention)
+  - 7-day log retention
 - **Usage Pattern**: Continuous usage for all app operations
 - **Configuration**: Multiple environment variables in iOS app
 

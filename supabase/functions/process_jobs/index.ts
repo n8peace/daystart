@@ -412,7 +412,7 @@ async function processJobsAsync(worker_id: string, request_id: string, specificJ
       }
     } else {
       // Normal batch processing
-      const maxJobs = 5; // Process up to 5 jobs per run
+      const maxJobs = 50; // Process up to 50 jobs per run (increased for better throughput)
 
       // Process jobs in batches
       for (let i = 0; i < maxJobs; i++) {
@@ -889,6 +889,7 @@ async function generateAudio(script: string, job: any, attemptNumber: number = 1
   }
 
   // Attempts 1-2: Use ElevenLabs
+  // Creator Plan: 5 concurrent requests, 100K chars/month, $0.30/1K chars
   const elevenlabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
   if (!elevenlabsApiKey) {
     throw new Error('ElevenLabs API key not configured');
@@ -940,9 +941,9 @@ async function generateAudio(script: string, job: any, attemptNumber: number = 1
   // Estimate duration based on script length (rough approximation)
   const estimatedDuration = Math.ceil(script.length / 15); // ~15 chars per second
 
-  // Calculate cost: $0.10 per 1,000 characters
+  // Calculate cost: $0.30 per 1,000 characters (Creator Plan)
   const characterCount = script.length;
-  const cost = Number(((characterCount / 1000) * 0.10).toFixed(5));
+  const cost = Number(((characterCount / 1000) * 0.30).toFixed(5));
   
   console.log(`ElevenLabs usage: ${characterCount} characters = $${cost}`);
 
