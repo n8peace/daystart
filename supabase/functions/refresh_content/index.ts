@@ -208,8 +208,8 @@ async function refreshContentAsync(request_id: string): Promise<void> {
                 
                 // Create compact summaries for backwards compatibility
                 const compactNews = await summarizeNewsMini(enhancedArticles.slice(0, 12), source.source)
-                if (Array.isArray(compactNews) && compactNews.length > 0) {
-                  ;(data as any).compact = { ...((data as any).compact || {}), news: compactNews.slice(0, 12) }
+              if (Array.isArray(compactNews) && compactNews.length > 0) {
+                ;(data as any).compact = { ...((data as any).compact || {}), news: compactNews.slice(0, 12) }
                 }
               }
             } else if (source.type === 'sports') {
@@ -460,7 +460,7 @@ async function fetchYahooFinance(supabase: any): Promise<any> {
       .lte('scheduled_at', next48Hours)
     
     if (jobs) {
-      userSymbols = [...new Set(jobs.flatMap((job: any) => job.stock_symbols || []))]
+      userSymbols = [...new Set(jobs.flatMap((job: any) => (job.stock_symbols || []).map(String)))]
       console.log(`📈 Found ${userSymbols.length} user-requested stock symbols: ${userSymbols.join(', ')}`)
     }
   } catch (error) {
@@ -783,17 +783,20 @@ async function generateTopTenStories(supabase: any, requestId: string): Promise<
         publishedAt: story.publishedAt,
         source: story.source
       })),
-      // Enhanced compact format
+      // Enhanced compact format with comprehensive summaries
       compact: {
         news: topTenStories.map(story => ({
           id: story.id || story.url || `story_${Date.now()}`,
           source: story.source_name || story.source,
           publishedAt: story.publishedAt,
-          speakable: story.ai_summary || story.title,
+          description: story.enhanced_summary || story.ai_summary || story.title,
           geo: story.geographic_scope,
           category: story.topic_category,
           importance_score: story.importance_score,
-          ai_rank: story.ai_rank
+          ai_rank: story.ai_rank,
+          key_entities: story.key_entities || [],
+          impact_level: story.impact_level || 'medium',
+          selection_reason: story.selection_reason
         }))
       }
     }
@@ -862,7 +865,7 @@ Return JSON only:
       "article_index": 0,
       "importance_rank": 1,
       "selection_reason": "Brief reason why this story is important",
-      "story_summary": "Enhanced summary for TTS readability"
+      "enhanced_summary": "Comprehensive 3-4 sentence summary covering WHO, WHAT, WHERE, WHEN, WHY, and HOW - optimized for TTS delivery with specific details and context"
     }
   ]
 }`
@@ -928,7 +931,8 @@ ${JSON.stringify(candidates.map((article, index) => ({
         ...originalArticle,
         ai_rank: selection.importance_rank,
         selection_reason: selection.selection_reason,
-        ai_summary: selection.story_summary || originalArticle.title,
+        ai_summary: selection.enhanced_summary || originalArticle.title,
+        enhanced_summary: selection.enhanced_summary || originalArticle.description || originalArticle.title,
         id: originalArticle.url || `story_${selection.article_index}_${Date.now()}`
       }
     }).filter(Boolean).slice(0, 10) // Ensure exactly 10 and filter nulls
@@ -939,14 +943,15 @@ ${JSON.stringify(candidates.map((article, index) => ({
     return candidates.slice(0, 10).map((article, index) => ({
       ...article,
       ai_rank: index + 1,
-      ai_summary: article.title,
+      ai_summary: article.description || article.title,
+      enhanced_summary: article.description || article.title,
       selection_reason: 'Fallback: High importance score',
       id: article.url || `story_fallback_${index}_${Date.now()}`
     }))
   }
 }
 
-// Compacting helpers
+// Enhanced compacting helpers with full 5W+H coverage
 async function summarizeNewsMini(articles: any[] = [], sourceName: string = ''): Promise<any[]> {
   const openaiKey = Deno.env.get('OPENAI_API_KEY')
   if (!openaiKey || !Array.isArray(articles) || articles.length === 0) return []
@@ -956,15 +961,31 @@ async function summarizeNewsMini(articles: any[] = [], sourceName: string = ''):
     messages: [
       {
         role: 'system',
-        content: `Create substantive, speakable news summaries for a morning TTS script.
+        content: `Create comprehensive, TTS-optimized news summaries for a morning briefing script.
+Each summary must be 3-4 complete sentences covering WHO, WHAT, WHERE, WHEN, WHY, and HOW.
+
+REQUIREMENTS:
+- WHO: Key people, organizations, or entities involved
+- WHAT: The specific event or development that happened
+- WHERE: Geographic location or context
+- WHEN: Timing (be specific about dates/timeframes)
+- WHY: Background context, reasons, or motivations
+- HOW: Process, method, or mechanism of the event
+
+Make summaries detailed enough for a listener to understand the full story context.
+Use natural, conversational language optimized for text-to-speech.
+Include specific numbers, names, and concrete details when available.
+
 Return strictly JSON: {"items": Array<CompactItem>}.
 CompactItem fields:
 - id: stable string (prefer url; else a 32-char hash of title)
 - source: short source name
 - publishedAt: ISO8601 if present
-- speakable: concrete and factual summary with key details, context, and specific information
+- description: 3-4 sentence comprehensive summary covering all 5W+H
 - geo: one of local|state|national|international
-- category: one of politics|business|tech|sports|weather|other`
+- category: one of politics|business|tech|sports|weather|other
+- key_entities: array of main people/organizations mentioned
+- impact_level: one of high|medium|low`
       },
       {
         role: 'user',
@@ -976,11 +997,12 @@ ${JSON.stringify(articles.map(a => ({
   url: a?.url || '',
   publishedAt: a?.publishedAt || a?.date || ''
 })).slice(0, 12))}
-Return JSON only.`
+
+Create comprehensive 3-4 sentence summaries for each article. Include WHO is involved, WHAT happened, WHERE it occurred, WHEN it took place, WHY it matters, and HOW it unfolded. Return JSON only.`
       }
     ],
     temperature: 0.2,
-    max_tokens: 900
+    max_tokens: 1500  // Increased for longer summaries
   }
 
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -1000,10 +1022,12 @@ Return JSON only.`
       id: it?.id || it?.url || '',
       source: it?.source || sourceName,
       publishedAt: it?.publishedAt || '',
-      speakable: String(it?.speakable || '').trim(),
+      description: String(it?.description || '').trim(),
       geo: it?.geo || 'national',
-      category: it?.category || 'other'
-    })).filter((it: any) => it.speakable)
+      category: it?.category || 'other',
+      key_entities: Array.isArray(it?.key_entities) ? it.key_entities.map(String) : [],
+      impact_level: it?.impact_level || 'medium'
+    })).filter((it: any) => it.description && it.description.length > 50) // Ensure substantial content
   } catch {
     return []
   }
@@ -1019,17 +1043,17 @@ function compactSportsLocal(data: any): any[] {
     const away = ev?.away_team || ev?.competitors?.[1]?.team || ''
     const hs = ev?.home_score ?? ev?.competitors?.[0]?.score
     const as = ev?.away_score ?? ev?.competitors?.[1]?.score
-    let speakable = ''
+    let description = ''
     if (status === 'FT') {
-      speakable = `${home} beat ${away} ${hs}-${as}.`
+      description = `${home} beat ${away} ${hs}-${as}.`
     } else if (status === 'NS') {
-      speakable = `${home} vs ${away} later today.`
+      description = `${home} vs ${away} later today.`
     } else if (status === 'LIVE') {
-      speakable = `${home} vs ${away} in progress.`
+      description = `${home} vs ${away} in progress.`
     } else {
       continue
     }
-    out.push({ id: `${home}-${away}-${date}`, league: ev?.league || (data as any)?.league || '', date, status, speakable })
+    out.push({ id: `${home}-${away}-${date}`, league: ev?.league || (data as any)?.league || '', date, status, description })
   }
   return out
 }
@@ -1046,7 +1070,7 @@ function compactStocksLocal(data: any): any[] {
       price: q?.price,
       chg: q?.change,
       chgPct: q?.change_percent,
-      speakable: line
+      description: line
     }
   })
 }

@@ -1070,14 +1070,14 @@ function buildScriptPrompt(context: any): string {
   const storyLimits = getStoryLimits(duration);
   
   // Prefer compact news if available, else fall back to raw
-  function collectCompactNews(cd: any): Array<{speakable: string, source?: string, publishedAt?: string}> {
-    const out: Array<{speakable: string, source?: string, publishedAt?: string}> = []
+  function collectCompactNews(cd: any): Array<{description: string, source?: string, publishedAt?: string}> {
+    const out: Array<{description: string, source?: string, publishedAt?: string}> = []
     for (const src of cd?.news || []) {
       const items = src?.data?.compact?.news
       if (Array.isArray(items)) {
         for (const it of items) {
-          const speak = String(it?.speakable || '').trim()
-          if (speak) out.push({ speakable: speak, source: it?.source || src?.source, publishedAt: it?.publishedAt })
+          const desc = String(it?.description || '').trim()
+          if (desc) out.push({ description: desc, source: it?.source || src?.source, publishedAt: it?.publishedAt })
         }
       }
     }
@@ -1117,8 +1117,8 @@ function buildScriptPrompt(context: any): string {
     weather: context.weatherData || null,
     news: (compactNews.length > 0
       ? compactNews.map(n => ({
-          title: n.speakable.slice(0, 160),
-          description: '',
+          title: n.description.slice(0, 160),
+          description: n.description,
           source: n.source || '',
           publishedAt: n.publishedAt || ''
         }))

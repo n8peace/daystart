@@ -21,6 +21,7 @@ The enhanced content system has been successfully implemented with full backward
 ### 3. AI Curation Pipeline
 - **Diversity Filtering**: Ensures variety across topic categories
 - **GPT-4o-mini Selection**: AI chooses final top 10 from top 25 candidates
+- **Enhanced Descriptions**: Comprehensive 3-4 sentence summaries covering 5W+H (Who, What, Where, When, Why, How)
 - **Enhanced Metadata**: AI summaries, selection reasons, rankings
 
 ### 4. Backward Compatibility
