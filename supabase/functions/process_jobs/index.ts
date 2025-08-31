@@ -555,6 +555,25 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
     })
     .eq('job_id', jobId);
 
+  // Auto-delete sensitive user data after successful audio processing
+  try {
+    console.log(`🗑️ Auto-deleting calendar and weather data for job ${jobId} (privacy compliance)`);
+    
+    await supabase
+      .from('jobs')
+      .update({
+        weather_data: null,
+        calendar_events: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('job_id', jobId);
+    
+    console.log(`✅ Successfully deleted sensitive data for job ${jobId}`);
+  } catch (deletionError) {
+    // Don't fail the job if deletion fails - audio is already ready
+    console.warn(`⚠️ Failed to delete sensitive data for job ${jobId}:`, deletionError);
+  }
+
   console.log(`Completed job ${jobId} - audio saved to ${audioPath}`);
   console.log(`Costs: Script=$${scriptResult.cost}, TTS=$${audioResult.cost} (${audioResult.provider}), Total=$${totalCost}`);
   return true;
@@ -956,6 +975,13 @@ async function generateAudio(script: string, job: any, attemptNumber: number = 1
   };
 }
 
+function convertSSMLToNaturalLanguage(script: string): string {
+  // Convert SSML break tags to natural language for OpenAI TTS
+  return script.replace(/<break\s+time="(\d+)s"\s*\/>/g, (match, seconds) => {
+    return `[${seconds} second pause]`;
+  });
+}
+
 async function generateAudioWithOpenAI(script: string, job: any): Promise<{success: boolean, audioData?: Uint8Array, duration?: number, cost?: number, provider?: string, error?: string}> {
   const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openaiApiKey) {
@@ -966,7 +992,7 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
   const voiceMap: Record<string, string> = {
     'voice1': 'sage',
     'voice2': 'shimmer',
-    'voice3': 'alloy',
+    'voice3': 'ash',
   };
 
   const normalizedVoiceKey = String(job.voice_option || '').toLowerCase();
@@ -974,6 +1000,9 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
   const voice = voiceMap[`voice${voiceNumber}`] || 'sage';
 
   console.log(`Using OpenAI TTS with voice: ${voice}`);
+
+  // Convert SSML breaks to natural language for OpenAI TTS
+  const processedScript = convertSSMLToNaturalLanguage(script);
 
   try {
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
@@ -985,7 +1014,7 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
       body: JSON.stringify({
         model: 'gpt-4o-mini-tts',
         voice: voice,
-        input: script,
+        input: processedScript,
         response_format: 'aac'
       }),
     });
