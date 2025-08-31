@@ -620,49 +620,76 @@ async function processJobsAsync(worker_id: string, request_id: string, specificJ
         failedCount++;
       }
     } else {
-      // Normal batch processing
-      const maxJobs = 50; // Process up to 50 jobs per run (increased for better throughput)
+      // Parallel batch processing
+      const batchSize = 10; // Process 10 jobs in parallel
+      const maxTotalJobs = 50; // Maximum total jobs to process per run
+      let totalProcessed = 0;
 
-      // Process jobs in batches
-      for (let i = 0; i < maxJobs; i++) {
-        // Lease next available job
-        const { data: jobId, error } = await supabase.rpc('lease_next_job', {
-          worker_id,
-          lease_duration_minutes: 15
+      while (totalProcessed < maxTotalJobs) {
+        // Lease a batch of jobs in parallel
+        const leasePromises = Array(batchSize).fill(0).map(() => 
+          supabase.rpc('lease_next_job', {
+            worker_id,
+            lease_duration_minutes: 15
+          })
+        );
+
+        const leaseResults = await Promise.allSettled(leasePromises);
+        
+        // Extract successfully leased job IDs
+        const jobIds = leaseResults
+          .filter(result => result.status === 'fulfilled' && result.value.data && !result.value.error)
+          .map(result => (result as PromiseFulfilledResult<any>).value.data);
+
+        if (jobIds.length === 0) {
+          console.log('No more jobs to process');
+          break;
+        }
+
+        console.log(`Processing batch of ${jobIds.length} jobs: ${jobIds.join(', ')}`);
+
+        // Process all jobs in the batch in parallel
+        const processPromises = jobIds.map(async (jobId) => {
+          try {
+            const success = await processJob(supabase, jobId, worker_id);
+            return { jobId, success, error: null };
+          } catch (error) {
+            console.error(`Failed to process job ${jobId}:`, error);
+            
+            // Mark job as failed
+            await supabase
+              .from('jobs')
+              .update({
+                status: 'failed',
+                error_code: 'PROCESSING_ERROR',
+                error_message: error.message,
+                worker_id: null,
+                lease_until: null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('job_id', jobId);
+            
+            return { jobId, success: false, error };
+          }
         });
 
-      if (error || !jobId) {
-        console.log('No more jobs to process:', error);
-        break;
-      }
-
-      console.log(`Processing job: ${jobId}`);
-
-      try {
-        const success = await processJob(supabase, jobId, worker_id);
-        if (success) {
-          processedCount++;
-        } else {
-          failedCount++;
-        }
-      } catch (error) {
-        console.error(`Failed to process job ${jobId}:`, error);
-        failedCount++;
+        const batchResults = await Promise.allSettled(processPromises);
         
-        // Mark job as failed
-        await supabase
-          .from('jobs')
-          .update({
-            status: 'failed',
-            error_code: 'PROCESSING_ERROR',
-            error_message: error.message,
-            worker_id: null,
-            lease_until: null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('job_id', jobId);
+        // Count results
+        batchResults.forEach(result => {
+          if (result.status === 'fulfilled') {
+            if (result.value.success) {
+              processedCount++;
+            } else {
+              failedCount++;
+            }
+          } else {
+            failedCount++;
+          }
+        });
+
+        totalProcessed += jobIds.length;
       }
-    }
     }
 
     const message = `Processed ${processedCount} jobs, ${failedCount} failed`;
