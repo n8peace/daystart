@@ -630,7 +630,14 @@ struct OnboardingView: View {
                     }
                     
                     // Preview
-                    if !selectedDays.isEmpty {
+                    if selectedDays.isEmpty {
+                        Text("Please Add Scheduled Days")
+                            .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                            .foregroundColor(Color.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .transition(.opacity.combined(with: .scale))
+                    } else {
                         Text("Your briefing will be ready every \(selectedDaysSummary) at \(shortTimeFormatter.string(from: selectedTime))")
                             .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.primary)
@@ -646,6 +653,7 @@ struct OnboardingView: View {
                 
                 // CTA
                 Button(action: {
+                    guard !selectedDays.isEmpty else { return }
                     logger.logUserAction("Schedule setup CTA tapped")
                     impactFeedback()
                     withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
@@ -667,7 +675,9 @@ struct OnboardingView: View {
                         .cornerRadius(16)
                         .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
-                .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                .disabled(selectedDays.isEmpty)
+                .opacity(selectedDays.isEmpty ? 0.5 : 1.0)
+                .scaleEffect(animationTrigger && !selectedDays.isEmpty ? 1.05 : 1.0)
                 .padding(.horizontal, geometry.size.width * 0.08)
                 .padding(.bottom, max(24, geometry.size.height * 0.03))
                 .opacity(textOpacity)
@@ -861,6 +871,13 @@ struct OnboardingView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, geometry.size.width * 0.08)
                             .opacity(textOpacity)
+                        
+                        Text("Your location data is used only once, then automatically deleted when your briefing is ready")
+                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.primary.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
                     }
                 }
                 
@@ -1024,6 +1041,13 @@ struct OnboardingView: View {
                         Text("Your meetings and events in your briefing")
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .opacity(textOpacity)
+                        
+                        Text("Your calendar data is used only once, then automatically deleted when your briefing is ready")
+                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.primary.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, geometry.size.width * 0.08)
                             .opacity(textOpacity)

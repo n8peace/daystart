@@ -236,6 +236,12 @@ struct HistoryRow: View {
         }
         .padding(.vertical, 8)
         .animation(.easeInOut(duration: 0.3), value: isExpanded)
+        .onAppear {
+            // Start transcript polling if we only have a fallback/empty transcript
+            if shouldStartPolling() && !isPollingTranscript {
+                startTranscriptPolling()
+            }
+        }
         .onDisappear {
             // Clean up polling timer when view disappears
             stopTranscriptPolling()

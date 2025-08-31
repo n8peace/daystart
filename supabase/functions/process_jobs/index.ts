@@ -22,13 +22,13 @@ function getTokenLimits(seconds: number): { maxTokens: number; targetWords: numb
 function getStoryLimits(seconds: number): { news: number; sports: number; stocks: number } {
   if (seconds <= 60) {
     // 1 minute: bare minimum
-    return { news: 1, sports: 1, stocks: 1 };
+    return { news: 2, sports: 1, stocks: 1 };
   } else if (seconds <= 180) {
     // 3 minutes: light coverage
-    return { news: 2, sports: 1, stocks: 1 };
+    return { news: 3, sports: 1, stocks: 2 };
   } else if (seconds <= 300) {
     // 5 minutes: standard coverage
-    return { news: 3, sports: 1, stocks: 2 };
+    return { news: 5, sports: 1, stocks: 2 };
   } else {
     // 5+ minutes: comprehensive coverage
     return { news: 6, sports: 2, stocks: 3 };
@@ -115,6 +115,215 @@ function sectionBudget(seconds: number, include: { weather: boolean; calendar: b
   const target = targetWords(seconds);
   const entries = base.map(([k, w]) => [k, Math.round((w / total) * target)] as [string, number]);
   return Object.fromEntries(entries);
+}
+
+// Check if date falls on weekend (Saturday or Sunday)
+function isWeekend(dateISO: string, tz?: string): boolean {
+  const targetDate = tz 
+    ? new Date(new Date(dateISO + 'T00:00:00').toLocaleString('en-US', { timeZone: tz }))
+    : new Date(dateISO + 'T00:00:00');
+  const day = targetDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+  return day === 0 || day === 6;
+}
+
+// Get day context with weekday encouragements and US holidays
+function getDayContext(dateISO: string, tz?: string): { label: string, encouragements: string[] } {
+  const target = tz 
+    ? new Date(new Date(dateISO + 'T00:00:00').toLocaleString('en-US', { timeZone: tz }))
+    : new Date(dateISO + 'T00:00:00');
+
+  const weekday = target.toLocaleDateString('en-US', { weekday: 'long', timeZone: tz });
+  const monthDay = target.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: tz });
+  const year = target.getFullYear();
+
+  const encouragements: string[] = [];
+
+  // Weekly rhythm variants
+  if (weekday === "Monday") {
+    encouragements.push(
+      "Fresh start",
+      "New week energy", 
+      "Monday momentum",
+      "Week one begins",
+      "Clean slate Monday",
+      "Monday reset",
+      "New chapter starts",
+      "Week's first lap",
+      ""  // Allow skipping
+    );
+  }
+  
+  if (weekday === "Tuesday") {
+    encouragements.push(
+      "Tuesday stride",
+      "Getting into gear",
+      "Week's warming up",
+      "Momentum building",
+      "Tuesday tempo",
+      "Second verse",
+      "Finding the rhythm",
+      ""
+    );
+  }
+  
+  if (weekday === "Wednesday") {
+    encouragements.push(
+      "Halfway through the week",
+      "Hump day momentum",
+      "Middle stretch",
+      "Week's turning point",
+      "Halfway up the hill",
+      "Wednesday wisdom",
+      "Peak of the week",
+      "Midweek milestone",
+      "Center stage Wednesday",
+      ""
+    );
+  }
+  
+  if (weekday === "Thursday") {
+    encouragements.push(
+      "Almost there Thursday",
+      "Home stretch begins",
+      "Thursday thunder",
+      "Weekend's in view",
+      "Fourth quarter energy",
+      "Thursday momentum",
+      "Nearly to the summit",
+      "One more day",
+      ""
+    );
+  }
+  
+  if (weekday === "Friday") {
+    encouragements.push(
+      "TGIF",
+      "Weekend's in sight",
+      "Friday feeling",
+      "Home stretch",
+      "Almost there",
+      "Friday energy",
+      "Week's final act",
+      "Weekend countdown",
+      "Friday finish line",
+      "Last lap",
+      ""
+    );
+  }
+  
+  if (weekday === "Saturday") {
+    encouragements.push(
+      "Enjoy the weekend",
+      "Saturday vibes",
+      "Weekend mode",
+      "Time to recharge",
+      "Saturday slow-down",
+      "Weekend breathing room",
+      "Saturday freedom",
+      ""
+    );
+  }
+  
+  if (weekday === "Sunday") {
+    encouragements.push(
+      "Sunday reset",
+      "Weekend wrap-up",
+      "Sunday reflection",
+      "Gentle Sunday",
+      "Week prep day",
+      "Sunday pause",
+      "Rest and reset",
+      ""
+    );
+  }
+
+  // Comprehensive US Holidays
+  const holidays: Record<string, string[]> = {
+    // Fixed date holidays
+    "January 1": ["Happy New Year", "New year, new possibilities", "Fresh calendar energy"],
+    "February 14": ["Happy Valentine's Day", "Love is in the air", "Valentine's vibes"],
+    "March 17": ["Happy St. Patrick's Day", "Feeling lucky today", "Irish eyes are smiling"],
+    "July 4": ["Happy Fourth of July", "Independence Day spirit", "Stars and stripes forever"],
+    "October 31": ["Happy Halloween", "Spooky season vibes", "Trick or treat energy"],
+    "November 11": ["Veterans Day honor", "Thank a veteran today", "Service and sacrifice remembered"],
+    "December 24": ["Christmas Eve magic", "Holiday anticipation", "Silent night energy"],
+    "December 25": ["Merry Christmas", "Christmas joy", "Peace and goodwill"],
+    "December 31": ["New Year's Eve", "Year-end reflection", "Tomorrow's fresh start"]
+  };
+
+  // Calculate floating holidays for current year
+  const floatingHolidays = getFloatingHolidays(year);
+  const currentDateKey = target.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: tz });
+  
+  // Check fixed holidays
+  if (holidays[currentDateKey]) {
+    encouragements.push(...holidays[currentDateKey]);
+  }
+  
+  // Check floating holidays
+  if (floatingHolidays[currentDateKey]) {
+    encouragements.push(...floatingHolidays[currentDateKey]);
+  }
+
+  return {
+    label: weekday,
+    encouragements,
+    isHoliday: !!holidays[currentDateKey] || !!floatingHolidays[currentDateKey]
+  };
+}
+
+// Calculate floating US holidays for a given year
+function getFloatingHolidays(year: number): Record<string, string[]> {
+  const holidays: Record<string, string[]> = {};
+  
+  // Martin Luther King Jr. Day (3rd Monday in January)
+  const mlkDay = getNthWeekday(year, 0, 1, 3); // January, Monday, 3rd
+  holidays[mlkDay] = ["MLK Day reflection", "Dream and determination", "Justice and hope"];
+  
+  // Presidents Day (3rd Monday in February)  
+  const presidentsDay = getNthWeekday(year, 1, 1, 3); // February, Monday, 3rd
+  holidays[presidentsDay] = ["Presidents Day", "Leadership legacy", "Democracy in action"];
+  
+  // Memorial Day (Last Monday in May)
+  const memorialDay = getLastWeekday(year, 4, 1); // May, Monday
+  holidays[memorialDay] = ["Memorial Day honor", "Remember the fallen", "Service and sacrifice"];
+  
+  // Labor Day (1st Monday in September)
+  const laborDay = getNthWeekday(year, 8, 1, 1); // September, Monday, 1st
+  holidays[laborDay] = ["Labor Day appreciation", "Workers unite", "Hard work honored"];
+  
+  // Columbus Day (2nd Monday in October)
+  const columbusDay = getNthWeekday(year, 9, 1, 2); // October, Monday, 2nd
+  holidays[columbusDay] = ["Columbus Day", "Exploration spirit", "Journey continues"];
+  
+  // Thanksgiving (4th Thursday in November)
+  const thanksgiving = getNthWeekday(year, 10, 4, 4); // November, Thursday, 4th
+  holidays[thanksgiving] = ["Happy Thanksgiving", "Gratitude overflows", "Count your blessings"];
+  
+  return holidays;
+}
+
+// Helper: Get nth weekday of month (e.g., 3rd Monday)
+function getNthWeekday(year: number, month: number, weekday: number, n: number): string {
+  const firstDay = new Date(year, month, 1);
+  const firstWeekday = firstDay.getDay();
+  const daysToAdd = (weekday - firstWeekday + 7) % 7;
+  const nthDate = new Date(year, month, 1 + daysToAdd + (n - 1) * 7);
+  return nthDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+}
+
+// Helper: Get last weekday of month (e.g., last Monday in May)
+function getLastWeekday(year: number, month: number, weekday: number): string {
+  const lastDay = new Date(year, month + 1, 0); // Last day of month
+  const lastWeekday = lastDay.getDay();
+  const daysToSubtract = (lastWeekday - weekday + 7) % 7;
+  const lastWeekdayDate = new Date(year, month + 1, 0 - daysToSubtract);
+  return lastWeekdayDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+}
+
+// Random choice helper with option to return empty string
+function randomChoice<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 // Extract simple locality hints (no hardcoded locales)
@@ -692,7 +901,7 @@ Sports-wise, the Dodgers pulled off a walk-off win against the Giants, which is 
 
 <break time="1s"/>
 
-Markets open steady, at least for now. Your favorite tickers — Apple and Tesla — are looking a shade green in pre-market, while the broader indices are pretty flat. Futures traders are basically staring at each other waiting for someone to blink.
+Markets open steady. Your tickers are front and center — Amazon is trading near one hundred thirty dollars, up one point two percent, while Nvidia is softer, off half a point. Microsoft is flat. Indices are basically unchanged.
 
 <break time="1s"/>
 
@@ -874,7 +1083,7 @@ async function adjustToTargetBand(text: string, band: { min: number; max: number
   const instruction = `
 You previously wrote a morning TTS script. ${direction.toUpperCase()} it by ${requested} words (±15 words).
 - Keep exactly the same facts; do NOT add names/teams not in JSON.
-- If expanding: prioritize news and quotes first - add deeper context to the top news stories, then enrich the quote with brief reflection, then add details to weather and calendar.
+- If expanding: prioritize news and quotes first - add deeper context to the top news stories, then enrich the quote with brief reflection, then add details to weather and calendar. Only enrich by rephrasing or expanding reflection. Do not invent new factual details.
 - If tightening: remove the least important detail from stocks first, then trim the last news item, avoiding cuts to quotes.
 - Preserve the pausing style (—, …, blank lines) and tone.
 Return ONLY the revised script.
@@ -1118,6 +1327,29 @@ function buildScriptPrompt(context: any): string {
   // Enforce valid, present-day sports items only
   const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date, context.timezone).slice(0, storyLimits.sports);
 
+  // Filter stocks based on market hours (exclude equities on weekends, keep crypto)
+  const isWeekendDay = isWeekend(context.date, context.timezone);
+  const allStocks = context.contentData?.stocks || [];
+  
+  // Classify stocks by asset type using symbol patterns
+  const crypto = allStocks.filter(s => {
+    const symbol = String(s.symbol || '').toUpperCase();
+    return symbol.includes('-USD') || symbol.includes('-USDT') || symbol.includes('-BTC') || symbol.includes('-ETH');
+  });
+  const equities = allStocks.filter(s => {
+    const symbol = String(s.symbol || '').toUpperCase();
+    return !(symbol.includes('-USD') || symbol.includes('-USDT') || symbol.includes('-BTC') || symbol.includes('-ETH'));
+  });
+  
+  // Only include equities if not weekend
+  const filteredStocks = isWeekendDay ? crypto : [...equities, ...crypto];
+
+  // Get day context for encouragements and holidays
+  const dayContext = getDayContext(context.date, context.timezone);
+  const encouragement = dayContext.encouragements.length > 0 
+    ? randomChoice(dayContext.encouragements) 
+    : "";
+
   // Provide machine-readable context so the model can cite specifics cleanly
   const data = {
     user: {
@@ -1159,9 +1391,34 @@ function buildScriptPrompt(context: any): string {
     localityHints: localityHints(context.locationData),
     transitions: getRandomTransitions(),
     signOff: getRandomSignOff(),
+    dayContext: {
+      weekday: dayContext.label,
+      encouragement: encouragement,
+      isHoliday: dayContext.isHoliday
+    },
     stocks: {
-      sources: (context.contentData?.stocks || []).slice(0, storyLimits.stocks),
-      focusSymbols: context.stockSymbols || []
+      focus: filteredStocks
+        .filter(s => (context.stockSymbols || []).includes(s.symbol))
+        .map(s => ({
+          name: s.companyName,
+          symbol: s.symbol,
+          price: s.price,
+          change: s.change,
+          percentChange: s.percentChange,
+          timestamp: s.timestamp,
+          isCrypto: crypto.some(c => c.symbol === s.symbol)
+        })),
+      others: filteredStocks
+        .filter(s => !(context.stockSymbols || []).includes(s.symbol))
+        .slice(0, storyLimits.stocks - (context.stockSymbols?.length || 0))
+        .map(s => ({
+          name: s.companyName,
+          symbol: s.symbol,
+          price: s.price,
+          change: s.change,
+          percentChange: s.percentChange,
+          isCrypto: crypto.some(c => c.symbol === s.symbol)
+        }))
     },
     quotePreference: context.quotePreference || null,
     calendarEvents: context.calendarEvents || []
@@ -1200,7 +1457,7 @@ LENGTH & PACING
   - If the draft is shorter than ${lowerBound}, expand by adding one concrete, relevant detail in the highest-priority sections (weather, calendar, top news) until within range. If longer than ${upperBound}, tighten by removing the least important detail. No filler.
 
 CONTENT PRIORITIZATION
-  - News: Use up to ${storyLimits.news} stories. Choose by local relevance using user.location when available; otherwise pick the most significant stories. For longer scripts, include deeper context and background for major stories.
+  - News: Use ${storyLimits.news === 1 ? '1 story' : `${storyLimits.news - 1}–${storyLimits.news} stories`}, depending on significance and space. Choose by local relevance using user.location when available; otherwise pick the most significant stories. For longer scripts, include deeper context and background for major stories.
 - Sports: ${storyLimits.sports} update(s) max. Only mention teams/matchups present in the sports data for today. If off-season or no fixtures, skip gracefully.
 - Stocks: ${storyLimits.stocks} market point(s) max. Prioritize user's focus symbols if provided.
  - Weather: If present, include high/low temperatures (from highTemperatureF/lowTemperatureF), precipitation chance (from precipitationChance), and current conditions. Spell out all temperatures and percentages in words for TTS.
@@ -1210,15 +1467,18 @@ CONTENT PRIORITIZATION
 FACT RULES
 - Use ONLY facts present in the JSON data.
 - If a desired detail is missing, omit it gracefully—do not invent.
+- Do not generalize. If you have at least one company in stocks.focus, always mention it specifically by name. Avoid generic phrases like "the market is mixed."
+- If today is Saturday or Sunday, omit equity updates entirely. Only mention cryptocurrencies if present.
 - Never mention a team or matchup unless it appears in the sports data for today.
  - Mention ONLY teams present in sportsTeamWhitelist (exact names). If the sports array is empty, omit the sports section entirely.
  - When choosing news, prefer items that mention the user's neighborhood/city/county/adjacent areas; next, state-level; then national; then international. If user.location.neighborhood exists, use it for hyper-local references (e.g., "Mar Vista" instead of just "Los Angeles").
  - Use 1–2 transitions, choosing from data.transitions.
- - Stocks: Lead with focusSymbols (if present) in one sentence. Add one broader market line only if space allows. Always use company names (Apple, Tesla, etc.) not tickers. Format prices without cents (e.g., "one hundred fifty dollars" not "one hundred fifty dollars and twenty-five cents") and round percentages to nearest tenth (e.g., "up two point three percent" not "up two point three four percent").
+ - Stocks: Always mention EACH company in stocks.focus by name, one sentence each. Include price and direction (up/down, with rounded percent change). If multiple focus companies exist, weave them together (e.g., "Apple is down, while Tesla is climbing"). For cryptocurrencies, use subtle context like "crypto trades around the clock" to make weekend updates feel intentional. Mention broader indices (from stocks.others) ONLY if space allows. NEVER say "the rest of the market is mixed" unless no other data is available. Always use company names (Apple, Tesla, Bitcoin, Ethereum, etc.) not tickers. Format prices without cents (e.g., "one hundred fifty dollars" not "one hundred fifty dollars and twenty-five cents") and round percentages to nearest tenth (e.g., "up two point three percent" not "up two point three four percent").
  - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style. For longer scripts, add more context or a brief reflection to enrich the quote section.
 
 CONTENT ORDER (adapt if sections are missing)
 1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a three-second pause using EXACTLY "<break time="3s"/>" on its own line (note the closing />).
+1a) Day context (if dayContext.encouragement is provided): Include it naturally after the greeting, one or two sentences max. Vary tone so it doesn't feel canned.
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
 4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.

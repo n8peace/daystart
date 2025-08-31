@@ -427,6 +427,12 @@ class UserPreferences: ObservableObject {
     
     // MARK: - History Management
     
+    private func isFallbackTranscript(_ t: String) -> Bool {
+        let trimmed = t.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return true }
+        return trimmed.contains("Welcome to your DayStart! Please connect to the internet")
+    }
+    
     func addToHistory(_ dayStart: DayStartData) {
         let calendar = Calendar.current
         
@@ -440,16 +446,33 @@ class UserPreferences: ObservableObject {
         }) {
             // Update existing entry but preserve important fields
             var updatedEntry = dayStart
+            let existing = history[existingIndex]
+            
             // Preserve the original ID so updateHistory can find it later
-            updatedEntry.id = history[existingIndex].id
+            updatedEntry.id = existing.id
+            
             // Preserve scheduledTime if it exists in the old entry but not the new one
-            if history[existingIndex].scheduledTime != nil && dayStart.scheduledTime == nil {
-                updatedEntry.scheduledTime = history[existingIndex].scheduledTime
+            if existing.scheduledTime != nil && dayStart.scheduledTime == nil {
+                updatedEntry.scheduledTime = existing.scheduledTime
             }
+            
             // Preserve audio file path if it exists
-            if history[existingIndex].audioFilePath != nil && dayStart.audioFilePath == nil {
-                updatedEntry.audioFilePath = history[existingIndex].audioFilePath
+            if existing.audioFilePath != nil && dayStart.audioFilePath == nil {
+                updatedEntry.audioFilePath = existing.audioFilePath
             }
+            
+            // Preserve transcript if existing has a real one and new is empty/fallback
+            let newTranscript = dayStart.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            let existingTranscript = existing.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !existingTranscript.isEmpty && (newTranscript.isEmpty || isFallbackTranscript(newTranscript)) {
+                updatedEntry.transcript = existing.transcript
+            }
+            
+            // Preserve duration if existing has > 0 and new is 0/invalid
+            if existing.duration > 0 && dayStart.duration <= 0 {
+                updatedEntry.duration = existing.duration
+            }
+            
             history[existingIndex] = updatedEntry
             logger.log("Updated existing history entry for date: \(dayStart.date)", level: .debug)
         } else {

@@ -19,7 +19,7 @@ BEGIN
     WHERE (j.status = 'queued' OR (j.status = 'failed' AND j.attempt_count < 3))
       AND (j.lease_until IS NULL OR j.lease_until < NOW())
       AND j.attempt_count < 3
-      AND NOW() >= COALESCE(j.process_not_before, j.scheduled_at - INTERVAL '2 hours')
+      AND NOW() >= COALESCE(j.process_not_before, j.scheduled_at - INTERVAL '45 minutes')
     ORDER BY j.priority DESC, j.created_at ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED
