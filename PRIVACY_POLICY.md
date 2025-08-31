@@ -1,14 +1,14 @@
 ## Privacy Policy
 
-Effective Date: [Month Day, Year]
+Effective Date: January 1, 2025
 
 Banana Intelligence LLC ("Banana Intelligence", "we", "us", or "our") operates the DayStart AI mobile application (the "App"). This Privacy Policy describes how we collect, use, disclose, and protect information when you use the App. By using the App, you agree to this Policy.
 
 ### 1. Who we are and how to contact us
-- Legal entity: [Banana Intelligence LLC full legal name]
-- Registered address: [Address]
-- Contact: [Privacy contact email]
-- Data Protection Officer (if applicable): [Name/Contact]
+- Legal entity: Banana Intelligence, LLC
+- Website: https://bananaintelligence.ai
+- App Website: https://daystart.bananaintelligence.ai
+- Contact: nate@bananaintelligence.ai
 
 ### 2. What we collect
 We designed DayStart AI to minimize personal data. The App does not create a traditional account. Instead, it uses your Apple purchase receipt identifier as a pseudonymous user ID. Depending on how you use the App and which features you enable, we may process:
@@ -47,7 +47,7 @@ Actual retention periods may vary due to operational needs, legal requirements, 
 ### 6. Your choices
 - **Location and Calendar**: These are optional. You can disable them at any time in iOS Settings > Privacy or inside the App settings screens; the App will function with reduced personalization.
 - **Notifications**: You can manage local notification permissions in iOS Settings.
-- **Access, correction, deletion**: Because we do not maintain traditional user accounts, requests may require device verification. You may request deletion of backend job/audio data associated with your pseudonymous receipt ID by contacting us at [Privacy contact email]. Uninstalling the App removes device‑local data under our control (excluding Apple/OS logs and standard platform backups outside our control).
+- **Access, correction, deletion**: Because we do not maintain traditional user accounts, requests may require device verification. You may request deletion of backend job/audio data associated with your pseudonymous receipt ID by contacting us at nate@bananaintelligence.ai. Uninstalling the App removes device‑local data under our control (excluding Apple/OS logs and standard platform backups outside our control).
 
 ### 7. Legal bases (EEA/UK)
 Where GDPR/UK GDPR applies, we process:
@@ -62,13 +62,13 @@ We may process data in the United States and other countries where our providers
 We use reasonable administrative, technical, and physical safeguards to protect data, including TLS in transit and device Keychain storage for the receipt identifier. No system is 100% secure.
 
 ### 10. Children’s privacy
-The App is not directed to children under 13, and we do not knowingly collect personal information from children under 13. If you believe a child provided personal information, contact us to request deletion.
+The App is not directed to children under 13, and we do not knowingly collect personal information from children under 13. If you believe a child provided personal information, contact us at nate@bananaintelligence.ai to request deletion.
 
 ### 11. Changes to this Policy
 We may update this Policy from time to time. Material changes will be communicated in‑app or via update notes. The Effective Date will be updated, and continued use constitutes acceptance.
 
 ### 12. Contact
-If you have questions or requests regarding privacy, contact us at: [Privacy contact email] or mail: [Address].
+If you have questions or requests regarding privacy, contact us at: nate@bananaintelligence.ai.
 
 ### 13. Additional information
 - Account model: The App identifies users using a pseudonymous Apple purchase receipt ID and does not require creating a username/password.

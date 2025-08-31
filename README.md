@@ -6,14 +6,16 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 
 ## 🚀 App Store Readiness Status
 
-**Current Status**: Ready for final preparation before App Store submission
+**Current Status**: Ready for App Store submission - awaiting build upload
 - ✅ Backend deployed and tested in production with receipt-based authentication
 - ✅ App Store Connect configured with subscription products ($4.99/month, $39.99/year)
 - ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete
-- ✅ Legal documents prepared (need hosting): Privacy Policy and Terms of Service
+- ✅ Legal documents updated with Banana Intelligence, LLC info
+- ✅ App Privacy and Content Rights sections completed in App Store Connect
 - ✅ Comprehensive App Store metadata prepared (see [app-store-metadata.md](app-store-metadata.md))
 - ✅ Enhanced script generation with longer, richer content (up to 6 news stories)
-- 🔴 **Critical blockers**: See [App Readiness Plan](claude_app_readiness_plan.md#critical-review-blockers-fix-before-submission)
+- ✅ All critical blockers resolved
+- 🟡 **Next**: Upload build to App Store Connect
 
 📋 **Complete readiness documentation**: [App Readiness Plan](claude_app_readiness_plan.md)
 
@@ -323,11 +325,13 @@ SPORTS_API_KEY=your-sports-api-key (optional)
    - ✅ Complete App Store metadata prepared ([app-store-metadata.md](app-store-metadata.md))
 
 3. **Pre-Submission Checklist**:
-   - [ ] Remove `simulatePurchase` function from PurchaseManager.swift
-   - [ ] Wire up paywall buttons (Restore, Terms, Privacy) in OnboardingView.swift
-   - [ ] Fix Info.plist background modes (remove invalid entries)
-   - [ ] Replace placeholders and host legal documents on public URLs
-   - [ ] App screenshots (iPhone 6.7" and 6.5" required)
+   - [x] Remove `simulatePurchase` function (not present in codebase)
+   - [x] Paywall buttons already wired up in OnboardingView.swift
+   - [x] Info.plist background modes already correct (audio, processing only)
+   - [x] Legal documents updated with Banana Intelligence, LLC info
+   - [x] App screenshots completed
+   - [x] App Privacy and Content Rights configured in App Store Connect
+   - [ ] Upload build to App Store Connect
    - [ ] TestFlight testing and feedback collection
 
 4. **Build and Submit**:

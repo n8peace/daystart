@@ -1,14 +1,15 @@
 ## Terms of Service
 
-Effective Date: [Month Day, Year]
+Effective Date: January 1, 2025
 
 These Terms of Service ("Terms") govern your access to and use of the DayStart AI mobile application and related services (collectively, the "Service") provided by Banana Intelligence LLC ("Banana Intelligence", "we", "us", or "our"). By using the Service, you agree to these Terms. If you do not agree, do not use the Service.
 
 ### 1. Who we are
 DayStart AI is a personal morning briefing app by Banana Intelligence LLC.
-- Legal entity: [Banana Intelligence LLC full legal name]
-- Registered address: [Address]
-- Contact: [Contact email] | [Mailing address]
+- Legal entity: Banana Intelligence, LLC
+- Website: https://bananaintelligence.ai
+- App Website: https://daystart.bananaintelligence.ai
+- Contact: nate@bananaintelligence.ai
 
 ### 2. Eligibility
 You must be at least 13 years old (or older where required by your jurisdiction) to use the Service. If you are 13–17, you must have a parent or guardian’s permission.
@@ -60,13 +61,13 @@ You agree to defend, indemnify, and hold harmless Banana Intelligence LLC and it
 You may not use, export, or re‑export the Service except as authorized by U.S. law and the laws of the jurisdiction(s) where the Service was obtained.
 
 ### 15. Governing law and dispute resolution
-These Terms are governed by the laws of [State/Country], without regard to conflicts of law principles. You and Banana Intelligence agree to the exclusive jurisdiction and venue of the courts located in [County/State/Country]. If you prefer arbitration or require a specific forum, insert your terms here: [Arbitration/venue clause, if applicable].
+These Terms are governed by the laws of the State of Delaware, United States, without regard to conflicts of law principles. You and Banana Intelligence agree to the exclusive jurisdiction and venue of the courts located in Delaware.
 
 ### 16. Changes to the Service or Terms
 We may modify the Service or these Terms at any time. Material changes will be communicated in‑app or via update notes, and the "Effective Date" will be updated. Your continued use after changes become effective constitutes acceptance of the revised Terms.
 
 ### 17. Contact
-For questions about these Terms, contact us at: [Contact email] or mail: [Mailing address].
+For questions about these Terms, contact us at: nate@bananaintelligence.ai.
 
 ### 18. Apple App Store terms
 You acknowledge that these Terms are between you and Banana Intelligence LLC only, not Apple. Apple is not responsible for the Service or its content. Apple has no obligation to furnish any maintenance or support. To the extent any warranty applies, Apple may refund the purchase price (if applicable). Apple and Apple’s subsidiaries are third‑party beneficiaries of these Terms.
