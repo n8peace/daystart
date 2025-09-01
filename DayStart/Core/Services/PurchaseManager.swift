@@ -35,6 +35,8 @@ class PurchaseManager: ObservableObject {
     @Published private(set) var purchaseState: PurchaseState = .unknown
     @Published private(set) var currentReceiptId: String?
     @Published private(set) var isLoading = false
+    @Published private(set) var availableProducts: [Product] = []
+    @Published private(set) var isLoadingProducts = false
     
     private let logger = DebugLogger.shared
     private let keychainManager = KeychainManager.shared
@@ -136,7 +138,11 @@ class PurchaseManager: ObservableObject {
                 // Always finish transactions
                 await transaction.finish()
                 
+                #if DEBUG
                 logger.log("✅ Purchase successful: \(receiptId.prefix(8))...", level: .info)
+                #else
+                logger.log("✅ Purchase successful", level: .info)
+                #endif
                 
             case .unverified(let transaction, let error):
                 // Failed verification
@@ -202,6 +208,29 @@ class PurchaseManager: ObservableObject {
             self.currentReceiptId = nil
         }
         logger.log("🚫 No valid purchases found", level: .info)
+    }
+    
+    func fetchProductsForDisplay() async throws {
+        logger.log("🛍️ Fetching products for display", level: .info)
+        await MainActor.run { isLoadingProducts = true }
+        
+        defer {
+            Task { @MainActor in
+                isLoadingProducts = false
+            }
+        }
+        
+        let productIds = ["daystart_annual_subscription", "daystart_monthly_subscription"]
+        let products = try await Product.products(for: productIds)
+        
+        await MainActor.run {
+            self.availableProducts = products.sorted { product1, product2 in
+                // Sort by price descending (annual first)
+                product1.price > product2.price
+            }
+        }
+        
+        logger.log("✅ Fetched \(products.count) products for display", level: .info)
     }
     
     private func clearStoredReceipt() {

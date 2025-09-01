@@ -8,7 +8,7 @@
 
 ## Keywords (100 characters max)
 ```
-morning,briefing,ai,news,weather,calendar,audio,productivity,routine,personalized
+morning,briefing,ai,news,weather,calendar,audio,productivity,routine,personalized,alarm
 ```
 
 ## Promotional Text (170 characters max)
@@ -18,9 +18,9 @@ Start your day informed! Get personalized AI audio briefings with weather, news,
 
 ## App Description (4000 characters max)
 ```
-Transform your morning routine with DayStart AI - your personal AI assistant that creates custom audio briefings tailored just for you.
+Skip the scrolling, start informed. Transform your morning routine with DayStart AI - your intelligent personal assistant that creates custom audio briefings tailored just for you.
 
-Wake up to a professionally narrated summary of everything you need to know for the day ahead. No more frantically checking multiple apps or scrolling through endless feeds. DayStart AI brings it all together in one seamless audio experience.
+Wake up to a professionally narrated summary of everything you need to know for the day ahead. No more frantically checking multiple apps or scrolling through endless feeds. DayStart AI brings it all together in one seamless, hands-free audio experience.
 
 WHAT'S INCLUDED IN YOUR BRIEFING:
 • Local Weather Forecast - Current conditions and today's outlook for your exact location
@@ -38,7 +38,7 @@ KEY FEATURES:
 
 PERFECT FOR:
 • Busy professionals who need to stay informed
-• Commuters who want hands-free news updates  
+• Commuters who want hands-free news updates during their drive
 • Morning exercisers looking for audio content
 • Anyone who values their time and wants a smarter morning routine
 
@@ -49,18 +49,19 @@ HOW IT WORKS:
 4. Start your day informed, inspired, and ahead of the curve
 
 SUBSCRIPTION OPTIONS:
-• Monthly subscription: $4.99/month with 3-day free trial
-• Annual subscription: $39.99/year with 7-day free trial (save 33%)
+• 3 and 7-day free trials to experience the full power of DayStart AI
+• Monthly subscription: $4.99/month
+• Annual subscription: $39.99/year (save 33%)
 
-Skip the scrolling, get briefed. Because the best days start with the right information.
+Join others who've revolutionized their mornings with DayStart AI. Because the best days start with the right information.
 
-Privacy Policy: https://daystart.bananaintelligence.ai/privacy
-Terms of Service: https://daystart.bananaintelligence.ai/terms
+Privacy Policy: help.bananaintelligence.ai/privacy
+Terms of Service: help.bananaintelligence.ai/terms
 ```
 
 ## Subtitle (30 characters max)
 ```
-Personalized AI Morning Briefings
+AI Audio News & Weather Brief
 ```
 
 ## What's New in Version 2025.08.31
@@ -155,13 +156,10 @@ To test: Use sandbox account, tap "Annual Pass" on paywall screen, complete purc
 
 ### Privacy Settings (Data Collection)
 Select **Yes** for data collection with these categories:
-1. **Contact Info → Name**: For personalized greetings (App Functionality)
-2. **Location → Coarse Location**: City/state for weather (App Functionality)
-3. **User Content → Audio Data**: Generated briefings (App Functionality)
-4. **Identifiers → User ID**: Purchase receipt ID (App Functionality)
-5. **Usage Data → Product Interaction**: App settings/preferences (App Functionality)
-6. **Diagnostics → Performance Data**: Server logs (App Functionality)
-7. **Diagnostics → Other Diagnostic Data**: Error logs (App Functionality)
+1. **Location → Precise Location**: For weather updates (App Functionality)
+2. **Sensitive Info**: Calendar events for briefing context (App Functionality)
+3. **Identifiers → User ID**: Purchase receipt ID (App Functionality)
+4. **Diagnostics → Other Diagnostic Data**: Optional feedback diagnostics (App Functionality)
 
 All data: Linked to identity via receipt ID, NOT used for tracking
 
@@ -193,17 +191,36 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 TESTING INSTRUCTIONS:
 - Use sandbox Apple ID for in-app purchases
 - App requires network connectivity for audio generation
+- Open app → Complete onboarding → Purchase subscription (or Restore) → Tap "Start Welcome DayStart" → Audio plays immediately
 - First audio briefing may take 2-3 minutes to generate
 - Subsequent briefings are faster due to caching
+- The welcome DayStart will be ready immediately for reviewer testing, even before the next scheduled occurrence
 
-BACKGROUND PROCESSING USAGE:
-BGProcessing tasks (audio-prefetch, snapshot-update) are used to prefetch generated audio and refresh data snapshots near scheduled alarm times. Tasks are infrequent, short-duration, and user-initiated through the scheduling system.
+APP OVERVIEW:
+DayStart is a subscription-based app that delivers personalized audio morning briefings. No login is required - users are identified by StoreKit transaction IDs.
+
+SUBSCRIPTION DETAILS:
+- Auto-renewable subscriptions with product IDs: daystart_annual_subscription, daystart_monthly_subscription
+- Monthly and Annual subscriptions both include free trials (3-day and 7-day respectively)
+- Test with sandbox account - purchases are free in TestFlight
+- Restore purchases functionality available on paywall screen
+
+BACKGROUND PROCESSING JUSTIFICATION:
+DayStart uses background processing for audio prefetching to ensure seamless morning alarm experience. The BGProcessingTask:
+- Runs 2 hours before user's scheduled wake time
+- Downloads personalized audio content from our backend
+- Prevents playback delays/failures when alarm triggers
+- Uses requiresNetworkConnectivity=true for efficiency
+- Essential for core alarm functionality
+
+Background processing is limited to audio preparation only and completes quickly with proper task management.
 
 PRIVACY & PERMISSIONS:
-- Location permission is optional - used only for weather updates if granted
-- Calendar permission is optional - used only for including events if granted  
+- Location permission is optional - used only for weather updates if granted (approximate location)
+- Calendar permission is optional - used only for read-only access to include event summaries if granted
 - App functions without permissions but with reduced personalization
 - All permissions have clear purpose strings explaining usage
+- Data may be transmitted to backend for personalized briefing generation - see privacy policy: https://daystart.bananaintelligence.ai/privacy
 
 TECHNICAL DETAILS:
 - Supabase keys in Info.plist are public anonymous keys with Row Level Security enforced
@@ -211,11 +228,10 @@ TECHNICAL DETAILS:
 - Receipt-based authentication system - users identified by StoreKit transaction IDs
 - Audio generation happens server-side, app streams/caches results
 
-SUBSCRIPTION TESTING:
-Monthly and Annual subscriptions both include free trials (3-day and 7-day respectively). Test with sandbox account - purchases are free in TestFlight. Restore purchases functionality available on paywall screen.
-
 CONTENT:
 All news, weather, and market data is aggregated from public APIs and feeds. The app personalizes audio briefings by combining this public information with the user's calendar events and preferences. AI-generated summaries are created server-side based on this personalized data mix.
+
+CONTACT: nate@bananaintelligence.ai
 ```
 
 ### Completed ✓

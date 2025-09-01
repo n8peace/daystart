@@ -51,23 +51,12 @@ struct ContentToggleRow: View {
     }
 }
 
-struct MockProduct {
-    let id: String
-    let displayName: String
-    let description: String
-    let price: Double
-    let displayPrice: String
-    let type: ProductType
-    
-    enum ProductType {
-        case autoRenewable
-    }
-}
 
 struct OnboardingView: View {
     let onComplete: () -> Void
     
     @State private var currentPage = 0
+    @ObservedObject private var purchaseManager = PurchaseManager.shared
     
     private let logger = DebugLogger.shared
     @State private var name = ""
@@ -82,7 +71,7 @@ struct OnboardingView: View {
     @State private var includeQuotes = true
     @State private var selectedQuoteType: QuotePreference = .stoic
     @State private var selectedVoice: VoiceOption? = nil
-    @State private var selectedProduct: MockProduct?
+    @State private var selectedProduct: Product?
     
     // Permission states
     @State private var locationPermissionStatus: PermissionStatus = .notDetermined
@@ -189,6 +178,14 @@ struct OnboardingView: View {
                 .onAppear {
                     logger.log("🎓 New onboarding view appeared", level: .info)
                     logger.logUserAction("Onboarding started", details: ["initialPage": currentPage])
+                    
+                    Task {
+                        do {
+                            try await PurchaseManager.shared.fetchProductsForDisplay()
+                        } catch {
+                            logger.logError(error, context: "Failed to fetch products for display")
+                        }
+                    }
                     
                     // Ensure first page animations start properly with a slight delay
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -1398,6 +1395,74 @@ struct OnboardingView: View {
         }
     }
     
+    // MARK: - Product Helpers
+    private func getProduct(for id: String) -> Product? {
+        return purchaseManager.availableProducts.first { $0.id == id }
+    }
+    
+    private func getTrialText(for product: Product?) -> String? {
+        guard let product = product,
+              let subscription = product.subscription,
+              let introOffer = subscription.introductoryOffer else {
+            return nil
+        }
+        
+        switch introOffer.period.unit {
+        case .day:
+            return "\(introOffer.period.value)-Day Free Trial"
+        case .week:
+            return "\(introOffer.period.value)-Week Free Trial"
+        case .month:
+            return "\(introOffer.period.value)-Month Free Trial"
+        case .year:
+            return "\(introOffer.period.value)-Year Free Trial"
+        @unknown default:
+            return "Free Trial"
+        }
+    }
+    
+    private func getMonthlyPrice(for product: Product?) -> String? {
+        guard let product = product,
+              let subscription = product.subscription else {
+            return nil
+        }
+        
+        let monthlyPrice = product.price / Double(subscription.subscriptionPeriod.value)
+        return monthlyPrice.formatted(.currency(code: product.priceFormatStyle.currencyCode))
+    }
+    
+    private func getSavingsText(annual: Product?, monthly: Product?) -> String? {
+        guard let annual = annual,
+              let monthly = monthly,
+              let annualSubscription = annual.subscription,
+              let monthlySubscription = monthly.subscription else {
+            return nil
+        }
+        
+        // Calculate equivalent monthly price for annual subscription
+        let annualMonthlyPrice = annual.price / Double(annualSubscription.subscriptionPeriod.value)
+        let monthlyPrice = monthly.price
+        
+        // Calculate savings percentage
+        let totalAnnualCost = monthlyPrice * 12
+        let savings = (totalAnnualCost - annual.price) / totalAnnualCost * 100
+        
+        // Only return savings text if there are actual savings
+        guard savings > 0 else { return nil }
+        
+        let roundedSavings = Int(savings.rounded())
+        return "Save \(roundedSavings)%"
+    }
+    
+    private func getCTAText(for product: Product?) -> String {
+        guard let product = product,
+              let subscription = product.subscription,
+              subscription.introductoryOffer != nil else {
+            return "Continue"
+        }
+        return "Start Free Trial"
+    }
+    
     // MARK: - Page 10: Hard Paywall (100%)
     private var paywallPage: some View {
         GeometryReader { geometry in
@@ -1443,49 +1508,66 @@ struct OnboardingView: View {
                 Spacer(minLength: geometry.size.height * 0.03)
                 
                 // Pricing options - optimized for conversion
-                VStack(spacing: 12) {
-                    PricingCard(
-                        title: "Annual Pass",
-                        price: "$39.99/year",
-                        subtitle: "Just $3.33/month",
-                        badge: "🔥 Most Popular",
-                        trialText: "7-Day Free Trial",
-                        savings: "Save 33%",
-                        isSelected: selectedProduct?.id == "daystart_annual_subscription",
-                        geometry: geometry,
-                        action: {
-                            selectedProduct = MockProduct(id: "daystart_annual_subscription", displayName: "Annual Pass", description: "Annual subscription", price: 39.99, displayPrice: "$39.99", type: .autoRenewable)
-                            impactFeedback()
+                if purchaseManager.isLoadingProducts {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .padding()
+                } else {
+                    VStack(spacing: 12) {
+                        let annualProduct = getProduct(for: "daystart_annual_subscription")
+                        let monthlyProduct = getProduct(for: "daystart_monthly_subscription")
+                        
+                        if let annual = annualProduct {
+                            PricingCard(
+                                title: "Annual Pass",
+                                price: annual.displayPrice + "/year",
+                                subtitle: getMonthlyPrice(for: annual).map { "Just \($0)/month" },
+                                badge: "🔥 Most Popular",
+                                trialText: getTrialText(for: annual),
+                                savings: getSavingsText(annual: annual, monthly: monthlyProduct),
+                                isSelected: selectedProduct?.id == "daystart_annual_subscription",
+                                geometry: geometry,
+                                action: {
+                                    selectedProduct = annual
+                                    impactFeedback()
+                                }
+                            )
                         }
-                    )
-                    
-                    PricingCard(
-                        title: "Monthly Pass",
-                        price: "$4.99/month",
-                        subtitle: nil,
-                        badge: nil,
-                        trialText: "3-Day Free Trial",
-                        savings: nil,
-                        isSelected: selectedProduct?.id == "daystart_monthly_subscription",
-                        geometry: geometry,
-                        action: {
-                            selectedProduct = MockProduct(id: "daystart_monthly_subscription", displayName: "Monthly Pass", description: "Monthly subscription", price: 4.99, displayPrice: "$4.99", type: .autoRenewable)
-                            impactFeedback()
+                        
+                        if let monthly = monthlyProduct {
+                            PricingCard(
+                                title: "Monthly Pass",
+                                price: monthly.displayPrice + "/month",
+                                subtitle: nil,
+                                badge: nil,
+                                trialText: getTrialText(for: monthly),
+                                savings: nil,
+                                isSelected: selectedProduct?.id == "daystart_monthly_subscription",
+                                geometry: geometry,
+                                action: {
+                                    selectedProduct = monthly
+                                    impactFeedback()
+                                }
+                            )
                         }
-                    )
+                    }
+                }
                 }
                 .padding(.horizontal, geometry.size.width * 0.08)
                 .opacity(textOpacity)
                 
                 Spacer(minLength: geometry.size.height * 0.03)
                 
-                // Urgency banner
-                HStack {
-                    Image(systemName: "clock.fill")
-                        .foregroundColor(.red)
-                    Text("Limited Time: \(selectedProduct?.id == "daystart_annual_subscription" ? "7-Day" : "3-Day") Free Trial")
-                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .bold))
-                        .foregroundColor(.red)
+                // Urgency banner - only show if trial is available
+                if let selectedProduct = selectedProduct,
+                   let trialText = getTrialText(for: selectedProduct) {
+                    HStack {
+                        Image(systemName: "clock.fill")
+                            .foregroundColor(.red)
+                        Text("Limited Time: \(trialText)")
+                            .font(.system(size: min(14, geometry.size.width * 0.035), weight: .bold))
+                            .foregroundColor(.red)
+                    }
                 }
                 .padding(12)
                 .background(
@@ -1515,11 +1597,19 @@ struct OnboardingView: View {
                     startPurchaseFlow()
                 }) {
                     VStack(spacing: 4) {
-                        Text("Start Free Trial")
+                        Text(getCTAText(for: selectedProduct))
                             .font(.system(size: min(22, geometry.size.width * 0.055), weight: .bold))
                             .foregroundColor(BananaTheme.ColorToken.background)
                         
-                        Text("Then \(selectedProduct?.displayPrice ?? "$3.33")/month")
+                        if let selectedProduct = selectedProduct {
+                            if selectedProduct.id == "daystart_annual_subscription" {
+                                Text("Then \(getMonthlyPrice(for: selectedProduct) ?? selectedProduct.displayPrice)/month")
+                            } else {
+                                Text("Then \(selectedProduct.displayPrice)/month")
+                            }
+                        } else {
+                            Text("Select a plan above")
+                        }
                             .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.background.opacity(0.9))
                     }

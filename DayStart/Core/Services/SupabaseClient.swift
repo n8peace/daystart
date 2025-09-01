@@ -41,10 +41,14 @@ class SupabaseClient {
             .appendingQueryItem(name: "date", value: String(dateString))
         
         logger.log("🔍 Supabase API: GET audio_status for date: \(dateString)", level: .info)
+        #if DEBUG
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        #endif
         
         let request = await createRequest(for: url, method: "GET")
+        #if DEBUG
         logger.logNetworkRequest(request)
+        #endif
         
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -55,7 +59,9 @@ class SupabaseClient {
             }
             
             logger.log("📥 Supabase API: Response status: \(httpResponse.statusCode)", level: .info)
-            logger.logNetworkResponse(httpResponse, data: data)
+            #if DEBUG
+        logger.logNetworkResponse(httpResponse, data: data)
+        #endif
             
             // Log response body for debugging
             if let responseString = String(data: data, encoding: .utf8) {
@@ -116,7 +122,9 @@ class SupabaseClient {
         let url = functionsURL.appendingPathComponent("create_job")
         
         logger.log("📤 Supabase API: POST create_job", level: .info)
+        #if DEBUG
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        #endif
         
         var request = await createRequest(for: url, method: "POST")
         
@@ -150,7 +158,9 @@ class SupabaseClient {
         }
         
         do {
-            logger.logNetworkRequest(request)
+            #if DEBUG
+        logger.logNetworkRequest(request)
+        #endif
             let (data, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -210,7 +220,9 @@ class SupabaseClient {
         let url = functionsURL.appendingPathComponent("update_jobs")
 
         logger.log("📤 Supabase API: POST update_jobs (update: \(dates.count), cancel: \(cancelDates.count), reactivate: \(reactivateDates.count))", level: .info)
+        #if DEBUG
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        #endif
 
         var request = await createRequest(for: url, method: "POST")
 
@@ -252,7 +264,9 @@ class SupabaseClient {
             logger.log("📝 update_jobs payload: \(requestString)", level: .debug)
         }
 
+        #if DEBUG
         logger.logNetworkRequest(request)
+        #endif
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -261,7 +275,9 @@ class SupabaseClient {
         }
 
         logger.log("📥 Supabase API: Response status (update_jobs): \(httpResponse.statusCode)", level: .info)
+        #if DEBUG
         logger.logNetworkResponse(httpResponse, data: data)
+        #endif
 
         guard httpResponse.statusCode == 200 else {
             throw SupabaseError.httpError(httpResponse.statusCode)
@@ -289,7 +305,9 @@ class SupabaseClient {
         let url = functionsURL.appendingPathComponent("update_job_snapshots")
         
         logger.log("📤 Supabase API: POST update_job_snapshots", level: .info)
+        #if DEBUG
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        #endif
         
         var request = await createRequest(for: url, method: "POST")
         
@@ -314,7 +332,9 @@ class SupabaseClient {
             logger.log("📝 update_job_snapshots payload: \(requestString)", level: .debug)
         }
         
+        #if DEBUG
         logger.logNetworkRequest(request)
+        #endif
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -323,7 +343,9 @@ class SupabaseClient {
         }
         
         logger.log("📥 Supabase API: Response status (update_job_snapshots): \(httpResponse.statusCode)", level: .info)
+        #if DEBUG
         logger.logNetworkResponse(httpResponse, data: data)
+        #endif
         
         guard httpResponse.statusCode == 200 else {
             throw SupabaseError.httpError(httpResponse.statusCode)
@@ -343,11 +365,15 @@ class SupabaseClient {
             .appendingQueryItem(name: "end_date", value: endDate)
         
         logger.log("📤 Supabase API: GET get_jobs", level: .info)
+        #if DEBUG
         logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        #endif
         
         var request = await createRequest(for: url, method: "GET")
         
+        #if DEBUG
         logger.logNetworkRequest(request)
+        #endif
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -356,7 +382,9 @@ class SupabaseClient {
         }
         
         logger.log("📥 Supabase API: Response status (get_jobs): \(httpResponse.statusCode)", level: .info)
+        #if DEBUG
         logger.logNetworkResponse(httpResponse, data: data)
+        #endif
         
         guard httpResponse.statusCode == 200 else {
             throw SupabaseError.httpError(httpResponse.statusCode)
@@ -402,7 +430,9 @@ class SupabaseClient {
         request.httpBody = jsonData
         
         do {
-            logger.logNetworkRequest(request)
+            #if DEBUG
+        logger.logNetworkRequest(request)
+        #endif
             let (_, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -729,12 +759,16 @@ extension SupabaseClient {
         var request = await createRequest(for: url, method: "POST")
         request.httpBody = try JSONEncoder().encode(payload)
         logger.log("📤 Supabase API: POST app_feedback", level: .info)
+        #if DEBUG
         logger.logNetworkRequest(request)
+        #endif
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SupabaseError.invalidResponse
         }
+        #if DEBUG
         logger.logNetworkResponse(httpResponse, data: data)
+        #endif
         return httpResponse.statusCode == 201 || httpResponse.statusCode == 200
     }
 }
