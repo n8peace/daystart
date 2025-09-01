@@ -278,6 +278,57 @@ struct HomeView: View {
                 HistoryView()
                     .environmentObject(userPreferences)
             }
+            .sheet(isPresented: Binding(get: { viewModel.showReviewGate }, set: { viewModel.showReviewGate = $0 })) {
+                ReviewGateView(
+                    onPositive: {
+                        ReviewRequestManager.shared.requestSystemReviewIfPossible()
+                        ReviewRequestManager.shared.markPromptedAfterFirstCompletion()
+                        viewModel.showReviewGate = false
+                    },
+                    onNegative: {
+                        viewModel.showReviewGate = false
+                        viewModel.showFeedbackSheet = true
+                    }
+                )
+            }
+            .sheet(isPresented: Binding(get: { viewModel.showFeedbackSheet }, set: { viewModel.showFeedbackSheet = $0 })) {
+                FeedbackSheetView(
+                    onCancel: {
+                        viewModel.showFeedbackSheet = false
+                    },
+                    onSubmit: { category, message, includeDiagnostics in
+                        Task {
+                            let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+                            let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+                            let deviceModel = UIDevice.current.model
+                            let osVersion = UIDevice.current.systemVersion
+                            let historyId = ServiceRegistry.shared.audioPlayerManager.currentTrackId?.uuidString
+                            let payload = SupabaseClient.AppFeedbackPayload(
+                                category: category,
+                                message: message,
+                                include_diagnostics: includeDiagnostics,
+                                history_id: historyId,
+                                app_version: appVersion,
+                                build: build,
+                                device_model: deviceModel,
+                                os_version: osVersion
+                            )
+                            do {
+                                let ok = try await SupabaseClient.shared.submitAppFeedback(payload)
+                                await MainActor.run {
+                                    viewModel.showFeedbackSheet = false
+                                    viewModel.toastMessage = ok ? "Thanks for the feedback" : "Couldn't send feedback. Please try again."
+                                }
+                            } catch {
+                                await MainActor.run {
+                                    viewModel.toastMessage = "Couldn't send feedback. Please try again."
+                                }
+                            }
+                            ReviewRequestManager.shared.markPromptedAfterFirstCompletion()
+                        }
+                    }
+                )
+            }
         }
     }
     
@@ -1535,6 +1586,81 @@ struct HomeView: View {
             return Array(ContentType.allCases.prefix(2))
         default:
             return []
+        }
+    }
+}
+
+struct ReviewGateView: View {
+    let onPositive: () -> Void
+    let onNegative: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Enjoying DayStart?")
+                .adaptiveFont(BananaTheme.Typography.title2)
+                .foregroundColor(BananaTheme.ColorToken.text)
+            Text("Your feedback helps improve your mornings.")
+                .adaptiveFont(BananaTheme.Typography.body)
+                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+            HStack {
+                Button("Not really") { onNegative() }
+                Spacer()
+                Button("Yes") { onPositive() }
+            }
+            .padding(.top, 8)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(BananaTheme.ColorToken.card)
+        )
+        .padding()
+    }
+}
+
+struct FeedbackSheetView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedCategory: String = "content_quality"
+    @State private var message: String = ""
+    @State private var includeDiagnostics: Bool = true
+    let onCancel: () -> Void
+    let onSubmit: (_ category: String, _ message: String?, _ includeDiagnostics: Bool) -> Void
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("What could be better?")) {
+                    Picker("Category", selection: $selectedCategory) {
+                        Text("Audio issue").tag("audio_issue")
+                        Text("Content quality").tag("content_quality")
+                        Text("Scheduling").tag("scheduling")
+                        Text("Other").tag("other")
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Section(header: Text("Tell us more (optional)")) {
+                    TextEditor(text: $message)
+                        .frame(minHeight: 120)
+                }
+                Section {
+                    Toggle("Include diagnostics", isOn: $includeDiagnostics)
+                }
+            }
+            .navigationTitle("Feedback")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Send") {
+                        onSubmit(selectedCategory, message.isEmpty ? nil : message, includeDiagnostics)
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }

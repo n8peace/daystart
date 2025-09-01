@@ -709,3 +709,32 @@ extension SupabaseClient {
                !functionsURL.absoluteString.contains("your-project")
     }
 }
+
+// MARK: - App Feedback API
+
+extension SupabaseClient {
+    struct AppFeedbackPayload: Codable {
+        let category: String
+        let message: String?
+        let include_diagnostics: Bool?
+        let history_id: String?
+        let app_version: String?
+        let build: String?
+        let device_model: String?
+        let os_version: String?
+    }
+    
+    func submitAppFeedback(_ payload: AppFeedbackPayload) async throws -> Bool {
+        let url = restURL.appendingPathComponent("app_feedback")
+        var request = await createRequest(for: url, method: "POST")
+        request.httpBody = try JSONEncoder().encode(payload)
+        logger.log("📤 Supabase API: POST app_feedback", level: .info)
+        logger.logNetworkRequest(request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseError.invalidResponse
+        }
+        logger.logNetworkResponse(httpResponse, data: data)
+        return httpResponse.statusCode == 201 || httpResponse.statusCode == 200
+    }
+}

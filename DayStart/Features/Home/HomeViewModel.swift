@@ -149,6 +149,8 @@ class HomeViewModel: ObservableObject {
     @Published var preparingMessage = ""
     @Published var connectionError: ConnectionError?
     @Published var toastMessage: String?
+    @Published var showReviewGate = false
+    @Published var showFeedbackSheet = false
     
     private var timer: Timer?
     private var pauseTimeoutTimer: Timer?
@@ -610,8 +612,14 @@ class HomeViewModel: ObservableObject {
         
         audioPlayer.$didFinishPlaying
             .sink { [weak self] didFinish in
-                if self?.state == .playing && didFinish {
-                    self?.transitionToRecentlyPlayed()
+                guard let self = self else { return }
+                if self.state == .playing && didFinish {
+                    // Trigger completion transition
+                    self.transitionToRecentlyPlayed()
+                    // One-time review gate after first successful completion
+                    if !ReviewRequestManager.shared.hasPromptedAfterFirstCompletion {
+                        self.showReviewGate = true
+                    }
                 }
             }
             .store(in: &cancellables)
