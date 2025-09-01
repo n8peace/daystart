@@ -21,12 +21,12 @@ CREATE INDEX IF NOT EXISTS app_feedback_created_idx ON app_feedback(created_at);
 ALTER TABLE app_feedback ENABLE ROW LEVEL SECURITY;
 
 -- Allow inserts for users; user_id enforced by default and check
-CREATE POLICY IF NOT EXISTS "Users can insert own feedback" ON app_feedback
+CREATE POLICY "Users can insert own feedback" ON app_feedback
   FOR INSERT
   WITH CHECK (user_id = current_setting('request.headers', true)::json->>'x-client-info');
 
 -- Service role full access
-CREATE POLICY IF NOT EXISTS "Service role full access feedback" ON app_feedback
+CREATE POLICY "Service role full access feedback" ON app_feedback
   FOR ALL TO service_role USING (true);
 
 
