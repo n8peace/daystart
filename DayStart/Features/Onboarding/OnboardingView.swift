@@ -1651,6 +1651,9 @@ struct OnboardingView: View {
         // Save settings first so they're available for job creation
         saveOnboardingSettings()
         
+        // Set flag to auto-start welcome DayStart when HomeView appears
+        UserDefaults.standard.set(true, forKey: "shouldAutoStartWelcome")
+        
         // CRITICAL: Create the first job immediately after successful paywall conversion
         Task {
             do {

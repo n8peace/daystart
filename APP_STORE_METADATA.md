@@ -1,8 +1,8 @@
-# App Store Connect Configuration for DayStart AI v1.0
+# App Store Connect Configuration for DayStart AI v2025.08.31
 
 ## Basic Information
 - **App Name:** DayStart AI
-- **Version:** 1.0
+- **Version:** 2025.08.31
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 
@@ -63,7 +63,7 @@ Terms of Service: https://daystart.bananaintelligence.ai/terms
 Personalized AI Morning Briefings
 ```
 
-## What's New in Version 1.0
+## What's New in Version 2025.08.31
 ```
 Welcome to DayStart AI! 
 

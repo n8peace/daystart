@@ -46,6 +46,10 @@ DayStart is **READY FOR APP STORE SUBMISSION** pending final build upload and te
 - ✅ **Background Modes** - Only audio and processing enabled
 - ✅ **App Privacy Details** - Completed in App Store Connect
 - ✅ **Content Rights** - Third-party content acknowledged
+- ✅ **App Screenshots** - All required iPhone sizes uploaded
+- ✅ **Privacy Settings** - Configured in App Store Connect
+- ✅ **Subscription Metadata** - Completed in App Store Connect
+- ✅ **Version Information** - Filled out in App Store Connect
 
 ### Legal & Documentation
 - ✅ **Privacy Policy** - Updated with Banana Intelligence, LLC
@@ -94,10 +98,9 @@ DayStart is **READY FOR APP STORE SUBMISSION** pending final build upload and te
 
 ### 4. Submit for Review
 **Priority:** 🟢 **FINAL STEP**
-1. Complete remaining App Store Connect fields
-2. Select build for review
-3. Answer export compliance questions (likely "No")
-4. Submit for review
+1. Select build for review
+2. Answer export compliance questions (likely "No")
+3. Submit for review
 
 ---
 
@@ -118,8 +121,8 @@ DayStart is **READY FOR APP STORE SUBMISSION** pending final build upload and te
 - [x] In-App Purchases approved
 - [x] App Privacy questionnaire completed
 - [x] Screenshots uploaded for all required sizes
+- [x] Version information filled out
 - [ ] Build uploaded and processed
-- [ ] Version information filled out
 
 ### Legal Compliance
 - [x] Privacy Policy updated and ready
@@ -230,5 +233,5 @@ DayStart is **READY FOR APP STORE SUBMISSION** pending final build upload and te
 ---
 
 **Last Updated:** January 2025
-**Document Version:** 2.0
+**Document Version:** 2.1
 **Status:** READY FOR APP STORE SUBMISSION

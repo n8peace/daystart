@@ -243,6 +243,15 @@ class HomeViewModel: ObservableObject {
         // DEFERRED: Load only basic observers and update state
         Task {
             await loadBasicObservers()
+            
+            // Check if we should auto-start welcome DayStart after onboarding
+            if UserDefaults.standard.bool(forKey: "shouldAutoStartWelcome") {
+                UserDefaults.standard.removeObject(forKey: "shouldAutoStartWelcome")
+                logger.log("🚀 Auto-starting welcome DayStart after onboarding", level: .info)
+                startWelcomeImmediately()
+                return
+            }
+            
             validateAndUpdateState()
             
             // Initialize snapshot update system if user has active schedule
@@ -1336,6 +1345,25 @@ class HomeViewModel: ObservableObject {
         }
         
         // Start preparing state for welcome
+        startPreparingState(isWelcome: true)
+        
+        // Start polling for welcome audio
+        Task {
+            await checkWelcomeAudioStatus()
+        }
+    }
+    
+    private func startWelcomeImmediately() {
+        logger.logUserAction("Auto-start Welcome DayStart", details: ["time": Date().description])
+        
+        // Check network connectivity first
+        guard NetworkMonitor.shared.isConnected else {
+            connectionError = .noInternet
+            state = .idle
+            return
+        }
+        
+        // Go directly to preparing state (skip welcome ready screen)
         startPreparingState(isWelcome: true)
         
         // Start polling for welcome audio
