@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS app_feedback (
   category TEXT NOT NULL CHECK (category IN ('audio_issue','content_quality','scheduling','other')),
   message TEXT,
   include_diagnostics BOOLEAN DEFAULT FALSE,
-  history_id UUID REFERENCES daystart_history(id) ON DELETE SET NULL,
+  history_id UUID, -- Local reference only, no foreign key constraint
   app_version TEXT,
   build TEXT,
   device_model TEXT,
