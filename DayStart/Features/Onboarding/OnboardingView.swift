@@ -1453,41 +1453,89 @@ struct OnboardingView: View {
                 Spacer(minLength: geometry.size.height * 0.03)
                 
                 // Pricing options - optimized for conversion
-                VStack(spacing: 12) {
-                    PricingCard(
-                        title: "Annual Pass",
-                        price: "$39.99/year",
-                        subtitle: "Just $3.33/month",
-                        badge: "🔥 Most Popular",
-                        trialText: "7-Day Free Trial",
-                        savings: "Save 33%",
-                        isSelected: false, // TODO: Phase 2 - Fix selection logic
-                        geometry: geometry,
-                        action: {
-                            // TODO: Phase 2 - Replace with real Product lookup
-                            selectedProduct = nil // Temporary for Phase 1
-                            impactFeedback()
+                if purchaseManager.isLoadingProducts {
+                    // Loading state
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .progressViewStyle(CircularProgressViewStyle(tint: BananaTheme.ColorToken.primary))
+                        
+                        Text("Loading pricing options...")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
+                    .frame(height: 200)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .opacity(textOpacity)
+                } else if purchaseManager.availableProducts.isEmpty {
+                    // Error state - no products loaded
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 40))
+                            .foregroundColor(.orange)
+                        
+                        Text("Unable to load pricing")
+                            .font(.system(size: min(18, geometry.size.width * 0.045), weight: .semibold))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                        
+                        Button("Retry") {
+                            Task {
+                                do {
+                                    try await purchaseManager.fetchProductsForDisplay()
+                                    if selectedProduct == nil {
+                                        selectedProduct = getProduct(for: "daystart_annual_subscription")
+                                    }
+                                } catch {
+                                    logger.logError(error, context: "Retry fetch products failed")
+                                }
+                            }
                         }
-                    )
-                    
-                    PricingCard(
-                        title: "Monthly Pass",
-                        price: "$4.99/month",
-                        subtitle: nil,
-                        badge: nil,
-                        trialText: "3-Day Free Trial",
-                        savings: nil,
-                        isSelected: false, // TODO: Phase 2 - Fix selection logic
-                        geometry: geometry,
-                        action: {
-                            // TODO: Phase 2 - Replace with real Product lookup
-                            selectedProduct = nil // Temporary for Phase 1
-                            impactFeedback()
-                        }
-                    )
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                        .background(BananaTheme.ColorToken.primary)
+                        .foregroundColor(BananaTheme.ColorToken.background)
+                        .cornerRadius(12)
+                    }
+                    .frame(height: 200)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .opacity(textOpacity)
+                } else {
+                    VStack(spacing: 12) {
+                        PricingCard(
+                            title: "Annual Pass",
+                            price: getProduct(for: "daystart_annual_subscription")?.displayPrice ?? "$39.99/year",
+                            subtitle: getMonthlyPrice(for: getProduct(for: "daystart_annual_subscription")),
+                            badge: "🔥 Most Popular",
+                            trialText: getTrialText(for: getProduct(for: "daystart_annual_subscription")) ?? "7-Day Free Trial",
+                            savings: getSavingsText(annual: getProduct(for: "daystart_annual_subscription"), monthly: getProduct(for: "daystart_monthly_subscription")),
+                            isSelected: selectedProduct?.id == "daystart_annual_subscription",
+                            geometry: geometry,
+                            action: {
+                                selectedProduct = getProduct(for: "daystart_annual_subscription")
+                                impactFeedback()
+                            }
+                        )
+                        
+                        PricingCard(
+                            title: "Monthly Pass",
+                            price: getProduct(for: "daystart_monthly_subscription")?.displayPrice ?? "$4.99/month",
+                            subtitle: nil,
+                            badge: nil,
+                            trialText: getTrialText(for: getProduct(for: "daystart_monthly_subscription")) ?? "3-Day Free Trial",
+                            savings: nil,
+                            isSelected: selectedProduct?.id == "daystart_monthly_subscription",
+                            geometry: geometry,
+                            action: {
+                                selectedProduct = getProduct(for: "daystart_monthly_subscription")
+                                impactFeedback()
+                            }
+                        )
+                    }
+                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .opacity(textOpacity)
                 }
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .opacity(textOpacity)
                 
                 Spacer(minLength: geometry.size.height * 0.03)
                 
@@ -1495,7 +1543,7 @@ struct OnboardingView: View {
                 HStack {
                     Image(systemName: "clock.fill")
                         .foregroundColor(.red)
-                    Text("Limited Time: 7-Day Free Trial") // TODO: Phase 2 - Make dynamic
+                    Text("Limited Time: \(getTrialText(for: selectedProduct) ?? "Free Trial")")
                         .font(.system(size: min(14, geometry.size.width * 0.035), weight: .bold))
                         .foregroundColor(.red)
                 }
@@ -1512,7 +1560,7 @@ struct OnboardingView: View {
                 // Main CTA
                 Button(action: {
                     logger.logUserAction("Paywall CTA tapped", details: [
-                        "selectedProduct": "none", // TODO: Phase 2 - Fix logging
+                        "selectedProduct": selectedProduct?.id ?? "none",
                         "hasName": !name.isEmpty,
                         "includeWeather": includeWeather,
                         "includeNews": includeNews,
@@ -1527,13 +1575,15 @@ struct OnboardingView: View {
                     startPurchaseFlow()
                 }) {
                     VStack(spacing: 4) {
-                        Text("Start Free Trial")
+                        Text(getCTAText(for: selectedProduct))
                             .font(.system(size: min(22, geometry.size.width * 0.055), weight: .bold))
                             .foregroundColor(BananaTheme.ColorToken.background)
                         
-                        Text("Then $3.33/month") // TODO: Phase 2 - Make dynamic
-                            .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.background.opacity(0.9))
+                        if let product = selectedProduct {
+                            Text("Then \(product.displayPrice)")
+                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.background.opacity(0.9))
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: max(64, geometry.size.height * 0.08))
@@ -1545,6 +1595,7 @@ struct OnboardingView: View {
                 )
                 .padding(.horizontal, geometry.size.width * 0.08)
                 .opacity(textOpacity)
+                .disabled(purchaseManager.isLoadingProducts || selectedProduct == nil)
                 
                 Spacer(minLength: geometry.size.height * 0.04)
                 
@@ -1576,6 +1627,27 @@ struct OnboardingView: View {
                 .foregroundColor(BananaTheme.ColorToken.secondaryText)
                 .padding(.bottom, max(20, geometry.size.height * 0.025))
                 .opacity(textOpacity)
+            }
+        }
+        .onAppear {
+            // Fetch products if not already loaded
+            if purchaseManager.availableProducts.isEmpty {
+                Task {
+                    do {
+                        try await purchaseManager.fetchProductsForDisplay()
+                        // Set default selection to annual product after loading
+                        if selectedProduct == nil {
+                            selectedProduct = getProduct(for: "daystart_annual_subscription")
+                        }
+                    } catch {
+                        logger.logError(error, context: "Failed to fetch products on paywall appear")
+                    }
+                }
+            } else {
+                // Products already loaded, just set default selection
+                if selectedProduct == nil {
+                    selectedProduct = getProduct(for: "daystart_annual_subscription")
+                }
             }
         }
     }

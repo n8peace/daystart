@@ -130,6 +130,7 @@ serve(async (req: Request): Promise<Response> => {
             location_data: body.location_data,
             weather_data: body.weather_data,
             calendar_events: body.calendar_events,
+            tts_provider: 'openai',
             // Clear generated results and costs
             script_content: null,
             audio_file_path: null,
@@ -237,6 +238,7 @@ serve(async (req: Request): Promise<Response> => {
         location_data: body.location_data,
         weather_data: body.weather_data,
         calendar_events: body.calendar_events,
+        tts_provider: 'openai',
         estimated_ready_time,
         status: 'queued',
         priority: calculatePriority(body.local_date, body.scheduled_at),

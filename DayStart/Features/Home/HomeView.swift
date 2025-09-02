@@ -278,18 +278,10 @@ struct HomeView: View {
                 HistoryView()
                     .environmentObject(userPreferences)
             }
-            .sheet(isPresented: Binding(get: { viewModel.showReviewGate }, set: { viewModel.showReviewGate = $0 })) {
-                ReviewGateView(
-                    onPositive: {
-                        ReviewRequestManager.shared.requestSystemReviewIfPossible()
-                        ReviewRequestManager.shared.markPromptedAfterFirstCompletion()
-                        viewModel.showReviewGate = false
-                    },
-                    onNegative: {
-                        viewModel.showReviewGate = false
-                        viewModel.showFeedbackSheet = true
-                    }
-                )
+            .overlay {
+                if viewModel.showReviewGate {
+                    reviewGateOverlay
+                }
             }
             .sheet(isPresented: Binding(get: { viewModel.showFeedbackSheet }, set: { viewModel.showFeedbackSheet = $0 })) {
                 FeedbackSheetView(
@@ -1118,6 +1110,90 @@ struct HomeView: View {
         }
     }
     
+    private var reviewGateOverlay: some View {
+        ZStack {
+            // Semi-transparent background
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    viewModel.showReviewGate = false
+                }
+            
+            // Review gate popup
+            VStack(spacing: 20) {
+                // Close button
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        viewModel.showReviewGate = false
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .padding(8)
+                            .background(Circle().fill(BananaTheme.ColorToken.secondaryText.opacity(0.1)))
+                    }
+                }
+                
+                VStack(spacing: 16) {
+                    Text("Enjoying DayStart?")
+                        .adaptiveFont(BananaTheme.Typography.title2)
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                    
+                    Text("Your feedback helps improve your mornings.")
+                        .font(BananaTheme.Typography.body)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                    
+                    HStack(spacing: 20) {
+                        Button(action: {
+                            viewModel.showReviewGate = false
+                            viewModel.showFeedbackSheet = true
+                        }) {
+                            Text("Not really")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(BananaTheme.ColorToken.border, lineWidth: 1)
+                                )
+                        }
+                        
+                        Button(action: {
+                            ReviewRequestManager.shared.requestSystemReviewIfPossible()
+                            ReviewRequestManager.shared.markPromptedAfterFirstCompletion()
+                            viewModel.showReviewGate = false
+                        }) {
+                            Text("Yes")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(BananaTheme.ColorToken.background)
+                                .padding(.horizontal, 32)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(BananaTheme.ColorToken.primary)
+                                )
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+                .padding(.bottom, 8)
+            }
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(BananaTheme.ColorToken.card)
+                    .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
+            )
+            .padding(.horizontal, 40)
+            .scaleEffect(viewModel.showReviewGate ? 1.0 : 0.9)
+            .opacity(viewModel.showReviewGate ? 1.0 : 0.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.showReviewGate)
+        }
+    }
+    
     private func celebrationEmojiFor(streak: Int) -> String {
         switch streak {
         case 100...: return "🏆"
@@ -1600,7 +1676,7 @@ struct ReviewGateView: View {
                 .adaptiveFont(BananaTheme.Typography.title2)
                 .foregroundColor(BananaTheme.ColorToken.text)
             Text("Your feedback helps improve your mornings.")
-                .adaptiveFont(BananaTheme.Typography.body)
+                .font(BananaTheme.Typography.body)
                 .foregroundColor(BananaTheme.ColorToken.secondaryText)
             HStack {
                 Button("Not really") { onNegative() }
