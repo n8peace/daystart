@@ -1525,7 +1525,7 @@ CONTENT PRIORITIZATION
 - Stocks: Include ${storyLimits.stocks} market point(s) max in your script. You have access to more stocks for better selection, but mention only ${storyLimits.stocks} total. Always prioritize user's focus symbols if provided.
  - Weather: If present, include high/low temperatures (from highTemperatureF/lowTemperatureF), precipitation chance (from precipitationChance), and current conditions. Spell out all temperatures and percentages in words for TTS.
  - Astronomy: If a meteor shower is present, add viewing advice tailored to the user's location (window, direction, light pollution note). Otherwise, omit.
-- Calendar: Call out today's top 1–2 items with time ranges and one helpful nudge.
+- Calendar: Call out today's top 1–3 items with time ranges and one helpful nudge. PRIORITIZE personal/social events over routine ones: favor events with people (dinners, meetings with friends), celebrations (birthdays, parties), or unique activities (concerts, trips, appointments) over standard work meetings, commutes, or routine tasks.
 
 FACT RULES
 - Use ONLY facts present in the JSON data.
