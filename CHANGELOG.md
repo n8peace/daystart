@@ -29,6 +29,10 @@
 - New feedback collection system with secure receipt-based authentication
 - Enhanced content processing capabilities
 
+🔒 **Privacy Improvements:**
+- Removed latitude/longitude coordinates from location data - now only sends city/state/country for weather context
+- Enhanced privacy compliance by eliminating precise location tracking
+
 ---
 
 ### v2025.09.3 (Build 1) - September 3, 2025  

@@ -23,7 +23,7 @@ interface CreateJobRequest {
     city?: string;
     state?: string;
     country?: string;
-    coordinates?: { latitude: number; longitude: number };
+    // Removed coordinates for privacy compliance
   };
   weather_data?: any;
   calendar_events?: any[];

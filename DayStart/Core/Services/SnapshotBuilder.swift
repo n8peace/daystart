@@ -47,9 +47,7 @@ class SnapshotBuilder {
                 city: city,
                 state: state,
                 country: country,
-                neighborhood: neighborhood,
-                latitude: loc.coordinate.latitude,
-                longitude: loc.coordinate.longitude
+                neighborhood: neighborhood
             )
         }
         

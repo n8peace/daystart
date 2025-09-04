@@ -8,8 +8,7 @@ interface UpdateJobSnapshotsRequest {
     city?: string;
     state?: string;
     country?: string;
-    latitude?: number;
-    longitude?: number;
+    // Removed latitude/longitude for privacy compliance
   };
   weather_data?: {
     temperatureF?: number;

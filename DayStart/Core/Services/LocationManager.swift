@@ -184,8 +184,7 @@ struct LocationData: Codable {
     let state: String?
     let country: String?
     let neighborhood: String? // subLocality - e.g., "Mar Vista"
-    let latitude: Double?
-    let longitude: Double?
+    // Removed latitude/longitude for privacy compliance
 }
 
 struct WeatherData: Codable {
