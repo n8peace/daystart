@@ -198,7 +198,7 @@ extension UserSettings {
             stockSymbols: ["AAPL", "TSLA", "SPY"],
             includeCalendar: false,
             includeQuotes: true,
-            quotePreference: .stoic,
+            quotePreference: .goodFeelings,
             selectedVoice: .voice1,
             dayStartLength: 3, // Default 3 minutes
             themePreference: .system

@@ -33,10 +33,7 @@ struct PrimaryActionView: View {
         VStack {
             switch state {
             case .idle:
-                if connectionError != nil {
-                    // No button shown for connection errors
-                    EmptyView()
-                } else if showNoSchedule {
+                if showNoSchedule {
                     Button(action: onEditTapped) {
                         Label("Schedule DayStart", systemImage: "calendar.badge.plus")
                             .adaptiveFont(BananaTheme.Typography.headline)
@@ -522,11 +519,7 @@ struct HomeView: View {
     private var mainContentView: some View {
         switch viewModel.state {
         case .idle:
-            if let error = viewModel.connectionError {
-                connectionErrorView(error: error)
-            } else {
-                idleViewContent
-            }
+            idleViewContent
         case .welcomeReady:
             welcomeReadyContent
         case .preparing:
@@ -861,53 +854,6 @@ struct HomeView: View {
         return isViewVisible ? 1.3 : 0.8
     }
     
-    private func connectionErrorView(error: ConnectionError) -> some View {
-        VStack(spacing: 30) {
-            VStack(spacing: 20) {
-                Text(error.icon)
-                    .font(.system(size: 60))
-                
-                VStack(spacing: 12) {
-                    Text(error.title)
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(BananaTheme.ColorToken.text)
-                    
-                    Text(error.message)
-                        .font(.system(size: 16))
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                }
-            }
-            
-            VStack(spacing: 16) {
-                // Retry button for retryable errors
-                if error == .noInternet || error == .streamingFailed || error == .streamingTimeout {
-                    Button(action: {
-                        viewModel.connectionError = nil
-                        viewModel.startDayStart()
-                    }) {
-                        Label("Retry", systemImage: "arrow.clockwise")
-                            .adaptiveFont(BananaTheme.Typography.headline)
-                            .foregroundColor(BananaTheme.ColorToken.background)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                    }
-                    .buttonStyle(InstantResponseStyle())
-                    .background(
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(BananaTheme.ColorToken.primary)
-                    )
-                    .padding(.horizontal, 40)
-                }
-                
-                // Auto-dismiss indicator
-                Text("This will auto-dismiss in 2 minutes")
-                    .font(.caption)
-                    .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-            }
-        }
-    }
     
     private var bufferingView: some View {
         VStack(spacing: 30) {

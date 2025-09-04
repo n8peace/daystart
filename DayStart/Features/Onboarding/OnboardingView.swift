@@ -84,6 +84,8 @@ struct OnboardingView: View {
     @State private var selectedQuoteType: QuotePreference = .stoic
     @State private var selectedVoice: VoiceOption? = nil
     @State private var selectedProduct: Product?
+    @State private var showRestoreError = false
+    @State private var restoreErrorMessage = ""
     
     // Permission states
     @State private var locationPermissionStatus: PermissionStatus = .notDetermined
@@ -205,6 +207,12 @@ struct OnboardingView: View {
                         startPageAnimation()
                     }
                 }
+                .onReceive(purchaseManager.$purchaseState) { purchaseState in
+                    if case .purchased = purchaseState {
+                        logger.log("✅ Purchase detected during onboarding, completing flow", level: .info)
+                        onComplete()
+                    }
+                }
                 .onReceive(LocationManager.shared.$authorizationStatus) { newStatus in
                     // Update location permission status when LocationManager status changes
                     DispatchQueue.main.async {
@@ -243,6 +251,11 @@ struct OnboardingView: View {
                     ])
                 }
             }
+        }
+        .alert("Restore Failed", isPresented: $showRestoreError) {
+            Button("OK") { }
+        } message: {
+            Text(restoreErrorMessage)
         }
     }
     
@@ -1619,6 +1632,10 @@ struct OnboardingView: View {
                                 try await PurchaseManager.shared.restorePurchases()
                             } catch {
                                 logger.logError(error, context: "Failed to restore purchases")
+                                await MainActor.run {
+                                    restoreErrorMessage = "No previous purchase found. Please subscribe to continue."
+                                    showRestoreError = true
+                                }
                             }
                         }
                     }
