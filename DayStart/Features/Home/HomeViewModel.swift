@@ -1428,14 +1428,25 @@ class HomeViewModel: ObservableObject {
         // Stop loading timers if any
         stopLoadingTimers()
         
+        // Check if this was a welcome DayStart being dismissed
+        let isWelcomeFlow = WelcomeDayStartScheduler.shared.isWelcomeReadyToPlay || 
+                           (currentDayStart?.scheduledTime != nil && 
+                            abs(currentDayStart!.scheduledTime!.timeIntervalSince(Date())) < 300)
+        
         // Reset current DayStart
         currentDayStart = nil
         
-        // Transition to idle state
-        state = .idle
-        
-        // Update to appropriate state based on schedule
-        updateState()
+        if isWelcomeFlow {
+            // For welcome flow, clean up welcome scheduler and go directly to idle
+            WelcomeDayStartScheduler.shared.cancelWelcomeDayStart()
+            state = .idle
+            connectionError = nil
+            // Don't call updateState() to avoid triggering error checking
+        } else {
+            // For regular DayStart, transition normally
+            state = .idle
+            updateState()
+        }
     }
     
     /// Trigger snapshot update after playing a DayStart

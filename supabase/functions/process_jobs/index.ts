@@ -84,7 +84,8 @@ function filterValidSportsItems(sports: any[] = [], dateISO: string, tz?: string
   return (sports || []).filter((ev: any) => {
     const d = String(ev?.date || '').slice(0, 10);
     const status = String(ev?.status || '').toUpperCase();
-    return (d === today || d === tomorrow) && (status === 'FT' || status === 'NS' || status === 'LIVE');
+    const allowedStatuses = ['FT', 'NS', 'LIVE', 'SCHEDULED', 'PRE-GAME', 'FINAL'];
+    return (d === today || d === tomorrow) && allowedStatuses.includes(status);
   });
 }
 
@@ -458,8 +459,9 @@ function fixBreakTags(script: string): string {
 function sanitizeForTTS(raw: string): string {
   let s = raw.trim();
 
-  // Remove bracketed stage directions but keep punctuation
-  s = s.replace(/\[[^\]]*?\]/g, '');
+  // Remove bracketed stage directions but PRESERVE pause instructions
+  // This regex removes all bracketed content EXCEPT patterns like [N second pause]
+  s = s.replace(/\[(?!\d+\s+second\s+pause\])[^\]]*?\]/g, '');
 
   // Strip markdown symbols but keep dashes and ellipses
   s = s.replace(/[*_#`>]+/g, '');
@@ -779,7 +781,7 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
       status: 'ready',
       audio_file_path: audioPath,
       audio_duration: audioResult.duration ?? 0,
-      transcript: scriptResult.content,
+      transcript: scriptResult.content.replace(/\[\d+\s+second\s+pause\]/g, ''),
       script_cost: scriptResult.cost,
       tts_cost: audioResult.cost ?? 0,
       tts_provider: audioResult.provider ?? 'elevenlabs',
@@ -800,6 +802,7 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
       .update({
         weather_data: null,
         calendar_events: null,
+        location_data: null,
         updated_at: new Date().toISOString()
       })
       .eq('job_id', jobId);
@@ -1221,6 +1224,11 @@ function convertBracketedPausesToSSML(script: string): string {
   });
 }
 
+function normalizeSymbol(symbol: string): string {
+  // Normalize symbol for comparison - trim whitespace and convert to uppercase
+  return symbol.trim().toUpperCase();
+}
+
 async function generateAudioWithOpenAI(script: string, job: any): Promise<{success: boolean, audioData?: Uint8Array, duration?: number, cost?: number, provider?: string, error?: string}> {
   const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openaiApiKey) {
@@ -1356,6 +1364,7 @@ function buildScriptPrompt(context: any): string {
 
   // Filter stocks based on market hours (exclude equities on weekends, keep crypto)
   const isWeekendDay = isWeekend(context.date, context.timezone);
+  console.log(`[DEBUG] Date: ${context.date}, Timezone: ${context.timezone}, Is Weekend: ${isWeekendDay}`);
   const allStocks = context.contentData?.stocks || [];
   
   // Classify stocks by asset type using symbol patterns
@@ -1363,13 +1372,23 @@ function buildScriptPrompt(context: any): string {
     const symbol = String(s.symbol || '').toUpperCase();
     return symbol.includes('-USD') || symbol.includes('-USDT') || symbol.includes('-BTC') || symbol.includes('-ETH');
   });
+  
+  // Major ETFs that should be available even on weekends for user focus
+  const majorETFs = ['SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'DIA', 'VEA', 'IEFA', 'AGG', 'LQD'];
+  
   const equities = allStocks.filter(s => {
     const symbol = String(s.symbol || '').toUpperCase();
     return !(symbol.includes('-USD') || symbol.includes('-USDT') || symbol.includes('-BTC') || symbol.includes('-ETH'));
   });
   
-  // Only include equities if not weekend
-  const filteredStocks = isWeekendDay ? crypto : [...equities, ...crypto];
+  const alwaysAvailableETFs = equities.filter(s => {
+    const symbol = String(s.symbol || '').toUpperCase();
+    return majorETFs.includes(symbol);
+  });
+  
+  // Include crypto always, equities on weekdays, major ETFs always
+  const filteredStocks = isWeekendDay ? [...crypto, ...alwaysAvailableETFs] : [...equities, ...crypto];
+  console.log(`[DEBUG] Total stocks: ${allStocks.length}, Equities: ${equities.length}, Crypto: ${crypto.length}, After weekend filter: ${filteredStocks.length}`);
 
   // Get day context for encouragements and holidays
   const dayContext = getDayContext(context.date, context.timezone);
@@ -1425,9 +1444,21 @@ function buildScriptPrompt(context: any): string {
     },
     stocks: {
       focus: filteredStocks
-        .filter(s => (context.stockSymbols || []).includes(s.symbol))
+        .filter(s => {
+          const normalizedStockSymbol = normalizeSymbol(s.symbol || '');
+          const userSymbols = (context.stockSymbols || []).map(normalizeSymbol);
+          
+          // Try exact symbol match first
+          if (userSymbols.includes(normalizedStockSymbol)) {
+            return true;
+          }
+          
+          // Fallback: check if user symbol appears in company name
+          const companyName = String(s.name || '').toUpperCase();
+          return userSymbols.some(userSym => companyName.includes(userSym));
+        })
         .map(s => ({
-          name: s.companyName,
+          name: s.name,
           symbol: s.symbol,
           price: s.price,
           change: s.change,
@@ -1439,7 +1470,7 @@ function buildScriptPrompt(context: any): string {
         .filter(s => !(context.stockSymbols || []).includes(s.symbol))
         .slice(0, 20)
         .map(s => ({
-          name: s.companyName,
+          name: s.name,
           symbol: s.symbol,
           price: s.price,
           change: s.change,
@@ -1450,6 +1481,11 @@ function buildScriptPrompt(context: any): string {
     quotePreference: context.quotePreference || null,
     calendarEvents: context.calendarEvents || []
   };
+  
+  // Log focus stocks for debugging
+  console.log(`[DEBUG] User requested symbols: ${JSON.stringify(context.stockSymbols || [])}`);
+  console.log(`[DEBUG] Focus stocks found: ${data.stocks.focus.length} - ${JSON.stringify(data.stocks.focus.map(s => s.symbol))}`);
+  console.log(`[DEBUG] Others stocks: ${data.stocks.others.length}`);
 
   const styleAddendum = `
 PAUSING & FLOW
