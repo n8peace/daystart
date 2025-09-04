@@ -755,10 +755,10 @@ extension SupabaseClient {
     }
     
     func submitAppFeedback(_ payload: AppFeedbackPayload) async throws -> Bool {
-        let url = restURL.appendingPathComponent("app_feedback")
+        let url = functionsURL.appendingPathComponent("submit_feedback")
         var request = await createRequest(for: url, method: "POST")
         request.httpBody = try JSONEncoder().encode(payload)
-        logger.log("📤 Supabase API: POST app_feedback", level: .info)
+        logger.log("📤 Supabase API: POST submit_feedback", level: .info)
         #if DEBUG
         logger.logNetworkRequest(request)
         #endif

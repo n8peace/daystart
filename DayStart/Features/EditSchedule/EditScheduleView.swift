@@ -23,6 +23,9 @@ struct EditScheduleView: View {
     @State private var showVoicePicker = false
     @State private var dismissTask: Task<Void, Never>?
     @State private var textInputTask: Task<Void, Never>?
+    @State private var showFeedbackSheet = false
+    @State private var toastMessage: String = ""
+    @State private var showToast = false
     @State private var showingLocationDeniedAlert = false
     @State private var showingCalendarDeniedAlert = false
     
@@ -142,9 +145,26 @@ struct EditScheduleView: View {
                 scheduleSection
                 contentSection
                 advancedSection
+                footerSection
             }
             .navigationTitle("Edit & Schedule")
             .navigationBarTitleDisplayMode(.inline)
+            .overlay(
+                Group {
+                    if showToast {
+                        toastView
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showToast)
+                            .onAppear {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                    withAnimation {
+                                        showToast = false
+                                    }
+                                }
+                            }
+                    }
+                }
+            )
             .onAppear {
                 logger.log("⚙️ Edit Schedule view appeared", level: .info)
                 logger.logUserAction("Settings opened", details: [
@@ -153,7 +173,7 @@ struct EditScheduleView: View {
                     "selectedVoice": selectedVoice.name
                 ])
             }
-            .toolbar {
+            .toolbar(content: {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(action: {
                         dismissTask?.cancel()
@@ -185,10 +205,59 @@ struct EditScheduleView: View {
                         .tint(BananaTheme.ColorToken.primary)
                     }
                 }
-            }
+            })
         }
         .sheet(isPresented: $showVoicePicker) {
             VoicePickerView(selectedVoice: $selectedVoice)
+        }
+        .sheet(isPresented: $showFeedbackSheet) {
+            FeedbackSheetView(
+                onCancel: {
+                    showFeedbackSheet = false
+                },
+                onSubmit: { category, message, includeDiagnostics in
+                    Task {
+                        let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+                        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+                        let deviceModel = UIDevice.current.model
+                        let osVersion = UIDevice.current.systemVersion
+                        let payload = SupabaseClient.AppFeedbackPayload(
+                            category: category,
+                            message: message,
+                            include_diagnostics: includeDiagnostics,
+                            history_id: nil, // No active DayStart in settings
+                            app_version: appVersion,
+                            build: build,
+                            device_model: deviceModel,
+                            os_version: osVersion
+                        )
+                        do {
+                            let ok = try await SupabaseClient.shared.submitAppFeedback(payload)
+                            await MainActor.run {
+                                showFeedbackSheet = false
+                                if ok {
+                                    toastMessage = "Thanks for the feedback"
+                                    logger.logUserAction("Feedback submitted from EditSchedule", details: ["category": category])
+                                } else {
+                                    toastMessage = "Couldn't send feedback. Please try again."
+                                    logger.log("Feedback submission returned false", level: .error)
+                                }
+                                showToast = true
+                            }
+                        } catch {
+                            await MainActor.run {
+                                showFeedbackSheet = false
+                                toastMessage = "Couldn't send feedback. Please try again."
+                                showToast = true
+                            }
+                            logger.log("Failed to submit feedback: \(error.localizedDescription)", level: .error)
+                            
+                            // Enhanced error logging for debugging  
+                            logger.log("Error type: \(type(of: error))", level: .error)
+                        }
+                    }
+                }
+            )
         }
         .onDisappear {
             dismissTask?.cancel()
@@ -441,6 +510,71 @@ struct EditScheduleView: View {
             Text("This will clear all your settings and show the onboarding flow again.")
         }
         #endif
+    }
+    
+    // MARK: - Toast View
+    
+    private var toastView: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Image(systemName: toastMessage.contains("Thanks") ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundColor(toastMessage.contains("Thanks") ? .green : .orange)
+                    .font(.system(size: 16))
+                
+                Text(toastMessage)
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                    .multilineTextAlignment(.leading)
+                
+                Spacer()
+                
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showToast = false
+                    }
+                }) {
+                    Image(systemName: "xmark")
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .font(.system(size: 14))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(BananaTheme.ColorToken.card)
+                    .stroke(BananaTheme.ColorToken.primary.opacity(0.3), lineWidth: 1)
+                    .shadow(color: BananaTheme.ColorToken.text.opacity(0.1), radius: 8, x: 0, y: 4)
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 32)
+        }
+    }
+    
+    private var footerSection: some View {
+        Section {
+            VStack(spacing: 12) {
+                Button(action: { showFeedbackSheet = true }) {
+                    Text("Submit Feedback")
+                        .foregroundColor(BananaTheme.ColorToken.primary)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                if let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+                   let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String {
+                    Text("Version \(appVersion) (\(buildNumber))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else if let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
+                    Text("Version \(appVersion)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        }
     }
     
     #if DEBUG

@@ -1170,8 +1170,8 @@ async function generateAudio(script: string, job: any, attemptNumber: number = 1
 
   console.log(`Attempt ${attemptNumber}: Using ElevenLabs TTS`);
   
-  // Convert bracketed pauses to SSML for ElevenLabs
-  const processedScript = convertBracketedPausesToSSML(script);
+  // Prepare script for ElevenLabs (convert bracketed pauses to SSML)
+  const processedScript = prepareTTSScript(script, 'elevenlabs');
   
   const response = await withRetry(() => fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',
@@ -1224,6 +1224,29 @@ function convertBracketedPausesToSSML(script: string): string {
   });
 }
 
+function prepareTTSScript(script: string, provider: 'openai' | 'elevenlabs'): string {
+  if (provider === 'openai') {
+    // OpenAI doesn't support SSML, so replace bracketed pauses with natural punctuation
+    let processedScript = script;
+    
+    // Replace specific pause durations with appropriate punctuation
+    processedScript = processedScript.replace(/\[1 second pause\]/g, '...');
+    processedScript = processedScript.replace(/\[2 second pause\]/g, '... ...');
+    processedScript = processedScript.replace(/\[3 second pause\]/g, '... ... ...');
+    
+    // Remove any remaining bracketed pauses (4+ seconds) with a single ellipsis
+    processedScript = processedScript.replace(/\[\d+ second pause\]/g, '...');
+    
+    return processedScript;
+  } else if (provider === 'elevenlabs') {
+    // ElevenLabs supports SSML, so convert bracketed pauses
+    return convertBracketedPausesToSSML(script);
+  }
+  
+  // Default: return script as-is
+  return script;
+}
+
 function normalizeSymbol(symbol: string): string {
   // Normalize symbol for comparison - trim whitespace and convert to uppercase
   return symbol.trim().toUpperCase();
@@ -1247,6 +1270,9 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
   const voice = voiceMap[`voice${voiceNumber}`] || 'sage';
 
   console.log(`Using OpenAI TTS with voice: ${voice}`);
+  
+  // Prepare script for OpenAI (replace bracketed pauses with natural punctuation)
+  const processedScript = prepareTTSScript(script, 'openai');
 
   try {
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
@@ -1258,7 +1284,7 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
       body: JSON.stringify({
         model: 'gpt-4o-mini-tts',
         voice: voice,
-        input: script,
+        input: processedScript,
         response_format: 'aac'
       }),
     });
