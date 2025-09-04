@@ -1,14 +1,14 @@
-# App Store Connect Configuration for DayStart AI v2025.08.31
+# App Store Connect Configuration for DayStart AI v2025.09.3
 
 ## Basic Information
 - **App Name:** DayStart AI
-- **Version:** 2025.08.31
+- **Version:** 2025.09.3
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 
 ## Keywords (100 characters max)
 ```
-morning,briefing,ai,news,weather,calendar,audio,productivity,routine,personalized,alarm
+morning,briefing,ai,news,weather,calendar,audio,productivity,routine,personalized,habit
 ```
 
 ## Promotional Text (170 characters max)
@@ -55,8 +55,8 @@ SUBSCRIPTION OPTIONS:
 
 Join others who've revolutionized their mornings with DayStart AI. Because the best days start with the right information.
 
-Privacy Policy: help.bananaintelligence.ai/privacy
-Terms of Service: help.bananaintelligence.ai/terms
+Privacy Policy: daystart.bananaintelligence.ai/privacy
+Terms of Service: daystart.bananaintelligence.ai/terms
 ```
 
 ## Subtitle (30 characters max)
@@ -156,7 +156,7 @@ To test: Use sandbox account, tap "Annual Pass" on paywall screen, complete purc
 
 ### Privacy Settings (Data Collection)
 Select **Yes** for data collection with these categories:
-1. **Location → Precise Location**: For weather updates (App Functionality)
+1. **Location → Coarse Location**: For weather updates (App Functionality)
 2. **Sensitive Info**: Calendar events for briefing context (App Functionality)
 3. **Identifiers → User ID**: Purchase receipt ID (App Functionality)
 4. **Diagnostics → Other Diagnostic Data**: Optional feedback diagnostics (App Functionality)
@@ -206,12 +206,12 @@ SUBSCRIPTION DETAILS:
 - Restore purchases functionality available on paywall screen
 
 BACKGROUND PROCESSING JUSTIFICATION:
-DayStart uses background processing for audio prefetching to ensure seamless morning alarm experience. The BGProcessingTask:
+DayStart uses background processing for audio prefetching to ensure seamless morning briefing experience. The BGProcessingTask:
 - Runs 2 hours before user's scheduled wake time
 - Downloads personalized audio content from our backend
-- Prevents playback delays/failures when alarm triggers
+- Prevents playback delays/failures when audio is requested
 - Uses requiresNetworkConnectivity=true for efficiency
-- Essential for core alarm functionality
+- Essential for core briefing functionality
 
 Background processing is limited to audio preparation only and completes quickly with proper task management.
 
@@ -267,4 +267,4 @@ CONTACT: nate@bananaintelligence.ai
 - [ ] Marketing Assets (Optional)
   - [ ] App preview video
   - [ ] Marketing website at daystart.bananaintelligence.ai
-  - [ ] Support documentation at help.bananaintelligence.ai
+  - [ ] Support documentation at daystart.bananaintelligence.ai

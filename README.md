@@ -200,7 +200,6 @@ DayStart/
 
 4. **Configure capabilities in Xcode**:
    - Background Modes: Audio, Processing (only these two)
-   - Push Notifications (for local notifications)
    - Location Services
    - Calendar Access
 

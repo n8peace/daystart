@@ -1,6 +1,6 @@
 ## Privacy Policy
 
-Effective Date: January 1, 2025
+Effective Date: August 1, 2025
 
 Banana Intelligence LLC ("Banana Intelligence", "we", "us", or "our") operates the DayStart AI mobile application (the "App"). This Privacy Policy describes how we collect, use, disclose, and protect information when you use the App. By using the App, you agree to this Policy.
 

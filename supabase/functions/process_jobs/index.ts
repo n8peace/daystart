@@ -430,10 +430,10 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 3, baseMs = 600, timeo
 
 // Fix any unclosed or malformed break tags
 function fixBreakTags(script: string): string {
-  // Fix unclosed break tags (e.g., "<break time="2s"/" -> "<break time="2s"/>")
+  // Fix unclosed break tags (e.g., "<break time="2s"/" -> "[2 second pause]")
   script = script.replace(/<break\s+time="(\d+s)"\/(?!>)/g, '<break time="$1"/>');
   
-  // Fix break tags missing closing angle bracket (e.g., "<break time="2s" -> "<break time="2s"/>")
+  // Fix break tags missing closing angle bracket (e.g., "<break time="2s" -> "[2 second pause]")
   script = script.replace(/<break\s+time="(\d+s)"(?!\/?>)/g, '<break time="$1"/>');
   
   // Fix break tags with missing quotes or other malformations
@@ -910,41 +910,41 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
 Good morning, Jordan, it's Monday, August eighteenth. This is DayStart!
 
-<break time="3s"/>
+[3 second pause]
 
 The sun is sliding up over Los Angeles, and Mar Vista will be feeling downright summery today. Highs in the low eighties with just a whisper of ocean breeze, which means you'll want to keep a cold drink nearby. The good news — no sign of that sticky humidity we had last week. The bad news — traffic is still traffic, and the four oh five is basically allergic to being on time.
 
-<break time="1s"/>
+[1 second pause]
 
 Your calendar is looking friendly enough. The team stand-up at nine should be short, but if history is any guide, "short" will be defined differently by everyone on the Zoom call. At three, you've got that dentist appointment — and if you keep putting it off, your teeth are going to file for separation. Consider this your polite reminder not to cancel again.
 
-<break time="1s"/>
+[1 second pause]
 
 Meanwhile in the wider world, the headlines are a mixed bag. Over the weekend, a coalition of state governors signed on to a renewable energy compact, promising faster timelines for solar build-outs. Critics say the deadlines are ambitious; optimists say at least somebody's trying. Abroad, markets are still churning on the back of last week's central bank moves in Europe. Closer to home, the wildfire situation up north is easing, thanks to a fortunate stretch of cooler nights. And if you needed a dose of levity, one of the top-trending stories this morning is a rescue operation for a dog that somehow managed to get itself stuck inside a pizza oven in Chicago. The pup is fine — the pizza, less so.
 
-<break time="1s"/>
+[1 second pause]
 
 Sports-wise, the Dodgers pulled off a walk-off win against the Giants, which is exactly the sort of drama that makes the neighbors either cheer or swear depending on which hat they were wearing. The Sparks have a midweek game coming up, but for now they've got a few days to recover.
 
-<break time="1s"/>
+[1 second pause]
 
 Markets open steady. Your tickers are front and center — Amazon is trading near one hundred thirty dollars, up one point two percent, while Nvidia is softer, off half a point. Microsoft is flat. Indices are basically unchanged.
 
-<break time="1s"/>
+[1 second pause]
 
 A thought for the day: "Discipline is remembering what you want." It doesn't have to mean perfect routines or Instagram-worthy meal prep. Sometimes it just means shutting the laptop lid at six and remembering there's a world outside of emails.
 
-<break time="1s"/>
+[1 second pause]
 
 And that's your start, Jordan. Step out into this Monday with a little humor, a little focus, and maybe even a little patience for that dentist.
 
 Peel into this Monday with intention — because even bananas don't get eaten in one bite.
 
-<break time="1s"/>
+[1 second pause]
 
 That's it for today. Have a good DayStart.
 
-<break time="2s"/>
+[2 second pause]
 
 - REMINDER, THIS WAS AN EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data).`
   };
@@ -1032,7 +1032,7 @@ That's it for today. Have a good DayStart.
     // Build a conservative context JSON for the adjust step
     const storyLimits = getStoryLimits(duration);
     const flattenedNews = flattenAndDedupeNews(context.contentData?.news || []).slice(0, 80);
-    const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date, context.timezone).slice(0, storyLimits.sports);
+    const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date, context.timezone).slice(0, 15);
     const sportsTeamWhitelist = teamWhitelistFromSports(sportsToday);
     const dataForBand = {
       user: {
@@ -1056,7 +1056,7 @@ That's it for today. Have a good DayStart.
       sports: sportsToday,
       sportsTeamWhitelist,
       stocks: {
-        sources: (context.contentData?.stocks || []).slice(0, storyLimits.stocks),
+        sources: (context.contentData?.stocks || []).slice(0, 20),
         focusSymbols: context.stockSymbols || [],
       },
       calendarEvents: context.calendarEvents || [],
@@ -1137,13 +1137,13 @@ ${contextJSON}
 }
 
 async function generateAudio(script: string, job: any, attemptNumber: number = 1): Promise<{success: boolean, audioData?: Uint8Array, duration?: number, cost?: number, provider?: string, error?: string}> {
-  // On attempt 3+, use OpenAI as fallback
-  if (attemptNumber >= 1) {
-    console.log(`Attempt ${attemptNumber}: Using OpenAI TTS as fallback`);
+  // Attempts 1-2: Use OpenAI as primary
+  if (attemptNumber <= 2) {
+    console.log(`Attempt ${attemptNumber}: Using OpenAI TTS`);
     return await generateAudioWithOpenAI(script, job);
   }
 
-  // Attempts 1-2: Use ElevenLabs
+  // Attempt 3+: Fall back to ElevenLabs
   // Creator Plan: 5 concurrent requests, 100K chars/month, $0.30/1K chars
   const elevenlabsApiKey = Deno.env.get('ELEVENLABS_API_KEY');
   if (!elevenlabsApiKey) {
@@ -1167,6 +1167,9 @@ async function generateAudio(script: string, job: any, attemptNumber: number = 1
 
   console.log(`Attempt ${attemptNumber}: Using ElevenLabs TTS`);
   
+  // Convert bracketed pauses to SSML for ElevenLabs
+  const processedScript = convertBracketedPausesToSSML(script);
+  
   const response = await withRetry(() => fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',
     headers: {
@@ -1175,7 +1178,7 @@ async function generateAudio(script: string, job: any, attemptNumber: number = 1
       'xi-api-key': elevenlabsApiKey,
     },
     body: JSON.stringify({
-      text: script,
+      text: processedScript,
       model_id: 'eleven_flash_v2_5',
       voice_settings: {
         stability: 0.5,
@@ -1211,10 +1214,10 @@ async function generateAudio(script: string, job: any, attemptNumber: number = 1
   };
 }
 
-function convertSSMLToNaturalLanguage(script: string): string {
-  // Convert SSML break tags to natural language for OpenAI TTS
-  return script.replace(/<break\s+time="(\d+)s"\s*\/>/g, (match, seconds) => {
-    return `[${seconds} second pause]`;
+function convertBracketedPausesToSSML(script: string): string {
+  // Convert bracketed pauses to SSML for ElevenLabs
+  return script.replace(/\[(\d+) second pause\]/g, (match, seconds) => {
+    return `<break time="${seconds}s"/>`;
   });
 }
 
@@ -1237,9 +1240,6 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
 
   console.log(`Using OpenAI TTS with voice: ${voice}`);
 
-  // Convert SSML breaks to natural language for OpenAI TTS
-  const processedScript = convertSSMLToNaturalLanguage(script);
-
   try {
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
@@ -1250,7 +1250,7 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
       body: JSON.stringify({
         model: 'gpt-4o-mini-tts',
         voice: voice,
-        input: processedScript,
+        input: script,
         response_format: 'aac'
       }),
     });
@@ -1352,7 +1352,7 @@ function buildScriptPrompt(context: any): string {
   const compactNews = collectCompactNews(context.contentData).slice(0, 40)
 
   // Enforce valid, present-day sports items only
-  const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date, context.timezone).slice(0, storyLimits.sports);
+  const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date, context.timezone).slice(0, 15);
 
   // Filter stocks based on market hours (exclude equities on weekends, keep crypto)
   const isWeekendDay = isWeekend(context.date, context.timezone);
@@ -1437,7 +1437,7 @@ function buildScriptPrompt(context: any): string {
         })),
       others: filteredStocks
         .filter(s => !(context.stockSymbols || []).includes(s.symbol))
-        .slice(0, storyLimits.stocks - (context.stockSymbols?.length || 0))
+        .slice(0, 20)
         .map(s => ({
           name: s.companyName,
           symbol: s.symbol,
@@ -1455,8 +1455,8 @@ function buildScriptPrompt(context: any): string {
 PAUSING & FLOW
 - Use em dashes (—) for short pauses and ellipses (…) for softer rests.
 - Put a blank line between sections to create a natural breath.
-- Add SSML breaks on their own line between major sections for longer pauses using EXACTLY this format: "<break time="1s"/>" (note the closing />)
-- CRITICAL: All break tags MUST be properly closed with /> at the end. Example: <break time="2s"/> NOT <break time="2s"/
+- Add bracketed pauses on their own line between major sections for longer pauses using EXACTLY this format: "[1 second pause]" or "[2 second pause]"
+- CRITICAL: Use the exact format with square brackets, number, "second pause" - e.g., [3 second pause]
 - Start each section with a short sentence. Then continue.
 - Keep sentences mostly under 18 words.
 `;
@@ -1474,7 +1474,7 @@ STYLE
   - Don't add "Inc" at the end of company names (use "Apple", not "Apple Inc.")
   - Spell out all numbers and prices in words (e.g., "two hundred thirty dollars and eighty-nine cents" not "$230.89", "down zero point three percent" not "down 0.3%")
 ${styleAddendum}
- - Use 1–2 transitions between sections. Add SSML breaks on their own line between major sections for natural pauses using EXACTLY this format: "<break time="1s"/>" (with closing />).
+ - Use 1–2 transitions between sections. Add bracketed pauses on their own line between major sections for natural pauses using EXACTLY this format: "[1 second pause]".
  - Keep ellipses to ≤1 per paragraph within sections and em dashes to ≤2 per paragraph.
  - Stay roughly within the provided per-section word budget (±25%). If a section is omitted, redistribute its budget to News first, then Weather/Calendar.
 
@@ -1485,8 +1485,8 @@ LENGTH & PACING
 
 CONTENT PRIORITIZATION
   - News: Use ${storyLimits.news === 1 ? '1 story' : `${storyLimits.news - 1}–${storyLimits.news} stories`}, depending on significance and space. Choose by local relevance using user.location when available; otherwise pick the most significant stories. For longer scripts, include deeper context and background for major stories.
-- Sports: ${storyLimits.sports} update(s) max. Only mention teams/matchups present in the sports data for today. If off-season or no fixtures, skip gracefully.
-- Stocks: ${storyLimits.stocks} market point(s) max. Prioritize user's focus symbols if provided.
+- Sports: Include ${storyLimits.sports} update(s) max in your script. You have more options to choose from, but select only the most relevant ${storyLimits.sports} for the user based on location, significance, or excitement. If off-season or no fixtures, skip gracefully.
+- Stocks: Include ${storyLimits.stocks} market point(s) max in your script. You have access to more stocks for better selection, but mention only ${storyLimits.stocks} total. Always prioritize user's focus symbols if provided.
  - Weather: If present, include high/low temperatures (from highTemperatureF/lowTemperatureF), precipitation chance (from precipitationChance), and current conditions. Spell out all temperatures and percentages in words for TTS.
  - Astronomy: If a meteor shower is present, add viewing advice tailored to the user's location (window, direction, light pollution note). Otherwise, omit.
 - Calendar: Call out today's top 1–2 items with time ranges and one helpful nudge.
@@ -1504,7 +1504,7 @@ FACT RULES
  - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style. For longer scripts, add more context or a brief reflection to enrich the quote section.
 
 CONTENT ORDER (adapt if sections are missing)
-1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a three-second pause using EXACTLY "<break time="3s"/>" on its own line (note the closing />).
+1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a three-second pause using EXACTLY "[3 second pause]" on its own line.
 1a) Day context (if dayContext.encouragement is provided): Include it naturally after the greeting, one or two sentences max. Vary tone so it doesn't feel canned.
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
@@ -1513,9 +1513,9 @@ CONTENT ORDER (adapt if sections are missing)
 6) Stocks (if include.stocks): Market pulse using company names and numbers spelled out. Call out focusSymbols prominently when present.
 7) Quote (if include.quotes): Select a quote that matches the user's quotePreference (if provided in data). The quote should align with that tradition/style (e.g., Buddhist wisdom, Stoic philosophy, Christian scripture, etc.). Follow with a one-line tie-back to today's vibe.
 8) Close with the provided signOff from the data — choose the one that fits the day's tone best.
-9) Add a 1-second pause after the signOff using EXACTLY "<break time="1s"/>" on its own line (with closing />).
+9) Add a 1-second pause after the signOff using EXACTLY "[1 second pause]" on its own line.
 10) Add the standardized ending phrase: "That's it for today. Have a good DayStart."
-11) End the script with a final 2-second pause using EXACTLY "<break time="2s"/>" on its own line (with closing />).
+11) End the script with a final 2-second pause using EXACTLY "[2 second pause]" on its own line.
 
 STRICT OUTPUT RULES — DO NOT BREAK
 - Output: PLAIN TEXT ONLY.

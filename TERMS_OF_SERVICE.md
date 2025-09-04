@@ -1,6 +1,6 @@
 ## Terms of Service
 
-Effective Date: January 1, 2025
+Effective Date: August 1, 2025
 
 These Terms of Service ("Terms") govern your access to and use of the DayStart AI mobile application and related services (collectively, the "Service") provided by Banana Intelligence LLC ("Banana Intelligence", "we", "us", or "our"). By using the Service, you agree to these Terms. If you do not agree, do not use the Service.
 
