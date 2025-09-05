@@ -81,12 +81,54 @@ function filterValidSportsItems(sports: any[] = [], dateISO: string, tz?: string
   // Also include tomorrow to catch events that slip due to UTC timezone differences
   const tomorrow = new Date(target.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   
-  return (sports || []).filter((ev: any) => {
+  // Debug: log filtering process
+  const debugFiltered: any[] = [];
+  
+  const filtered = (sports || []).filter((ev: any) => {
     const d = String(ev?.date || '').slice(0, 10);
-    const status = String(ev?.status || '').toUpperCase();
-    const allowedStatuses = ['FT', 'NS', 'LIVE', 'SCHEDULED', 'PRE-GAME', 'FINAL'];
-    return (d === today || d === tomorrow) && allowedStatuses.includes(status);
+    const status = String(ev?.status || '').toLowerCase();
+    
+    // More flexible status matching to handle various API formats
+    const isValidStatus = 
+      status.includes('final') ||      // ESPN: STATUS_FINAL, TheSportDB: Match Finished
+      status.includes('finish') ||     // TheSportDB: Match Finished
+      status.includes('ft') ||         // Common: FT (Full Time)
+      status.includes('live') ||       // Common: LIVE, In Progress
+      status.includes('progress') ||   // ESPN: in progress
+      status.includes('scheduled') ||  // ESPN: STATUS_SCHEDULED
+      status.includes('started') ||    // TheSportDB: Not Started
+      status === 'ns' ||              // Common: NS (Not Started)
+      status.includes('pre-game') ||   // Common: PRE-GAME
+      status.includes('postponed');    // Handle postponed games too
+    
+    const validDate = (d === today || d === tomorrow);
+    const isValid = validDate && isValidStatus;
+    
+    // Collect debug info for rejected events
+    if (!isValid && debugFiltered.length < 5) {
+      debugFiltered.push({
+        event: ev?.event || ev?.name || 'Unknown',
+        date: d,
+        status: status,
+        validDate,
+        isValidStatus,
+        reason: !validDate ? 'wrong date' : 'invalid status'
+      });
+    }
+    
+    return isValid;
   });
+  
+  // Log filtering results
+  if (debugFiltered.length > 0) {
+    console.log(`[DEBUG] Sports filtering - Rejected events (first 5):`);
+    debugFiltered.forEach(item => {
+      console.log(`  - ${item.event}: ${item.reason} (date=${item.date}, status='${item.status}')`);
+    });
+  }
+  console.log(`[DEBUG] Sports filtering: ${sports.length} total → ${filtered.length} valid (today=${today}, tomorrow=${tomorrow})`);
+  
+  return filtered;
 }
 
 function teamWhitelistFromSports(sports: any[] = []): string[] {
@@ -1469,49 +1511,125 @@ function buildScriptPrompt(context: any): string {
       isHoliday: dayContext.isHoliday
     },
     stocks: {
-      focus: filteredStocks
-        .filter(s => {
-          const normalizedStockSymbol = normalizeSymbol(s.symbol || '');
-          const userSymbols = (context.stockSymbols || []).map(normalizeSymbol);
+      focus: (() => {
+        const userSymbols = (context.stockSymbols || []).map(normalizeSymbol);
+        
+        if (userSymbols.length > 0) {
+          // User has specific symbols - filter for those
+          return filteredStocks
+            .filter(s => {
+              const normalizedStockSymbol = normalizeSymbol(s.symbol || '');
+              
+              // Try exact symbol match first
+              if (userSymbols.includes(normalizedStockSymbol)) {
+                return true;
+              }
+              
+              // Fallback: check if user symbol appears in company name
+              const companyName = String(s.name || '').toUpperCase();
+              return userSymbols.some(userSym => companyName.includes(userSym));
+            })
+            .map(s => ({
+              name: s.name,
+              symbol: s.symbol,
+              price: s.price,
+              change: s.change,
+              percentChange: s.percentChange,
+              timestamp: s.timestamp,
+              isCrypto: crypto.some(c => c.symbol === s.symbol)
+            }));
+        } else {
+          // No user symbols - select major indices and top movers for focus
+          const majorIndices = ['SPY', 'QQQ', 'IWM', 'DIA'];
+          const majorStocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN'];
+          const defaultFocusSymbols = [...majorIndices, ...majorStocks];
           
-          // Try exact symbol match first
-          if (userSymbols.includes(normalizedStockSymbol)) {
-            return true;
+          // First try to get major indices/stocks
+          const focusStocks = filteredStocks
+            .filter(s => defaultFocusSymbols.includes(s.symbol || ''))
+            .slice(0, storyLimits.stocks);
+          
+          // If we don't have enough, add top movers by percent change
+          if (focusStocks.length < storyLimits.stocks) {
+            const topMovers = filteredStocks
+              .filter(s => !focusStocks.some(f => f.symbol === s.symbol))
+              .sort((a, b) => Math.abs(b.percentChange || 0) - Math.abs(a.percentChange || 0))
+              .slice(0, storyLimits.stocks - focusStocks.length);
+            
+            focusStocks.push(...topMovers);
           }
           
-          // Fallback: check if user symbol appears in company name
-          const companyName = String(s.name || '').toUpperCase();
-          return userSymbols.some(userSym => companyName.includes(userSym));
-        })
-        .map(s => ({
-          name: s.name,
-          symbol: s.symbol,
-          price: s.price,
-          change: s.change,
-          percentChange: s.percentChange,
-          timestamp: s.timestamp,
-          isCrypto: crypto.some(c => c.symbol === s.symbol)
-        })),
-      others: filteredStocks
-        .filter(s => !(context.stockSymbols || []).includes(s.symbol))
-        .slice(0, 20)
-        .map(s => ({
-          name: s.name,
-          symbol: s.symbol,
-          price: s.price,
-          change: s.change,
-          percentChange: s.percentChange,
-          isCrypto: crypto.some(c => c.symbol === s.symbol)
-        }))
+          return focusStocks
+            .slice(0, storyLimits.stocks)
+            .map(s => ({
+              name: s.name,
+              symbol: s.symbol,
+              price: s.price,
+              change: s.change,
+              percentChange: s.percentChange,
+              timestamp: s.timestamp,
+              isCrypto: crypto.some(c => c.symbol === s.symbol)
+            }));
+        }
+      })(),
+      others: []  // Will be populated after focus is determined
     },
     quotePreference: context.quotePreference || null,
     calendarEvents: context.calendarEvents || []
   };
   
-  // Log focus stocks for debugging
-  console.log(`[DEBUG] User requested symbols: ${JSON.stringify(context.stockSymbols || [])}`);
-  console.log(`[DEBUG] Focus stocks found: ${data.stocks.focus.length} - ${JSON.stringify(data.stocks.focus.map(s => s.symbol))}`);
-  console.log(`[DEBUG] Others stocks: ${data.stocks.others.length}`);
+  // Now populate others based on what's in focus
+  const focusSymbols = data.stocks.focus.map(f => f.symbol);
+  data.stocks.others = filteredStocks
+    .filter(s => !focusSymbols.includes(s.symbol))
+    .slice(0, 20)
+    .map(s => ({
+      name: s.name,
+      symbol: s.symbol,
+      price: s.price,
+      change: s.change,
+      percentChange: s.percentChange,
+      isCrypto: crypto.some(c => c.symbol === s.symbol)
+    }));
+  
+  // Comprehensive debug logging for content availability
+  console.log('====== CONTENT AVAILABILITY DEBUG ======');
+  console.log(`[DEBUG] Date: ${context.date}, Timezone: ${context.timezone}`);
+  console.log(`[DEBUG] Is Weekend: ${isWeekendDay}`);
+  
+  // Raw content counts (before filtering)
+  console.log('[DEBUG] Raw content counts:');
+  console.log(`  - News sources: ${context.contentData?.news?.length || 0}`);
+  console.log(`  - Total news articles: ${context.contentData?.news?.reduce((sum, src) => sum + (src?.data?.articles?.length || 0), 0) || 0}`);
+  console.log(`  - Sports sources: ${context.contentData?.sports?.length || 0}`);
+  console.log(`  - Total sports events: ${context.contentData?.sports?.reduce((sum, src) => sum + (src?.data?.events?.length || src?.data?.games?.length || 0), 0) || 0}`);
+  console.log(`  - Stock sources: ${context.contentData?.stocks?.length || 0}`);
+  console.log(`  - Total stock quotes: ${allStocks.length}`);
+  
+  // Filtered content counts (after processing)
+  console.log('[DEBUG] Filtered content counts:');
+  console.log(`  - News (flattened/deduped): ${flattenedNews.length}`);
+  console.log(`  - Sports today: ${sportsToday.length}`);
+  console.log(`  - Stocks (filtered): ${filteredStocks.length} (${equities.length} equities, ${crypto.length} crypto)`);
+  
+  // Final data structure counts
+  console.log('[DEBUG] Final data structure:');
+  console.log(`  - News in data: ${data.news.length}`);
+  console.log(`  - Sports in data: ${data.sports.length}`);
+  console.log(`  - Sports teams whitelist: ${data.sportsTeamWhitelist.length}`);
+  console.log(`  - Stocks focus: ${data.stocks.focus.length} - ${JSON.stringify(data.stocks.focus.map(s => s.symbol))}`);
+  console.log(`  - Stocks others: ${data.stocks.others.length}`);
+  console.log(`  - Calendar events: ${data.calendarEvents.length}`);
+  
+  // User preferences
+  console.log('[DEBUG] User preferences:');
+  console.log(`  - Include weather: ${context.includeWeather}`);
+  console.log(`  - Include news: ${context.includeNews}`);
+  console.log(`  - Include sports: ${context.includeSports}`);
+  console.log(`  - Include stocks: ${context.includeStocks}`);
+  console.log(`  - Include quotes: ${context.includeQuotes}`);
+  console.log(`  - User stock symbols: ${JSON.stringify(context.stockSymbols || [])}`);
+  console.log('========================================');
 
   const styleAddendum = `
 PAUSING & FLOW
