@@ -1,8 +1,8 @@
-# App Store Connect Configuration for DayStart AI v2025.09.3
+# App Store Connect Configuration for DayStart AI v2025.09.4
 
 ## Basic Information
 - **App Name:** DayStart AI
-- **Version:** 2025.09.3
+- **Version:** 2025.09.4
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 
@@ -64,7 +64,7 @@ Terms of Service: daystart.bananaintelligence.ai/terms
 AI Audio News & Weather Brief
 ```
 
-## What's New in Version 2025.08.31
+## What's New in Version 2025.09.4
 ```
 Welcome to DayStart AI! 
 
@@ -252,6 +252,7 @@ CONTACT: nate@bananaintelligence.ai
 - [x] NSCalendarsUsageDescription added to Info.plist
 - [x] Paywall messaging updated
 - [x] Archive successfully uploaded to App Store Connect
+- [x] Build 3 (2025.09.4) submitted to App Store after successful testing
 
 ### Remaining Tasks
 - [ ] App Store Connect setup

@@ -1229,13 +1229,13 @@ function prepareTTSScript(script: string, provider: 'openai' | 'elevenlabs'): st
     // OpenAI doesn't support SSML, so replace bracketed pauses with natural punctuation
     let processedScript = script;
     
-    // Replace specific pause durations with appropriate punctuation
-    processedScript = processedScript.replace(/\[1 second pause\]/g, '...');
-    processedScript = processedScript.replace(/\[2 second pause\]/g, '... ...');
-    processedScript = processedScript.replace(/\[3 second pause\]/g, '... ... ...');
+    // Replace bracketed pauses with newlines (which create natural pauses in OpenAI TTS)
+    processedScript = processedScript.replace(/\[1 second pause\]/g, '\n\n'); // short pause
+    processedScript = processedScript.replace(/\[2 second pause\]/g, '\n\n\n'); // medium pause
+    processedScript = processedScript.replace(/\[3 second pause\]/g, '\n\n\n\n'); // longer pause
     
-    // Remove any remaining bracketed pauses (4+ seconds) with a single ellipsis
-    processedScript = processedScript.replace(/\[\d+ second pause\]/g, '...');
+    // Remove any remaining bracketed pauses with a default pause
+    processedScript = processedScript.replace(/\[\d+ second pause\]/g, '\n\n');
     
     return processedScript;
   } else if (provider === 'elevenlabs') {

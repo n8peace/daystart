@@ -8,6 +8,7 @@
 
 ### v2025.09.4 (Build 3) - September 4, 2025
 🍌 **The "Smooth Sailing Banana" Release**
+📱 **Initial App Store Submission** - Submitted to Apple for review ✅
 
 ✨ **New Features:**
 - Added in-app feedback system - now you can tell us when things go bananas (or when they're perfectly ripe!)

@@ -175,7 +175,9 @@ async function refreshContentAsync(request_id: string): Promise<void> {
       contentSources.push({ type: 'stocks', source: 'yahoo_finance', ttlHours: 168, fetchFunction: () => fetchYahooFinance(supabase) })
     } else { missingEnvs.push('RAPIDAPI_KEY') }
     contentSources.push({ type: 'sports', source: 'espn', ttlHours: 168, fetchFunction: () => fetchESPN() })
-    contentSources.push({ type: 'sports', source: 'thesportdb', ttlHours: 168, fetchFunction: () => fetchTheSportDB() })
+    if (Deno.env.get('SPORTSDB_API')) {
+      contentSources.push({ type: 'sports', source: 'thesportdb', ttlHours: 168, fetchFunction: () => fetchTheSportDB() })
+    } else { missingEnvs.push('SPORTSDB_API') }
 
     const results = {
       successful: 0,
@@ -530,14 +532,17 @@ async function fetchESPN(): Promise<any> {
 
 // TheSportDB API fetch function
 async function fetchTheSportDB(): Promise<any> {
+  const apiKey = Deno.env.get('SPORTSDB_API')
+  if (!apiKey) throw new Error('SPORTSDB_API not configured')
+
   // Get today's and tomorrow's dates in YYYY-MM-DD format
   const today = new Date().toISOString().split('T')[0]
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   
   // Fetch both today and tomorrow to catch events that slip to next day due to UTC
   const [todayData, tomorrowData] = await Promise.all([
-    getJSON<any>(`https://www.thesportsdb.com/api/v1/json/123/eventsday.php?d=${today}`),
-    getJSON<any>(`https://www.thesportsdb.com/api/v1/json/123/eventsday.php?d=${tomorrow}`)
+    getJSON<any>(`https://www.thesportsdb.com/api/v1/json/${apiKey}/eventsday.php?d=${today}`),
+    getJSON<any>(`https://www.thesportsdb.com/api/v1/json/${apiKey}/eventsday.php?d=${tomorrow}`)
   ])
   
   // Combine events from both days
