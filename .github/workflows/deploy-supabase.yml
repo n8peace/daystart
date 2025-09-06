@@ -93,11 +93,11 @@ jobs:
         echo "🧪 Creating test job to validate deployment..."
         echo "📍 Test receipt ID: ${{ env.TEST_RECEIPT_ID }}"
         
-        # Calculate tomorrow's date
-        TOMORROW=$(date -u -v +1d +%Y-%m-%d 2>/dev/null || date -u -d tomorrow +%Y-%m-%d)
-        SCHEDULED_AT="${TOMORROW}T07:00:00Z"
+        # Schedule for immediate processing (current date, current time + 1 minute)
+        TODAY=$(date -u +%Y-%m-%d)
+        SCHEDULED_AT=$(date -u -v +1M +%Y-%m-%dT%H:%M:%S%Z 2>/dev/null || date -u -d "+1 minute" +%Y-%m-%dT%H:%M:%S%Z)
         
-        echo "📅 Test job scheduled for: ${SCHEDULED_AT}"
+        echo "📅 Test job scheduled for immediate processing: ${SCHEDULED_AT}"
         
         # Create test job
         RESPONSE=$(curl -s -X POST \
@@ -106,7 +106,7 @@ jobs:
           -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
           -H "x-auth-type: test-deploy" \
           -d "{
-            \"local_date\": \"${TOMORROW}\",
+            \"local_date\": \"${TODAY}\",
             \"scheduled_at\": \"${SCHEDULED_AT}\",
             \"preferred_name\": \"Deployment Test\",
             \"include_weather\": false,
@@ -126,11 +126,17 @@ jobs:
         
         echo "📄 API Response: ${RESPONSE}"
         
-        # Extract job ID
-        JOB_ID=$(echo "${RESPONSE}" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
+        # Extract job ID (API returns "job_id" not "id")
+        JOB_ID=$(echo "${RESPONSE}" | grep -o '"job_id":"[^"]*' | cut -d'"' -f4)
         
         if [[ -z "${JOB_ID}" ]]; then
-          echo "❌ Failed to create test job"
+          echo "❌ Failed to extract job ID from response"
+          echo "🔍 Looking for 'job_id' field in: ${RESPONSE}"
+          # Try to extract error message if present
+          ERROR_MSG=$(echo "${RESPONSE}" | grep -o '"error":"[^"]*' | cut -d'"' -f4)
+          if [[ -n "${ERROR_MSG}" ]]; then
+            echo "❌ Error: ${ERROR_MSG}"
+          fi
           exit 1
         fi
         
