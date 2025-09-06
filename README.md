@@ -4,9 +4,9 @@ A personalized, AI-powered iOS morning briefing app that combines your local wea
 
 Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speech.
 
-## 🚀 App Store Readiness Status
+## 🚀 App Store Status
 
-**Current Status**: Ready for App Store submission - awaiting build upload
+**Current Status**: App submitted to App Store Connect
 - ✅ Backend deployed and tested in production with receipt-based authentication
 - ✅ App Store Connect configured with subscription products ($4.99/month, $39.99/year)
 - ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete
@@ -15,9 +15,8 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 - ✅ Comprehensive App Store metadata prepared (see [app-store-metadata.md](app-store-metadata.md))
 - ✅ Enhanced script generation with longer, richer content (up to 6 news stories)
 - ✅ All critical blockers resolved
-- 🟡 **Next**: Upload build to App Store Connect
-
-📋 **Complete readiness documentation**: [App Readiness Plan](claude_app_readiness_plan.md)
+- ✅ Build uploaded to App Store Connect
+- 🟡 **In Review**: Awaiting Apple review process
 
 ## Table of Contents
 - [Features](#features)
@@ -330,7 +329,7 @@ SPORTS_API_KEY=your-sports-api-key (optional)
    - [x] Legal documents updated with Banana Intelligence, LLC info
    - [x] App screenshots completed
    - [x] App Privacy and Content Rights configured in App Store Connect
-   - [ ] Upload build to App Store Connect
+   - [x] Upload build to App Store Connect
    - [ ] TestFlight testing and feedback collection
 
 4. **Build and Submit**:

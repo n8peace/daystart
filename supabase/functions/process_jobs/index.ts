@@ -1608,7 +1608,7 @@ function buildScriptPrompt(context: any): string {
   
   // Filtered content counts (after processing)
   console.log('[DEBUG] Filtered content counts:');
-  console.log(`  - News (flattened/deduped): ${flattenedNews.length}`);
+  console.log(`  - News (compact): ${compactNews.length}`);
   console.log(`  - Sports today: ${sportsToday.length}`);
   console.log(`  - Stocks (filtered): ${filteredStocks.length} (${equities.length} equities, ${crypto.length} crypto)`);
   
