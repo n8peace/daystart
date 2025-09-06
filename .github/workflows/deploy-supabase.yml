@@ -154,7 +154,9 @@ jobs:
     - name: Monitor test job
       run: |
         JOB_ID="${{ steps.test_job.outputs.job_id }}"
+        TODAY=$(date -u +%Y-%m-%d)
         echo "📊 Monitoring job: ${JOB_ID}"
+        echo "📅 Using date: ${TODAY}"
         
         START_TIME=$(date +%s)
         JOB_STATUS="pending"
@@ -168,11 +170,14 @@ jobs:
             exit 1
           fi
           
-          # Check job status (requires both date and job_id parameters)
+          # Check job status (requires both date and job_id parameters)  
+          API_URL="https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/get_audio_status?date=${TODAY}&job_id=${JOB_ID}"
+          echo "🔍 API URL: ${API_URL}"
+          
           STATUS_RESPONSE=$(curl -s -X GET \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
-            "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/get_audio_status?date=${TODAY}&job_id=${JOB_ID}")
+            "${API_URL}")
           
           JOB_STATUS=$(echo "${STATUS_RESPONSE}" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
           
@@ -211,11 +216,22 @@ jobs:
         JOB_ID="${{ steps.test_job.outputs.job_id }}"
         if [[ -n "${JOB_ID}" ]]; then
           echo "🧹 Cleaning up test job..."
+          # Use the correct column name for job ID filtering
+          CLEANUP_URL="https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/rest/v1/jobs?job_id=eq.${JOB_ID}"
+          echo "🔍 Cleanup URL: ${CLEANUP_URL}"
+          
           curl -s -X DELETE \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
-            "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/rest/v1/jobs?id=eq.${JOB_ID}" || true
+            "${CLEANUP_URL}" || {
+              echo "⚠️ Cleanup failed, trying with 'id' column..."
+              curl -s -X DELETE \
+                -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+                -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+                -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
+                "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/rest/v1/jobs?id=eq.${JOB_ID}" || true
+            }
         fi
         
     - name: Rollback on failure
