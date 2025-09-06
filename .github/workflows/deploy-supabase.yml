@@ -161,7 +161,7 @@ jobs:
         START_TIME=$(date +%s)
         JOB_STATUS="pending"
         
-        while [[ "${JOB_STATUS}" != "completed" ]]; do
+        while [[ "${JOB_STATUS}" != "completed" && "${JOB_STATUS}" != "ready" ]]; do
           CURRENT_TIME=$(date +%s)
           ELAPSED=$((CURRENT_TIME - START_TIME))
           
@@ -182,8 +182,8 @@ jobs:
           JOB_STATUS=$(echo "${STATUS_RESPONSE}" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
           
           case "${JOB_STATUS}" in
-            "completed")
-              echo "✅ Job completed successfully!"
+            "completed"|"ready")
+              echo "✅ Job completed successfully (status: ${JOB_STATUS})!"
               echo "${STATUS_RESPONSE}"
               ;;
             "failed")
