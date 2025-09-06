@@ -11,6 +11,11 @@ on:
       - 'supabase/**'
   workflow_dispatch: # Manual trigger
 
+env:
+  TEST_RECEIPT_ID: test-deploy-${{ github.run_id }}
+  MAX_WAIT_TIME: 300
+  CHECK_INTERVAL: 10
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -19,142 +24,206 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Log deployment start
-      run: |
-        echo "🚀 Starting Supabase deployment"
-        echo "📅 Deployment time: $(date)"
-        echo "🔧 Triggered by: ${{ github.event_name }}"
-        echo "📦 Commit: ${{ github.sha }}"
+    - name: Make scripts executable
+      run: chmod +x scripts/*.sh
         
     - name: Setup Deno
       uses: denoland/setup-deno@v1
       with:
         deno-version: v1.x
         
-    - name: Verify Deno installation
-      run: |
-        echo "📌 Deno version:"
-        deno --version
-        
     - name: Setup Supabase CLI
       uses: supabase/setup-cli@v1
       with:
         version: latest
         
-    - name: Verify Supabase CLI
+    - name: Deploy to Supabase
+      id: deploy
       run: |
-        echo "📌 Supabase CLI version:"
-        supabase --version
+        echo "🚀 Starting Supabase deployment..."
         
-    - name: Link Supabase project
-      run: |
-        echo "🔗 Linking to Supabase project..."
-        echo "📍 Project Reference: ${{ secrets.SUPABASE_PROJECT_REF }}"
-        echo "📍 Full URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co"
-        echo "📍 Using access token: ${SUPABASE_ACCESS_TOKEN:0:10}..."
-        echo "📍 Using database password: ${SUPABASE_DB_PASSWORD:0:5}..."
-        echo "📍 Current directory: $(pwd)"
-        echo "📍 Checking for existing supabase directory:"
-        ls -la | grep supabase || echo "No existing supabase directory found"
-        
-        echo "🔧 Running link command with database password..."
-        supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }} --debug || {
-          echo "❌ Link failed with exit code: $?"
-          echo "📋 Current directory contents:"
-          ls -la
-          echo "📋 Checking if .supabase directory was created:"
-          ls -la .supabase/ 2>/dev/null || echo "No .supabase directory found"
+        # Check if we're in the right directory
+        if [[ ! -f "supabase/functions/process_jobs/index.ts" ]]; then
+          echo "❌ Not in the DayStart project root directory!"
           exit 1
-        }
-        echo "✅ Project linked successfully"
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        fi
         
-    - name: List migration files
-      run: |
-        echo "📋 Migration files to be applied:"
-        ls -la supabase/migrations/
+        # Link project
+        echo "🔗 Linking Supabase project..."
+        supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
+          --password ${{ secrets.SUPABASE_DB_PASSWORD }}
         
-    - name: Run database migrations
-      run: |
+        # Run migrations
         echo "🗄️ Running database migrations..."
-        echo "📍 Using database password: ${SUPABASE_DB_PASSWORD:0:5}..."
-        supabase db push --debug
-        echo "✅ Migrations completed"
+        supabase db push
+        
+        # Deploy functions
+        echo "⚡ Deploying Edge Functions..."
+        supabase functions deploy
+        
+        # Set secrets
+        echo "🔐 Setting function secrets..."
+        if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+          supabase secrets set OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
+        fi
+        if [ -n "${{ secrets.ELEVENLABS_API_KEY }}" ]; then
+          supabase secrets set ELEVENLABS_API_KEY="${{ secrets.ELEVENLABS_API_KEY }}"
+        fi
+        if [ -n "${{ secrets.WORKER_AUTH_TOKEN }}" ]; then
+          supabase secrets set WORKER_AUTH_TOKEN="${{ secrets.WORKER_AUTH_TOKEN }}"
+        fi
+        if [ -n "${{ secrets.NEWSAPI_KEY }}" ]; then
+          supabase secrets set NEWSAPI_KEY="${{ secrets.NEWSAPI_KEY }}"
+        fi
+        if [ -n "${{ secrets.GNEWS_API_KEY }}" ]; then
+          supabase secrets set GNEWS_API_KEY="${{ secrets.GNEWS_API_KEY }}"
+        fi
+        if [ -n "${{ secrets.RAPIDAPI_KEY }}" ]; then
+          supabase secrets set RAPIDAPI_KEY="${{ secrets.RAPIDAPI_KEY }}"
+        fi
+        
+        echo "✅ Deployment completed successfully"
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         
-    - name: List Edge Functions
+    - name: Create test job
+      id: test_job
       run: |
-        echo "📋 Edge Functions to deploy:"
-        ls -la supabase/functions/
+        echo "🧪 Creating test job to validate deployment..."
+        echo "📍 Test receipt ID: ${{ env.TEST_RECEIPT_ID }}"
         
-    - name: Deploy Edge Functions
+        # Calculate tomorrow's date
+        TOMORROW=$(date -u -v +1d +%Y-%m-%d 2>/dev/null || date -u -d tomorrow +%Y-%m-%d)
+        SCHEDULED_AT="${TOMORROW}T07:00:00Z"
+        
+        echo "📅 Test job scheduled for: ${SCHEDULED_AT}"
+        
+        # Create test job
+        RESPONSE=$(curl -s -X POST \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+          -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
+          -H "x-auth-type: test-deploy" \
+          -d "{
+            \"local_date\": \"${TOMORROW}\",
+            \"scheduled_at\": \"${SCHEDULED_AT}\",
+            \"preferred_name\": \"Deployment Test\",
+            \"include_weather\": false,
+            \"include_news\": true,
+            \"include_sports\": false,
+            \"include_stocks\": false,
+            \"stock_symbols\": [],
+            \"include_calendar\": false,
+            \"include_quotes\": true,
+            \"quote_preference\": \"motivational\",
+            \"voice_option\": \"voice1\",
+            \"daystart_length\": 30,
+            \"timezone\": \"America/New_York\",
+            \"test_mode\": true
+          }" \
+          "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/create_job")
+        
+        echo "📄 API Response: ${RESPONSE}"
+        
+        # Extract job ID
+        JOB_ID=$(echo "${RESPONSE}" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
+        
+        if [[ -z "${JOB_ID}" ]]; then
+          echo "❌ Failed to create test job"
+          exit 1
+        fi
+        
+        echo "✅ Test job created with ID: ${JOB_ID}"
+        echo "job_id=${JOB_ID}" >> $GITHUB_OUTPUT
+        
+    - name: Monitor test job
       run: |
-        echo "⚡ Deploying Edge Functions..."
-        supabase functions deploy --debug
-        echo "✅ Functions deployed successfully"
+        JOB_ID="${{ steps.test_job.outputs.job_id }}"
+        echo "📊 Monitoring job: ${JOB_ID}"
+        
+        START_TIME=$(date +%s)
+        JOB_STATUS="pending"
+        
+        while [[ "${JOB_STATUS}" != "completed" ]]; do
+          CURRENT_TIME=$(date +%s)
+          ELAPSED=$((CURRENT_TIME - START_TIME))
+          
+          if [[ ${ELAPSED} -gt ${{ env.MAX_WAIT_TIME }} ]]; then
+            echo "❌ Job processing timeout after ${MAX_WAIT_TIME} seconds"
+            exit 1
+          fi
+          
+          # Check job status
+          STATUS_RESPONSE=$(curl -s -X GET \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
+            "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/get_audio_status?job_id=${JOB_ID}")
+          
+          JOB_STATUS=$(echo "${STATUS_RESPONSE}" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
+          
+          case "${JOB_STATUS}" in
+            "completed")
+              echo "✅ Job completed successfully!"
+              echo "${STATUS_RESPONSE}"
+              ;;
+            "failed")
+              echo "❌ Job failed!"
+              echo "${STATUS_RESPONSE}"
+              
+              # Run debug script if available
+              if [[ -f "scripts/debug-process-jobs.sh" ]]; then
+                echo "🔍 Running debug collection..."
+                bash scripts/debug-process-jobs.sh "${JOB_ID}" || true
+              fi
+              exit 1
+              ;;
+            "processing")
+              echo "⏳ Job is processing... (${ELAPSED}s elapsed)"
+              ;;
+            *)
+              echo "📊 Job status: ${JOB_STATUS} (${ELAPSED}s elapsed)"
+              ;;
+          esac
+          
+          sleep ${{ env.CHECK_INTERVAL }}
+        done
+        
+    - name: Clean up test data
+      if: always()
+      run: |
+        JOB_ID="${{ steps.test_job.outputs.job_id }}"
+        if [[ -n "${JOB_ID}" ]]; then
+          echo "🧹 Cleaning up test job..."
+          curl -s -X DELETE \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
+            "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/rest/v1/jobs?id=eq.${JOB_ID}" || true
+        fi
+        
+    - name: Rollback on failure
+      if: failure() && steps.deploy.outcome == 'success'
+      run: |
+        echo "🔄 Rolling back deployment..."
+        if [[ -f "scripts/rollback-functions.sh" ]]; then
+          bash scripts/rollback-functions.sh || {
+            echo "⚠️ Rollback failed, manual intervention may be required"
+          }
+        else
+          echo "⚠️ Rollback script not found"
+        fi
       env:
+        SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         
-    - name: Set function secrets
-      run: |
-        echo "🔐 Setting function environment variables..."
-        
-        if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
-          echo "  - Setting OPENAI_API_KEY"
-          supabase secrets set OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
-        else
-          echo "  ⚠️ OPENAI_API_KEY not found in secrets"
-        fi
-        
-        if [ -n "${{ secrets.ELEVENLABS_API_KEY }}" ]; then
-          echo "  - Setting ELEVENLABS_API_KEY"
-          supabase secrets set ELEVENLABS_API_KEY="${{ secrets.ELEVENLABS_API_KEY }}"
-        else
-          echo "  ⚠️ ELEVENLABS_API_KEY not found in secrets"
-        fi
-        
-        if [ -n "${{ secrets.WORKER_AUTH_TOKEN }}" ]; then
-          echo "  - Setting WORKER_AUTH_TOKEN"
-          supabase secrets set WORKER_AUTH_TOKEN="${{ secrets.WORKER_AUTH_TOKEN }}"
-        else
-          echo "  ⚠️ WORKER_AUTH_TOKEN not found in secrets"
-        fi
-        
-        if [ -n "${{ secrets.NEWSAPI_KEY }}" ]; then
-          echo "  - Setting NEWSAPI_KEY"
-          supabase secrets set NEWSAPI_KEY="${{ secrets.NEWSAPI_KEY }}"
-        else
-          echo "  ⚠️ NEWSAPI_KEY not found in secrets"
-        fi
-        
-        if [ -n "${{ secrets.GNEWS_API_KEY }}" ]; then
-          echo "  - Setting GNEWS_API_KEY"
-          supabase secrets set GNEWS_API_KEY="${{ secrets.GNEWS_API_KEY }}"
-        else
-          echo "  ⚠️ GNEWS_API_KEY not found in secrets"
-        fi
-        
-        if [ -n "${{ secrets.RAPIDAPI_KEY }}" ]; then
-          echo "  - Setting RAPIDAPI_KEY"
-          supabase secrets set RAPIDAPI_KEY="${{ secrets.RAPIDAPI_KEY }}"
-        else
-          echo "  ⚠️ RAPIDAPI_KEY not found in secrets"
-        fi
-        
-        echo "✅ Secrets configuration completed"
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        
-    - name: List deployed functions
-      run: |
-        echo "📊 Verifying deployed functions:"
-        supabase functions list
-      env:
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    - name: Upload debug reports
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-reports-${{ github.run_id }}
+        path: |
+          debug-job-*.log
+        retention-days: 30
         
     - name: Deployment summary
       if: always()
@@ -163,8 +232,12 @@ jobs:
         echo "===================="
         echo "Project: ${{ secrets.SUPABASE_PROJECT_REF }}"
         echo "Status: ${{ job.status }}"
-        echo "Duration: ${{ job.duration }}"
         echo "Commit: ${{ github.sha }}"
+        if [[ "${{ job.status }}" == "success" ]]; then
+          echo "✅ Deployment validated successfully!"
+        else
+          echo "❌ Deployment failed or was rolled back"
+        fi
         echo "===================="
 
   test:
@@ -180,17 +253,17 @@ jobs:
       run: |
         echo "🧪 Testing deployed Edge Functions..."
         echo "📍 Base URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1"
-        echo "📍 Using anon key: [REDACTED]..."
         
+        # Test create_job endpoint
         echo "📝 Testing create_job endpoint..."
         CREATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
           -H "Content-Type: application/json" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "x-client-info: github-actions-test" \
+          -H "x-client-info: github-actions-pr-test" \
           -d '{
             "local_date": "2025-08-12",
             "scheduled_at": "2025-08-12T07:00:00Z",
-            "preferred_name": "Test User",
+            "preferred_name": "PR Test User",
             "include_weather": true,
             "include_news": true,
             "include_sports": false,
@@ -208,10 +281,11 @@ jobs:
         echo "📄 Create job response:"
         echo "$CREATE_RESPONSE"
         
+        # Test get_audio_status endpoint
         echo -e "\n📝 Testing get_audio_status endpoint..."
         STATUS_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "x-client-info: github-actions-test" \
+          -H "x-client-info: github-actions-pr-test" \
           "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/get_audio_status?date=2025-08-12")
           
         echo "📄 Get status response:"
