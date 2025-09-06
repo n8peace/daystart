@@ -168,11 +168,11 @@ jobs:
             exit 1
           fi
           
-          # Check job status
+          # Check job status (requires both date and job_id parameters)
           STATUS_RESPONSE=$(curl -s -X GET \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
-            "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/get_audio_status?job_id=${JOB_ID}")
+            "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/get_audio_status?date=${TODAY}&job_id=${JOB_ID}")
           
           JOB_STATUS=$(echo "${STATUS_RESPONSE}" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
           
@@ -188,6 +188,8 @@ jobs:
               # Run debug script if available
               if [[ -f "scripts/debug-process-jobs.sh" ]]; then
                 echo "🔍 Running debug collection..."
+                SUPABASE_PROJECT_REF="${{ secrets.SUPABASE_PROJECT_REF }}" \
+                SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
                 bash scripts/debug-process-jobs.sh "${JOB_ID}" || true
               fi
               exit 1
@@ -211,6 +213,7 @@ jobs:
           echo "🧹 Cleaning up test job..."
           curl -s -X DELETE \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
             "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/rest/v1/jobs?id=eq.${JOB_ID}" || true
         fi
