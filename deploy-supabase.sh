@@ -77,6 +77,14 @@ save_function_versions() {
 deploy_supabase() {
     log_info "Starting Supabase deployment..."
     
+    # Check if we're in the right directory
+    if [[ ! -f "supabase/functions/process_jobs/index.ts" ]]; then
+        log_error "Not in the DayStart project root directory!"
+        log_error "Expected to find: supabase/functions/process_jobs/index.ts"
+        log_error "Current directory: $(pwd)"
+        return 1
+    fi
+    
     # Link project
     log_info "Linking Supabase project: ${SUPABASE_PROJECT_REF}"
     supabase link --project-ref "${SUPABASE_PROJECT_REF}" --password "${SUPABASE_DB_PASSWORD}" >> "${LOG_FILE}" 2>&1 || {
@@ -120,15 +128,27 @@ deploy_supabase() {
     fi
     
     log_success "Deployment completed successfully"
+    log_info "Deployment phase finished - proceeding to validation..."
     return 0
 }
 
 # Create a test job
 create_test_job() {
     log_info "Creating test job to validate deployment..."
+    log_info "Test receipt ID: ${TEST_RECEIPT_ID}"
     
-    local tomorrow=$(date -d tomorrow +%Y-%m-%d 2>/dev/null || date -v +1d +%Y-%m-%d)
+    # macOS compatible date command
+    local tomorrow
+    if date -v +1d >/dev/null 2>&1; then
+        # macOS
+        tomorrow=$(date -v +1d +%Y-%m-%d)
+    else
+        # Linux
+        tomorrow=$(date -d tomorrow +%Y-%m-%d)
+    fi
+    
     local scheduled_at="${tomorrow}T07:00:00Z"
+    log_info "Test job scheduled for: ${scheduled_at}"
     
     local payload=$(cat <<EOF
 {
@@ -151,6 +171,9 @@ create_test_job() {
 EOF
 )
     
+    log_info "Calling create_job endpoint..."
+    log_info "URL: https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/create_job"
+    
     local response=$(curl -s -X POST \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
@@ -159,11 +182,18 @@ EOF
         -d "${payload}" \
         "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/create_job" 2>&1)
     
+    log_info "API Response: ${response}"
+    
     # Extract job ID from response
     TEST_JOB_ID=$(echo "${response}" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
     
     if [[ -z "${TEST_JOB_ID}" ]]; then
         log_error "Failed to create test job. Response: ${response}"
+        # Try to extract error message
+        local error_msg=$(echo "${response}" | grep -o '"error":"[^"]*' | cut -d'"' -f4)
+        if [[ -n "${error_msg}" ]]; then
+            log_error "Error message: ${error_msg}"
+        fi
         return 1
     fi
     
@@ -305,18 +335,23 @@ main() {
     log_info "Log file: ${LOG_FILE}"
     
     # Check environment
+    log_info "Step 1/5: Checking environment variables..."
     check_env_vars
+    log_success "Environment check passed"
     
     # Save current state
+    log_info "Step 2/5: Saving current function versions..."
     BACKUP_FILE=$(save_function_versions)
     
     # Deploy
+    log_info "Step 3/5: Deploying to Supabase..."
     if ! deploy_supabase; then
         log_error "Deployment failed!"
         exit 1
     fi
     
     # Create and monitor test job
+    log_info "Step 4/5: Creating test job for validation..."
     if ! create_test_job; then
         log_error "Failed to create test job"
         get_function_logs
@@ -325,6 +360,7 @@ main() {
         exit 1
     fi
     
+    log_info "Step 5/5: Monitoring test job processing..."
     if ! monitor_job_processing; then
         log_error "Test job processing failed!"
         get_function_logs
@@ -344,6 +380,7 @@ main() {
     
     log_info "=== Deployment completed successfully ==="
     log_info "Full log available at: ${LOG_FILE}"
+    log_success "✅ All functions deployed and tested successfully!"
 }
 
 # Run main function
