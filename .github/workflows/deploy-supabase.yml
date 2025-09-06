@@ -95,9 +95,17 @@ jobs:
         
         # Schedule for immediate processing (current date, current time + 1 minute)
         TODAY=$(date -u +%Y-%m-%d)
-        SCHEDULED_AT=$(date -u -v +1M +%Y-%m-%dT%H:%M:%S%Z 2>/dev/null || date -u -d "+1 minute" +%Y-%m-%dT%H:%M:%S%Z)
+        # Generate ISO timestamp with Z suffix (not UTC)
+        if date -u -v +1M +%Y-%m-%d >/dev/null 2>&1; then
+          # macOS
+          SCHEDULED_AT=$(date -u -v +1M +%Y-%m-%dT%H:%M:%SZ)
+        else
+          # Linux
+          SCHEDULED_AT=$(date -u -d "+1 minute" +%Y-%m-%dT%H:%M:%SZ)
+        fi
         
         echo "📅 Test job scheduled for immediate processing: ${SCHEDULED_AT}"
+        echo "🔍 Timestamp format validation: ${SCHEDULED_AT}"
         
         # Create test job
         RESPONSE=$(curl -s -X POST \
@@ -210,13 +218,32 @@ jobs:
     - name: Rollback on failure
       if: failure() && steps.deploy.outcome == 'success'
       run: |
-        echo "🔄 Rolling back deployment..."
+        echo "🔄 Checking if rollback is possible..."
+        
+        # Check if there are previous function changes to rollback to
+        CURRENT_COMMIT=$(git rev-parse HEAD)
+        PREVIOUS_COMMIT=$(git log -n 2 --pretty=format:"%H" -- supabase/functions/ | tail -n 1)
+        
+        if [[ "${CURRENT_COMMIT}" == "${PREVIOUS_COMMIT}" ]]; then
+          echo "ℹ️ No previous function changes found - nothing to rollback to"
+          echo "💡 This is the first deployment or no function changes in recent commits"
+          exit 0
+        fi
+        
+        echo "🔄 Rolling back deployment from ${CURRENT_COMMIT} to ${PREVIOUS_COMMIT}..."
+        
         if [[ -f "scripts/rollback-functions.sh" ]]; then
           bash scripts/rollback-functions.sh || {
             echo "⚠️ Rollback failed, manual intervention may be required"
+            echo "📋 To manually rollback:"
+            echo "  git checkout ${PREVIOUS_COMMIT} -- supabase/functions/"
+            echo "  supabase functions deploy"
           }
         else
           echo "⚠️ Rollback script not found"
+          echo "📋 Manual rollback required:"
+          echo "  git checkout ${PREVIOUS_COMMIT} -- supabase/functions/"
+          echo "  supabase functions deploy"
         fi
       env:
         SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
