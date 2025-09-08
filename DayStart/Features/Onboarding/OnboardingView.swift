@@ -1432,9 +1432,9 @@ struct OnboardingView: View {
     private var paywallPage: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
-                Spacer(minLength: geometry.size.height * 0.06)
+                Spacer(minLength: geometry.size.height * 0.02)
                 
-                VStack(spacing: geometry.size.height * 0.04) {
+                VStack(spacing: geometry.size.height * 0.02) {
                     // Premium star with pulsing animation
                     ZStack {
                         Circle()
@@ -1445,16 +1445,16 @@ struct OnboardingView: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: min(120, geometry.size.width * 0.25))
+                            .frame(width: min(80, geometry.size.width * 0.20))
                             .scaleEffect(animationTrigger ? 1.1 : 0.9)
                         
                         Text("🌟")
-                            .font(.system(size: min(60, geometry.size.width * 0.12)))
+                            .font(.system(size: min(45, geometry.size.width * 0.09)))
                             .scaleEffect(animationTrigger ? 1.2 : 1.0)
                     }
                     .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
                     
-                    VStack(spacing: geometry.size.height * 0.02) {
+                    VStack(spacing: geometry.size.height * 0.01) {
                         Text("Unlock Your Better Mornings")
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
@@ -1470,7 +1470,7 @@ struct OnboardingView: View {
                     }
                 }
                 
-                Spacer(minLength: geometry.size.height * 0.03)
+                Spacer(minLength: geometry.size.height * 0.015)
                 
                 // Pricing options - optimized for conversion
                 if purchaseManager.isLoadingProducts {
@@ -1522,9 +1522,12 @@ struct OnboardingView: View {
                     .padding(.horizontal, geometry.size.width * 0.08)
                     .opacity(textOpacity)
                 } else {
-                    VStack(spacing: 12) {
-                        PricingCard(
-                            title: "Annual Pass",
+                    // Use HStack for wider screens, VStack for narrow
+                    Group {
+                        if geometry.size.width > 500 {
+                            HStack(spacing: 12) {
+                                PricingCard(
+                                    title: "Annual Pass",
                             price: getProduct(for: "daystart_annual_subscription")?.displayPrice ?? "$39.99/year",
                             subtitle: nil,
                             badge: "🔥 Most Popular",
@@ -1554,30 +1557,48 @@ struct OnboardingView: View {
                                 impactFeedback()
                             }
                         )
+                            }
+                        } else {
+                            VStack(spacing: 12) {
+                                PricingCard(
+                                    title: "Annual Pass",
+                                    price: getProduct(for: "daystart_annual_subscription")?.displayPrice ?? "$39.99/year",
+                                    subtitle: nil,
+                                    badge: "🔥 Most Popular",
+                                    trialText: getTrialText(for: getProduct(for: "daystart_annual_subscription")) ?? "7-Day Free Trial",
+                                    renewalText: "renews annually",
+                                    savings: getSavingsText(annual: getProduct(for: "daystart_annual_subscription"), monthly: getProduct(for: "daystart_monthly_subscription")),
+                                    isSelected: selectedProduct?.id == "daystart_annual_subscription",
+                                    geometry: geometry,
+                                    action: {
+                                        selectedProduct = getProduct(for: "daystart_annual_subscription")
+                                        impactFeedback()
+                                    }
+                                )
+                                
+                                PricingCard(
+                                    title: "Monthly Pass",
+                                    price: getProduct(for: "daystart_monthly_subscription")?.displayPrice ?? "$4.99/month",
+                                    subtitle: nil,
+                                    badge: nil,
+                                    trialText: getTrialText(for: getProduct(for: "daystart_monthly_subscription")) ?? "3-Day Free Trial",
+                                    renewalText: "renews monthly",
+                                    savings: nil,
+                                    isSelected: selectedProduct?.id == "daystart_monthly_subscription",
+                                    geometry: geometry,
+                                    action: {
+                                        selectedProduct = getProduct(for: "daystart_monthly_subscription")
+                                        impactFeedback()
+                                    }
+                                )
+                            }
+                        }
                     }
                     .padding(.horizontal, geometry.size.width * 0.08)
                     .opacity(textOpacity)
                 }
                 
-                Spacer(minLength: geometry.size.height * 0.03)
-                
-                // Urgency banner
-                HStack {
-                    Image(systemName: "clock.fill")
-                        .foregroundColor(.red)
-                    Text("Limited Time: \(getTrialText(for: selectedProduct) ?? "Free Trial")")
-                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .bold))
-                        .foregroundColor(.red)
-                }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.red.opacity(0.1))
-                        .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                )
-                .opacity(textOpacity)
-                
-                Spacer(minLength: geometry.size.height * 0.04)
+                Spacer(minLength: geometry.size.height * 0.02)
                 
                 // Main CTA
                 Button(action: {
@@ -1619,15 +1640,14 @@ struct OnboardingView: View {
                 .opacity(textOpacity)
                 .disabled(purchaseManager.isLoadingProducts || selectedProduct == nil)
                 
-                Spacer(minLength: geometry.size.height * 0.04)
+                Spacer(minLength: geometry.size.height * 0.015)
                 
-                Text("After your free trial, your subscription auto-renews until canceled")
+                Text("Auto-renews until canceled. Cancel anytime in Settings.")
                     .font(.system(size: min(11, geometry.size.width * 0.028), weight: .regular))
                     .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, geometry.size.width * 0.1)
-                    .padding(.top, 8)
                     .opacity(textOpacity)
+                    .padding(.bottom, 12)
                 
                 // Legal links
                 HStack(spacing: 16) {
@@ -1659,7 +1679,7 @@ struct OnboardingView: View {
                 }
                 .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
                 .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                .padding(.bottom, max(20, geometry.size.height * 0.025))
+                .padding(.bottom, max(16, geometry.size.height * 0.02))
                 .opacity(textOpacity)
             }
         }
@@ -2316,13 +2336,13 @@ struct PricingCard: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 if let badge = badge {
                     Text(badge)
-                        .font(.system(size: min(12, geometry.size.width * 0.03), weight: .bold))
+                        .font(.system(size: min(10, geometry.size.width * 0.025), weight: .bold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
                         .background(
                             LinearGradient(
                                 colors: [Color.orange, Color.red],
@@ -2333,13 +2353,13 @@ struct PricingCard: View {
                         .cornerRadius(12)
                 }
                 
-                VStack(spacing: 4) {
+                VStack(spacing: 2) {
                     Text(title)
                         .font(.system(size: min(18, geometry.size.width * 0.045), weight: .bold))
                         .foregroundColor(BananaTheme.ColorToken.text)
                     
                     Text(price)
-                        .font(.system(size: min(24, geometry.size.width * 0.06), weight: .bold))
+                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
                         .foregroundColor(BananaTheme.ColorToken.primary)
                     
                     if let subtitle = subtitle {
@@ -2354,18 +2374,12 @@ struct PricingCard: View {
                             .foregroundColor(Color.green)
                     }
                     
-                    VStack(spacing: 2) {
-                        Text(trialText)
-                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.accent)
-                        
-                        Text(renewalText)
-                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .regular))
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.8))
-                    }
+                    Text("\(trialText) • \(renewalText)")
+                        .font(.system(size: min(11, geometry.size.width * 0.028), weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
                 }
             }
-            .padding(16)
+            .padding(12)
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 16)

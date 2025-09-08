@@ -33,36 +33,61 @@
 
 ## iOS App Releases 📱
 
-### v2025.09.4 (Build 4) - September 7, 2025
-🍌 **The "Crystal Clear Subscription" Release**
-📱 **App Store Resubmission** - Addressing review feedback
+### v2025.09.4 (Build 6) - September 8, 2025
+🍌 **The "Compliance Complete" Release**
+📱 **App Store Resubmission** - Comprehensive compliance updates
 
-✨ **Compliance Updates:**
-- Enhanced subscription free trial disclosure to clearly indicate automatic renewal after trial period
-- Updated subscription pricing cards with clearer renewal text ("renews annually" / "renews monthly")
-- Removed duplicate price display on annual subscription card for cleaner UI
-- Updated CTA button text to show "then [price] monthly/annually" for better clarity
+✨ **Subscription Compliance Updates:**
+- Enhanced free trial disclosure with clear automatic renewal indicators
+- Updated subscription pricing cards:
+  - Changed "then auto-renews" to clearer "renews annually" / "renews monthly"
+  - Removed duplicate price display on annual card for cleaner UI
+  - Made renewal text same font size as trial text for better visibility
+- Improved CTA button to show "then [price] monthly/annually" for pricing clarity
 - Added explicit disclosure: "After your free trial, your subscription auto-renews until canceled"
+- Fixed paywall layout with ScrollView to ensure Terms, Privacy, and Restore Purchase links are always visible
 
-🔍 **These changes ensure users clearly understand:**
-- Free trials automatically convert to paid subscriptions
-- The exact price they'll be charged when the trial ends
-- Subscriptions continue until manually canceled
+🎨 **Paywall Optimization (Build 6):**
+- Removed ScrollView and implemented dynamic spacing to fit all content on one screen
+- Optimized layout while maintaining readability:
+  - Reduced star emoji to 45pt and circle to 80pt
+  - Maintained hero title at 28pt for prominence
+  - Optimized "Most Popular" badge with smaller font (10pt) and padding
+- Streamlined pricing cards:
+  - Combined trial and renewal text on one line with bullet separator
+  - Reduced internal spacing and padding for compact layout
+  - Reduced price font size from 24pt to 20pt
+- Implemented side-by-side card layout for screens wider than 500pt
+- Removed urgency banner to save vertical space
+- Updated footer text to "Auto-renews until canceled. Cancel anytime in Settings."
+- Maintained readable font sizes for footer links (12pt) with proper spacing
+- Reduced spacer heights throughout for optimal screen utilization
 
-📍 **WeatherKit Information (Response to App Review):**
-1. **Does the app include WeatherKit functionality?**
-   - Yes, DayStart uses WeatherKit to provide personalized weather information in morning briefings
-   
-2. **Steps to navigate to WeatherKit functionality:**
-   - Weather is automatically included in every DayStart briefing (no navigation required)
-   - Users can toggle weather on/off during onboarding (Page 5: Weather Location)
-   - In the app: Home screen → Play button → Weather content plays automatically in the audio briefing
-   - Weather data is fetched server-side using WeatherKit API and integrated into the AI-generated script
+📱 **Legal Compliance:**
+- Added functional Terms of Use (EULA) link in app binary
+- Added functional Privacy Policy link in app binary
+- Added Terms of Use URL to App Store metadata
+- All legal links open in Safari to: https://daystart.ai/terms and https://daystart.ai/privacy
 
-🔧 **Bug Fixes:**
-- Fixed onboarding auto-completion for users with existing purchases to improve testing experience
-- Added 2-second delay before auto-completing onboarding to prevent immediate completion on app launch
-- Enhanced authentication flow logging for better debugging of onboarding issues
+🌦️ **WeatherKit Compliance:**
+- Confirmed WeatherKit integration for personalized weather information
+- Weather automatically included in every DayStart briefing
+- Users can toggle weather during onboarding (Page 5: Weather Location)
+- Weather data fetched server-side using WeatherKit API
+
+🔧 **Technical Improvements:**
+- Fixed onboarding auto-completion for users with existing purchases
+- Added 2-second delay before auto-completing onboarding for better testing
+- Enhanced authentication flow logging for debugging
+- Removed intrusive connection error overlays
+- Improved background processing for smoother audio playback
+- Enhanced privacy by removing precise location tracking (only city/state/country)
+
+🎯 **These changes ensure:**
+- Full compliance with App Store Guidelines 3.1.2 and 2.1
+- Clear communication of subscription terms and pricing
+- All required legal documentation is accessible
+- Better user experience with improved error handling
 
 ### v2025.09.4 (Build 3) - September 4, 2025
 🍌 **The "Smooth Sailing Banana" Release**
