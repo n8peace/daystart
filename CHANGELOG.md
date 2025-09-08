@@ -67,7 +67,7 @@
 - Added functional Terms of Use (EULA) link in app binary
 - Added functional Privacy Policy link in app binary
 - Added Terms of Use URL to App Store metadata
-- All legal links open in Safari to: https://daystart.ai/terms and https://daystart.ai/privacy
+- All legal links open in Safari to: https://daystart.bananaintelligence.ai/terms and https://daystart.bananaintelligence.ai/privacy
 
 🌦️ **WeatherKit Compliance:**
 - Confirmed WeatherKit integration for personalized weather information
