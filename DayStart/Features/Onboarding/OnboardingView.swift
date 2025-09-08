@@ -190,6 +190,30 @@ struct OnboardingView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
+                .simultaneousGesture(
+                    // Only intercept forward swipes on permission pages
+                    (currentPage == 5 || currentPage == 6) ? 
+                        DragGesture()
+                            .onEnded { value in
+                                let swipeThreshold: CGFloat = 50
+                                
+                                // Forward swipe only (left to right motion, negative translation.width)
+                                if value.translation.width < -swipeThreshold {
+                                    if currentPage == 5 {
+                                        // Weather permission page - request location permission
+                                        Task {
+                                            await requestLocationPermission()
+                                        }
+                                    } else if currentPage == 6 {
+                                        // Calendar permission page - request calendar permission
+                                        Task {
+                                            await requestCalendarPermission()
+                                        }
+                                    }
+                                }
+                                // Backward swipes (positive translation.width) are ignored, allowing normal TabView behavior
+                            } : nil
+                )
                 .onAppear {
                     logger.log("🎓 New onboarding view appeared", level: .info)
                     logger.logUserAction("Onboarding started", details: ["initialPage": currentPage])
@@ -889,22 +913,15 @@ struct OnboardingView: View {
                     }
                     
                     VStack(spacing: geometry.size.height * 0.02) {
-                        Text("Know Before You Go")
+                        Text("Weather Permission")
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
                             .opacity(textOpacity)
                         
-                        Text("Get dressed right for the day ahead")
+                        Text("We'll ask for your location to add local weather to your DayStart")
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
-                            .opacity(textOpacity)
-                        
-                        Text("Your location data is used only once, then automatically deleted when your briefing is ready")
-                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.primary.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, geometry.size.width * 0.08)
                             .opacity(textOpacity)
@@ -921,101 +938,47 @@ struct OnboardingView: View {
                 }
                 .opacity(textOpacity)
                 
-                // Error state
-                if showingLocationError {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.red)
-                            Text("Location access needed for weather updates")
-                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                                .foregroundColor(.red)
-                        }
-                        .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.red.opacity(0.1))
-                                .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                        )
-                        
-                        Button("Open Settings") {
-                            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(settingsURL)
-                            }
-                        }
-                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                        .foregroundColor(BananaTheme.ColorToken.primary)
-                    }
+                // Optional message
+                Text("This is completely optional - feel free to allow or deny based on your preference")
+                    .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .multilineTextAlignment(.center)
                     .padding(.horizontal, geometry.size.width * 0.08)
-                    .transition(.opacity.combined(with: .scale))
-                }
+                    .padding(.top, geometry.size.height * 0.02)
+                    .opacity(textOpacity)
+                
                 
                 Spacer(minLength: geometry.size.height * 0.08)
                 
-                // Permission button or skip
-                VStack(spacing: 16) {
-                    if locationPermissionStatus != .granted {
-                        Button(action: {
-                            Task {
-                                await requestLocationPermission()
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: "location.fill")
-                                Text("Enable Weather")
-                            }
-                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: max(56, geometry.size.height * 0.07))
-                            .background(
-                                LinearGradient(
-                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(16)
-                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
-                        }
-                    } else {
-                        Button(action: {
-                            includeWeather = true
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 6
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Weather Enabled!")
-                            }
-                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: max(56, geometry.size.height * 0.07))
-                            .background(
-                                LinearGradient(
-                                    colors: [Color.green, Color.green.opacity(0.8)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(16)
-                        }
+                // Permission button
+                Button(action: {
+                    Task {
+                        await requestLocationPermission()
                     }
-                    
-                    Button(action: {
-                        includeWeather = false
-                        impactFeedback()
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                            currentPage = 6
-                        }
-                    }) {
-                        Text("Skip Weather")
-                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                }) {
+                    HStack {
+                        Image(systemName: locationPermissionStatus == .granted ? "checkmark.circle.fill" : 
+                              locationPermissionStatus == .denied ? "xmark.circle.fill" : "location.fill")
+                        Text(locationPermissionStatus == .granted ? "Weather Enabled" : 
+                             locationPermissionStatus == .denied ? "Weather Disabled" : "Enable Weather")
                     }
+                    .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: max(56, geometry.size.height * 0.07))
+                    .background(
+                        LinearGradient(
+                            colors: locationPermissionStatus == .granted ? [Color.green, Color.green.opacity(0.8)] :
+                                    locationPermissionStatus == .denied ? [Color.red, Color.red.opacity(0.8)] :
+                                    [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(16)
+                    .shadow(color: (locationPermissionStatus == .granted ? Color.green : 
+                                  locationPermissionStatus == .denied ? Color.red : 
+                                  BananaTheme.ColorToken.primary).opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .padding(.horizontal, geometry.size.width * 0.08)
                 .padding(.bottom, max(24, geometry.size.height * 0.03))
@@ -1062,22 +1025,15 @@ struct OnboardingView: View {
                     }
                     
                     VStack(spacing: geometry.size.height * 0.02) {
-                        Text("Never Miss a Beat")
+                        Text("Calendar Permission")
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
                             .opacity(textOpacity)
                         
-                        Text("Your meetings and events in your briefing")
+                        Text("We'll ask to access your calendar to include today's events in your DayStart")
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
-                            .opacity(textOpacity)
-                        
-                        Text("Your calendar data is used only once, then automatically deleted when your briefing is ready")
-                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.primary.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, geometry.size.width * 0.08)
                             .opacity(textOpacity)
@@ -1094,101 +1050,47 @@ struct OnboardingView: View {
                 }
                 .opacity(textOpacity)
                 
-                // Error state
-                if showingCalendarError {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.red)
-                            Text("Calendar access required for events")
-                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                                .foregroundColor(.red)
-                        }
-                        .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.red.opacity(0.1))
-                                .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                        )
-                        
-                        Button("Open Settings") {
-                            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(settingsURL)
-                            }
-                        }
-                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                        .foregroundColor(BananaTheme.ColorToken.primary)
-                    }
+                // Optional message
+                Text("This is completely optional - feel free to allow or deny based on your preference")
+                    .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .multilineTextAlignment(.center)
                     .padding(.horizontal, geometry.size.width * 0.08)
-                    .transition(.opacity.combined(with: .scale))
-                }
+                    .padding(.top, geometry.size.height * 0.02)
+                    .opacity(textOpacity)
+                
                 
                 Spacer(minLength: geometry.size.height * 0.08)
                 
-                // Permission button or skip
-                VStack(spacing: 16) {
-                    if calendarPermissionStatus != .granted {
-                        Button(action: {
-                            Task {
-                                await requestCalendarPermission()
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: "calendar")
-                                Text("Connect Calendar")
-                            }
-                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: max(56, geometry.size.height * 0.07))
-                            .background(
-                                LinearGradient(
-                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(16)
-                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
-                        }
-                    } else {
-                        Button(action: {
-                            includeCalendar = true
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 7
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Calendar Connected!")
-                            }
-                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: max(56, geometry.size.height * 0.07))
-                            .background(
-                                LinearGradient(
-                                    colors: [Color.green, Color.green.opacity(0.8)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(16)
-                        }
+                // Permission button
+                Button(action: {
+                    Task {
+                        await requestCalendarPermission()
                     }
-                    
-                    Button(action: {
-                        includeCalendar = false
-                        impactFeedback()
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                            currentPage = 7
-                        }
-                    }) {
-                        Text("Skip Calendar")
-                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                }) {
+                    HStack {
+                        Image(systemName: calendarPermissionStatus == .granted ? "checkmark.circle.fill" : 
+                              calendarPermissionStatus == .denied ? "xmark.circle.fill" : "calendar")
+                        Text(calendarPermissionStatus == .granted ? "Calendar Enabled" : 
+                             calendarPermissionStatus == .denied ? "Calendar Disabled" : "Enable Calendar")
                     }
+                    .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: max(56, geometry.size.height * 0.07))
+                    .background(
+                        LinearGradient(
+                            colors: calendarPermissionStatus == .granted ? [Color.green, Color.green.opacity(0.8)] :
+                                    calendarPermissionStatus == .denied ? [Color.red, Color.red.opacity(0.8)] :
+                                    [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(16)
+                    .shadow(color: (calendarPermissionStatus == .granted ? Color.green : 
+                                  calendarPermissionStatus == .denied ? Color.red : 
+                                  BananaTheme.ColorToken.primary).opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .padding(.horizontal, geometry.size.width * 0.08)
                 .padding(.bottom, max(24, geometry.size.height * 0.03))
@@ -1981,29 +1883,49 @@ struct OnboardingView: View {
         // Check current status first
         let currentStatus = locationManager.authorizationStatus
         
-        // If already granted, update UI immediately
+        // If already granted, update UI immediately and advance
         if currentStatus == .authorizedWhenInUse || currentStatus == .authorizedAlways {
             await MainActor.run {
                 locationPermissionStatus = .granted
-                showingLocationError = false
+                includeWeather = true
+                impactFeedback()
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                    currentPage = 6
+                }
             }
             return
         }
         
-        // If denied/restricted, show error
+        // If denied/restricted, advance without weather
         if currentStatus == .denied || currentStatus == .restricted {
             await MainActor.run {
                 locationPermissionStatus = .denied
-                showingLocationError = true
+                includeWeather = false
+                impactFeedback()
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                    currentPage = 6
+                }
             }
             return
         }
         
-        // Otherwise, request permission
+        // Otherwise, request permission and advance based on result
         let granted = await locationManager.requestLocationPermission()
         
-        // Note: The onReceive observer will handle UI updates automatically
-        // when the LocationManager's authorizationStatus changes
+        await MainActor.run {
+            if granted {
+                locationPermissionStatus = .granted
+                includeWeather = true
+            } else {
+                locationPermissionStatus = .denied
+                includeWeather = false
+            }
+            impactFeedback()
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                currentPage = 6
+            }
+        }
+        
         logger.log("Location permission request completed: \(granted)", level: .info)
     }
     
@@ -2014,10 +1936,14 @@ struct OnboardingView: View {
         await MainActor.run {
             if granted {
                 calendarPermissionStatus = .granted
-                showingCalendarError = false
+                includeCalendar = true
             } else {
                 calendarPermissionStatus = .denied
-                showingCalendarError = true
+                includeCalendar = false
+            }
+            impactFeedback()
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                currentPage = 7
             }
         }
     }

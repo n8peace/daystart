@@ -33,6 +33,31 @@
 
 ## iOS App Releases 📱
 
+### v2025.09.4 (Build 7) - September 8, 2025
+🍌 **The "Permission Flow Fix" Release**
+📱 **App Store Compliance Fix** - Resolving Guideline 5.1.1 rejection
+
+✨ **Permission Request Redesign:**
+- **Removed skip buttons** from weather and calendar permission screens per Apple guidelines
+- **Redesigned permission flow** with clearer messaging:
+  - Simplified titles to "Weather Permission" / "Calendar Permission"
+  - Updated descriptions to explain what will be asked
+  - Added emphasis that permissions are "completely optional"
+  - Streamlined content order: description → benefits → optional message
+- **Enhanced user experience**:
+  - Concise "Enable Weather" / "Enable Calendar" buttons
+  - Auto-advance to next page regardless of permission choice (allow/deny)
+  - Smart swipe behavior: backward swipes work normally, forward swipes trigger permission request
+  - Visual feedback: buttons show green (enabled), red (disabled), or default state
+  - Removed error states - permission denial is treated as valid user choice
+- **Maintains functionality**: Weather/calendar features automatically enabled/disabled based on permission choice
+
+🔧 **Technical Implementation:**
+- Updated `requestLocationPermission()` and `requestCalendarPermission()` handlers with auto-advance
+- Implemented custom gesture handling for permission pages using `simultaneousGesture`
+- Removed conditional UI states and error displays
+- Improved onboarding flow continuity
+
 ### v2025.09.4 (Build 6) - September 8, 2025
 🍌 **The "Compliance Complete" Release**
 📱 **App Store Resubmission** - Comprehensive compliance updates
