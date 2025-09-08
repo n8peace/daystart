@@ -15,7 +15,6 @@ struct DayStartApp: App {
     // TIER 1: Only essential services (no lazy loading needed)
     private var userPreferences: UserPreferences { UserPreferences.shared }
     @StateObject var themeManager = ThemeManager.shared  // Made internal for auth extension
-    @State var showOnboarding = false  // Made internal for auth extension
     
     // Purchase state
     @StateObject var purchaseManager = PurchaseManager.shared
@@ -29,10 +28,6 @@ struct DayStartApp: App {
     init() {
         // MINIMAL: Only essential UI setup (no service initialization)
         configureBasicNavigationAppearance()
-        
-        // IMMEDIATE: Check onboarding status synchronously to avoid UI flicker
-        let needsOnboarding = !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-        _showOnboarding = State(initialValue: needsOnboarding)
     }
     
     var body: some Scene {
@@ -97,7 +92,7 @@ struct DayStartApp: App {
         
         // DEFERRED: Background cleanup (non-blocking)
         // Only run cleanup if user has completed onboarding
-        if !showOnboarding {
+        if UserPreferences.shared.hasCompletedOnboarding {
             Task.detached(priority: .background) {
                 await UserPreferences.shared.cleanupOldAudioFiles()
             }

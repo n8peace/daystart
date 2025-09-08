@@ -97,6 +97,7 @@ struct OnboardingView: View {
     @State private var animationTrigger = false
     @State private var heroScale: CGFloat = 1.0
     @State private var textOpacity: Double = 1.0  // Start visible for first page
+    @State private var onboardingStartTime = Date()
     
     // Date formatter
     private var shortTimeFormatter: DateFormatter {
@@ -209,8 +210,14 @@ struct OnboardingView: View {
                 }
                 .onReceive(purchaseManager.$purchaseState) { purchaseState in
                     if case .purchased = purchaseState {
-                        logger.log("✅ Purchase detected during onboarding, completing flow", level: .info)
-                        onComplete()
+                        // Only auto-complete if user has progressed past paywall (indicating fresh purchase)
+                        // AND has been in onboarding for at least 2 seconds (prevents immediate completion on app launch)
+                        if currentPage > 8 && Date().timeIntervalSince(onboardingStartTime) > 2.0 {
+                            logger.log("✅ Purchase detected during onboarding, completing flow", level: .info)
+                            onComplete()
+                        } else {
+                            logger.log("🔍 Purchase detected but user hasn't progressed through onboarding or insufficient time elapsed (page: \(currentPage), time: \(Date().timeIntervalSince(onboardingStartTime))s)", level: .debug)
+                        }
                     }
                 }
                 .onReceive(LocationManager.shared.$authorizationStatus) { newStatus in
@@ -1519,9 +1526,10 @@ struct OnboardingView: View {
                         PricingCard(
                             title: "Annual Pass",
                             price: getProduct(for: "daystart_annual_subscription")?.displayPrice ?? "$39.99/year",
-                            subtitle: getMonthlyPrice(for: getProduct(for: "daystart_annual_subscription")),
+                            subtitle: nil,
                             badge: "🔥 Most Popular",
                             trialText: getTrialText(for: getProduct(for: "daystart_annual_subscription")) ?? "7-Day Free Trial",
+                            renewalText: "renews annually",
                             savings: getSavingsText(annual: getProduct(for: "daystart_annual_subscription"), monthly: getProduct(for: "daystart_monthly_subscription")),
                             isSelected: selectedProduct?.id == "daystart_annual_subscription",
                             geometry: geometry,
@@ -1537,6 +1545,7 @@ struct OnboardingView: View {
                             subtitle: nil,
                             badge: nil,
                             trialText: getTrialText(for: getProduct(for: "daystart_monthly_subscription")) ?? "3-Day Free Trial",
+                            renewalText: "renews monthly",
                             savings: nil,
                             isSelected: selectedProduct?.id == "daystart_monthly_subscription",
                             geometry: geometry,
@@ -1593,7 +1602,7 @@ struct OnboardingView: View {
                             .foregroundColor(BananaTheme.ColorToken.background)
                         
                         if let product = selectedProduct {
-                            Text("Then \(product.displayPrice)")
+                            Text(getCTASubtext(for: product))
                                 .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
                                 .foregroundColor(BananaTheme.ColorToken.background.opacity(0.9))
                         }
@@ -1611,6 +1620,14 @@ struct OnboardingView: View {
                 .disabled(purchaseManager.isLoadingProducts || selectedProduct == nil)
                 
                 Spacer(minLength: geometry.size.height * 0.04)
+                
+                Text("After your free trial, your subscription auto-renews until canceled")
+                    .font(.system(size: min(11, geometry.size.width * 0.028), weight: .regular))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, geometry.size.width * 0.1)
+                    .padding(.top, 8)
+                    .opacity(textOpacity)
                 
                 // Legal links
                 HStack(spacing: 16) {
@@ -1923,6 +1940,17 @@ struct OnboardingView: View {
             return "Continue"
         }
         return "Start Free Trial"
+    }
+    
+    private func getCTASubtext(for product: Product?) -> String {
+        guard let product = product else { return "" }
+        
+        if product.id.contains("annual") {
+            return "then \(product.displayPrice) annually"
+        } else if product.id.contains("monthly") {
+            return "then \(product.displayPrice) monthly"
+        }
+        return "then \(product.displayPrice) auto-renews"
     }
     
     // MARK: - Permission Handling
@@ -2280,6 +2308,7 @@ struct PricingCard: View {
     let subtitle: String?
     let badge: String?
     let trialText: String
+    let renewalText: String
     let savings: String?
     let isSelected: Bool
     let geometry: GeometryProxy
@@ -2325,9 +2354,15 @@ struct PricingCard: View {
                             .foregroundColor(Color.green)
                     }
                     
-                    Text(trialText)
-                        .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                        .foregroundColor(BananaTheme.ColorToken.accent)
+                    VStack(spacing: 2) {
+                        Text(trialText)
+                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.accent)
+                        
+                        Text(renewalText)
+                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .regular))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.8))
+                    }
                 }
             }
             .padding(16)

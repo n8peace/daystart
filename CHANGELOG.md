@@ -33,6 +33,37 @@
 
 ## iOS App Releases 📱
 
+### v2025.09.4 (Build 4) - September 7, 2025
+🍌 **The "Crystal Clear Subscription" Release**
+📱 **App Store Resubmission** - Addressing review feedback
+
+✨ **Compliance Updates:**
+- Enhanced subscription free trial disclosure to clearly indicate automatic renewal after trial period
+- Updated subscription pricing cards with clearer renewal text ("renews annually" / "renews monthly")
+- Removed duplicate price display on annual subscription card for cleaner UI
+- Updated CTA button text to show "then [price] monthly/annually" for better clarity
+- Added explicit disclosure: "After your free trial, your subscription auto-renews until canceled"
+
+🔍 **These changes ensure users clearly understand:**
+- Free trials automatically convert to paid subscriptions
+- The exact price they'll be charged when the trial ends
+- Subscriptions continue until manually canceled
+
+📍 **WeatherKit Information (Response to App Review):**
+1. **Does the app include WeatherKit functionality?**
+   - Yes, DayStart uses WeatherKit to provide personalized weather information in morning briefings
+   
+2. **Steps to navigate to WeatherKit functionality:**
+   - Weather is automatically included in every DayStart briefing (no navigation required)
+   - Users can toggle weather on/off during onboarding (Page 5: Weather Location)
+   - In the app: Home screen → Play button → Weather content plays automatically in the audio briefing
+   - Weather data is fetched server-side using WeatherKit API and integrated into the AI-generated script
+
+🔧 **Bug Fixes:**
+- Fixed onboarding auto-completion for users with existing purchases to improve testing experience
+- Added 2-second delay before auto-completing onboarding to prevent immediate completion on app launch
+- Enhanced authentication flow logging for better debugging of onboarding issues
+
 ### v2025.09.4 (Build 3) - September 4, 2025
 🍌 **The "Smooth Sailing Banana" Release**
 📱 **Initial App Store Submission** - Submitted to Apple for review ✅

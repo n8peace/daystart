@@ -23,6 +23,7 @@ extension DayStartApp {
                     }
                 )
                 .onAppear {
+                    logger.log("🔄 Auth: Showing splash, checking purchase status", level: .info)
                     Task {
                         await purchaseManager.checkPurchaseStatus()
                     }
@@ -32,16 +33,20 @@ extension DayStartApp {
                 // Show onboarding flow (includes paywall)
                 OnboardingView {
                     UserPreferences.shared.hasCompletedOnboarding = true
-                    showOnboarding = false
+                }
+                .onAppear {
+                    logger.log("🆓 Auth: No purchase found, showing onboarding", level: .info)
                 }
                 
             case .purchased:
                 // Show main app for paid users
-                if showOnboarding {
+                if !UserPreferences.shared.hasCompletedOnboarding {
                     // First time setup after purchase
                     OnboardingView {
                         UserPreferences.shared.hasCompletedOnboarding = true
-                        showOnboarding = false
+                    }
+                    .onAppear {
+                        logger.log("💰 Auth: Purchase found, onboarding incomplete - showing onboarding", level: .info)
                     }
                 } else {
                     // Regular app usage
@@ -53,6 +58,9 @@ extension DayStartApp {
                         .id("theme-\(themeManager.effectiveColorScheme.hashValue)")
                         .onReceive(themeManager.$effectiveColorScheme) { colorScheme in
                             updateNavigationAppearance(for: colorScheme)
+                        }
+                        .onAppear {
+                            logger.log("✅ Auth: Purchase found, onboarding complete - showing main app (hasCompletedOnboarding: \(UserPreferences.shared.hasCompletedOnboarding))", level: .info)
                         }
                 }
             }

@@ -23,12 +23,15 @@ Skip the scrolling, start informed. Transform your morning routine with DayStart
 Wake up to a professionally narrated summary of everything you need to know for the day ahead. No more frantically checking multiple apps or scrolling through endless feeds. DayStart AI brings it all together in one seamless, hands-free audio experience.
 
 WHAT'S INCLUDED IN YOUR BRIEFING:
-• Local Weather Forecast - Current conditions and today's outlook for your exact location
+• Local Weather Forecast - Current conditions and today's outlook for your exact location (powered by WeatherKit)
 • Breaking News - Top stories from trusted sources, intelligently curated
 • Calendar Events - Your schedule for the day, meeting times, and reminders  
 • Stock Market Updates - Track your portfolio and market movements
 • Sports Scores - Results from your favorite teams
 • Daily Inspiration - Motivational quotes to energize your morning
+
+WEATHERKIT INTEGRATION:
+DayStart AI uses WeatherKit to provide accurate, hyperlocal weather information. Weather data is automatically included in every morning briefing - no navigation required. Simply press play on your DayStart and weather information will be seamlessly integrated into your personalized audio briefing.
 
 KEY FEATURES:
 • AI-Powered Personalization - Our advanced AI learns your preferences and interests
@@ -55,8 +58,10 @@ SUBSCRIPTION OPTIONS:
 
 Join others who've revolutionized their mornings with DayStart AI. Because the best days start with the right information.
 
-Privacy Policy: daystart.bananaintelligence.ai/privacy
-Terms of Service: daystart.bananaintelligence.ai/terms
+Privacy Policy: https://daystart.bananaintelligence.ai/privacy
+Terms of Service: https://daystart.bananaintelligence.ai/terms
+
+By subscribing, you agree that payment will be charged to your Apple Account at confirmation of purchase. Your subscription will automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. You can manage and cancel your subscriptions in your Apple Account settings.
 ```
 
 ## Subtitle (30 characters max)
@@ -83,6 +88,13 @@ Try monthly (3-day free trial) or annual (7-day free trial) subscriptions!
 
 ## Age Rating
 - **13+**
+
+## Terms of Use (EULA)
+- **URL:** https://daystart.bananaintelligence.ai/terms
+- **Note:** Custom EULA provided, not using Apple's standard agreement
+
+## Privacy Policy
+- **URL:** https://daystart.bananaintelligence.ai/privacy
 
 ## In-App Purchase Products
 
