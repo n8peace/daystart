@@ -505,29 +505,88 @@ async function fetchYahooFinance(supabase: any): Promise<any> {
   }
 }
 
-// ESPN API fetch function
+// ESPN API fetch function - Multi-sport comprehensive
 async function fetchESPN(): Promise<any> {
-  // ESPN public API for sports scores
-  const url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard'
-  const data = await getJSON<any>(url)
+  const sports = [
+    { league: 'NFL', path: 'football/nfl', limit: 8 },
+    { league: 'NCAAF', path: 'football/college-football', limit: 6 },
+    { league: 'MLB', path: 'baseball/mlb', limit: 8 },
+    { league: 'NBA', path: 'basketball/nba', limit: 6 },
+    { league: 'NHL', path: 'hockey/nhl', limit: 6 }
+  ];
+
+  const allGames: any[] = [];
+  const sportsBreakdown: any = {};
+  const successfulFetches: string[] = [];
+  const failedFetches: string[] = [];
+
+  // Fetch all sports in parallel
+  const fetchPromises = sports.map(async (sport) => {
+    try {
+      const url = `https://site.api.espn.com/apis/site/v2/sports/${sport.path}/scoreboard`;
+      console.log(`[ESPN] Fetching ${sport.league} from ${url}`);
+      
+      const data = await getJSON<any>(url);
+      
+      const games = data.events?.slice(0, sport.limit).map((event: any) => ({
+        id: event.id,
+        date: event.date,
+        name: event.name,
+        status: event.status?.type?.name || 'UNKNOWN',
+        league: sport.league,
+        competitors: event.competitions?.[0]?.competitors?.map((comp: any) => ({
+          team: comp.team?.displayName || 'Unknown',
+          score: comp.score || '0',
+          record: comp.records?.[0]?.summary || ''
+        })) || []
+      })) || [];
+
+      // Add to combined games array
+      allGames.push(...games);
+      
+      // Store breakdown by sport
+      sportsBreakdown[sport.league.toLowerCase()] = {
+        games,
+        season: data.season,
+        total_events: data.events?.length || 0,
+        fetched_games: games.length
+      };
+      
+      successfulFetches.push(sport.league);
+      console.log(`[ESPN] Successfully fetched ${games.length} ${sport.league} games`);
+      
+      return { sport: sport.league, success: true, count: games.length };
+    } catch (error) {
+      console.warn(`[ESPN] Failed to fetch ${sport.league}:`, error);
+      failedFetches.push(sport.league);
+      return { sport: sport.league, success: false, error: error.message };
+    }
+  });
+
+  // Wait for all fetches to complete
+  const results = await Promise.allSettled(fetchPromises);
   
+  // Sort games by date (most recent first)
+  allGames.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const summary = {
+    total_games: allGames.length,
+    successful_sports: successfulFetches,
+    failed_sports: failedFetches,
+    sports_fetched: successfulFetches.length,
+    sports_failed: failedFetches.length
+  };
+
+  console.log(`[ESPN] Multi-sport fetch complete:`, summary);
+
   return {
-    games: data.events?.slice(0, 10).map((event: any) => ({
-      id: event.id,
-      name: event.name,
-      date: event.date,
-      status: event.status?.type?.name,
-      competitors: event.competitions?.[0]?.competitors?.map((comp: any) => ({
-        team: comp.team.displayName,
-        score: comp.score,
-        record: comp.records?.[0]?.summary
-      })) || []
-    })) || [],
-    season: data.season,
-    league: 'NBA',
+    games: allGames,
+    leagues: successfulFetches,
+    sports_breakdown: sportsBreakdown,
+    fetch_summary: summary,
     fetched_at: new Date().toISOString(),
     source: 'espn'
-  }
+  };
 }
 
 // TheSportDB API fetch function

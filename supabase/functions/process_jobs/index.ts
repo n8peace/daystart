@@ -63,6 +63,132 @@ function flattenAndDedupeNews(newsData: any[] = []): any[] {
   });
 }
 
+function flattenAndParseStocks(stocksData: any[] = []): any[] {
+  const seen = new Set<string>();
+  const out: any[] = [];
+  
+  for (const src of stocksData || []) {
+    try {
+      let quotes: any[] = [];
+      
+      // Handle different data formats
+      if (typeof src.data === 'string') {
+        // Data is JSON-stringified, parse it
+        const parsed = JSON.parse(src.data);
+        quotes = parsed?.quotes || [];
+      } else if (src.data?.quotes) {
+        // Data is already parsed with quotes array
+        quotes = src.data.quotes;
+      } else if (Array.isArray(src.data)) {
+        // Data is directly an array of stocks
+        quotes = src.data;
+      } else if (Array.isArray(src)) {
+        // Source itself is an array of stocks (backward compatibility)
+        quotes = src;
+      }
+      
+      // Add each quote to output, deduping by symbol
+      for (const quote of quotes || []) {
+        const symbol = String(quote?.symbol || '').toUpperCase();
+        if (!symbol || seen.has(symbol)) continue;
+        
+        seen.add(symbol);
+        out.push({
+          name: quote.name || '',
+          symbol: quote.symbol || '',
+          price: quote.price || 0,
+          change: quote.change || 0,
+          change_percent: quote.change_percent || quote.chgPct || 0,
+          percentChange: quote.change_percent || quote.chgPct || 0, // Alias for backward compatibility
+          market_cap: quote.market_cap || 0,
+          timestamp: quote.timestamp || quote.fetched_at || new Date().toISOString(),
+          source: src.source || 'unknown'
+        });
+      }
+    } catch (error) {
+      console.warn(`[DEBUG] Failed to parse stock data from source ${src.source}:`, error);
+      // Continue with other sources even if one fails
+    }
+  }
+  
+  // Sort by market cap descending (larger companies first)
+  return out.sort((a, b) => (b.market_cap || 0) - (a.market_cap || 0));
+}
+
+function flattenAndParseSports(sportsData: any[] = []): any[] {
+  const seen = new Set<string>();
+  const out: any[] = [];
+  
+  for (const src of sportsData || []) {
+    try {
+      let games: any[] = [];
+      
+      // Handle different data formats
+      if (typeof src.data === 'string') {
+        // Data is JSON-stringified, parse it
+        const parsed = JSON.parse(src.data);
+        games = parsed?.games || parsed?.events || [];
+      } else if (src.data?.games) {
+        // Data is already parsed with games array
+        games = src.data.games;
+      } else if (src.data?.events) {
+        // Data uses 'events' instead of 'games'
+        games = src.data.events;
+      } else if (Array.isArray(src.data)) {
+        // Data is directly an array of games
+        games = src.data;
+      } else if (Array.isArray(src)) {
+        // Source itself is an array of games (backward compatibility)
+        games = src;
+      }
+      
+      // Add each game to output, deduping by id
+      for (const game of games || []) {
+        const gameId = String(game?.id || '');
+        if (!gameId || seen.has(gameId)) continue;
+        
+        seen.add(gameId);
+        
+        // Extract team names for easier processing
+        const competitors = game.competitors || [];
+        let home_team = '';
+        let away_team = '';
+        let home_score = '';
+        let away_score = '';
+        
+        if (competitors.length >= 2) {
+          // Assume first competitor is home, second is away (ESPN format)
+          home_team = competitors[0]?.team || '';
+          away_team = competitors[1]?.team || '';
+          home_score = competitors[0]?.score || '0';
+          away_score = competitors[1]?.score || '0';
+        }
+        
+        out.push({
+          id: game.id || '',
+          date: game.date || '',
+          name: game.name || `${away_team} at ${home_team}`,
+          status: game.status || 'UNKNOWN',
+          league: game.league || src.source || 'unknown',
+          competitors: game.competitors || [],
+          home_team,
+          away_team,
+          home_score,
+          away_score,
+          event: game.name || game.event || `${away_team} vs ${home_team}`,
+          source: src.source || 'unknown'
+        });
+      }
+    } catch (error) {
+      console.warn(`[DEBUG] Failed to parse sports data from source ${src.source}:`, error);
+      // Continue with other sources even if one fails
+    }
+  }
+  
+  // Sort by date (most recent first)
+  return out.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
 function compactNewsItem(a: any) {
   return {
     title: a?.title?.slice(0, 160) || '',
@@ -1077,7 +1203,8 @@ That's it for today. Have a good DayStart.
     // Build a conservative context JSON for the adjust step
     const storyLimits = getStoryLimits(duration);
     const flattenedNews = flattenAndDedupeNews(context.contentData?.news || []).slice(0, 80);
-    const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date, context.timezone).slice(0, 15);
+    const allSports = flattenAndParseSports(context.contentData?.sports || []);
+    const sportsToday = filterValidSportsItems(allSports, context.date, context.timezone).slice(0, 15);
     const sportsTeamWhitelist = teamWhitelistFromSports(sportsToday);
     const dataForBand = {
       user: {
@@ -1427,13 +1554,20 @@ function buildScriptPrompt(context: any): string {
   }
   const compactNews = collectCompactNews(context.contentData).slice(0, 40)
 
+  // Parse and flatten sports from all sources, then filter for valid items
+  const allSports = flattenAndParseSports(context.contentData?.sports || []);
+  console.log(`[DEBUG] Parsed ${allSports.length} sports events from ${context.contentData?.sports?.length || 0} sources`);
+  
   // Enforce valid, present-day sports items only
-  const sportsToday = filterValidSportsItems(context.contentData?.sports || [], context.date, context.timezone).slice(0, 15);
+  const sportsToday = filterValidSportsItems(allSports, context.date, context.timezone).slice(0, 15);
 
   // Filter stocks based on market hours (exclude equities on weekends, keep crypto)
   const isWeekendDay = isWeekend(context.date, context.timezone);
   console.log(`[DEBUG] Date: ${context.date}, Timezone: ${context.timezone}, Is Weekend: ${isWeekendDay}`);
-  const allStocks = context.contentData?.stocks || [];
+  
+  // Parse and flatten stocks from all sources
+  const allStocks = flattenAndParseStocks(context.contentData?.stocks || []);
+  console.log(`[DEBUG] Parsed ${allStocks.length} stocks from ${context.contentData?.stocks?.length || 0} sources`);
   
   // Classify stocks by asset type using symbol patterns
   const crypto = allStocks.filter(s => {
@@ -1602,7 +1736,7 @@ function buildScriptPrompt(context: any): string {
   console.log(`  - News sources: ${context.contentData?.news?.length || 0}`);
   console.log(`  - Total news articles: ${context.contentData?.news?.reduce((sum, src) => sum + (src?.data?.articles?.length || 0), 0) || 0}`);
   console.log(`  - Sports sources: ${context.contentData?.sports?.length || 0}`);
-  console.log(`  - Total sports events: ${context.contentData?.sports?.reduce((sum, src) => sum + (src?.data?.events?.length || src?.data?.games?.length || 0), 0) || 0}`);
+  console.log(`  - Total sports events: ${allSports.length} (parsed from all sources)`);
   console.log(`  - Stock sources: ${context.contentData?.stocks?.length || 0}`);
   console.log(`  - Total stock quotes: ${allStocks.length}`);
   

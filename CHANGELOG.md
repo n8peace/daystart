@@ -6,6 +6,63 @@
 
 ## Development & Infrastructure 🔧
 
+### September 9, 2025
+🏈 **Multi-Sport ESPN API Enhancement**
+
+**New Feature:**
+- Expanded ESPN API integration to fetch all major sports instead of just NBA
+- Now retrieves NFL, College Football, MLB, NBA, and NHL games in a single content cache
+- Added comprehensive sports data parsing for consistent processing across all sources
+
+**Sports Coverage Added:**
+- **NFL**: 8 games per fetch (prime time for September football season)
+- **College Football (NCAAF)**: 6 games per fetch (peak season coverage)  
+- **MLB**: 8 games per fetch (including playoff push and postseason)
+- **NHL**: 6 games per fetch (preseason and regular season)
+- **NBA**: 6 games per fetch (maintained existing coverage)
+
+**Technical Implementation:**
+- Enhanced `fetchESPN()` function with parallel API calls to multiple ESPN endpoints
+- Added `flattenAndParseSports()` function to handle multi-sport data parsing
+- Robust error handling - if individual sports fail, others continue successfully
+- Comprehensive logging showing successful/failed sports fetches and game counts
+- Single content cache entry combines all sports for efficient storage
+
+**Impact:**
+- Users now get relevant sports updates for current season (NFL/College Football in September vs NBA preseason)
+- Much richer sports content in morning briefings across all major sports
+- Better seasonal awareness - shows active sports rather than off-season games
+- Improved sports filtering and processing with consistent data structure
+
+**Files Modified:**
+- `supabase/functions/refresh_content/index.ts` - Multi-sport ESPN API integration
+- `supabase/functions/process_jobs/index.ts` - Sports data parsing and processing logic
+
+---
+
+🔧 **Stock Data Processing Fix**
+
+**Bug Fix:**
+- Fixed critical stock data parsing issue causing 0 stocks to appear in morning briefings
+- Stock data was stored as JSON-stringified content but code expected pre-parsed arrays
+- Added `flattenAndParseStocks()` function to properly extract quotes from multiple data formats
+
+**Technical Details:**
+- Enhanced stock processing with robust JSON parsing and deduplication
+- Added backward compatibility for existing data formats
+- Improved error handling for malformed stock data sources
+- Added debug logging to track stock parsing success
+
+**Impact:**
+- Users with stock preferences will now see their selected stocks in morning briefings
+- Market updates will include proper stock price and change information
+- Weekend vs weekday stock filtering now works correctly with parsed data
+
+**Files Modified:**
+- `supabase/functions/process_jobs/index.ts` - Added stock parsing function and updated processing logic
+
+---
+
 ### September 6, 2025
 🚀 **Deployment Automation Enhancement**
 
