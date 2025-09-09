@@ -710,10 +710,6 @@ serve(async (req: Request): Promise<Response> => {
     if (!authHeader || !supabaseServiceKey || authHeader !== `Bearer ${supabaseServiceKey}`) {
       return createResponse(false, 0, 0, 'Unauthorized', request_id);
     }
-    // Otherwise unauthorized
-    else {
-      return createResponse(false, 0, 0, 'Unauthorized', request_id);
-    }
 
     // Parse optional jobId from request body
     let specificJobId: string | null = null;
