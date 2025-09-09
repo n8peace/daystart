@@ -20,6 +20,7 @@ interface UpdateJobsRequest {
     daystart_length?: number;
     timezone?: string;
   };
+  scheduled_time?: string; // NEW: ISO8601 string for updating scheduled_at field
   force_requeue?: boolean;
   cancel_for_removed_dates?: string[]; // NEW: dates to cancel jobs for due to schedule changes
   reactivate_for_added_dates?: string[]; // NEW: dates to reactivate cancelled jobs for
@@ -188,6 +189,11 @@ function buildUpdatePayload(body: UpdateJobsRequest): Record<string, any> {
   if (s.voice_option !== undefined) payload.voice_option = s.voice_option;
   if (s.daystart_length !== undefined) payload.daystart_length = s.daystart_length;
   if (s.timezone !== undefined) payload.timezone = s.timezone;
+
+  // NEW: Handle scheduled_at updates
+  if (body.scheduled_time !== undefined) {
+    payload.scheduled_at = body.scheduled_time;
+  }
 
   if (body.force_requeue) {
     payload.status = 'queued';

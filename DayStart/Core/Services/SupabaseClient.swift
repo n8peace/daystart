@@ -213,6 +213,7 @@ class SupabaseClient {
     func updateJobs(
         dates: [Date],
         with settings: UserSettings,
+        scheduledTime: Date? = nil, // NEW: When provided, updates scheduled_at for all jobs
         cancelDates: [Date] = [],
         reactivateDates: [Date] = [],
         forceRequeue: Bool = false
@@ -252,6 +253,7 @@ class SupabaseClient {
                 daystart_length: settings.dayStartLength * 60, // Convert minutes to seconds
                 timezone: TimeZone.current.identifier
             ),
+            scheduled_time: scheduledTime.map { ISO8601DateFormatter().string(from: $0) }, // NEW: Handle scheduled time
             force_requeue: forceRequeue,
             cancel_for_removed_dates: cancelDateStrings,
             reactivate_for_added_dates: reactivateDateStrings
@@ -555,6 +557,7 @@ private struct UpdateJobsRequest: Codable {
     let date_range: DateRangeFilter?
     let statuses: [String]?
     let settings: UpdateSettings?
+    let scheduled_time: String? // NEW: ISO8601 string for updating scheduled_at field
     let force_requeue: Bool?
     let cancel_for_removed_dates: [String]?
     let reactivate_for_added_dates: [String]?

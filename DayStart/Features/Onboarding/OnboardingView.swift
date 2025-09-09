@@ -305,7 +305,7 @@ struct OnboardingView: View {
                             .opacity(animationTrigger ? 0.3 : 1.0)
                         
                         Image(systemName: "arrow.right")
-                            .font(.system(size: min(30, geometry.size.width * 0.08)))
+                            .font(.system(size: min(30, geometry.size.width * 0.10)))
                             .foregroundColor(BananaTheme.ColorToken.primary)
                             .scaleEffect(animationTrigger ? 1.2 : 0.8)
                         
@@ -318,7 +318,7 @@ struct OnboardingView: View {
                     
                     VStack(spacing: geometry.size.height * 0.02) {
                         Text("Mornings Suck. We Get It.")
-                            .font(.system(size: min(32, geometry.size.width * 0.08), weight: .bold, design: .rounded))
+                            .font(.system(size: min(32, geometry.size.width * 0.10), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
                             .opacity(textOpacity)
@@ -327,7 +327,7 @@ struct OnboardingView: View {
                             .font(.system(size: min(18, geometry.size.width * 0.045), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .opacity(textOpacity)
                     }
                 }
@@ -341,7 +341,7 @@ struct OnboardingView: View {
                     PainPointCard(icon: "❌", text: "No motivation to rise", geometry: geometry)
                     PainPointCard(icon: "❌", text: "Same boring routine", geometry: geometry)
                 }
-                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.horizontal, geometry.size.width * 0.10)
                 .opacity(textOpacity)
                 
                 Spacer(minLength: geometry.size.height * 0.08)
@@ -370,8 +370,8 @@ struct OnboardingView: View {
                         .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .scaleEffect(animationTrigger ? 1.05 : 1.0)
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
             }
         }
@@ -397,7 +397,7 @@ struct OnboardingView: View {
                     FeaturePreviewCard(icon: "☁️", title: "Weather", subtitle: "Dress right", geometry: geometry)
                     FeaturePreviewCard(icon: "📅", title: "Calendar", subtitle: "Never miss", geometry: geometry)
                 }
-                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.horizontal, geometry.size.width * 0.10)
                 .opacity(textOpacity)
                 
                 Spacer(minLength: geometry.size.height * 0.04)
@@ -441,8 +441,8 @@ struct OnboardingView: View {
                         .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .scaleEffect(animationTrigger ? 1.05 : 1.0)
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
             }
         }
@@ -473,7 +473,7 @@ struct OnboardingView: View {
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .opacity(textOpacity)
                     }
                 }
@@ -493,7 +493,7 @@ struct OnboardingView: View {
                                 .fill(BananaTheme.ColorToken.card)
                                 .stroke(isNameValid ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border, lineWidth: 2)
                         )
-                        .padding(.horizontal, geometry.size.width * 0.08)
+                        .padding(.horizontal, geometry.size.width * 0.10)
                         .submitLabel(.done)
                         .onSubmit {
                             if isNameValid {
@@ -509,9 +509,9 @@ struct OnboardingView: View {
                     if !name.isEmpty {
                         Text("Good morning \(name)! Ready to conquer today?")
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.primary)
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .transition(.opacity.combined(with: .scale))
                     }
                 }
@@ -558,8 +558,8 @@ struct OnboardingView: View {
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                     }
                 }
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
             }
         }
@@ -612,7 +612,7 @@ struct OnboardingView: View {
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .opacity(textOpacity)
                     }
                 }
@@ -679,7 +679,7 @@ struct OnboardingView: View {
                                 .animation(.spring(response: 0.3), value: selectedDays.contains(day))
                             }
                         }
-                        .padding(.horizontal, geometry.size.width * 0.08)
+                        .padding(.horizontal, geometry.size.width * 0.10)
                         .opacity(textOpacity)
                     }
                     
@@ -689,16 +689,16 @@ struct OnboardingView: View {
                             .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
                             .foregroundColor(Color.red)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .transition(.opacity.combined(with: .scale))
                     } else {
                         Text("Your briefing will be ready every \(selectedDaysSummary) at \(shortTimeFormatter.string(from: selectedTime))")
                             .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.primary)
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .transition(.opacity.combined(with: .scale))
                     }
                 }
@@ -732,8 +732,8 @@ struct OnboardingView: View {
                 .disabled(selectedDays.isEmpty)
                 .opacity(selectedDays.isEmpty ? 0.5 : 1.0)
                 .scaleEffect(animationTrigger && !selectedDays.isEmpty ? 1.05 : 1.0)
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
             }
         }
@@ -760,7 +760,7 @@ struct OnboardingView: View {
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .opacity(textOpacity)
                     }
                 }
@@ -844,7 +844,7 @@ struct OnboardingView: View {
                         */
                     )
                 }
-                .padding(.horizontal, geometry.size.width * 0.08)
+                .padding(.horizontal, geometry.size.width * 0.10)
                 .opacity(textOpacity)
                 
                 Spacer(minLength: geometry.size.height * 0.03)
@@ -873,8 +873,8 @@ struct OnboardingView: View {
                         .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .scaleEffect(animationTrigger ? 1.05 : 1.0)
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
             }
         }
@@ -886,7 +886,7 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: geometry.size.height * 0.08)
                 
-                VStack(spacing: geometry.size.height * 0.05) {
+                VStack(spacing: geometry.size.height * 0.04) {
                     // Weather animation with location
                     ZStack {
                         Circle()
@@ -897,22 +897,22 @@ struct OnboardingView: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: min(140, geometry.size.width * 0.3))
+                            .frame(width: min(120, geometry.size.width * 0.25))
                         
-                        VStack(spacing: 8) {
+                        VStack(spacing: 6) {
                             Text("🌤️")
-                                .font(.system(size: min(50, geometry.size.width * 0.1)))
+                                .font(.system(size: min(40, geometry.size.width * 0.08)))
                                 .scaleEffect(animationTrigger ? 1.1 : 0.9)
                             
                             Image(systemName: "location.fill")
-                                .font(.system(size: min(20, geometry.size.width * 0.05)))
+                                .font(.system(size: min(16, geometry.size.width * 0.04)))
                                 .foregroundColor(BananaTheme.ColorToken.primary)
                                 .scaleEffect(animationTrigger ? 1.2 : 0.8)
                         }
                         .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
                     }
                     
-                    VStack(spacing: geometry.size.height * 0.02) {
+                    VStack(spacing: geometry.size.height * 0.015) {
                         Text("Weather Permission")
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
@@ -923,34 +923,30 @@ struct OnboardingView: View {
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .opacity(textOpacity)
                     }
+                    
+                    // Benefits
+                    VStack(spacing: 12) {
+                        PermissionBenefitRow(icon: "🌡️", text: "Temperature & forecast", geometry: geometry)
+                        PermissionBenefitRow(icon: "👕", text: "Outfit suggestions", geometry: geometry)
+                        PermissionBenefitRow(icon: "☔", text: "Rain & storm alerts", geometry: geometry)
+                    }
+                    .opacity(textOpacity)
+                    
+                    // Optional message
+                    Text("This is completely optional - feel free to allow or deny based on your preference")
+                        .font(.system(size: min(13, geometry.size.width * 0.032), weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, geometry.size.width * 0.10)
+                        .opacity(textOpacity)
                 }
                 
                 Spacer(minLength: geometry.size.height * 0.06)
                 
-                // Benefits
-                VStack(spacing: 16) {
-                    PermissionBenefitRow(icon: "🌡️", text: "Temperature & forecast", geometry: geometry)
-                    PermissionBenefitRow(icon: "👕", text: "Outfit suggestions", geometry: geometry)
-                    PermissionBenefitRow(icon: "☔", text: "Rain & storm alerts", geometry: geometry)
-                }
-                .opacity(textOpacity)
-                
-                // Optional message
-                Text("This is completely optional - feel free to allow or deny based on your preference")
-                    .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, geometry.size.width * 0.08)
-                    .padding(.top, geometry.size.height * 0.02)
-                    .opacity(textOpacity)
-                
-                
-                Spacer(minLength: geometry.size.height * 0.08)
-                
-                // Permission button
+                // CTA Button
                 Button(action: {
                     Task {
                         await requestLocationPermission()
@@ -980,8 +976,9 @@ struct OnboardingView: View {
                                   locationPermissionStatus == .denied ? Color.red : 
                                   BananaTheme.ColorToken.primary).opacity(0.3), radius: 8, x: 0, y: 4)
                 }
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
             }
         }
@@ -993,7 +990,7 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: geometry.size.height * 0.08)
                 
-                VStack(spacing: geometry.size.height * 0.05) {
+                VStack(spacing: geometry.size.height * 0.04) {
                     // Calendar animation with events
                     ZStack {
                         RoundedRectangle(cornerRadius: 20)
@@ -1004,19 +1001,19 @@ struct OnboardingView: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: min(120, geometry.size.width * 0.25), height: min(100, geometry.size.height * 0.12))
+                            .frame(width: min(100, geometry.size.width * 0.22), height: min(85, geometry.size.height * 0.10))
                         
-                        VStack(spacing: 8) {
+                        VStack(spacing: 6) {
                             Text("📅")
-                                .font(.system(size: min(40, geometry.size.width * 0.08)))
+                                .font(.system(size: min(32, geometry.size.width * 0.08)))
                                 .scaleEffect(animationTrigger ? 1.1 : 0.9)
                             
                             // Animated event dots
-                            HStack(spacing: 4) {
+                            HStack(spacing: 3) {
                                 ForEach(0..<3) { index in
                                     Circle()
                                         .fill(BananaTheme.ColorToken.primary)
-                                        .frame(width: 6, height: 6)
+                                        .frame(width: 5, height: 5)
                                         .scaleEffect(animationTrigger ? 1.2 : 0.8)
                                         .animation(.easeInOut(duration: 1.0).repeatForever().delay(Double(index) * 0.2), value: animationTrigger)
                                 }
@@ -1024,7 +1021,7 @@ struct OnboardingView: View {
                         }
                     }
                     
-                    VStack(spacing: geometry.size.height * 0.02) {
+                    VStack(spacing: geometry.size.height * 0.015) {
                         Text("Calendar Permission")
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
@@ -1035,34 +1032,30 @@ struct OnboardingView: View {
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .opacity(textOpacity)
                     }
+                    
+                    // Benefits
+                    VStack(spacing: 12) {
+                        PermissionBenefitRow(icon: "🕰️", text: "Upcoming events overview", geometry: geometry)
+                        PermissionBenefitRow(icon: "💼", text: "Meeting preparation tips", geometry: geometry)
+                        PermissionBenefitRow(icon: "📅", text: "Schedule optimization", geometry: geometry)
+                    }
+                    .opacity(textOpacity)
+                    
+                    // Optional message
+                    Text("This is completely optional - feel free to allow or deny based on your preference")
+                        .font(.system(size: min(13, geometry.size.width * 0.032), weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, geometry.size.width * 0.10)
+                        .opacity(textOpacity)
                 }
                 
                 Spacer(minLength: geometry.size.height * 0.06)
                 
-                // Benefits
-                VStack(spacing: 16) {
-                    PermissionBenefitRow(icon: "🕰️", text: "Upcoming events overview", geometry: geometry)
-                    PermissionBenefitRow(icon: "💼", text: "Meeting preparation tips", geometry: geometry)
-                    PermissionBenefitRow(icon: "📅", text: "Schedule optimization", geometry: geometry)
-                }
-                .opacity(textOpacity)
-                
-                // Optional message
-                Text("This is completely optional - feel free to allow or deny based on your preference")
-                    .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, geometry.size.width * 0.08)
-                    .padding(.top, geometry.size.height * 0.02)
-                    .opacity(textOpacity)
-                
-                
-                Spacer(minLength: geometry.size.height * 0.08)
-                
-                // Permission button
+                // CTA Button
                 Button(action: {
                     Task {
                         await requestCalendarPermission()
@@ -1092,8 +1085,9 @@ struct OnboardingView: View {
                                   calendarPermissionStatus == .denied ? Color.red : 
                                   BananaTheme.ColorToken.primary).opacity(0.3), radius: 8, x: 0, y: 4)
                 }
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
             }
         }
@@ -1105,7 +1099,7 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: geometry.size.height * 0.08)
                 
-                VStack(spacing: geometry.size.height * 0.05) {
+                VStack(spacing: geometry.size.height * 0.03) {
                     // Microphone with sound waves
                     ZStack {
                         Circle()
@@ -1116,10 +1110,10 @@ struct OnboardingView: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: min(140, geometry.size.width * 0.3))
+                            .frame(width: min(120, geometry.size.width * 0.25))
                         
                         Text("🎤")
-                            .font(.system(size: min(60, geometry.size.width * 0.12)))
+                            .font(.system(size: min(50, geometry.size.width * 0.10)))
                             .scaleEffect(animationTrigger ? 1.1 : 0.9)
                         
                         // Sound wave lines
@@ -1128,7 +1122,7 @@ struct OnboardingView: View {
                         }
                     }
                     
-                    VStack(spacing: geometry.size.height * 0.02) {
+                    VStack(spacing: geometry.size.height * 0.015) {
                         Text("Choose Your Voice")
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
@@ -1139,16 +1133,12 @@ struct OnboardingView: View {
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .opacity(textOpacity)
                     }
-                }
-                
-                Spacer(minLength: geometry.size.height * 0.04)
-                
-                // Voice selection cards
-                VStack(spacing: 20) {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 16) {
+                    
+                    // Voice selection cards - compact layout
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
                         ForEach(VoiceOption.allCases, id: \.rawValue) { voice in
                             VoiceCard(
                                 voice: voice,
@@ -1163,57 +1153,65 @@ struct OnboardingView: View {
                             )
                         }
                     }
-                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .padding(.horizontal, geometry.size.width * 0.10)
                     .opacity(textOpacity)
                     
-                    // Voice preview
+                    // Voice preview - compact
                     if selectedVoice != nil {
-                        VStack(spacing: 12) {
-                            Text("Preview")
-                                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
-                                .foregroundColor(BananaTheme.ColorToken.text)
-                            
-                            Text("\"Good morning! Your briefing will sound like this...\"")
-                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium, design: .rounded))
-                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, geometry.size.width * 0.08)
-                                .italic()
+                        Text("\"Good morning! Your briefing will sound like this...\"")
+                            .font(.system(size: min(13, geometry.size.width * 0.032), weight: .medium, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.10)
+                            .italic()
+                            .transition(.opacity.combined(with: .scale))
+                    }
+                }
+                
+                Spacer(minLength: geometry.size.height * 0.04)
+                
+                // CTA Buttons
+                VStack(spacing: 16) {
+                    Button(action: {
+                        logger.logUserAction("Voice selection CTA tapped")
+                        impactFeedback()
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 8
                         }
-                        .transition(.opacity.combined(with: .scale))
-                    }
-                }
-                .opacity(textOpacity)
-                
-                Spacer(minLength: geometry.size.height * 0.06)
-                
-                // CTA
-                Button(action: {
-                    logger.logUserAction("Voice selection CTA tapped")
-                    impactFeedback()
-                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                        currentPage = 8
-                    }
-                }) {
-                    Text("Love It!")
-                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: max(56, geometry.size.height * 0.07))
-                        .background(
-                            LinearGradient(
-                                colors: isVoiceSelected ? [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent] : [Color.gray, Color.gray],
-                                startPoint: .leading,
-                                endPoint: .trailing
+                    }) {
+                        Text("Continue")
+                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(56, geometry.size.height * 0.07))
+                            .background(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                        )
-                        .cornerRadius(16)
-                        .shadow(color: isVoiceSelected ? BananaTheme.ColorToken.primary.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 4)
+                            .cornerRadius(16)
+                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                    .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                    
+                    // Skip button
+                    Button(action: {
+                        logger.logUserAction("Voice selection skipped")
+                        impactFeedback()
+                        // Keep default voice selection
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 8
+                        }
+                    }) {
+                        Text("Use default voice")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
                 }
-                .disabled(!isVoiceSelected)
-                .scaleEffect(animationTrigger && isVoiceSelected ? 1.05 : 1.0)
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
             }
         }
@@ -1225,19 +1223,19 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: geometry.size.height * 0.08)
                 
-                VStack(spacing: geometry.size.height * 0.05) {
-                    // Sparkle animation
-                    HStack(spacing: 20) {
+                VStack(spacing: geometry.size.height * 0.03) {
+                    // Sparkle animation - smaller
+                    HStack(spacing: 15) {
                         ForEach(["✨", "🎆", "✨"], id: \.self) { emoji in
                             Text(emoji)
-                                .font(.system(size: min(50, geometry.size.width * 0.1)))
+                                .font(.system(size: min(35, geometry.size.width * 0.07)))
                                 .scaleEffect(animationTrigger ? 1.2 : 0.8)
                                 .rotationEffect(.degrees(animationTrigger ? 15 : -15))
                                 .animation(.easeInOut(duration: 1.0).repeatForever().delay(Double(["✨", "🎆", "✨"].firstIndex(of: emoji) ?? 0) * 0.3), value: animationTrigger)
                         }
                     }
                     
-                    VStack(spacing: geometry.size.height * 0.02) {
+                    VStack(spacing: geometry.size.height * 0.015) {
                         Text("Your Morning Transformation")
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
@@ -1248,58 +1246,54 @@ struct OnboardingView: View {
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .opacity(textOpacity)
                     }
-                }
-                
-                Spacer(minLength: geometry.size.height * 0.04)
-                
-                // Preview summary
-                VStack(spacing: 20) {
-                    PreviewSummaryCard(
-                        icon: "👋",
-                        title: name.isEmpty ? "Personal greeting" : "Good morning \(name)!",
-                        geometry: geometry
-                    )
                     
-                    PreviewSummaryCard(
-                        icon: "⏰",
-                        title: "Ready at \(shortTimeFormatter.string(from: selectedTime))",
-                        geometry: geometry
-                    )
-                    
-                    PreviewSummaryCard(
-                        icon: "🎤",
-                        title: selectedVoice?.name ?? "Your chosen voice",
-                        geometry: geometry
-                    )
-                    
-                    let selectedContent = [includeNews ? "News" : nil, includeWeather ? "Weather" : nil, includeSports ? "Sports" : nil, includeStocks ? "Stocks" : nil, includeCalendar ? "Calendar" : nil, includeQuotes ? "Quotes" : nil].compactMap { $0 }
-                    
-                    PreviewSummaryCard(
-                        icon: "📊",
-                        title: "\(selectedContent.joined(separator: ", ")) & more",
-                        geometry: geometry
-                    )
-                }
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .opacity(textOpacity)
-                
-                Spacer(minLength: geometry.size.height * 0.04)
-                
-                // Anticipation text
-                Text("Your personalized briefing is almost ready...")
-                    .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium, design: .rounded))
-                    .foregroundColor(BananaTheme.ColorToken.primary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, geometry.size.width * 0.08)
+                    // Preview summary - compact layout
+                    VStack(spacing: 12) {
+                        PreviewSummaryCard(
+                            icon: "👋",
+                            title: name.isEmpty ? "Personal greeting" : "Good morning \(name)!",
+                            geometry: geometry
+                        )
+                        
+                        PreviewSummaryCard(
+                            icon: "⏰",
+                            title: "Ready at \(shortTimeFormatter.string(from: selectedTime))",
+                            geometry: geometry
+                        )
+                        
+                        PreviewSummaryCard(
+                            icon: "🎤",
+                            title: selectedVoice?.name ?? "Your chosen voice",
+                            geometry: geometry
+                        )
+                        
+                        let selectedContent = [includeNews ? "News" : nil, includeWeather ? "Weather" : nil, includeSports ? "Sports" : nil, includeStocks ? "Stocks" : nil, includeCalendar ? "Calendar" : nil, includeQuotes ? "Quotes" : nil].compactMap { $0 }
+                        
+                        PreviewSummaryCard(
+                            icon: "📊",
+                            title: "\(selectedContent.joined(separator: ", ")) & more",
+                            geometry: geometry
+                        )
+                    }
+                    .padding(.horizontal, geometry.size.width * 0.10)
                     .opacity(textOpacity)
-                    .italic()
+                    
+                    // Anticipation text - compact
+                    Text("Your personalized briefing is almost ready...")
+                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium, design: .rounded))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, geometry.size.width * 0.10)
+                        .opacity(textOpacity)
+                        .italic()
+                }
                 
                 Spacer(minLength: geometry.size.height * 0.06)
                 
-                // CTA
+                // CTA Button
                 Button(action: {
                     logger.logUserAction("Final preview CTA tapped")
                     impactFeedback()
@@ -1323,8 +1317,8 @@ struct OnboardingView: View {
                         .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .scaleEffect(animationTrigger ? 1.05 : 1.0)
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .padding(.bottom, max(24, geometry.size.height * 0.03))
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
             }
         }
@@ -1334,9 +1328,11 @@ struct OnboardingView: View {
     private var paywallPage: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
-                Spacer(minLength: geometry.size.height * 0.02)
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
                 
-                VStack(spacing: geometry.size.height * 0.02) {
+                VStack(spacing: geometry.size.height * 0.04) {
                     // Premium star with pulsing animation
                     ZStack {
                         Circle()
@@ -1356,7 +1352,7 @@ struct OnboardingView: View {
                     }
                     .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
                     
-                    VStack(spacing: geometry.size.height * 0.01) {
+                    VStack(spacing: geometry.size.height * 0.02) {
                         Text("Unlock Your Better Mornings")
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
@@ -1367,12 +1363,12 @@ struct OnboardingView: View {
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.08)
+                            .padding(.horizontal, geometry.size.width * 0.10)
                             .opacity(textOpacity)
                     }
                 }
                 
-                Spacer(minLength: geometry.size.height * 0.015)
+                Spacer(minLength: geometry.size.height * 0.04)
                 
                 // Pricing options - optimized for conversion
                 if purchaseManager.isLoadingProducts {
@@ -1388,7 +1384,7 @@ struct OnboardingView: View {
                     }
                     .frame(height: 200)
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .padding(.horizontal, geometry.size.width * 0.10)
                     .opacity(textOpacity)
                 } else if purchaseManager.availableProducts.isEmpty {
                     // Error state - no products loaded
@@ -1421,7 +1417,7 @@ struct OnboardingView: View {
                     }
                     .frame(height: 200)
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .padding(.horizontal, geometry.size.width * 0.10)
                     .opacity(textOpacity)
                 } else {
                     // Use HStack for wider screens, VStack for narrow
@@ -1496,93 +1492,105 @@ struct OnboardingView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, geometry.size.width * 0.08)
+                    .padding(.horizontal, geometry.size.width * 0.10)
                     .opacity(textOpacity)
                 }
                 
-                Spacer(minLength: geometry.size.height * 0.02)
+                Spacer(minLength: 20) // Bottom breathing room
+                    }
+                }
+                .clipped()
                 
-                // Main CTA
-                Button(action: {
-                    logger.logUserAction("Paywall CTA tapped", details: [
-                        "selectedProduct": selectedProduct?.id ?? "none",
-                        "hasName": !name.isEmpty,
-                        "includeWeather": includeWeather,
-                        "includeNews": includeNews,
-                        "includeSports": includeSports,
-                        "includeStocks": includeStocks,
-                        "includeCalendar": includeCalendar,
-                        "includeQuotes": includeQuotes,
-                        "selectedVoice": selectedVoice?.name ?? "none"
-                    ])
+                // Fixed bottom action area
+                VStack(spacing: 0) {
+                    Divider()
+                        .opacity(0.1)
                     
-                    // Start purchase flow and trigger job creation
-                    startPurchaseFlow()
-                }) {
-                    VStack(spacing: 4) {
-                        Text(getCTAText(for: selectedProduct))
-                            .font(.system(size: min(22, geometry.size.width * 0.055), weight: .bold))
-                            .foregroundColor(BananaTheme.ColorToken.background)
+                    // Main CTA
+                    Button(action: {
+                        logger.logUserAction("Paywall CTA tapped", details: [
+                            "selectedProduct": selectedProduct?.id ?? "none",
+                            "hasName": !name.isEmpty,
+                            "includeWeather": includeWeather,
+                            "includeNews": includeNews,
+                            "includeSports": includeSports,
+                            "includeStocks": includeStocks,
+                            "includeCalendar": includeCalendar,
+                            "includeQuotes": includeQuotes,
+                            "selectedVoice": selectedVoice?.name ?? "none"
+                        ])
                         
-                        if let product = selectedProduct {
-                            Text(getCTASubtext(for: product))
-                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                                .foregroundColor(BananaTheme.ColorToken.background.opacity(0.9))
+                        // Start purchase flow and trigger job creation
+                        startPurchaseFlow()
+                    }) {
+                        VStack(spacing: 4) {
+                            Text(getCTAText(for: selectedProduct))
+                                .font(.system(size: min(22, geometry.size.width * 0.055), weight: .bold))
+                                .foregroundColor(BananaTheme.ColorToken.background)
+                            
+                            if let product = selectedProduct {
+                                Text(getCTASubtext(for: product))
+                                    .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                                    .foregroundColor(BananaTheme.ColorToken.background.opacity(0.9))
+                            }
                         }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(64, geometry.size.height * 0.08))
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: max(64, geometry.size.height * 0.08))
-                }
-                .buttonStyle(InstantResponseStyle())
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                )
-                .padding(.horizontal, geometry.size.width * 0.08)
-                .opacity(textOpacity)
-                .disabled(purchaseManager.isLoadingProducts || selectedProduct == nil)
-                
-                Spacer(minLength: geometry.size.height * 0.015)
-                
-                Text("Auto-renews until canceled. Cancel anytime in Settings.")
-                    .font(.system(size: min(11, geometry.size.width * 0.028), weight: .regular))
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
-                    .multilineTextAlignment(.center)
+                    .buttonStyle(InstantResponseStyle())
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+                    )
+                    .padding(.horizontal, geometry.size.width * 0.10)
                     .opacity(textOpacity)
-                    .padding(.bottom, 12)
-                
-                // Legal links
-                HStack(spacing: 16) {
-                    Button("Terms") {
-                        if let url = URL(string: "https://daystart.bananaintelligence.ai/terms") {
-                            UIApplication.shared.open(url)
+                    .disabled(purchaseManager.isLoadingProducts || selectedProduct == nil)
+                    
+                    Text("Auto-renews until canceled. Cancel anytime in Settings.")
+                        .font(.system(size: min(11, geometry.size.width * 0.028), weight: .regular))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 8)
+                        .opacity(textOpacity)
+                    
+                    // Legal links
+                    HStack(spacing: 16) {
+                        Button("Terms") {
+                            if let url = URL(string: "https://daystart.bananaintelligence.ai/terms") {
+                                UIApplication.shared.open(url)
+                            }
                         }
-                    }
-                    Text("•")
-                    Button("Privacy") {
-                        if let url = URL(string: "https://daystart.bananaintelligence.ai/privacy") {
-                            UIApplication.shared.open(url)
+                        Text("•")
+                        Button("Privacy") {
+                            if let url = URL(string: "https://daystart.bananaintelligence.ai/privacy") {
+                                UIApplication.shared.open(url)
+                            }
                         }
-                    }
-                    Text("•")
-                    Button("Restore") {
-                        Task {
-                            do {
-                                try await PurchaseManager.shared.restorePurchases()
-                            } catch {
-                                logger.logError(error, context: "Failed to restore purchases")
-                                await MainActor.run {
-                                    restoreErrorMessage = "No previous purchase found. Please subscribe to continue."
-                                    showRestoreError = true
+                        Text("•")
+                        Button("Restore") {
+                            Task {
+                                do {
+                                    try await PurchaseManager.shared.restorePurchases()
+                                } catch {
+                                    logger.logError(error, context: "Failed to restore purchases")
+                                    await MainActor.run {
+                                        restoreErrorMessage = "No previous purchase found. Please subscribe to continue."
+                                        showRestoreError = true
+                                    }
                                 }
                             }
                         }
                     }
+                    .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .padding(.top, 8)
+                    .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
+                    .opacity(textOpacity)
                 }
-                .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                .padding(.bottom, max(16, geometry.size.height * 0.02))
-                .opacity(textOpacity)
+                .background(
+                    BananaTheme.ColorToken.background
+                        .ignoresSafeArea(edges: .bottom)
+                )
             }
         }
         .onAppear {
@@ -2024,7 +2032,7 @@ struct OnboardingView: View {
     
     private func subtitle(geometry: GeometryProxy) -> some View {
         let fontSize = min(16, geometry.size.width * 0.04)
-        let padding = geometry.size.width * 0.08
+        let padding = geometry.size.width * 0.10
         
         return Text("A personalized audio briefing that makes every morning better")
             .font(.system(size: fontSize, weight: .medium))
@@ -2036,7 +2044,7 @@ struct OnboardingView: View {
     
     private func floatingIconsView(geometry: GeometryProxy) -> some View {
         let emojis = ["📰", "☁️", "📅", "📈"]
-        let fontSize = min(40, geometry.size.width * 0.08)
+        let fontSize = min(40, geometry.size.width * 0.10)
         
         return HStack(spacing: 20) {
             ForEach(Array(emojis.enumerated()), id: \.offset) { index, emoji in
@@ -2051,7 +2059,6 @@ struct OnboardingView: View {
             }
         }
     }
-    
 }
 
 // MARK: - Supporting Views
@@ -2130,7 +2137,7 @@ struct ContentSelectionCard: View {
         }) {
             VStack(spacing: 8) {
                 Text(icon)
-                    .font(.system(size: min(40, geometry.size.width * 0.08)))
+                    .font(.system(size: min(40, geometry.size.width * 0.10)))
                     .scaleEffect(isSelected ? 1.1 : 1.0)
                 
                 VStack(spacing: 2) {
@@ -2175,7 +2182,7 @@ struct PermissionBenefitRow: View {
             
             Spacer()
         }
-        .padding(.horizontal, geometry.size.width * 0.08)
+        .padding(.horizontal, geometry.size.width * 0.10)
     }
 }
 

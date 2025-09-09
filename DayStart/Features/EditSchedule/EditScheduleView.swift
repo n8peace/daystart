@@ -74,7 +74,7 @@ struct EditScheduleView: View {
     // Detect if there are unsaved changes compared to persisted preferences
     private var hasUnsavedChanges: Bool {
         // Compare schedule fields
-        let timeChanged = selectedTime != userPreferences.schedule.time
+        let timeChanged = abs(selectedTime.timeIntervalSince(userPreferences.schedule.time)) > 1.0
         let daysChanged = selectedDays != userPreferences.schedule.repeatDays
         // let skipTomorrowChanged = skipTomorrow != userPreferences.schedule.skipTomorrow // Skip tomorrow disabled
         
@@ -365,7 +365,7 @@ struct EditScheduleView: View {
                 if selectedDays.isEmpty {
                     Text("Select at least one day to enable DayStart")
                         .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.primary)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
                         .padding(.top, 4)
                 }
             }
@@ -400,11 +400,11 @@ struct EditScheduleView: View {
                 HStack {
                     Text("DayStart Disabled")
                         .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.primary)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
                     Spacer()
                     Text("No days selected")
                         .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.primary)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
                 }
             }
         }
@@ -461,7 +461,7 @@ struct EditScheduleView: View {
                     }
                 }
                 .pickerStyle(MenuPickerStyle())
-                .accentColor(BananaTheme.ColorToken.primary)
+                .accentColor(BananaTheme.ColorToken.secondaryText)
                 .disabled(isLocked)
                 .padding(.leading)
             }
@@ -484,7 +484,7 @@ struct EditScheduleView: View {
                     }
                 }
                 .pickerStyle(MenuPickerStyle())
-                .accentColor(BananaTheme.ColorToken.primary)
+                .accentColor(BananaTheme.ColorToken.secondaryText)
             }
             
             #if DEBUG
@@ -613,7 +613,18 @@ struct EditScheduleView: View {
         
         // Log what changed
         let voiceChanged = selectedVoice != userPreferences.settings.selectedVoice
-        let timeChanged = selectedTime != userPreferences.schedule.time 
+        
+        // More robust time comparison - check if times differ by more than 1 second
+        let timeChanged: Bool = {
+            let currentTime = userPreferences.schedule.time
+            let timeDifference = abs(selectedTime.timeIntervalSince(currentTime))
+            let hasTimeChanged = timeDifference > 1.0 // 1 second threshold
+            
+            logger.log("🕐 Time comparison: selected=\(DateFormatter.shortTime.string(from: selectedTime)), current=\(DateFormatter.shortTime.string(from: currentTime)), diff=\(timeDifference)s, changed=\(hasTimeChanged)", level: .debug)
+            
+            return hasTimeChanged
+        }()
+        
         let daysChanged = selectedDays != userPreferences.schedule.repeatDays
         
         logger.logUserAction("Save EditSchedule changes", details: [
@@ -808,7 +819,7 @@ struct StockSymbolsEditor: View {
                 Button(action: addSymbol) {
                     Label("Add Symbol", systemImage: "plus.circle.fill")
                         .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.primary)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
                 }
                 .buttonStyle(BorderlessButtonStyle()) // Prevent Form from intercepting taps
                 .disabled(isDisabled)
@@ -988,7 +999,7 @@ struct AccountManagementRow: View {
             }) {
                 Text(buttonText)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(purchaseManager.isPurchased ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.primary)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
             }
             .disabled(purchaseManager.isLoading)
         }
