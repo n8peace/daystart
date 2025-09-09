@@ -303,6 +303,9 @@ struct OnboardingView: View {
                             .font(.system(size: min(32, geometry.size.width * 0.10), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
                         Text("Most people start their day feeling lost and overwhelmed.")
@@ -439,7 +442,7 @@ struct OnboardingView: View {
                 VStack(spacing: geometry.size.height * 0.05) {
                     // Greeting animation
                     Text("👋")
-                        .font(.system(size: min(100, geometry.size.width * 0.2)))
+                        .font(.system(size: min(100, geometry.size.width * 0.25)))
                         .scaleEffect(animationTrigger ? 1.2 : 0.9)
                         .rotationEffect(.degrees(animationTrigger ? 15 : -15))
                         .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: animationTrigger)
@@ -449,6 +452,9 @@ struct OnboardingView: View {
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
                         Text("Your AI will greet you by name each morning")
@@ -588,6 +594,9 @@ struct OnboardingView: View {
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
                         Text("We'll have your briefing ready when you wake up")
@@ -736,6 +745,9 @@ struct OnboardingView: View {
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
                         Text("Choose what matters to you most")
@@ -899,6 +911,9 @@ struct OnboardingView: View {
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
                         Text("We'll ask for your location to add local weather to your DayStart")
@@ -938,8 +953,8 @@ struct OnboardingView: View {
                     HStack {
                         Image(systemName: locationPermissionStatus == .granted ? "checkmark.circle.fill" : 
                               locationPermissionStatus == .denied ? "xmark.circle.fill" : "location.fill")
-                        Text(locationPermissionStatus == .granted ? "Weather Enabled" : 
-                             locationPermissionStatus == .denied ? "Weather Disabled" : "Enable Weather")
+                        Text(locationPermissionStatus == .granted ? "Location Enabled" : 
+                             locationPermissionStatus == .denied ? "Location Disabled" : "Enable Location")
                     }
                     .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
                     .foregroundColor(.white)
@@ -1009,6 +1024,9 @@ struct OnboardingView: View {
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
                         Text("We'll ask to access your calendar to include today's events in your DayStart")
@@ -1110,6 +1128,9 @@ struct OnboardingView: View {
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
                         Text("The voice that starts your day right")
@@ -1223,6 +1244,9 @@ struct OnboardingView: View {
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
                         Text("Tomorrow morning will be different...")
@@ -1310,74 +1334,81 @@ struct OnboardingView: View {
     // MARK: - Page 10: Hard Paywall (100%)
     private var paywallPage: some View {
         GeometryReader { geometry in
+            let isCompactHeight = geometry.size.height < 700 // iPhone 13 mini is 812pt
+            let topSpacing = isCompactHeight ? geometry.size.height * 0.02 : geometry.size.height * 0.08
+            let sectionSpacing = isCompactHeight ? geometry.size.height * 0.02 : geometry.size.height * 0.04
+            
             VStack(spacing: 0) {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
-                Spacer(minLength: geometry.size.height * 0.08)
-                
-                VStack(spacing: geometry.size.height * 0.04) {
-                    // Premium star with pulsing animation
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.yellow.opacity(0.3), Color.orange.opacity(0.1)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: min(80, geometry.size.width * 0.20))
-                            .scaleEffect(animationTrigger ? 1.1 : 0.9)
+                        Spacer(minLength: topSpacing)
                         
-                        Text("🌟")
-                            .font(.system(size: min(45, geometry.size.width * 0.09)))
-                            .scaleEffect(animationTrigger ? 1.2 : 1.0)
-                    }
-                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
-                    
-                    VStack(spacing: geometry.size.height * 0.02) {
-                        Text("Unlock Your Better Mornings")
-                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
-                            .foregroundColor(BananaTheme.ColorToken.text)
-                            .multilineTextAlignment(.center)
-                            .opacity(textOpacity)
+                        VStack(spacing: sectionSpacing) {
+                            // Premium star with pulsing animation
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.yellow.opacity(0.3), Color.orange.opacity(0.1)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: min(80, geometry.size.width * 0.20))
+                                    .scaleEffect(animationTrigger ? 1.1 : 0.9)
+                                
+                                Text("🌟")
+                                    .font(.system(size: min(45, geometry.size.width * 0.09)))
+                                    .scaleEffect(animationTrigger ? 1.2 : 1.0)
+                            }
+                            .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
+                            
+                            VStack(spacing: isCompactHeight ? 8 : geometry.size.height * 0.02) {
+                                Text("Unlock Your Better Mornings")
+                                    .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                                    .foregroundColor(BananaTheme.ColorToken.text)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.5)
+                                    .padding(.horizontal, geometry.size.width * 0.05)
+                                    .opacity(textOpacity)
+                                
+                                Text("Skip the scrolling, get briefed")
+                                    .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, geometry.size.width * 0.10)
+                                    .opacity(textOpacity)
+                            }
+                        }
                         
-                        Text("Skip the scrolling, get briefed")
-                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.10)
-                            .opacity(textOpacity)
-                    }
-                }
-                
-                Spacer(minLength: geometry.size.height * 0.04)
+                        Spacer(minLength: isCompactHeight ? 12 : geometry.size.height * 0.04)
                 
                 // Pricing options - optimized for conversion
                 if purchaseManager.isLoadingProducts {
                     // Loading state
-                    VStack(spacing: 20) {
+                    VStack(spacing: isCompactHeight ? 12 : 20) {
                         ProgressView()
-                            .scaleEffect(1.5)
+                            .scaleEffect(isCompactHeight ? 1.2 : 1.5)
                             .progressViewStyle(CircularProgressViewStyle(tint: BananaTheme.ColorToken.primary))
                         
                         Text("Loading pricing options...")
-                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .font(.system(size: isCompactHeight ? 14 : min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                     }
-                    .frame(height: 200)
+                    .frame(height: isCompactHeight ? 120 : 200)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, geometry.size.width * 0.10)
                     .opacity(textOpacity)
                 } else if purchaseManager.availableProducts.isEmpty {
                     // Error state - no products loaded
-                    VStack(spacing: 16) {
+                    VStack(spacing: isCompactHeight ? 12 : 16) {
                         Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 40))
+                            .font(.system(size: isCompactHeight ? 30 : 40))
                             .foregroundColor(.orange)
                         
                         Text("Unable to load pricing")
-                            .font(.system(size: min(18, geometry.size.width * 0.045), weight: .semibold))
+                            .font(.system(size: isCompactHeight ? 16 : min(18, geometry.size.width * 0.045), weight: .semibold))
                             .foregroundColor(BananaTheme.ColorToken.text)
                         
                         Button("Retry") {
@@ -1392,13 +1423,13 @@ struct OnboardingView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, isCompactHeight ? 16 : 20)
+                        .padding(.vertical, isCompactHeight ? 6 : 8)
                         .background(BananaTheme.ColorToken.primary)
                         .foregroundColor(BananaTheme.ColorToken.background)
-                        .cornerRadius(12)
+                        .cornerRadius(isCompactHeight ? 10 : 12)
                     }
-                    .frame(height: 200)
+                    .frame(height: isCompactHeight ? 120 : 200)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, geometry.size.width * 0.10)
                     .opacity(textOpacity)
@@ -1417,6 +1448,7 @@ struct OnboardingView: View {
                             savings: getSavingsText(annual: getProduct(for: "daystart_annual_subscription"), monthly: getProduct(for: "daystart_monthly_subscription")),
                             isSelected: selectedProduct?.id == "daystart_annual_subscription",
                             geometry: geometry,
+                            animationTrigger: animationTrigger,
                             action: {
                                 selectedProduct = getProduct(for: "daystart_annual_subscription")
                                 impactFeedback()
@@ -1433,6 +1465,7 @@ struct OnboardingView: View {
                             savings: nil,
                             isSelected: selectedProduct?.id == "daystart_monthly_subscription",
                             geometry: geometry,
+                            animationTrigger: animationTrigger,
                             action: {
                                 selectedProduct = getProduct(for: "daystart_monthly_subscription")
                                 impactFeedback()
@@ -1451,6 +1484,7 @@ struct OnboardingView: View {
                                     savings: getSavingsText(annual: getProduct(for: "daystart_annual_subscription"), monthly: getProduct(for: "daystart_monthly_subscription")),
                                     isSelected: selectedProduct?.id == "daystart_annual_subscription",
                                     geometry: geometry,
+                                    animationTrigger: animationTrigger,
                                     action: {
                                         selectedProduct = getProduct(for: "daystart_annual_subscription")
                                         impactFeedback()
@@ -1467,6 +1501,7 @@ struct OnboardingView: View {
                                     savings: nil,
                                     isSelected: selectedProduct?.id == "daystart_monthly_subscription",
                                     geometry: geometry,
+                                    animationTrigger: animationTrigger,
                                     action: {
                                         selectedProduct = getProduct(for: "daystart_monthly_subscription")
                                         impactFeedback()
@@ -1478,8 +1513,6 @@ struct OnboardingView: View {
                     .padding(.horizontal, geometry.size.width * 0.10)
                     .opacity(textOpacity)
                 }
-                
-                Spacer(minLength: 20) // Bottom breathing room
                     }
                 }
                 .clipped()
@@ -1489,90 +1522,129 @@ struct OnboardingView: View {
                     Divider()
                         .opacity(0.1)
                     
-                    // Main CTA
-                    Button(action: {
-                        logger.logUserAction("Paywall CTA tapped", details: [
-                            "selectedProduct": selectedProduct?.id ?? "none",
-                            "hasName": !name.isEmpty,
-                            "includeWeather": includeWeather,
-                            "includeNews": includeNews,
-                            "includeSports": includeSports,
-                            "includeStocks": includeStocks,
-                            "includeCalendar": includeCalendar,
-                            "includeQuotes": includeQuotes,
-                            "selectedVoice": selectedVoice?.name ?? "none"
-                        ])
+                    VStack(spacing: isCompactHeight ? 16 : 24) {
+                        // Adaptive "Limited Time Offer" badge
+                        if !isCompactHeight {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock.fill")
+                                    .font(.system(size: 12))
+                                Text("Limited Time Offer")
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundColor(BananaTheme.ColorToken.primary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(BananaTheme.ColorToken.primary.opacity(0.1))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(BananaTheme.ColorToken.primary.opacity(0.3), lineWidth: 1)
+                            )
+                            .opacity(textOpacity)
+                        }
                         
-                        // Start purchase flow and trigger job creation
-                        startPurchaseFlow()
-                    }) {
-                        VStack(spacing: 4) {
-                            Text(getCTAText(for: selectedProduct))
-                                .font(.system(size: min(22, geometry.size.width * 0.055), weight: .bold))
-                                .foregroundColor(BananaTheme.ColorToken.background)
+                        // CTA Button Group
+                        VStack(spacing: 8) {
+                            Button(action: {
+                                logger.logUserAction("Paywall CTA tapped", details: [
+                                    "selectedProduct": selectedProduct?.id ?? "none",
+                                    "hasName": !name.isEmpty,
+                                    "includeWeather": includeWeather,
+                                    "includeNews": includeNews,
+                                    "includeSports": includeSports,
+                                    "includeStocks": includeStocks,
+                                    "includeCalendar": includeCalendar,
+                                    "includeQuotes": includeQuotes,
+                                    "selectedVoice": selectedVoice?.name ?? "none"
+                                ])
+                                
+                                // Start purchase flow and trigger job creation
+                                startPurchaseFlow()
+                            }) {
+                                VStack(spacing: isCompactHeight ? 2 : 4) {
+                                    Text(getCTAText(for: selectedProduct))
+                                        .font(.system(size: isCompactHeight ? 18 : min(22, geometry.size.width * 0.055), weight: .bold))
+                                        .foregroundColor(BananaTheme.ColorToken.background)
+                                    
+                                    if let product = selectedProduct {
+                                        Text(getCTASubtext(for: product))
+                                            .font(.system(size: isCompactHeight ? 12 : min(14, geometry.size.width * 0.035), weight: .medium))
+                                            .foregroundColor(BananaTheme.ColorToken.background.opacity(0.9))
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: isCompactHeight ? 56 : max(64, geometry.size.height * 0.08))
+                            }
+                            .buttonStyle(InstantResponseStyle())
+                            .background(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                                .cornerRadius(25)
+                                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: isCompactHeight ? 12 : 20)
+                            )
+                            .scaleEffect(animationTrigger ? 1.02 : 1.0)
+                            .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: animationTrigger)
+                            .opacity(textOpacity)
+                            .disabled(purchaseManager.isLoadingProducts || selectedProduct == nil)
                             
-                            if let product = selectedProduct {
-                                Text(getCTASubtext(for: product))
-                                    .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                                    .foregroundColor(BananaTheme.ColorToken.background.opacity(0.9))
-                            }
+                            Text("Auto-renews until canceled. Cancel anytime in Settings.")
+                                .font(.system(size: isCompactHeight ? 10 : 11, weight: .regular))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                                .multilineTextAlignment(.center)
+                                .opacity(textOpacity)
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: max(64, geometry.size.height * 0.08))
-                    }
-                    .buttonStyle(InstantResponseStyle())
-                    .background(
-                        RoundedRectangle(cornerRadius: 25)
-                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                    )
-                    .padding(.horizontal, geometry.size.width * 0.10)
-                    .opacity(textOpacity)
-                    .disabled(purchaseManager.isLoadingProducts || selectedProduct == nil)
-                    
-                    Text("Auto-renews until canceled. Cancel anytime in Settings.")
-                        .font(.system(size: min(11, geometry.size.width * 0.028), weight: .regular))
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 8)
-                        .opacity(textOpacity)
-                    
-                    // Legal links
-                    HStack(spacing: 16) {
-                        Button("Terms") {
-                            if let url = URL(string: "https://daystart.bananaintelligence.ai/terms") {
-                                UIApplication.shared.open(url)
+                        
+                        // Legal links - smaller and less prominent
+                        HStack(spacing: isCompactHeight ? 12 : 16) {
+                            Button("Terms") {
+                                if let url = URL(string: "https://daystart.bananaintelligence.ai/terms") {
+                                    UIApplication.shared.open(url)
+                                }
                             }
-                        }
-                        Text("•")
-                        Button("Privacy") {
-                            if let url = URL(string: "https://daystart.bananaintelligence.ai/privacy") {
-                                UIApplication.shared.open(url)
+                            Text("•")
+                            Button("Privacy") {
+                                if let url = URL(string: "https://daystart.bananaintelligence.ai/privacy") {
+                                    UIApplication.shared.open(url)
+                                }
                             }
-                        }
-                        Text("•")
-                        Button("Restore") {
-                            Task {
-                                do {
-                                    try await PurchaseManager.shared.restorePurchases()
-                                } catch {
-                                    logger.logError(error, context: "Failed to restore purchases")
-                                    await MainActor.run {
-                                        restoreErrorMessage = "No previous purchase found. Please subscribe to continue."
-                                        showRestoreError = true
+                            Text("•")
+                            Button("Restore") {
+                                Task {
+                                    do {
+                                        try await PurchaseManager.shared.restorePurchases()
+                                    } catch {
+                                        logger.logError(error, context: "Failed to restore purchases")
+                                        await MainActor.run {
+                                            restoreErrorMessage = "No previous purchase found. Please subscribe to continue."
+                                            showRestoreError = true
+                                        }
                                     }
                                 }
                             }
                         }
+                        .font(.system(size: isCompactHeight ? 10 : 11, weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.6))
+                        .opacity(textOpacity)
                     }
-                    .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    .padding(.top, 8)
-                    .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
-                    .opacity(textOpacity)
+                    .padding(.horizontal, geometry.size.width * 0.10)
+                    .padding(.top, isCompactHeight ? 12 : 20)
+                    .padding(.bottom, max(isCompactHeight ? 16 : 24, geometry.safeAreaInsets.bottom))
                 }
                 .background(
-                    BananaTheme.ColorToken.background
-                        .ignoresSafeArea(edges: .bottom)
+                    LinearGradient(
+                        colors: [
+                            BananaTheme.ColorToken.background,
+                            BananaTheme.ColorToken.background.opacity(0.95)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea(edges: .bottom)
                 )
             }
         }
@@ -2217,17 +2289,20 @@ struct PricingCard: View {
     let savings: String?
     let isSelected: Bool
     let geometry: GeometryProxy
+    let animationTrigger: Bool
     let action: () -> Void
     
     var body: some View {
+        let isCompactHeight = geometry.size.height < 700
+        
         Button(action: action) {
-            VStack(spacing: 8) {
+            VStack(spacing: isCompactHeight ? 4 : 8) {
                 if let badge = badge {
                     Text(badge)
-                        .font(.system(size: min(10, geometry.size.width * 0.025), weight: .bold))
+                        .font(.system(size: isCompactHeight ? 9 : min(10, geometry.size.width * 0.025), weight: .bold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, isCompactHeight ? 8 : 12)
+                        .padding(.vertical, isCompactHeight ? 2 : 4)
                         .background(
                             LinearGradient(
                                 colors: [Color.orange, Color.red],
@@ -2235,47 +2310,49 @@ struct PricingCard: View {
                                 endPoint: .trailing
                             )
                         )
-                        .cornerRadius(12)
+                        .cornerRadius(isCompactHeight ? 8 : 12)
                 }
                 
-                VStack(spacing: 2) {
+                VStack(spacing: isCompactHeight ? 1 : 2) {
                     Text(title)
-                        .font(.system(size: min(18, geometry.size.width * 0.045), weight: .bold))
+                        .font(.system(size: isCompactHeight ? 16 : min(18, geometry.size.width * 0.045), weight: .bold))
                         .foregroundColor(BananaTheme.ColorToken.text)
                     
                     Text(price)
-                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                        .font(.system(size: isCompactHeight ? 18 : min(20, geometry.size.width * 0.05), weight: .bold))
                         .foregroundColor(BananaTheme.ColorToken.primary)
                     
                     if let subtitle = subtitle {
                         Text(subtitle)
-                            .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                            .font(.system(size: isCompactHeight ? 12 : min(14, geometry.size.width * 0.035), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                     }
                     
                     if let savings = savings {
                         Text(savings)
-                            .font(.system(size: min(12, geometry.size.width * 0.03), weight: .bold))
+                            .font(.system(size: isCompactHeight ? 11 : min(12, geometry.size.width * 0.03), weight: .bold))
                             .foregroundColor(Color.green)
                     }
                     
                     Text("\(trialText) • \(renewalText)")
-                        .font(.system(size: min(11, geometry.size.width * 0.028), weight: .medium))
+                        .font(.system(size: isCompactHeight ? 10 : min(11, geometry.size.width * 0.028), weight: .medium))
                         .foregroundColor(BananaTheme.ColorToken.secondaryText)
                 }
             }
-            .padding(12)
+            .padding(isCompactHeight ? 8 : 12)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: isCompactHeight ? 12 : 16)
                     .fill(isSelected ? BananaTheme.ColorToken.primary.opacity(0.1) : BananaTheme.ColorToken.card)
-                    .stroke(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border, lineWidth: isSelected ? 3 : 1)
+                    .stroke(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border, lineWidth: isSelected ? (isCompactHeight ? 2 : 3) : 1)
             )
-            .shadow(color: isSelected ? BananaTheme.ColorToken.primary.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 4)
+            .shadow(color: isSelected ? BananaTheme.ColorToken.primary.opacity(0.2) : Color.clear, radius: isCompactHeight ? 4 : 8, x: 0, y: isCompactHeight ? 2 : 4)
         }
         .buttonStyle(PlainButtonStyle())
         .scaleEffect(isSelected ? 1.02 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+        .scaleEffect(isSelected ? (animationTrigger ? 1.03 : 1.02) : 1.0)
+        .animation(isSelected ? .easeInOut(duration: 1.5).repeatForever(autoreverses: true) : .default, value: animationTrigger)
     }
 }
 

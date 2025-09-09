@@ -4,6 +4,61 @@
 
 ---
 
+## v2025.09.4 (Build 8) - September 9, 2025
+🍌 **The "Responsive Paywall & Location Permission" Release**
+📱 **Fixed layout issues on smaller devices and improved permission handling**
+
+✨ **Responsive Paywall Design:**
+- Fixed paywall layout cutoff on iPhone 13 mini and smaller devices
+- Dynamic spacing adjustments for screens under 700pt height
+- Reduced font sizes and padding for compact devices
+- Smaller star icon and optimized button heights for better fit
+- Ensured all critical elements (Terms, Privacy, Restore) remain visible
+
+🎨 **Compact Layout Adjustments:**
+- Star icon: 35pt (compact) vs 45pt (regular)
+- Title font: 24pt (compact) vs 28pt (regular) 
+- CTA button: 56pt height (compact) vs 64pt (regular)
+- Pricing cards: Reduced padding and optimized spacing
+- Bottom safe area: 20pt + safe area (compact) vs 44pt + safe area (regular)
+
+✨ **Location Permission Updates:**
+- Added proper location permission handling during onboarding weather setup
+- Shows location permission prompt when user taps "Enable Location" 
+- Changed button text from "Enable Weather" to "Enable Location" for clarity 
+- Graceful handling when permission is denied with clear user feedback
+- Fixed state management to properly update UI after permission changes
+
+🎨 **Onboarding Hero Title Improvements:**
+- Added horizontal padding (5% on each side) to all hero titles for better spacing
+- Implemented single-line constraint with automatic font scaling
+- Hero titles now shrink to fit narrow screens instead of wrapping to multiple lines
+- Maintains readability with minimum scale factor of 50%
+- Affected titles: "Mornings Suck. We Get It.", "Let's Make This Personal", "When Do You Rise?", etc.
+
+💳 **Paywall Design Overhaul:**
+- **Fixed spacing issues**: Removed excess whitespace between pricing options and CTA button
+- **Redesigned bottom section**: Better visual hierarchy with distinct groupings (badge → CTA → legal)
+- **Added urgency elements**: Adaptive "Limited Time Offer" badge (shows on larger screens only)
+- **Enhanced animations**: Subtle pulse on CTA button and breathing effect on selected pricing cards
+- **Improved consistency**: CTA button now uses gradient style matching other onboarding pages
+- **Better responsive design**: Tighter spacing on compact screens, more generous on larger devices
+- **Visual polish**: Added subtle gradient background to bottom section for better separation
+
+🔧 **Technical Improvements:**
+- Added `isCompactHeight` detection for devices under 700pt
+- Responsive PricingCard component with dynamic sizing
+- Added LocationManager integration to OnboardingView
+- Proper error handling for all permission states
+- Toast notifications for permission denial feedback
+
+📱 **Testing Devices:**
+- iPad Pro 11" (M3) - iPadOS 18.3.1
+- iPad mini (A17 Pro) - iPadOS 18.0
+- iPhone 13 mini - iOS 18.x
+
+---
+
 ## Development & Infrastructure 🔧
 
 ### September 9, 2025
