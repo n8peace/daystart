@@ -31,8 +31,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     // MARK: - Permission Management
     
     func requestLocationPermission() async -> Bool {
-        guard authorizationStatus == .notDetermined else {
-            return hasLocationAccess()
+        guard !hasLocationAccess() else {
+            return true
         }
         
         return await withCheckedContinuation { continuation in

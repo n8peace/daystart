@@ -244,24 +244,6 @@ struct OnboardingView: View {
                         }
                     }
                 }
-                .onReceive(LocationManager.shared.$authorizationStatus) { newStatus in
-                    // Update location permission status when LocationManager status changes
-                    DispatchQueue.main.async {
-                        switch newStatus {
-                        case .authorizedWhenInUse, .authorizedAlways:
-                            locationPermissionStatus = .granted
-                            showingLocationError = false
-                        case .denied, .restricted:
-                            locationPermissionStatus = .denied
-                            showingLocationError = true
-                        case .notDetermined:
-                            locationPermissionStatus = .notDetermined
-                            showingLocationError = false
-                        @unknown default:
-                            break
-                        }
-                    }
-                }
                 .onChange(of: currentPage) { oldPage, newPage in
                     AudioPlayerManager.shared.stopVoicePreview()
                     hideKeyboard()
