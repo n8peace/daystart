@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-worker-token',
+  'Access-Control-Allow-Headers': 'authorization, content-type',
 }
 
 interface CleanupResult {
@@ -26,22 +26,11 @@ serve(async (req) => {
   const request_id = crypto.randomUUID()
 
   try {
-    // Verify authorization - accept either service role key or worker token
+    // Verify authorization - service role key only
     const authHeader = req.headers.get('authorization')
-    const workerTokenHeader = req.headers.get('x-worker-token')
-    const expectedWorkerToken = Deno.env.get('WORKER_AUTH_TOKEN')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    // Check if it's the worker token
-    if (workerTokenHeader && expectedWorkerToken && workerTokenHeader === expectedWorkerToken) {
-      // Valid worker token
-    } 
-    // Check if it's the service role key
-    else if (authHeader && supabaseServiceKey && authHeader === `Bearer ${supabaseServiceKey}`) {
-      // Valid service role key
-    }
-    // Otherwise unauthorized
-    else {
+    if (!authHeader || !supabaseServiceKey || authHeader !== `Bearer ${supabaseServiceKey}`) {
       throw new Error('Unauthorized')
     }
 

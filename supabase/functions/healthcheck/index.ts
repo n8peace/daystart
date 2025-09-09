@@ -23,7 +23,7 @@ interface HealthReport {
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-worker-token',
+  'Access-Control-Allow-Headers': 'authorization, content-type',
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -39,22 +39,11 @@ serve(async (req: Request): Promise<Response> => {
       return json({ success: false, message: 'Only POST method allowed', request_id }, 405)
     }
 
-    // Verify authorization - accept either service role key or worker token
+    // Verify authorization - service role key only
     const authHeader = req.headers.get('authorization')
-    const workerTokenHeader = req.headers.get('x-worker-token')
-    const expectedWorkerToken = Deno.env.get('WORKER_AUTH_TOKEN')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    // Check if it's the worker token
-    if (workerTokenHeader && expectedWorkerToken && workerTokenHeader === expectedWorkerToken) {
-      // Valid worker token
-    } 
-    // Check if it's the service role key
-    else if (authHeader && supabaseServiceKey && authHeader === `Bearer ${supabaseServiceKey}`) {
-      // Valid service role key
-    }
-    // Otherwise unauthorized
-    else {
+    if (!authHeader || !supabaseServiceKey || authHeader !== `Bearer ${supabaseServiceKey}`) {
       return json({ success: false, message: 'Unauthorized', request_id }, 401)
     }
 
@@ -367,12 +356,11 @@ async function checkStorageAccess(supabase: SupabaseClient): Promise<CheckResult
 async function checkInternalUrls(): Promise<CheckResult> {
   const start = Date.now()
   const baseUrl = Deno.env.get('SUPABASE_URL') ?? ''
-  const token = Deno.env.get('WORKER_AUTH_TOKEN') ?? ''
 
   // Use OPTIONS to avoid invoking heavy logic and external calls
   const endpoints = [
     { path: '/functions/v1/refresh_content', method: 'OPTIONS', headers: {} as Record<string, string> },
-    { path: '/functions/v1/process_jobs', method: 'OPTIONS', headers: { authorization: `Bearer ${token}` } },
+    { path: '/functions/v1/process_jobs', method: 'OPTIONS', headers: {} as Record<string, string> },
   ]
 
   const results: Array<{ path: string; status: number }> = []

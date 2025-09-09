@@ -358,6 +358,14 @@
 
 ## Supabase Backend Updates 🛠️
 
+### Edge Function Auth Cleanup - September 9, 2025
+🍌 **Authentication Simplification**
+- Removed unused WORKER_AUTH_TOKEN authentication from all 4 edge functions
+- Simplified authentication to use only service role key
+- Updated CORS headers to remove x-worker-token
+- Cleaner codebase with single authentication method
+- Functions affected: healthcheck, process_jobs, cleanup-audio, refresh_content
+
 ### Migration 026 - September 4, 2025
 🍌 **App Feedback Collection System**
 - Added `app_feedback` table for user feedback collection

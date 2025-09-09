@@ -693,7 +693,7 @@ serve(async (req: Request): Promise<Response> => {
         status: 204,
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, content-type, x-worker-token',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, content-type',
           'Access-Control-Allow-Methods': 'POST, OPTIONS'
         }
       });
@@ -703,19 +703,12 @@ serve(async (req: Request): Promise<Response> => {
       return createResponse(false, 0, 0, 'Only POST method allowed', request_id);
     }
 
-    // Basic auth check - accept either service role key or worker token
+    // Basic auth check - service role key only
     const authHeader = req.headers.get('authorization');
-    const workerTokenHeader = req.headers.get('x-worker-token');
-    const expectedWorkerToken = Deno.env.get('WORKER_AUTH_TOKEN');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    // Check if it's the worker token
-    if (workerTokenHeader && expectedWorkerToken && workerTokenHeader === expectedWorkerToken) {
-      // Valid worker token
-    } 
-    // Check if it's the service role key
-    else if (authHeader && supabaseServiceKey && authHeader === `Bearer ${supabaseServiceKey}`) {
-      // Valid service role key
+    if (!authHeader || !supabaseServiceKey || authHeader !== `Bearer ${supabaseServiceKey}`) {
+      return createResponse(false, 0, 0, 'Unauthorized', request_id);
     }
     // Otherwise unauthorized
     else {
