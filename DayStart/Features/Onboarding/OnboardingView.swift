@@ -81,7 +81,7 @@ struct OnboardingView: View {
     @State private var stockSymbols = "SPY, DIA, BTC-USD"
     @State private var includeCalendar = false
     @State private var includeQuotes = true
-    @State private var selectedQuoteType: QuotePreference = .stoic
+    @State private var selectedQuoteType: QuotePreference = .goodFeelings
     @State private var selectedVoice: VoiceOption? = nil
     @State private var selectedProduct: Product?
     @State private var showRestoreError = false
@@ -880,7 +880,7 @@ struct OnboardingView: View {
         }
     }
     
-    // MARK: - Page 6: Weather Permission (60%)
+    // MARK: - Page 6: Location Permission (60%)
     private var weatherPermissionPage: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
@@ -913,7 +913,7 @@ struct OnboardingView: View {
                     }
                     
                     VStack(spacing: geometry.size.height * 0.015) {
-                        Text("Weather Permission")
+                        Text("Location Permission")
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
@@ -932,6 +932,7 @@ struct OnboardingView: View {
                         PermissionBenefitRow(icon: "🌡️", text: "Temperature & forecast", geometry: geometry)
                         PermissionBenefitRow(icon: "👕", text: "Outfit suggestions", geometry: geometry)
                         PermissionBenefitRow(icon: "☔", text: "Rain & storm alerts", geometry: geometry)
+                        PermissionBenefitRow(icon: "📰", text: "Localized news & sports", geometry: geometry)
                     }
                     .opacity(textOpacity)
                     
@@ -1651,7 +1652,7 @@ struct OnboardingView: View {
         case 2: return "Name Personalization"
         case 3: return "Schedule Setup"
         case 4: return "Content Selection"
-        case 5: return "Weather Permission"
+        case 5: return "Location Permission"
         case 6: return "Calendar Permission"
         case 7: return "Voice Selection"
         case 8: return "Final Preview"
@@ -1887,37 +1888,6 @@ struct OnboardingView: View {
     
     private func requestLocationPermission() async {
         let locationManager = LocationManager.shared
-        
-        // Check current status first
-        let currentStatus = locationManager.authorizationStatus
-        
-        // If already granted, update UI immediately and advance
-        if currentStatus == .authorizedWhenInUse || currentStatus == .authorizedAlways {
-            await MainActor.run {
-                locationPermissionStatus = .granted
-                includeWeather = true
-                impactFeedback()
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                    currentPage = 6
-                }
-            }
-            return
-        }
-        
-        // If denied/restricted, advance without weather
-        if currentStatus == .denied || currentStatus == .restricted {
-            await MainActor.run {
-                locationPermissionStatus = .denied
-                includeWeather = false
-                impactFeedback()
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                    currentPage = 6
-                }
-            }
-            return
-        }
-        
-        // Otherwise, request permission and advance based on result
         let granted = await locationManager.requestLocationPermission()
         
         await MainActor.run {

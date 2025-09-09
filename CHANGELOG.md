@@ -101,6 +101,43 @@
 - Proper geometry.safeAreaInsets.bottom handling across all devices
 - Updated version to 2025.09.4 (Build 7) in Info.plist
 
+🐛 **Schedule Update Fix (September 9):**
+- **Fixed backend job scheduling updates**: Schedule time changes now properly update existing jobs' scheduled_at timestamps
+- **Root cause**: Backend `update_jobs` function only updated job settings, not scheduled times
+- **Solution**: Added `scheduled_time` parameter to update_jobs API and client implementation
+- **Impact**: Schedule changes (e.g., 14:05 → 14:08) now reflect immediately without requiring app restart
+- **Technical details**:
+  - Extended `UpdateJobsRequest` interface with optional `scheduled_time` field
+  - Modified `buildUpdatePayload()` to handle scheduled_at database updates  
+  - Updated client `updateJobs()` method and schedule change handler to pass new times
+  - Fixed precision issues in time comparison logic using 1-second threshold
+
+🐛 **UI Update Fix (September 9):**
+- **Fixed immediate UI feedback**: Schedule time changes now update "Next DayStart" display instantly
+- **Root cause**: Schedule observer wasn't using MainActor threading pattern for UI updates
+- **Solution**: Fixed HomeViewModel schedule observer to ensure immediate SwiftUI refresh
+- **Impact**: Next alarm time now updates instantly in UI when schedule is changed
+- **Technical details**:
+  - Added `Task { @MainActor in ... }` wrapper to schedule observer
+  - Added explicit `objectWillChange.send()` to force SwiftUI refresh
+  - Fixed `DateFormatter.shortTime` access issue using centralized FormatterCache
+  - Added debug logging to track schedule change propagation
+
+🎯 **Onboarding Improvements (September 9):**
+- **Fixed location permission bypass**: Users can no longer swipe past location permission without interacting
+- **Updated permission UI**: Changed "Weather Permission" to "Location Permission" for clarity
+- **Added location benefits**: Added "Localized news & sports" to location permission benefits list
+- **Fixed default quote type**: Changed from "Stoic" to "Good Feelings" for new users
+- **Consistent behavior**: Location permission now works as reliably as calendar permission
+- **Root cause**: Complex early-exit logic allowed bypassing permission dialog when status was already determined
+- **Solution**: Simplified permission flow to match calendar permission pattern exactly
+- **Technical details**:
+  - Removed early returns in `requestLocationPermission()` that skipped user interaction
+  - Reduced function from 43 lines to 19 lines with consistent flow
+  - Always calls permission request regardless of current status
+  - Let iOS system handle already-granted cases gracefully
+  - Fixed conflicting defaults: `UserSettings.default` had `.goodFeelings` but `OnboardingView` started with `.stoic`
+
 ### v2025.09.4 (Build 6) - September 8, 2025
 🍌 **The "Compliance Complete" Release**
 📱 **App Store Resubmission** - Comprehensive compliance updates

@@ -564,9 +564,14 @@ class HomeViewModel: ObservableObject {
     private func setupBasicObservers() {
         // Lightweight observers (no service loading)
         userPreferences.$schedule
-            .sink { [weak self] _ in
-                self?.debouncedUpdateState()
-                self?.scheduleNotificationsIfNeeded()
+            .sink { [weak self] newSchedule in
+                self?.logger.log("📅 Schedule observer triggered: time=\(FormatterCache.shared.shortTimeFormatter.string(from: newSchedule.time))", level: .debug)
+                // Use same pattern as settings observer for immediate UI updates
+                Task { @MainActor in
+                    self?.objectWillChange.send() // Force SwiftUI refresh
+                    self?.debouncedUpdateState()
+                    self?.scheduleNotificationsIfNeeded()
+                }
             }
             .store(in: &cancellables)
         
