@@ -4,6 +4,53 @@
 
 ---
 
+## [Unreleased]
+🍌 **The "App Store Compliance & Enhanced Monitoring" Release**
+📱 **Permission flow updates and AI-powered healthcheck**
+
+### iOS App Updates:
+✨ **App Store Compliance Fix:**
+- Changed permission request buttons from "Enable Location" and "Enable Calendar" to "Continue"
+- Addresses Apple's Guideline 5.1.1 requirement for neutral language in permission requests
+- No functional changes - just button text to respect user choice
+
+### Backend Updates:
+🍌 **The "Enhanced Healthcheck with AI Diagnosis" Release**
+🧠 **Smarter monitoring with o3-mini powered error analysis**
+
+✨ **Healthcheck Improvements:**
+- Added AI-powered diagnosis using o3-mini for automatic error analysis
+- Excluded healthcheck endpoint from error rate calculations (no more false positives!)
+- Implemented strict error thresholds: ANY errors = WARN, ANY process_jobs errors = FAIL
+- Added detailed error breakdown by endpoint and error code
+- Shows last 5 error samples with timestamps for better debugging
+
+🎨 **Fun Email Redesign:**
+- Banana-themed email templates with gradient headers and emoji indicators
+- Dynamic subject lines: "Everything's a-peel-ing!" (pass), "Banana bruises detected" (warn), "Time to split - we have issues!" (fail)
+- Visual status cards instead of plain tables
+- AI Diagnosis prominently displayed at the top when issues are detected
+- Recent error samples in a dedicated highlighted section
+
+📊 **Better Error Tracking:**
+- Error grouping by endpoint (`/create_job`, `/process_jobs`, etc.)
+- Error grouping by type (`RATE_LIMITED`, `AUTH_FAILED`, etc.)
+- Process jobs error count highlighted separately (critical path monitoring)
+- Accurate error percentages excluding healthcheck self-reports
+
+🧪 **Technical Details:**
+- Updated `checkRequestErrorRate` to use `.neq('endpoint', '/healthcheck')`
+- Added `getAIDiagnosis` function with focused prompts for backend analysis
+- Enhanced email HTML/text builders with conditional formatting
+- Improved type safety with `HealthReport & { ai_diagnosis?: string }`
+
+### Backend Changes (Supabase Edge Functions):
+- **healthcheck/index.ts**: Complete rewrite of error tracking logic
+  - Enhanced SQL queries to exclude self-reporting and provide detailed breakdowns
+  - Added OpenAI integration for automatic diagnosis
+  - Refactored email generation for better visual hierarchy
+  - Implemented strict error thresholds for proactive alerting
+
 ## v2025.09.4 (Build 8) - September 9, 2025
 🍌 **The "Responsive Paywall & Location Permission" Release**
 📱 **Fixed layout issues on smaller devices and improved permission handling**

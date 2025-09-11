@@ -954,7 +954,7 @@ struct OnboardingView: View {
                         Image(systemName: locationPermissionStatus == .granted ? "checkmark.circle.fill" : 
                               locationPermissionStatus == .denied ? "xmark.circle.fill" : "location.fill")
                         Text(locationPermissionStatus == .granted ? "Location Enabled" : 
-                             locationPermissionStatus == .denied ? "Location Disabled" : "Enable Location")
+                             locationPermissionStatus == .denied ? "Location Disabled" : "Continue")
                     }
                     .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
                     .foregroundColor(.white)
@@ -1066,7 +1066,7 @@ struct OnboardingView: View {
                         Image(systemName: calendarPermissionStatus == .granted ? "checkmark.circle.fill" : 
                               calendarPermissionStatus == .denied ? "xmark.circle.fill" : "calendar")
                         Text(calendarPermissionStatus == .granted ? "Calendar Enabled" : 
-                             calendarPermissionStatus == .denied ? "Calendar Disabled" : "Enable Calendar")
+                             calendarPermissionStatus == .denied ? "Calendar Disabled" : "Continue")
                     }
                     .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
                     .foregroundColor(.white)

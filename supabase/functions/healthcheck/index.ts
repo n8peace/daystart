@@ -88,8 +88,19 @@ async function runHealthcheckAsync({ request_id, notify, started_at }: { request
   checks.push(await withTimeout('request_error_rate', () => checkRequestErrorRate(supabase), 3000))
 
   const overall = aggregateOverall(checks)
+  
+  // Get AI diagnosis if there are issues
+  let aiDiagnosis: string | null = null
+  if (overall.status !== 'pass') {
+    try {
+      aiDiagnosis = await getAIDiagnosis(checks)
+    } catch (err) {
+      console.error('AI diagnosis error:', err)
+    }
+  }
+  
   const finished_at = new Date().toISOString()
-  const report: HealthReport = {
+  const report: HealthReport & { ai_diagnosis?: string } = {
     overall_status: overall.status,
     summary: overall.summary,
     checks,
@@ -97,6 +108,7 @@ async function runHealthcheckAsync({ request_id, notify, started_at }: { request
     started_at,
     finished_at,
     duration_ms: Date.now() - t0,
+    ai_diagnosis: aiDiagnosis || undefined,
   }
 
   // Email via Resend
@@ -405,33 +417,75 @@ async function checkRequestErrorRate(supabase: SupabaseClient): Promise<CheckRes
   const start = Date.now()
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
-  const total = await supabase
+  // Get all requests excluding healthcheck endpoint
+  const { data: allRequests, count: totalCount } = await supabase
     .from('request_logs')
-    .select('*', { head: true, count: 'exact' })
+    .select('*', { head: false, count: 'exact' })
     .gte('created_at', since24h)
-  const errors = await supabase
+    .neq('endpoint', '/healthcheck')
+
+  // Get errors excluding healthcheck
+  const { data: errorRequests, count: errorCount } = await supabase
     .from('request_logs')
-    .select('*', { head: true, count: 'exact' })
+    .select('endpoint, error_code, status_code, created_at', { head: false })
     .gte('created_at', since24h)
+    .neq('endpoint', '/healthcheck')
     .not('error_code', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(50)
 
-  const totalCount = total.count ?? 0
-  const errorCount = errors.count ?? 0
-  const rate = totalCount > 0 ? (errorCount / totalCount) * 100 : 0
+  const total = totalCount ?? 0
+  const errors = errorCount ?? 0
+  const rate = total > 0 ? (errors / total) * 100 : 0
 
+  // Group errors by endpoint
+  const errorsByEndpoint: Record<string, number> = {}
+  const errorsByCode: Record<string, number> = {}
+  let processJobsErrors = 0
+  
+  if (errorRequests) {
+    for (const err of errorRequests) {
+      errorsByEndpoint[err.endpoint] = (errorsByEndpoint[err.endpoint] || 0) + 1
+      errorsByCode[err.error_code] = (errorsByCode[err.error_code] || 0) + 1
+      if (err.endpoint === '/process_jobs') {
+        processJobsErrors++
+      }
+    }
+  }
+
+  // Get recent error samples (last 5)
+  const recentErrors = errorRequests?.slice(0, 5).map(err => ({
+    endpoint: err.endpoint,
+    error_code: err.error_code,
+    status_code: err.status_code,
+    timestamp: err.created_at,
+  })) || []
+
+  // Strict error thresholds
   let status: CheckStatus = 'pass'
-  if (rate > 5) status = 'fail'
-  else if (rate > 1) status = 'warn'
+  if (processJobsErrors > 0) {
+    status = 'fail' // Any process_jobs errors = FAIL
+  } else if (errors > 0) {
+    status = 'warn' // Any errors = WARN
+  }
 
   return {
     name: 'request_error_rate',
     status,
-    details: { total_24h: totalCount, errors_24h: errorCount, error_rate_percent: Number(rate.toFixed(2)) },
+    details: {
+      total_24h: total,
+      errors_24h: errors,
+      error_rate_percent: Number(rate.toFixed(2)),
+      errors_by_endpoint: errorsByEndpoint,
+      errors_by_code: errorsByCode,
+      process_jobs_errors: processJobsErrors,
+      recent_errors: recentErrors,
+    },
     duration_ms: Date.now() - start,
   }
 }
 
-async function sendResendEmail(report: HealthReport): Promise<void> {
+async function sendResendEmail(report: HealthReport & { ai_diagnosis?: string }): Promise<void> {
   const apiKey = Deno.env.get('RESEND_API_KEY')
   const toEmail = Deno.env.get('RESEND_TO_EMAIL')
   const fromEmail = Deno.env.get('RESEND_FROM_EMAIL')
@@ -464,66 +518,124 @@ async function sendResendEmail(report: HealthReport): Promise<void> {
   }
 }
 
-function buildEmailSubject(report: HealthReport): string {
+function buildEmailSubject(report: HealthReport & { ai_diagnosis?: string }): string {
   const d = new Date(report.started_at)
-  // Omit year per preference
   const friendly = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-  const statusIcon = report.overall_status === 'pass' ? '✅' : report.overall_status === 'warn' ? '⚠️' : '❌'
-  return `${statusIcon} DayStart Healthcheck — ${friendly}`
+  
+  // Fun subject lines based on status
+  if (report.overall_status === 'pass') {
+    return `🍌 Everything's a-peel-ing! — ${friendly}`
+  } else if (report.overall_status === 'warn') {
+    return `🍌⚠️ Banana bruises detected — ${friendly}`
+  } else {
+    return `🍌🔥 Time to split - we have issues! — ${friendly}`
+  }
 }
 
-function buildEmailHtml(report: HealthReport): string {
-  const rows = report.checks
+function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): string {
+  // Get error rate details for better visualization
+  const errorRateCheck = report.checks.find(c => c.name === 'request_error_rate')
+  const errorDetails = errorRateCheck?.details as any || {}
+  
+  // Fun status messages
+  const statusMessage = report.overall_status === 'pass' 
+    ? "🎉 Your DayStart backend is running smoother than a perfectly ripe banana!"
+    : report.overall_status === 'warn'
+    ? "🤔 We've detected some minor bruises on our banana infrastructure..."
+    : "🚨 Houston, we have a banana emergency! Critical issues detected."
+
+  // Create check rows with better formatting
+  const checkRows = report.checks
     .map((c) => {
-      const pillBg = c.status === 'pass' ? '#16a34a' : c.status === 'warn' ? '#FFD23F' : c.status === 'fail' ? '#dc2626' : '#6b7280'
-      const pillText = c.status === 'warn' ? '#8B4513' : '#ffffff'
-      const detailsJson = escapeHtml(
-        JSON.stringify(c.details ?? (c.error ? { error: c.error } : {})),
-      )
+      const statusEmoji = c.status === 'pass' ? '✅' : c.status === 'warn' ? '⚠️' : c.status === 'fail' ? '❌' : '⏭️'
+      const bgColor = c.status === 'pass' ? '#f0fdf4' : c.status === 'warn' ? '#fffbeb' : c.status === 'fail' ? '#fef2f2' : '#f9fafb'
+      
+      // Format details based on check type
+      let detailsHtml = ''
+      if (c.name === 'request_error_rate' && c.details) {
+        const d = c.details as any
+        if (d.errors_24h > 0) {
+          detailsHtml = `
+            <div style="font-size:13px;line-height:1.5">
+              <strong>${d.errors_24h} errors</strong> in last 24h (${d.error_rate_percent}%)
+              ${d.process_jobs_errors > 0 ? `<br><span style="color:#dc2626;font-weight:600">⚠️ ${d.process_jobs_errors} process_jobs failures!</span>` : ''}
+              ${Object.keys(d.errors_by_endpoint || {}).length > 0 ? `<br><strong>By endpoint:</strong> ${Object.entries(d.errors_by_endpoint).map(([ep, count]) => `${ep} (${count})`).join(', ')}` : ''}
+              ${Object.keys(d.errors_by_code || {}).length > 0 ? `<br><strong>By type:</strong> ${Object.entries(d.errors_by_code).map(([code, count]) => `${code} (${count})`).join(', ')}` : ''}
+            </div>`
+        } else {
+          detailsHtml = '<span style="color:#16a34a">No errors detected</span>'
+        }
+      } else {
+        detailsHtml = `<pre style="margin:0;font-family:ui-monospace,monospace;font-size:11px;color:#666">${escapeHtml(JSON.stringify(c.details ?? c.error ?? {}, null, 2))}</pre>`
+      }
+      
       return `
-        <tr>
-          <td style="padding:12px 14px;font-weight:700;color:#111;border-bottom:1px solid #eee;white-space:nowrap">${c.name}</td>
-          <td style="padding:12px 14px;border-bottom:1px solid #eee;white-space:nowrap">
-            <span style="display:inline-block;padding:4px 10px;border-radius:999px;background:${pillBg};color:${pillText};font-weight:700;font-size:12px;letter-spacing:.3px">${c.status.toUpperCase()}</span>
+        <tr style="background:${bgColor}">
+          <td style="padding:12px;border-bottom:1px solid #e5e7eb">
+            <span style="font-weight:600">${statusEmoji} ${c.name}</span>
           </td>
-          <td style="padding:12px 14px;border-bottom:1px solid #eee">
-            <pre style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;line-height:1.4;color:#111">${detailsJson}</pre>
+          <td style="padding:12px;border-bottom:1px solid #e5e7eb">
+            ${detailsHtml}
           </td>
         </tr>`
     })
     .join('')
 
-  const overallPillBg = report.overall_status === 'pass' ? '#16a34a' : report.overall_status === 'warn' ? '#FFD23F' : report.overall_status === 'fail' ? '#dc2626' : '#6b7280'
-  const overallPillText = report.overall_status === 'warn' ? '#8B4513' : '#ffffff'
+  // Recent errors section
+  const recentErrorsHtml = errorDetails.recent_errors?.length > 0 ? `
+    <div style="margin-top:20px;padding:16px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px">
+      <h3 style="margin:0 0 12px 0;font-size:14px;color:#92400e">📋 Recent Error Samples</h3>
+      <table style="width:100%;font-size:12px;font-family:ui-monospace,monospace">
+        ${errorDetails.recent_errors.map((err: any) => `
+          <tr>
+            <td style="padding:4px 8px;white-space:nowrap;color:#666">${new Date(err.timestamp).toLocaleTimeString()}</td>
+            <td style="padding:4px 8px;font-weight:600">${err.endpoint}</td>
+            <td style="padding:4px 8px;color:#dc2626">${err.error_code}</td>
+            <td style="padding:4px 8px;color:#666">${err.status_code}</td>
+          </tr>
+        `).join('')}
+      </table>
+    </div>
+  ` : ''
 
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#FFFDF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111">
+  // AI Diagnosis section
+  const aiDiagnosisHtml = report.ai_diagnosis ? `
+    <div style="margin-bottom:20px;padding:16px;background:linear-gradient(135deg,#fef3c7,#fde68a);border:2px solid #f59e0b;border-radius:12px;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
+      <h3 style="margin:0 0 8px 0;font-size:16px;color:#111;display:flex;align-items:center">
+        🧠 AI Diagnosis
+      </h3>
+      <p style="margin:0;color:#111;font-size:14px;line-height:1.6">${escapeHtml(report.ai_diagnosis)}</p>
+    </div>
+  ` : ''
+
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#FFFDF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0;padding:0;background:#FFFDF0">
       <tr>
         <td>
-          <table role="presentation" align="center" width="640" cellspacing="0" cellpadding="0" style="margin:24px auto;background:#ffffff;border:1px solid #8B4513;border-radius:12px;overflow:hidden">
+          <table role="presentation" align="center" width="680" cellspacing="0" cellpadding="0" style="margin:24px auto;background:#ffffff;border:2px solid #f59e0b;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)">
             <tr>
-              <td style="background:#FFD23F;border-bottom:1px solid #8B4513;padding:16px 20px">
-                <div style="font-size:18px;font-weight:800;color:#111">🍌 DayStart Healthcheck — ${report.overall_status.toUpperCase()}</div>
+              <td style="background:linear-gradient(135deg,#fbbf24,#f59e0b);padding:24px;text-align:center">
+                <h1 style="margin:0 0 8px 0;font-size:28px;color:#111">🍌 DayStart Health Report</h1>
+                <p style="margin:0;font-size:16px;color:#111;font-weight:500">${statusMessage}</p>
               </td>
             </tr>
             <tr>
-              <td style="padding:16px 20px">
-                <p style="margin:0 0 8px 0">
-                  <strong>Overall:</strong>
-                  <span style="display:inline-block;margin-left:8px;padding:4px 10px;border-radius:999px;background:${overallPillBg};color:${overallPillText};font-weight:800;font-size:12px;letter-spacing:.3px">${report.overall_status.toUpperCase()}</span>
-                </p>
-                <p style="margin:0 0 16px 0;color:#8B4513">${escapeHtml(report.summary)}</p>
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse">
-                  <thead>
-                    <tr>
-                      <th align="left" style="padding:8px 12px;border-bottom:2px solid #8B4513;color:#8B4513;text-transform:uppercase;font-size:12px;letter-spacing:.4px">Check</th>
-                      <th align="left" style="padding:8px 12px;border-bottom:2px solid #8B4513;color:#8B4513;text-transform:uppercase;font-size:12px;letter-spacing:.4px">Status</th>
-                      <th align="left" style="padding:8px 12px;border-bottom:2px solid #8B4513;color:#8B4513;text-transform:uppercase;font-size:12px;letter-spacing:.4px">Details</th>
-                    </tr>
-                  </thead>
-                  <tbody>${rows}</tbody>
-                </table>
-                <p style="margin-top:16px;color:#666;font-size:12px">Request: ${report.request_id} • Started: ${report.started_at} • Duration: ${report.duration_ms} ms</p>
+              <td style="padding:24px">
+                ${aiDiagnosisHtml}
+                
+                <div style="margin-bottom:20px;padding:16px;background:#f9fafb;border-radius:8px">
+                  <h3 style="margin:0 0 12px 0;font-size:16px">📊 System Checks</h3>
+                  <table style="width:100%;border-collapse:collapse">
+                    ${checkRows}
+                  </table>
+                </div>
+                
+                ${recentErrorsHtml}
+                
+                <div style="margin-top:20px;padding:12px;background:#f3f4f6;border-radius:8px;font-size:11px;color:#6b7280;text-align:center">
+                  <strong>Request ID:</strong> ${report.request_id}<br>
+                  <strong>Runtime:</strong> ${report.duration_ms}ms • ${new Date(report.started_at).toLocaleString()}
+                </div>
               </td>
             </tr>
           </table>
@@ -533,16 +645,97 @@ function buildEmailHtml(report: HealthReport): string {
   </body></html>`
 }
 
-function buildEmailText(report: HealthReport): string {
+function buildEmailText(report: HealthReport & { ai_diagnosis?: string }): string {
+  const errorRateCheck = report.checks.find(c => c.name === 'request_error_rate')
+  const errorDetails = errorRateCheck?.details as any || {}
+  
   const lines = [
-    `Overall: ${report.overall_status.toUpperCase()}`,
-    report.summary,
+    `DayStart Health Report - ${report.overall_status.toUpperCase()}`,
+    '=' .repeat(40),
     '',
-    ...report.checks.map((c) => `- ${c.name}: ${c.status.toUpperCase()} ${c.error ? `(error: ${c.error})` : ''}`),
-    '',
-    `Request: ${report.request_id} | Started: ${report.started_at} | Duration: ${report.duration_ms}ms`,
   ]
+  
+  if (report.ai_diagnosis) {
+    lines.push('AI DIAGNOSIS:', report.ai_diagnosis, '', '-'.repeat(40), '')
+  }
+  
+  lines.push('SYSTEM CHECKS:')
+  report.checks.forEach(c => {
+    const status = c.status === 'pass' ? '✅' : c.status === 'warn' ? '⚠️' : c.status === 'fail' ? '❌' : '⏭️'
+    lines.push(`${status} ${c.name}: ${c.status.toUpperCase()}`)
+    
+    if (c.name === 'request_error_rate' && errorDetails.errors_24h > 0) {
+      lines.push(`   - ${errorDetails.errors_24h} errors (${errorDetails.error_rate_percent}%)`)
+      if (errorDetails.process_jobs_errors > 0) {
+        lines.push(`   - ⚠️  ${errorDetails.process_jobs_errors} process_jobs failures!`)
+      }
+    }
+  })
+  
+  if (errorDetails.recent_errors?.length > 0) {
+    lines.push('', 'RECENT ERRORS:')
+    errorDetails.recent_errors.forEach((err: any) => {
+      lines.push(`- ${new Date(err.timestamp).toLocaleTimeString()} ${err.endpoint} ${err.error_code} (${err.status_code})`)
+    })
+  }
+  
+  lines.push('', `Request: ${report.request_id} | Duration: ${report.duration_ms}ms`)
+  
   return lines.join('\n')
+}
+
+async function getAIDiagnosis(checks: CheckResult[]): Promise<string> {
+  const openaiKey = Deno.env.get('OPENAI_API_KEY')
+  if (!openaiKey) {
+    throw new Error('OpenAI API key not configured')
+  }
+
+  // Collect failing/warning checks
+  const issues = checks.filter(c => c.status !== 'pass' && c.status !== 'skip')
+  
+  const systemPrompt = `You are analyzing a DayStart backend healthcheck. DayStart delivers AI-generated morning briefings with audio.
+Key context:
+- process_jobs: Core function that generates audio content (CRITICAL)
+- Rate limiting: Users have 4-hour cooldown between DayStarts  
+- Queue processing: Jobs are processed in order with retry logic
+- Content cache: External APIs cached for 12 hours
+
+Provide a concise diagnosis (2-3 sentences max) that includes:
+1. Root cause analysis
+2. Impact on users
+3. Recommended action (or "No action needed" if working as designed)`
+
+  const userPrompt = `Healthcheck issues found:
+${issues.map(check => `
+${check.name}: ${check.status.toUpperCase()}
+Details: ${JSON.stringify(check.details || check.error, null, 2)}
+`).join('\n')}
+
+Recent errors breakdown: ${JSON.stringify(checks.find(c => c.name === 'request_error_rate')?.details || {}, null, 2)}`
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'o3-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 150,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`OpenAI API error: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return data.choices[0]?.message?.content || 'Unable to generate diagnosis'
 }
 
 function escapeHtml(s: string): string {
