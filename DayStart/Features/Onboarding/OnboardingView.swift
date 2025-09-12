@@ -979,6 +979,25 @@ struct OnboardingView: View {
                 .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
             }
+            .overlay(alignment: .bottom) {
+                // Apple Weather attribution pinned to bottom; does not affect layout
+                HStack(spacing: 6) {
+                    Button(action: {
+                        if let url = URL(string: "https://weatherkit.apple.com/legal-attribution.html") {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        Text("Powered by  Weather")
+                            .font(.system(size: min(11, geometry.size.width * 0.028), weight: .semibold))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.9))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .opacity(textOpacity)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(8, geometry.safeAreaInsets.bottom + 8))
+            }
         }
     }
     

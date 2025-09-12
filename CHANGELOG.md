@@ -9,10 +9,13 @@
 📱 **Permission flow updates and AI-powered healthcheck**
 
 ### iOS App Updates:
-✨ **App Store Compliance Fix:**
+✨ **App Store Compliance Fixes:**
 - Changed permission request buttons from "Enable Location" and "Enable Calendar" to "Continue"
 - Addresses Apple's Guideline 5.1.1 requirement for neutral language in permission requests
-- No functional changes - just button text to respect user choice
+- Added Apple Weather attribution as required by Guideline 5.2.5
+  - Weather attribution added to Location Permission onboarding page
+  - Terms, Privacy, and Weather Attribution links added to Settings/Edit view
+- No functional changes - just compliance updates for App Store requirements
 
 ### Backend Updates:
 🍌 **The "Enhanced Healthcheck with AI Diagnosis" Release**

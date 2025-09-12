@@ -561,46 +561,35 @@ struct EditScheduleView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 
-                // Legal links - use Text with onTapGesture to avoid Form row issues
+                // Legal links
                 HStack(spacing: 12) {
-                    Text("Terms")
-                        .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.8))
-                        .onTapGesture {
-                            if let url = URL(string: "https://daystart.bananaintelligence.ai/terms") {
-                                UIApplication.shared.open(url)
-                            }
-                        }
-                    
-                    Text("•")
-                        .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.8))
-                    
-                    Text("Privacy")
-                        .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.8))
-                        .onTapGesture {
-                            if let url = URL(string: "https://daystart.bananaintelligence.ai/privacy") {
-                                UIApplication.shared.open(url)
-                            }
-                        }
-                    
-                    Text("•")
-                        .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.8))
-                    
-                    HStack(spacing: 3) {
-                        Text(" Weather")
-                            .fontWeight(.medium)
-                    }
-                    .font(.caption)
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.8))
-                    .onTapGesture {
-                        if let url = URL(string: "https://weatherkit.apple.com/legal-attribution.html") {
+                    Button("Terms") {
+                        if let url = URL(string: "https://daystart.bananaintelligence.ai/terms") {
                             UIApplication.shared.open(url)
                         }
                     }
-                }                
+                    Text("•")
+                    Button("Privacy") {
+                        if let url = URL(string: "https://daystart.bananaintelligence.ai/privacy") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    Text("•")
+                    Button {
+                        if let url = URL(string: "https://weatherkit.apple.com/legal-attribution.html") {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("")
+                            Text(" Weather")
+                                .fontWeight(.medium)
+                        }
+                    }
+                }
+                .font(.caption)
+                .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.8))
+                
                 if let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
                    let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String {
                     Text("Version \(appVersion) (\(buildNumber))")
