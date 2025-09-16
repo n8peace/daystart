@@ -82,8 +82,8 @@ async function runHealthcheckAsync({ request_id, notify, started_at }: { request
   checks.push(await withTimeout('db_connectivity', () => checkDbConnectivity(supabase), 3000))
   checks.push(await withTimeout('jobs_queue', () => checkJobsHealth(supabase), 5000))
   checks.push(await withTimeout('content_cache_freshness', () => checkContentCache(supabase), 4000))
-  checks.push(await withTimeout('storage_access', () => checkStorageAccess(supabase), 4000))
-  checks.push(await withTimeout('internal_urls', () => checkInternalUrls(), 3000))
+  checks.push(await withTimeout('storage_access', () => checkStorageAccess(supabase), 8000))
+  checks.push(await withTimeout('internal_urls', () => checkInternalUrls(), 6000))
   checks.push(await withTimeout('audio_cleanup_heartbeat', () => checkAudioCleanupHeartbeat(supabase), 3000))
   checks.push(await withTimeout('request_error_rate', () => checkRequestErrorRate(supabase), 3000))
 
@@ -379,7 +379,7 @@ async function checkInternalUrls(): Promise<CheckResult> {
   for (const ep of endpoints) {
     try {
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 1500)
+      const timeout = setTimeout(() => controller.abort(), 3000)
       const res = await fetch(`${baseUrl}${ep.path}`, {
         method: ep.method,
         headers: ep.headers,

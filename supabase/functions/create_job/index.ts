@@ -29,6 +29,8 @@ interface CreateJobRequest {
   calendar_events?: any[];
   // Explicitly allow re-queuing and updating an existing ready/processing job
   force_update?: boolean;
+  // Flag to indicate this is a welcome/onboarding job
+  is_welcome?: boolean;
 }
 
 interface CreateJobResponse {
@@ -144,7 +146,7 @@ serve(async (req: Request): Promise<Response> => {
             lease_until: null,
             estimated_ready_time,
             status: 'queued',
-            priority: calculatePriority(body.local_date, body.scheduled_at),
+            priority: body.is_welcome ? 100 : calculatePriority(body.local_date, body.scheduled_at),
             updated_at: new Date().toISOString()
           })
           .eq('job_id', existingJob.job_id)
@@ -241,7 +243,7 @@ serve(async (req: Request): Promise<Response> => {
         tts_provider: 'openai',
         estimated_ready_time,
         status: 'queued',
-        priority: calculatePriority(body.local_date, body.scheduled_at),
+        priority: body.is_welcome ? 100 : calculatePriority(body.local_date, body.scheduled_at),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,local_date',

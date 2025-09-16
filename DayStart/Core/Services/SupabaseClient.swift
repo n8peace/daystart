@@ -117,7 +117,8 @@ class SupabaseClient {
         schedule: DayStartSchedule,
         locationData: LocationData? = nil,
         weatherData: WeatherData? = nil,
-        calendarEvents: [String]? = nil
+        calendarEvents: [String]? = nil,
+        isWelcome: Bool = false
     ) async throws -> JobResponse {
         let url = functionsURL.appendingPathComponent("create_job")
         
@@ -146,7 +147,8 @@ class SupabaseClient {
             location_data: locationData,
             weather_data: weatherData,
             calendar_events: calendarEvents,
-            force_update: nil
+            force_update: nil,
+            is_welcome: isWelcome
         )
         
         let jsonData = try JSONEncoder().encode(jobRequest)
@@ -209,6 +211,78 @@ class SupabaseClient {
         }
     }
 
+    // MARK: - Create Initial Schedule Jobs
+    
+    /// Creates jobs for the initial schedule after onboarding, excluding today
+    func createInitialScheduleJobs(
+        schedule: DayStartSchedule,
+        preferences: UserSettings,
+        excludeToday: Bool = true
+    ) async throws -> Int {
+        logger.log("📅 Creating initial schedule jobs (excludeToday: \(excludeToday))", level: .info)
+        
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var jobsCreated = 0
+        
+        // Create jobs for the next 14 days
+        for dayOffset in 0..<14 {
+            guard let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: today) else {
+                continue
+            }
+            
+            // Skip today if requested
+            if excludeToday && dayOffset == 0 {
+                logger.log("⏭️ Skipping today for initial schedule", level: .debug)
+                continue
+            }
+            
+            // Check if this day is in the schedule
+            let weekday = calendar.component(.weekday, from: targetDate)
+            let dayOfWeek = WeekDay.fromCalendarWeekday(weekday)
+            
+            guard schedule.repeatDays.contains(dayOfWeek) else {
+                continue
+            }
+            
+            // Create scheduled time for this date
+            let scheduledTime = calendar.date(bySettingHour: calendar.component(.hour, from: schedule.time),
+                                              minute: calendar.component(.minute, from: schedule.time),
+                                              second: 0,
+                                              of: targetDate) ?? targetDate
+            
+            // Skip if the scheduled time has already passed
+            if scheduledTime < Date() {
+                logger.log("⏭️ Skipping past time: \(scheduledTime)", level: .debug)
+                continue
+            }
+            
+            do {
+                // Build snapshot for the date (without blocking on weather/calendar for future dates)
+                let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: scheduledTime)
+                
+                _ = try await createJob(
+                    for: scheduledTime,
+                    with: preferences,
+                    schedule: schedule,
+                    locationData: snapshot.location,
+                    weatherData: dayOffset <= 1 ? snapshot.weather : nil, // Only include weather for near-term
+                    calendarEvents: dayOffset <= 1 ? snapshot.calendar : nil, // Only include calendar for near-term
+                    isWelcome: false
+                )
+                
+                jobsCreated += 1
+                logger.log("✅ Created job for \(localDateString(from: scheduledTime))", level: .debug)
+            } catch {
+                logger.logError(error, context: "Failed to create job for \(scheduledTime)")
+                // Continue creating other jobs even if one fails
+            }
+        }
+        
+        logger.log("📅 Created \(jobsCreated) initial schedule jobs", level: .info)
+        return jobsCreated
+    }
+    
     // MARK: - Bulk Update Jobs API
     func updateJobs(
         dates: [Date],
@@ -548,6 +622,7 @@ fileprivate struct CreateJobRequest: Codable {
     let weather_data: WeatherData?
     let calendar_events: [String]?
     let force_update: Bool? // optional, when set true allows re-queueing existing job
+    let is_welcome: Bool? // optional, when set true indicates this is a welcome/onboarding job
 }
 
 // MARK: - Update Jobs API models

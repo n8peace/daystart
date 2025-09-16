@@ -73,7 +73,7 @@ struct OnboardingView: View {
     private let logger = DebugLogger.shared
     @State private var name = ""
     @State private var selectedTime = Calendar.current.date(from: DateComponents(hour: 7, minute: 0)) ?? Date()
-    @State private var selectedDays: Set<WeekDay> = Set([.monday, .tuesday, .wednesday, .thursday, .friday])
+    @State private var selectedDays: Set<WeekDay> = Set(WeekDay.allCases) // All days by default
     @State private var includeWeather = false
     @State private var includeNews = true
     @State private var includeSports = true
@@ -590,7 +590,7 @@ struct OnboardingView: View {
                     }
                     
                     VStack(spacing: geometry.size.height * 0.02) {
-                        Text("When Do You Rise?")
+                        Text("Set Your Daily Wake Time")
                             .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                             .foregroundColor(BananaTheme.ColorToken.text)
                             .multilineTextAlignment(.center)
@@ -599,7 +599,7 @@ struct OnboardingView: View {
                             .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
-                        Text("We'll have your briefing ready when you wake up")
+                        Text("We'll deliver your daily briefing every morning")
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
@@ -610,87 +610,47 @@ struct OnboardingView: View {
                 
                 Spacer(minLength: geometry.size.height * 0.04)
                 
-                // Time picker and days selection
-                VStack(spacing: geometry.size.height * 0.04) {
+                // Time picker section
+                VStack(spacing: geometry.size.height * 0.03) {
                     // Time picker
-                    VStack(spacing: 16) {
-                        Text("Briefing Time")
-                            .font(.system(size: min(18, geometry.size.width * 0.045), weight: .semibold))
-                            .foregroundColor(BananaTheme.ColorToken.text)
-                            .opacity(textOpacity)
-                        
+                    VStack(spacing: 20) {
                         HStack {
                             Spacer()
                             DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
                                 .datePickerStyle(.wheel)
                                 .labelsHidden()
-                                .frame(height: min(120, geometry.size.height * 0.15))
+                                .frame(height: min(140, geometry.size.height * 0.18))
                                 .clipped()
                             Spacer()
                         }
                         .frame(maxWidth: .infinity)
                         .opacity(textOpacity)
-                    }
-                    
-                    // Days selection
-                    VStack(spacing: 16) {
-                        Text("Which Days?")
-                            .font(.system(size: min(18, geometry.size.width * 0.045), weight: .semibold))
-                            .foregroundColor(BananaTheme.ColorToken.text)
-                            .opacity(textOpacity)
                         
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), spacing: 8) {
-                            ForEach(WeekDay.allCases, id: \.id) { day in
-                                Button(action: {
-                                    let wasSelected = selectedDays.contains(day)
-                                    if wasSelected {
-                                        selectedDays.remove(day)
-                                    } else {
-                                        selectedDays.insert(day)
-                                    }
-                                    impactFeedback()
-                                }) {
-                                    VStack(spacing: 4) {
-                                        Text(String(day.name.prefix(1)))
-                                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .bold))
-                                            .foregroundColor(selectedDays.contains(day) ? .white : BananaTheme.ColorToken.text)
-                                        
-                                        Text(day.name)
-                                            .font(.system(size: min(10, geometry.size.width * 0.025), weight: .medium))
-                                            .foregroundColor(selectedDays.contains(day) ? .white : BananaTheme.ColorToken.secondaryText)
-                                    }
-                                    .frame(width: min(40, geometry.size.width * 0.1), height: min(50, geometry.size.height * 0.06))
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(selectedDays.contains(day) ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
-                                            .stroke(selectedDays.contains(day) ? Color.clear : BananaTheme.ColorToken.border, lineWidth: 1)
-                                    )
-                                }
-                                .scaleEffect(selectedDays.contains(day) ? 1.05 : 1.0)
-                                .animation(.spring(response: 0.3), value: selectedDays.contains(day))
-                            }
+                        // Note about customization
+                        VStack(spacing: 8) {
+                            Text("Daily briefings, 7 days a week")
+                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                .multilineTextAlignment(.center)
+                            
+                            Text("You can customize which days later in Settings")
+                                .font(.system(size: min(12, geometry.size.width * 0.03), weight: .regular))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                .multilineTextAlignment(.center)
                         }
-                        .padding(.horizontal, geometry.size.width * 0.10)
                         .opacity(textOpacity)
+                        .padding(.horizontal, geometry.size.width * 0.08)
                     }
                     
                     // Preview
-                    if selectedDays.isEmpty {
-                        Text("Please Add Scheduled Days")
-                            .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                            .foregroundColor(Color.red)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.10)
-                            .transition(.opacity.combined(with: .scale))
-                    } else {
-                        Text("Your briefing will be ready every \(selectedDaysSummary) at \(shortTimeFormatter.string(from: selectedTime))")
-                            .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, geometry.size.width * 0.10)
-                            .transition(.opacity.combined(with: .scale))
+                    Text("Your briefing will be ready every day at \(shortTimeFormatter.string(from: selectedTime))")
+                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, geometry.size.width * 0.10)
+                        .opacity(textOpacity)
                     }
                 }
                 
@@ -698,7 +658,7 @@ struct OnboardingView: View {
                 
                 // CTA
                 Button(action: {
-                    guard !selectedDays.isEmpty else { return }
+                    // All days are always selected now
                     logger.logUserAction("Schedule setup CTA tapped")
                     impactFeedback()
                     withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
@@ -720,9 +680,7 @@ struct OnboardingView: View {
                         .cornerRadius(16)
                         .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
-                .disabled(selectedDays.isEmpty)
-                .opacity(selectedDays.isEmpty ? 0.5 : 1.0)
-                .scaleEffect(animationTrigger && !selectedDays.isEmpty ? 1.05 : 1.0)
+                .scaleEffect(animationTrigger ? 1.05 : 1.0)
                 .padding(.horizontal, geometry.size.width * 0.10)
                 .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 .opacity(textOpacity)
@@ -1781,18 +1739,29 @@ struct OnboardingView: View {
             do {
                 let snapshot = await SnapshotBuilder.shared.buildSnapshot()
                 
+                // 1. Create welcome job for today only
                 let jobResponse = try await SupabaseClient.shared.createJob(
                     for: Date(),
                     with: UserPreferences.shared.settings,
                     schedule: UserPreferences.shared.schedule,
                     locationData: snapshot.location,
                     weatherData: snapshot.weather,
-                    calendarEvents: snapshot.calendar
+                    calendarEvents: snapshot.calendar,
+                    isWelcome: true
                 )
                 
-                logger.log("✅ ONBOARDING: First job created successfully with ID: \(jobResponse.jobId ?? "unknown")", level: .info)
+                logger.log("✅ ONBOARDING: Welcome job created successfully with ID: \(jobResponse.jobId ?? "unknown")", level: .info)
                 
-                // Immediately trigger processing of this specific job
+                // 2. Create initial schedule jobs starting from tomorrow
+                let jobsCreated = try await SupabaseClient.shared.createInitialScheduleJobs(
+                    schedule: UserPreferences.shared.schedule,
+                    preferences: UserPreferences.shared.settings,
+                    excludeToday: true
+                )
+                
+                logger.log("📅 ONBOARDING: Created \(jobsCreated) future scheduled jobs", level: .info)
+                
+                // 3. Immediately trigger processing of the welcome job
                 if let jobId = jobResponse.jobId {
                     do {
                         try await SupabaseClient.shared.invokeProcessJob(jobId: jobId)

@@ -283,6 +283,12 @@ class WelcomeDayStartScheduler: ObservableObject {
     private func prefetchTodaysAudio() async {
         logger.log("📦 Pre-creating today's audio during countdown", level: .info)
         
+        // Skip if we're in the onboarding flow - job is already created there
+        if UserDefaults.standard.bool(forKey: "shouldAutoStartWelcome") {
+            logger.log("⏭️ Skipping prefetch - welcome job already created in onboarding", level: .info)
+            return
+        }
+        
         let localDate = Date()
         let scheduler = await UserPreferences.shared.schedule
         let settings = await UserPreferences.shared.settings
@@ -298,7 +304,8 @@ class WelcomeDayStartScheduler: ObservableObject {
                 schedule: scheduler,
                 locationData: snapshot.location,
                 weatherData: snapshot.weather,
-                calendarEvents: snapshot.calendar
+                calendarEvents: snapshot.calendar,
+                isWelcome: true
             )
             
             logger.log("✅ Today's audio job created during countdown", level: .info)
@@ -311,6 +318,12 @@ class WelcomeDayStartScheduler: ObservableObject {
     private func prepareWelcomeContentInBackground() async {
         logger.log("📦 Preparing welcome content in background", level: .info)
         
+        // Skip if we're in the onboarding flow - job is already created there
+        if UserDefaults.standard.bool(forKey: "shouldAutoStartWelcome") {
+            logger.log("⏭️ Skipping background prep - welcome job already created in onboarding", level: .info)
+            return
+        }
+        
         let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: Date())
         
         do {
@@ -320,7 +333,8 @@ class WelcomeDayStartScheduler: ObservableObject {
                 schedule: UserPreferences.shared.schedule,
                 locationData: snapshot.location,
                 weatherData: snapshot.weather,
-                calendarEvents: snapshot.calendar
+                calendarEvents: snapshot.calendar,
+                isWelcome: true
             )
             logger.log("✅ Welcome content prepared in background", level: .info)
         } catch {

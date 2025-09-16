@@ -117,6 +117,7 @@ serve(async (req: Request): Promise<Response> => {
         .eq('user_id', user_id)
         .in('local_date', body.cancel_for_removed_dates)
         .in('status', ['queued', 'failed']) // Only cancel pending jobs (not processing/ready)
+        .neq('priority', 100) // Don't cancel welcome jobs (priority 100)
         .select('job_id, local_date, status');
 
       if (cancelError) {

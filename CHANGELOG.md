@@ -4,6 +4,53 @@
 
 ---
 
+## v2025.09.15 (Build 1) - September 15, 2025
+🍌 **The "Welcome Flow Fix" Release**
+📱 **Fixed welcome DayStart scheduling bypass issue**
+
+### iOS App Updates:
+🐛 **Welcome DayStart Fix:**
+- Fixed issue where welcome/onboarding DayStart could be cancelled if user's schedule didn't include current day
+- Welcome DayStart now bypasses schedule validation and always plays immediately
+- Prevents "00:00" duration display when audio was successfully generated but job was cancelled
+- Ensures new users always get their first DayStart experience regardless of schedule preferences
+
+✨ **Schedule Separation Enhancement:**
+- Welcome DayStart is now completely separate from regular scheduled DayStarts
+- Onboarding creates welcome job for today only, regular schedule starts tomorrow
+- Prevents duplicate job creation for the same date
+- Added `createInitialScheduleJobs()` method to pre-create 14 days of scheduled jobs
+- WelcomeDayStartScheduler now checks for existing jobs to avoid duplicates
+
+🎯 **Onboarding Simplification:**
+- Removed day selection from onboarding flow - defaults to all 7 days
+- Schedule page now only shows time picker with cleaner UI
+- Reduced cognitive load during onboarding for higher conversion
+- Users can customize days later in Settings after trying the product
+- Updated hero text to "Set Your Daily Wake Time" with daily delivery messaging
+
+### Backend Updates:
+🔧 **Job Processing Fix:**
+- Added special handling for welcome/onboarding jobs to bypass schedule validation
+- Welcome jobs now ignore user's day-of-week preferences during initial setup
+- Fixed race condition where jobs could be marked as "SCHEDULE_CHANGED" after audio generation
+- Prevents duplicate history entries for welcome DayStarts
+- Added `is_welcome` flag to job creation API (backwards compatible)
+- Jobs with priority 100 are now protected from schedule-based cancellation
+
+🏥 **Healthcheck Improvements:**
+- Increased storage access timeout from 4s to 8s to reduce false positives
+- Increased internal URLs check timeout from 3s to 6s for cold edge functions
+- Increased per-endpoint timeout from 1.5s to 3s to handle cold starts
+- Maintains warning status for actual timeouts while reducing false alerts
+
+### Database Updates:
+🗄️ **Migration 027 - Welcome Job Priority Documentation:**
+- Documented that priority 100 is reserved for welcome/onboarding jobs
+- Added check constraint to ensure priority values are between 0-100
+- Created indexes to optimize priority-based queries
+- Added table comment explaining welcome job behavior
+
 ## [Unreleased]
 🍌 **The "App Store Compliance & Enhanced Monitoring" Release**
 📱 **Permission flow updates and AI-powered healthcheck**
@@ -53,6 +100,15 @@
   - Added OpenAI integration for automatic diagnosis
   - Refactored email generation for better visual hierarchy
   - Implemented strict error thresholds for proactive alerting
+
+## v2025.09.4 (Build 10) - September 12, 2025 🚀 LIVE!
+🍌 **The "We're Live on the App Store!" Release**
+🎉 **First official release available to the public**
+
+**Live Status:**
+- Approved by Apple and live on the App Store as of September 12, 2025
+- Available for download at https://apps.apple.com/app/daystart/id6737686106
+- Marks the official launch of DayStart to the world!
 
 ## v2025.09.4 (Build 8) - September 9, 2025
 🍌 **The "Responsive Paywall & Location Permission" Release**

@@ -1,7 +1,30 @@
 # Claude Instructions for DayStart
 
 ## Project Overview
-DayStart is a production iOS app (16K+ lines) that delivers personalized AI-generated morning briefings. Users wake up to curated content including news, weather, calendar events, and motivational content delivered via high-quality AI voice synthesis.
+DayStart is a **LIVE PRODUCTION** iOS app (16K+ lines) with active paying users that delivers personalized AI-generated morning briefings. Users wake up to curated content including news, weather, calendar events, and motivational content delivered via high-quality AI voice synthesis.
+
+**⚠️ PRODUCTION CRITICAL:** This app is live on the App Store with real users and revenue. All changes must consider user impact and maintain backwards compatibility.
+
+## 🚨 PRODUCTION REQUIREMENTS
+
+### Critical Rules - NO EXCEPTIONS:
+- **🔒 BACKWARDS COMPATIBILITY MANDATORY**: All backend changes must support the current App Store version
+- **🚫 ZERO BREAKING CHANGES**: Never break existing functionality for live users
+- **📱 USER IMPACT FIRST**: Consider how changes affect paying customers' daily routine
+- **⏮️ ROLLBACK READY**: Every deployment must have a tested rollback strategy
+- **🧪 COMPATIBILITY TESTING**: Test all changes against current production app version
+
+### Before Making ANY Changes:
+- [ ] Will this change affect existing users?
+- [ ] Is this change backwards compatible with current App Store build?
+- [ ] Can users on older app versions still function normally?
+- [ ] Is there a rollback plan if something goes wrong?
+- [ ] Have I tested this change against the production environment?
+
+### Production Impact Categories:
+- **🟢 SAFE**: Additive changes, new optional features, iOS-only updates
+- **🟡 CAUTION**: Database schema changes, API modifications, configuration updates  
+- **🔴 DANGEROUS**: Breaking API changes, required migrations, authentication changes
 
 ## Developer Profile
 - Full stack senior developer
@@ -116,10 +139,13 @@ DayStart is a production iOS app (16K+ lines) that delivers personalized AI-gene
 - **Thread safety**: All UI updates on MainActor
 
 ### Backend Standards
-- **Backwards compatibility**: All schema changes must be additive
-- **Function versioning**: Version edge functions when making breaking changes
-- **Cost awareness**: Monitor OpenAI/ElevenLabs usage, implement caching
-- **Error logging**: Comprehensive logging for debugging production issues
+- **🚨 BACKWARDS COMPATIBILITY MANDATORY**: All backend changes must support the current App Store version
+- **📊 Database migrations must be additive only**: No dropping columns, tables, or changing data types
+- **🔄 API versioning required**: Version edge functions when making ANY changes to existing endpoints
+- **📱 Current app version support**: Must work with users who haven't updated their app yet
+- **💰 Cost awareness**: Monitor OpenAI/ElevenLabs usage, implement caching
+- **📝 Error logging**: Comprehensive logging for debugging production issues
+- **🧪 Migration testing**: Test all database changes with current production data structure
 
 ### Development Workflow
 - **Always update CHANGELOG.md**: Document all changes for version tracking
@@ -128,10 +154,14 @@ DayStart is a production iOS app (16K+ lines) that delivers personalized AI-gene
 - **Database migrations**: Test thoroughly, rollback plans required
 
 ### Deployment Rules
-- **User-only deployment**: Never auto-deploy to GitHub or Supabase
-- **Backwards compatibility**: All backend changes must support current App Store version
-- **Version coordination**: iOS app versions must align with backend capabilities
-- **App Store compliance**: Maintain privacy manifest and legal documents
+- **🚫 NEVER AUTO-DEPLOY**: User must explicitly approve all deployments to production
+- **🚨 PRODUCTION CRITICAL**: Never break existing app versions - users may not update immediately
+- **🔒 BACKWARDS COMPATIBILITY REQUIRED**: All backend changes must support current App Store version
+- **🧪 PRE-DEPLOYMENT TESTING**: Test compatibility with current production app version before deploying
+- **⏮️ ROLLBACK STRATEGY**: Every deployment must have tested rollback procedures
+- **📋 Version coordination**: iOS app versions must align with backend capabilities
+- **📱 App Store compliance**: Maintain privacy manifest and legal documents
+- **📊 User impact assessment**: Consider how changes affect users' daily morning routine
 
 ## Critical Implementation Notes
 

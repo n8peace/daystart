@@ -96,6 +96,10 @@ enum WeekDay: Int, CaseIterable, Codable, Identifiable {
         self.init(rawValue: weekday)
     }
     
+    static func fromCalendarWeekday(_ weekday: Int) -> WeekDay {
+        return WeekDay(weekday: weekday) ?? .sunday
+    }
+    
     var id: Int { rawValue }
     
     var name: String {
