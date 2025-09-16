@@ -2,569 +2,124 @@
 
 *Because every great day starts with knowing what's new, and every great changelog starts with bananas.*
 
----
+All notable changes to DayStart will be documented in this file.
 
-## v2025.09.16 (Build 2) - September 16, 2025
-🍌 **The "User Analytics & Complete Experience" Release**
-🎙️ **Multiple iOS improvements, automated daily briefings, and user tracking implementation**
-
-### iOS App Updates:
-🐛 **Permission Flow Fix:**
-- Fixed critical timing bug where weather permission dialog appeared after page transition
-- Users who granted location permission were still having weather disabled
-- Permission status now properly displays before advancing to next page
-- Both weather and calendar permission pages now follow iOS HIG standards
-
-🐛 **Day Abbreviation Fix:**
-- Fixed issue where day names were truncated with ellipsis (W...) on smaller screens
-- Fixed issue where day names wrapped to next line (We\nd) with larger font sizes
-- Updated day abbreviations to single/double letters: M, Tu, W, Th, F, Sa, Su
-- Added line limit and minimum scale factor to prevent text wrapping
-- Consistent day name display across Edit Schedule and History views
-- Better support for accessibility text sizes and smaller device screens
-
-🎯 **UX Improvements:**
-- Removed non-standard swipe gesture for triggering permission dialogs
-- Swipe navigation now works naturally on all onboarding pages
-- Clear visual feedback shows permission status (✓ Enabled or ✗ Disabled)
-- Users can advance via button tap or swipe after permission is determined
-
-### Backend Updates:
-🆕 **Daily Generic DayStart:**
-- Added cron job for automated daily generic DayStart at 4:45 AM ET
-- Creates a special job with user ID "DAILY_GENERIC" for non-personalized briefings
-- Configured with specific stocks: AAPL, BTC-USD, TSLA, SPY, QQQ
-- Uses "good_feelings" quote preference and voice2 (Rachel) from ElevenLabs
-- Skips weather and calendar sections for generic audience
-- 3-minute duration optimized for general market/news updates
-
-📊 **Purchase Users Analytics Implementation:**
-- Implemented purchase_users table tracking across all user-facing Edge Functions
-- Added fail-safe tracking calls to create_job, get_audio_status, submit_feedback, get_jobs, update_jobs, and update_job_snapshots
-- Only tracks users with x-auth-type: 'purchase' to avoid anonymous/test pollution
-- Automatically detects test receipts (starting with 'tx_') and flags appropriately
-- Non-critical tracking - failures don't affect core functionality
-- Enables user analytics: retention, activity patterns, and business intelligence
-- 100% backwards compatible - no impact on current app versions
-- Added comprehensive analytics SQL queries for monitoring user engagement
-
-### Technical Details:
-- Added `shortName` property to WeekDay enum for backward compatibility
-- Updated HistoryView to use WeekDay enum instead of DateFormatter for consistency
-- Ensured all day displays remain on single line with proper constraints
-- Removed automatic page navigation from permission request functions
-- Updated button logic to handle navigation separately from permission requests
-- Eliminated race condition between permission dialog and page transitions
-- Maintained backwards compatibility with existing user preferences
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
-
-## v2025.09.15 (Build 1) - September 15, 2025
-🍌 **The "Welcome Flow Fix" Release**
-📱 **Fixed welcome DayStart scheduling bypass issue**
-
-### iOS App Updates:
-🐛 **Welcome DayStart Fix:**
-- Fixed issue where welcome/onboarding DayStart could be cancelled if user's schedule didn't include current day
-- Welcome DayStart now bypasses schedule validation and always plays immediately
-- Prevents "00:00" duration display when audio was successfully generated but job was cancelled
-- Ensures new users always get their first DayStart experience regardless of schedule preferences
-
-✨ **Schedule Separation Enhancement:**
-- Welcome DayStart is now completely separate from regular scheduled DayStarts
-- Onboarding creates welcome job for today only, regular schedule starts tomorrow
-- Prevents duplicate job creation for the same date
-- Added `createInitialScheduleJobs()` method to pre-create 14 days of scheduled jobs
-- WelcomeDayStartScheduler now checks for existing jobs to avoid duplicates
-
-🎯 **Onboarding Simplification:**
-- Removed day selection from onboarding flow - defaults to all 7 days
-- Schedule page now only shows time picker with cleaner UI
-- Reduced cognitive load during onboarding for higher conversion
-- Users can customize days later in Settings after trying the product
-- Updated hero text to "Set Your Daily Wake Time" with daily delivery messaging
-
-### Backend Updates:
-🔧 **Job Processing Fix:**
-- Added special handling for welcome/onboarding jobs to bypass schedule validation
-- Welcome jobs now ignore user's day-of-week preferences during initial setup
-- Fixed race condition where jobs could be marked as "SCHEDULE_CHANGED" after audio generation
-- Prevents duplicate history entries for welcome DayStarts
-- Added `is_welcome` flag to job creation API (backwards compatible)
-- Jobs with priority 100 are now protected from schedule-based cancellation
-
-🏥 **Healthcheck Improvements:**
-- Increased storage access timeout from 4s to 8s to reduce false positives
-- Increased internal URLs check timeout from 3s to 6s for cold edge functions
-- Increased per-endpoint timeout from 1.5s to 3s to handle cold starts
-- Maintains warning status for actual timeouts while reducing false alerts
-
-### Database Updates:
-🗄️ **Migration 027 - Welcome Job Priority Documentation:**
-- Documented that priority 100 is reserved for welcome/onboarding jobs
-- Added check constraint to ensure priority values are between 0-100
-- Created indexes to optimize priority-based queries
-- Added table comment explaining welcome job behavior
 
 ## [Unreleased]
-🍌 **The "App Store Compliance & Enhanced Monitoring" Release**
-📱 **Permission flow updates and AI-powered healthcheck**
 
-### iOS App Updates:
-✨ **App Store Compliance Fixes:**
-- Changed permission request buttons from "Enable Location" and "Enable Calendar" to "Continue"
-- Addresses Apple's Guideline 5.1.1 requirement for neutral language in permission requests
-- Added Apple Weather attribution as required by Guideline 5.2.5
-  - Weather attribution added to Location Permission onboarding page
-  - Terms, Privacy, and Weather Attribution links added to Settings/Edit view
-- No functional changes - just compliance updates for App Store requirements
+### Added
+### Changed
+- Increased sports story limits for longer briefings: 3-minute briefings now include 2 sports (was 1), 5-minute briefings include 3 sports (was 1), and 5+ minute briefings include 3 sports (was 2)
+### Fixed
+### Removed
 
-### Backend Updates:
-🍌 **The "Enhanced Healthcheck with AI Diagnosis" Release**
-🧠 **Smarter monitoring with o3-mini powered error analysis**
+---
 
-✨ **Healthcheck Improvements:**
-- Added AI-powered diagnosis using o3-mini for automatic error analysis
-- Excluded healthcheck endpoint from error rate calculations (no more false positives!)
-- Implemented strict error thresholds: ANY errors = WARN, ANY process_jobs errors = FAIL
-- Added detailed error breakdown by endpoint and error code
-- Shows last 5 error samples with timestamps for better debugging
+## [2025.09.16] - 2025-09-16
 
-🎨 **Fun Email Redesign:**
-- Banana-themed email templates with gradient headers and emoji indicators
-- Dynamic subject lines: "Everything's a-peel-ing!" (pass), "Banana bruises detected" (warn), "Time to split - we have issues!" (fail)
-- Visual status cards instead of plain tables
-- AI Diagnosis prominently displayed at the top when issues are detected
-- Recent error samples in a dedicated highlighted section
+**Build:** 1 | **Commit:** `de4a1de`
 
-📊 **Better Error Tracking:**
-- Error grouping by endpoint (`/create_job`, `/process_jobs`, etc.)
-- Error grouping by type (`RATE_LIMITED`, `AUTH_FAILED`, etc.)
-- Process jobs error count highlighted separately (critical path monitoring)
-- Accurate error percentages excluding healthcheck self-reports
+### Added
+- iOS best practice permission flow with complete gesture blocking
+- Invisible overlay that captures ALL gestures when permissions are undetermined  
+- Real-time permission status synchronization with system state
+- Purchase user analytics tracking across all Edge Functions
+- Daily generic DayStart automation (4:45 AM ET)
+- AI-powered healthcheck diagnosis using o3-mini
+- Apple Weather attribution for App Store compliance
+- Welcome job priority system with bypass validation
 
-🧪 **Technical Details:**
-- Updated `checkRequestErrorRate` to use `.neq('endpoint', '/healthcheck')`
-- Added `getAIDiagnosis` function with focused prompts for backend analysis
-- Enhanced email HTML/text builders with conditional formatting
-- Improved type safety with `HealthReport & { ai_diagnosis?: string }`
+### Fixed
+- **Critical:** Permission timing bug where weather dialog appeared after page transition
+- **Critical:** Users who granted location permission having weather incorrectly disabled
+- Day abbreviation display truncated with ellipsis (W...) on smaller screens
+- Day names wrapping to next line (We\nd) with larger font sizes
+- Welcome DayStart could be cancelled if user's schedule didn't include current day
+- Race conditions between permission dialogs and page transitions
 
-### Backend Changes (Supabase Edge Functions):
-- **healthcheck/index.ts**: Complete rewrite of error tracking logic
-  - Enhanced SQL queries to exclude self-reporting and provide detailed breakdowns
-  - Added OpenAI integration for automatic diagnosis
-  - Refactored email generation for better visual hierarchy
-  - Implemented strict error thresholds for proactive alerting
+### Changed
+- Permission pages now block ALL navigation until permissions are explicitly granted/denied
+- Day abbreviations updated to single/double letters: M, Tu, W, Th, F, Sa, Su
+- Onboarding simplified - removed day selection, defaults to all 7 days
+- Welcome DayStart completely separate from regular scheduled DayStarts
+- Healthcheck timeouts increased to reduce false positives from cold starts
+- Performance: Reduced buffering countdown from 3 minutes to 2 minutes
 
-## v2025.09.4 (Build 10) - September 12, 2025 🚀 LIVE!
-🍌 **The "We're Live on the App Store!" Release**
-🎉 **First official release available to the public**
+### Technical Details
+- Added `canNavigateFromCurrentPage` computed property for permission validation
+- Implemented gesture-blocking overlay with both tap and swipe handling
+- Enhanced permission request functions with proper async handling
+- Added `shortName` property to WeekDay enum for backward compatibility
+- Updated `checkRequestErrorRate` to exclude healthcheck self-reporting
+- Added `is_welcome` flag to job creation API (backwards compatible)
 
-**Live Status:**
+---
+
+## [2025.09.4] - 2025-09-12 🚀
+
+**Build:** 10 | **Commit:** `500cc04` | **App Store Release**
+
+### Added
+- **🎉 First public release on Apple App Store**
+- Production-ready iOS application available for download
+- App Store listing at https://apps.apple.com/app/daystart/id6737686106
+
+### Live Status
 - Approved by Apple and live on the App Store as of September 12, 2025
-- Available for download at https://apps.apple.com/app/daystart/id6737686106
 - Marks the official launch of DayStart to the world!
 
-## v2025.09.4 (Build 8) - September 9, 2025
-🍌 **The "Responsive Paywall & Location Permission" Release**
-📱 **Fixed layout issues on smaller devices and improved permission handling**
+---
 
-✨ **Responsive Paywall Design:**
-- Fixed paywall layout cutoff on iPhone 13 mini and smaller devices
+## [2025.09.4] - 2025-09-09
+
+**Build:** 8
+
+### Fixed
+- Paywall layout cutoff on iPhone 13 mini and smaller devices
+- Location permission dialog improvements
+- Responsive design adjustments for compact devices
+
+### Changed
 - Dynamic spacing adjustments for screens under 700pt height
 - Reduced font sizes and padding for compact devices
-- Smaller star icon and optimized button heights for better fit
-- Ensured all critical elements (Terms, Privacy, Restore) remain visible
-
-🎨 **Compact Layout Adjustments:**
-- Star icon: 35pt (compact) vs 45pt (regular)
-- Title font: 24pt (compact) vs 28pt (regular) 
-- CTA button: 56pt height (compact) vs 64pt (regular)
-- Pricing cards: Reduced padding and optimized spacing
-- Bottom safe area: 20pt + safe area (compact) vs 44pt + safe area (regular)
-
-✨ **Location Permission Updates:**
-- Added proper location permission handling during onboarding weather setup
-- Shows location permission prompt when user taps "Enable Location" 
-- Changed button text from "Enable Weather" to "Enable Location" for clarity 
-- Graceful handling when permission is denied with clear user feedback
-- Fixed state management to properly update UI after permission changes
-
-🎨 **Onboarding Hero Title Improvements:**
-- Added horizontal padding (5% on each side) to all hero titles for better spacing
-- Implemented single-line constraint with automatic font scaling
-- Hero titles now shrink to fit narrow screens instead of wrapping to multiple lines
-- Maintains readability with minimum scale factor of 50%
-- Affected titles: "Mornings Suck. We Get It.", "Let's Make This Personal", "When Do You Rise?", etc.
-
-💳 **Paywall Design Overhaul:**
-- **Fixed spacing issues**: Removed excess whitespace between pricing options and CTA button
-- **Redesigned bottom section**: Better visual hierarchy with distinct groupings (badge → CTA → legal)
-- **Added urgency elements**: Adaptive "Limited Time Offer" badge (shows on larger screens only)
-- **Enhanced animations**: Subtle pulse on CTA button and breathing effect on selected pricing cards
-- **Improved consistency**: CTA button now uses gradient style matching other onboarding pages
-- **Better responsive design**: Tighter spacing on compact screens, more generous on larger devices
-- **Visual polish**: Added subtle gradient background to bottom section for better separation
-
-🔧 **Technical Improvements:**
-- Added `isCompactHeight` detection for devices under 700pt
-- Responsive PricingCard component with dynamic sizing
-- Added LocationManager integration to OnboardingView
-- Proper error handling for all permission states
-- Toast notifications for permission denial feedback
-
-📱 **Testing Devices:**
-- iPad Pro 11" (M3) - iPadOS 18.3.1
-- iPad mini (A17 Pro) - iPadOS 18.0
-- iPhone 13 mini - iOS 18.x
+- Optimized button heights and star icon sizing for better fit
 
 ---
 
-## Development & Infrastructure 🔧
+## Archive
 
-### September 9, 2025
-🏈 **Multi-Sport ESPN API Enhancement**
+*Older versions have been moved to maintain changelog readability. For complete version history including development builds, see git commit history.*
 
-**New Feature:**
-- Expanded ESPN API integration to fetch all major sports instead of just NBA
-- Now retrieves NFL, College Football, MLB, NBA, and NHL games in a single content cache
-- Added comprehensive sports data parsing for consistent processing across all sources
-
-**Sports Coverage Added:**
-- **NFL**: 8 games per fetch (prime time for September football season)
-- **College Football (NCAAF)**: 6 games per fetch (peak season coverage)  
-- **MLB**: 8 games per fetch (including playoff push and postseason)
-- **NHL**: 6 games per fetch (preseason and regular season)
-- **NBA**: 6 games per fetch (maintained existing coverage)
-
-**Technical Implementation:**
-- Enhanced `fetchESPN()` function with parallel API calls to multiple ESPN endpoints
-- Added `flattenAndParseSports()` function to handle multi-sport data parsing
-- Robust error handling - if individual sports fail, others continue successfully
-- Comprehensive logging showing successful/failed sports fetches and game counts
-- Single content cache entry combines all sports for efficient storage
-
-**Impact:**
-- Users now get relevant sports updates for current season (NFL/College Football in September vs NBA preseason)
-- Much richer sports content in morning briefings across all major sports
-- Better seasonal awareness - shows active sports rather than off-season games
-- Improved sports filtering and processing with consistent data structure
-
-**Files Modified:**
-- `supabase/functions/refresh_content/index.ts` - Multi-sport ESPN API integration
-- `supabase/functions/process_jobs/index.ts` - Sports data parsing and processing logic
+### Development Builds (2025.09.3 - 2025.09.4)
+- **Build 7:** iPad support removal, onboarding consistency improvements
+- **Build 6:** Enhanced location permission handling
+- **Build 3:** Core functionality improvements  
+- **Build 1:** Initial release implementation
 
 ---
 
-🔧 **Stock Data Processing Fix**
+## About This Changelog
 
-**Bug Fix:**
-- Fixed critical stock data parsing issue causing 0 stocks to appear in morning briefings
-- Stock data was stored as JSON-stringified content but code expected pre-parsed arrays
-- Added `flattenAndParseStocks()` function to properly extract quotes from multiple data formats
+This changelog follows the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format:
 
-**Technical Details:**
-- Enhanced stock processing with robust JSON parsing and deduplication
-- Added backward compatibility for existing data formats
-- Improved error handling for malformed stock data sources
-- Added debug logging to track stock parsing success
+- **Added** for new features
+- **Changed** for changes in existing functionality  
+- **Fixed** for any bug fixes
+- **Removed** for now removed features
+- **Security** for vulnerability fixes
 
-**Impact:**
-- Users with stock preferences will now see their selected stocks in morning briefings
-- Market updates will include proper stock price and change information
-- Weekend vs weekday stock filtering now works correctly with parsed data
+### Version Format
+- Versions follow `[YYYY.MM.DD]` format
+- Build numbers and commit hashes included for reference
+- Dates in ISO 8601 format (YYYY-MM-DD)
 
-**Files Modified:**
-- `supabase/functions/process_jobs/index.ts` - Added stock parsing function and updated processing logic
-
----
-
-### September 6, 2025
-🚀 **Deployment Automation Enhancement**
-
-**New Features:**
-- Added automated deployment validation with test job creation
-- Implemented automatic rollback on deployment failures
-- Created comprehensive debug logging system
-
-**Scripts Added:**
-- `deploy-supabase.sh` - Main deployment script with test validation
-- `scripts/rollback-functions.sh` - Git-based function rollback
-- `scripts/debug-process-jobs.sh` - Detailed debugging for failed jobs
-
-**CI/CD Updates:**
-- GitHub Actions now uses unified deployment script
-- Automatic log artifact upload for debugging
-- Test job validation on every deployment
-
-**Improvements:**
-- macOS compatibility fixes for date commands
-- Verbose output for better deployment visibility
-- Automatic cleanup of test data after validation
-
----
-
-## iOS App Releases 📱
-
-### v2025.09.4 (Build 7) - September 8-9, 2025
-🍌 **The "Permission Flow Fix & Native iOS Experience" Release**
-📱 **App Store Compliance Fix** - Resolving Guideline 5.1.1 and 4.0 rejection
-
-🎯 **iPad Support Removed (September 9):**
-- Changed to iPhone-only app to address iPad layout issues
-- App Store rejection showed onboarding buttons cut off on iPad Pro 11"
-- Since DayStart is optimized for portrait-only morning routines, iPhone-only is the appropriate configuration
-
-✨ **Permission Request Redesign:**
-- **Removed skip buttons** from weather and calendar permission screens per Apple guidelines
-- **Redesigned permission flow** with clearer messaging:
-  - Simplified titles to "Weather Permission" / "Calendar Permission"
-  - Updated descriptions to explain what will be asked
-  - Added emphasis that permissions are "completely optional"
-  - Streamlined content order: description → benefits → optional message
-- **Enhanced user experience**:
-  - Concise "Enable Weather" / "Enable Calendar" buttons
-  - Auto-advance to next page regardless of permission choice (allow/deny)
-  - Smart swipe behavior: backward swipes work normally, forward swipes trigger permission request
-  - Visual feedback: buttons show green (enabled), red (disabled), or default state
-  - Removed error states - permission denial is treated as valid user choice
-- **Maintains functionality**: Weather/calendar features automatically enabled/disabled based on permission choice
-
-📱 **Onboarding Consistency & Native iOS Feel (September 9):**
-- **Standardized button positioning** across all 10 onboarding pages
-  - Consistent bottom spacing: `max(44, geometry.safeAreaInsets.bottom + 24)`
-  - All buttons now at the same visual distance from bottom on all devices
-- **Native iOS fixed layouts** for better user experience:
-  - Converted pages 5-8 from ScrollView to fixed VStack layout
-  - No unexpected scrolling - content optimized to fit on screen
-  - Maintains scrollable paywall for conversion optimization
-- **Enhanced spacing and margins**:
-  - Increased horizontal padding from 8% to 10% for better readability
-  - Fixed cramped paywall spacing (top spacer 2%→8%, sections 1-2%→4%)
-  - Consistent content spacing patterns across all pages
-- **Skip button improvements**:
-  - Added "Use default voice" skip option to voice selection page
-  - Only 2 skip buttons total: Name (page 2) and Voice (page 7) for optional personalization
-
-🎨 **Native iOS Design Patterns:**
-- **Fixed VStack layouts** (Pages 0-8) for iPhone-native onboarding feel
-- **Optimized ScrollView** (Page 9 - Paywall) for complex conversion-critical content
-- **Responsive design** maintains compatibility across iPhone and iPad sizes
-- **Consistent interaction model** - no mixing of scrollable and fixed content
-
-🎨 **UI Readability Improvements (September 9):**
-- **Enhanced text readability** across the app:
-  - Changed small yellow/primary colored text to gray (secondaryText) for better contrast
-  - Updated onboarding preview text, schedule summaries, and anticipation text
-  - Modified Edit Schedule view informational text for improved visibility
-- **Settings UI refinements**:
-  - Theme picker accent color changed from yellow to gray
-  - Quote Style picker accent color updated to gray
-  - "Add Symbol" button text changed to gray
-  - "Restore Purchase"/"Upgrade to Premium" button text now uses gray
-  - All informational messages ("Select at least one day", "DayStart Disabled", etc.) now in gray
-- **Maintains yellow accent** for interactive elements like toggle switches and primary action buttons
-
-🔧 **Technical Implementation:**
-- Updated `requestLocationPermission()` and `requestCalendarPermission()` handlers with auto-advance
-- Implemented custom gesture handling for permission pages using `simultaneousGesture`
-- Removed conditional UI states and error displays
-- Improved onboarding flow continuity
-- Converted ScrollView + fixed bottom patterns to unified VStack layouts
-- Proper geometry.safeAreaInsets.bottom handling across all devices
-- Updated version to 2025.09.4 (Build 7) in Info.plist
-
-🐛 **Schedule Update Fix (September 9):**
-- **Fixed backend job scheduling updates**: Schedule time changes now properly update existing jobs' scheduled_at timestamps
-- **Root cause**: Backend `update_jobs` function only updated job settings, not scheduled times
-- **Solution**: Added `scheduled_time` parameter to update_jobs API and client implementation
-- **Impact**: Schedule changes (e.g., 14:05 → 14:08) now reflect immediately without requiring app restart
-- **Technical details**:
-  - Extended `UpdateJobsRequest` interface with optional `scheduled_time` field
-  - Modified `buildUpdatePayload()` to handle scheduled_at database updates  
-  - Updated client `updateJobs()` method and schedule change handler to pass new times
-  - Fixed precision issues in time comparison logic using 1-second threshold
-
-🐛 **UI Update Fix (September 9):**
-- **Fixed immediate UI feedback**: Schedule time changes now update "Next DayStart" display instantly
-- **Root cause**: Schedule observer wasn't using MainActor threading pattern for UI updates
-- **Solution**: Fixed HomeViewModel schedule observer to ensure immediate SwiftUI refresh
-- **Impact**: Next alarm time now updates instantly in UI when schedule is changed
-- **Technical details**:
-  - Added `Task { @MainActor in ... }` wrapper to schedule observer
-  - Added explicit `objectWillChange.send()` to force SwiftUI refresh
-  - Fixed `DateFormatter.shortTime` access issue using centralized FormatterCache
-  - Added debug logging to track schedule change propagation
-
-🎯 **Onboarding Improvements (September 9):**
-- **Fixed location permission bypass**: Users can no longer swipe past location permission without interacting
-- **Updated permission UI**: Changed "Weather Permission" to "Location Permission" for clarity
-- **Added location benefits**: Added "Localized news & sports" to location permission benefits list
-- **Fixed default quote type**: Changed from "Stoic" to "Good Feelings" for new users
-- **Consistent behavior**: Location permission now works as reliably as calendar permission
-- **Root cause**: Complex early-exit logic allowed bypassing permission dialog when status was already determined
-- **Solution**: Simplified permission flow to match calendar permission pattern exactly
-- **Technical details**:
-  - Removed early returns in `requestLocationPermission()` that skipped user interaction
-  - Reduced function from 43 lines to 19 lines with consistent flow
-  - Always calls permission request regardless of current status
-  - Let iOS system handle already-granted cases gracefully
-  - Fixed conflicting defaults: `UserSettings.default` had `.goodFeelings` but `OnboardingView` started with `.stoic`
-
-### v2025.09.4 (Build 6) - September 8, 2025
-🍌 **The "Compliance Complete" Release**
-📱 **App Store Resubmission** - Comprehensive compliance updates
-
-✨ **Subscription Compliance Updates:**
-- Enhanced free trial disclosure with clear automatic renewal indicators
-- Updated subscription pricing cards:
-  - Changed "then auto-renews" to clearer "renews annually" / "renews monthly"
-  - Removed duplicate price display on annual card for cleaner UI
-  - Made renewal text same font size as trial text for better visibility
-- Improved CTA button to show "then [price] monthly/annually" for pricing clarity
-- Added explicit disclosure: "After your free trial, your subscription auto-renews until canceled"
-- Fixed paywall layout with ScrollView to ensure Terms, Privacy, and Restore Purchase links are always visible
-
-🎨 **Paywall Optimization (Build 6):**
-- Removed ScrollView and implemented dynamic spacing to fit all content on one screen
-- Optimized layout while maintaining readability:
-  - Reduced star emoji to 45pt and circle to 80pt
-  - Maintained hero title at 28pt for prominence
-  - Optimized "Most Popular" badge with smaller font (10pt) and padding
-- Streamlined pricing cards:
-  - Combined trial and renewal text on one line with bullet separator
-  - Reduced internal spacing and padding for compact layout
-  - Reduced price font size from 24pt to 20pt
-- Implemented side-by-side card layout for screens wider than 500pt
-- Removed urgency banner to save vertical space
-- Updated footer text to "Auto-renews until canceled. Cancel anytime in Settings."
-- Maintained readable font sizes for footer links (12pt) with proper spacing
-- Reduced spacer heights throughout for optimal screen utilization
-
-📱 **Legal Compliance:**
-- Added functional Terms of Use (EULA) link in app binary
-- Added functional Privacy Policy link in app binary
-- Added Terms of Use URL to App Store metadata
-- All legal links open in Safari to: https://daystart.bananaintelligence.ai/terms and https://daystart.bananaintelligence.ai/privacy
-
-🌦️ **WeatherKit Compliance:**
-- Confirmed WeatherKit integration for personalized weather information
-- Weather automatically included in every DayStart briefing
-- Users can toggle weather during onboarding (Page 5: Weather Location)
-- Weather data fetched server-side using WeatherKit API
-
-🔧 **Technical Improvements:**
-- Fixed onboarding auto-completion for users with existing purchases
-- Added 2-second delay before auto-completing onboarding for better testing
-- Enhanced authentication flow logging for debugging
-- Removed intrusive connection error overlays
-- Improved background processing for smoother audio playback
-- Enhanced privacy by removing precise location tracking (only city/state/country)
-
-🎯 **These changes ensure:**
-- Full compliance with App Store Guidelines 3.1.2 and 2.1
-- Clear communication of subscription terms and pricing
-- All required legal documentation is accessible
-- Better user experience with improved error handling
-
-### v2025.09.4 (Build 3) - September 4, 2025
-🍌 **The "Smooth Sailing Banana" Release**
-📱 **Initial App Store Submission** - Submitted to Apple for review ✅
-
-✨ **New Features:**
-- Added in-app feedback system - now you can tell us when things go bananas (or when they're perfectly ripe!)
-- Enhanced morning briefings with improved audio quality
-- Changed default inspiration type from "Stoic" to "Good Feelings" for more uplifting quotes
-
-🚀 **Improvements:**
-- Removed intrusive connection error overlays for smoother user experience
-- Better background processing for smoother audio playback
-- Streamlined user experience across all screens
-- Toast notifications now handle all error messaging gracefully
-
-🔧 **Bug Fixes:**
-- Fixed purchase restore flow to properly handle success and failure cases
-- Added user-friendly error messages when no previous purchase is found
-- Purchase restoration now keeps users on paywall instead of resetting to start
-
-🔧 **Backend Enhancements:**
-- New feedback collection system with secure receipt-based authentication
-- Enhanced content processing capabilities
-
-🔒 **Privacy Improvements:**
-- Removed latitude/longitude coordinates from location data - now only sends city/state/country for weather context
-- Enhanced privacy compliance by eliminating precise location tracking
-
----
-
-### v2025.09.3 (Build 1) - September 3, 2025  
-🍌 **The "Smart Banana" Release**
-
-✨ **New Features:**
-- AI-curated content that learns your morning routine preferences
-- Dynamic pricing system for premium features
-- Enhanced TTS voice options (upgraded voice3 from alloy to ash)
-
-🚀 **Improvements:**
-- Smarter content recommendations based on your usage patterns
-- Better audio caching and prefetch management
-- Improved job processing reliability
-
-🔧 **Backend Enhancements:**
-- AI content curation system (Migration 025)
-- Enhanced job cancellation support
-- Optimized content processing functions
-
----
-
-## Supabase Backend Updates 🛠️
-
-### Edge Function Auth Cleanup - September 9, 2025
-🍌 **Authentication Simplification**
-- Removed unused WORKER_AUTH_TOKEN authentication from all 4 edge functions
-- Simplified authentication to use only service role key
-- Updated CORS headers to remove x-worker-token
-- Cleaner codebase with single authentication method
-- Functions affected: healthcheck, process_jobs, cleanup-audio, refresh_content
-
-### Migration 026 - September 4, 2025
-🍌 **App Feedback Collection System**
-- Added `app_feedback` table for user feedback collection
-- Implemented secure RLS policies with receipt-based authentication
-- Support for diagnostic data collection when users opt-in
-- Categories: audio_issue, content_quality, scheduling, other
-
-### Migration 025 - September 3, 2025
-🍌 **AI Content Curation Engine**
-- Enhanced `get_fresh_content` function with AI-curated content prioritization
-- Improved content personalization algorithms
-- Better integration with existing content cache system
-
-### Migration 024 - September 2, 2025
-🍌 **Job Status Management**
-- Added `cancelled` job status for better job lifecycle management
-- Improved job processing reliability and user control
-
----
-
-## Release Notes Style Guide 📝
-
-**For Future Releases:**
-- 🍌 Theme each release with banana-inspired names
-- ✨ New Features: Major additions that users will notice
-- 🚀 Improvements: Enhancements to existing features
-- 🔧 Bug Fixes: Fixes that resolve issues
-- 🛠️ Backend: Technical improvements and infrastructure updates
-
-**Version Format:**
-- iOS App: `YYYY.MM.DD` (Build N)
-- Backend: Migration number with date
-
-**Tone:**
-- Fun and engaging while being informative
-- Banana Intelligence personality throughout
-- Clear about what users can expect from each update
-
----
-
-*Built with 🍌 by the Banana Intelligence team*
+### Emoji Guide
+- 🚀 App Store releases
+- 🍌 Major feature releases  
+- 🐛 Bug fixes
+- ⚡ Performance improvements
+- 🎯 UX improvements
+- 🔧 Technical changes

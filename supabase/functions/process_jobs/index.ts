@@ -25,13 +25,13 @@ function getStoryLimits(seconds: number): { news: number; sports: number; stocks
     return { news: 2, sports: 1, stocks: 1 };
   } else if (seconds <= 180) {
     // 3 minutes: light coverage
-    return { news: 3, sports: 1, stocks: 2 };
+    return { news: 3, sports: 2, stocks: 2 };
   } else if (seconds <= 300) {
     // 5 minutes: standard coverage
-    return { news: 5, sports: 1, stocks: 2 };
+    return { news: 5, sports: 3, stocks: 2 };
   } else {
     // 5+ minutes: comprehensive coverage
-    return { news: 6, sports: 2, stocks: 3 };
+    return { news: 6, sports: 3, stocks: 3 };
   }
 }
 

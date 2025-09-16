@@ -437,7 +437,7 @@ class HomeViewModel: ObservableObject {
                 // Restart countdown if we have a start time
                 if let startTime = preparingStartTime {
                     let elapsed = Date().timeIntervalSince(startTime)
-                    let remaining = max(0, 180 - elapsed) // 3 minutes total
+                    let remaining = max(0, 120 - elapsed) // 2 minutes total
                     if remaining > 0 {
                         startPreparingCountdown(duration: remaining)
                     }
@@ -841,7 +841,7 @@ class HomeViewModel: ObservableObject {
         connectionError = nil
         
         // Start countdown timer
-        let expectedDuration: TimeInterval = isWelcome ? 180 : 180 // 3 minutes for both initially
+        let expectedDuration: TimeInterval = isWelcome ? 120 : 120 // 2 minutes for both initially
         startPreparingCountdown(duration: expectedDuration)
         
         // Start message rotation
