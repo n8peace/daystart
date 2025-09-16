@@ -4,6 +4,41 @@
 
 ---
 
+## v2025.09.16 (Build 2) - September 16, 2025
+🍌 **The "Compact Day Names" Release**
+🗓️ **Fixed day of week display on small screens**
+
+### iOS App Updates:
+🐛 **Day Abbreviation Fix:**
+- Fixed issue where day names were truncated with ellipsis (W...) on smaller screens
+- Fixed issue where day names wrapped to next line (We\nd) with larger font sizes
+- Updated day abbreviations to single/double letters: M, Tu, W, Th, F, Sa, Su
+- Added line limit and minimum scale factor to prevent text wrapping
+- Consistent day name display across Edit Schedule and History views
+- Better support for accessibility text sizes and smaller device screens
+
+### Code Architecture:
+- Added `shortName` property to WeekDay enum for backward compatibility
+- Updated HistoryView to use WeekDay enum instead of DateFormatter for consistency
+- Ensured all day displays remain on single line with proper constraints
+
+---
+
+## v2025.09.16 (Build 1) - September 16, 2025
+🍌 **The "Daily Generic DayStart" Release**
+🎙️ **Added automated daily generic audio briefing**
+
+### Backend Updates:
+🆕 **Daily Generic DayStart:**
+- Added cron job for automated daily generic DayStart at 4:45 AM ET
+- Creates a special job with user ID "DAILY_GENERIC" for non-personalized briefings
+- Configured with specific stocks: AAPL, BTC-USD, TSLA, SPY, QQQ
+- Uses "good_feelings" quote preference and voice2 (Rachel) from ElevenLabs
+- Skips weather and calendar sections for generic audience
+- 3-minute duration optimized for general market/news updates
+
+---
+
 ## v2025.09.15 (Build 1) - September 15, 2025
 🍌 **The "Welcome Flow Fix" Release**
 📱 **Fixed welcome DayStart scheduling bypass issue**

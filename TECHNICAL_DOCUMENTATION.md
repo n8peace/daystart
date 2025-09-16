@@ -244,6 +244,7 @@ This section outlines all scheduled tasks (cron jobs) used by the DayStart appli
 | Refresh Content | `0 * * * *` | Every hour | Refresh news, stocks, sports cache |
 | Cleanup Audio | `5 1 * * *` | Daily at 1:05 AM UTC | Delete old audio files |
 | Healthcheck | `5 2 * * *` | Daily at 2:05 AM UTC | Run system health checks and email report |
+| Daily Generic DayStart | `45 4 * * *` | Daily at 4:45 AM ET | Generate generic audio briefing |
 
 ## 1. Process Jobs
 
@@ -344,6 +345,56 @@ Runs a comprehensive application healthcheck across DB, cache freshness, job que
 ### Notes
 - The function returns 200 immediately and executes asynchronously
 - Ensure Resend env vars are configured in Supabase secrets
+
+## 5. Daily Generic DayStart
+
+### Purpose
+Creates a generic, non-personalized DayStart audio briefing for general distribution or testing purposes.
+
+### Configuration
+- **URL**: `https://[PROJECT_REF].supabase.co/functions/v1/create_job`
+- **Method**: POST
+- **Schedule**: `45 4 * * *` (daily at 4:45 AM ET)
+- **Headers**:
+  ```json
+  {
+    "Authorization": "Bearer [SERVICE_ROLE_KEY]",
+    "x-client-info": "DAILY_GENERIC",
+    "Content-Type": "application/json"
+  }
+  ```
+- **Body**:
+  ```json
+  {
+    "local_date": "{{CURRENT_DATE}}",
+    "scheduled_at": "{{NOW_PLUS_2MIN}}",
+    "preferred_name": null,
+    "include_weather": false,
+    "include_news": true,
+    "include_sports": true,
+    "include_stocks": true,
+    "stock_symbols": ["AAPL", "BTC-USD", "TSLA", "SPY", "QQQ"],
+    "include_calendar": false,
+    "include_quotes": true,
+    "quote_preference": "good_feelings",
+    "voice_option": "voice2",
+    "daystart_length": 180,
+    "timezone": "America/New_York"
+  }
+  ```
+
+### Monitoring
+- Check `jobs` table for entries with `user_id = "DAILY_GENERIC"`
+- Verify audio generation completes within expected time
+- Monitor storage for generated audio files
+
+### Notes
+- Creates a 3-minute briefing without personalization
+- Uses Rachel voice (voice2) from ElevenLabs
+- Includes market-focused stock symbols including crypto (BTC-USD)
+- Generates uplifting/positive quotes with "good_feelings" preference
+- No weather or calendar data included
+- Can be used for distribution, testing, or as a sample
 
 ## Troubleshooting
 

@@ -129,9 +129,10 @@ struct HistoryView: View {
             HStack(spacing: 8) {
                 ForEach(Array(days.enumerated()), id: \.offset) { i, entry in
                     VStack(spacing: 4) {
-                        Text(weekdayAbbrev(entry.date))
+                        Text(weekdayName(for: entry.date))
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                            .lineLimit(1)
                         Circle()
                             .fill(color(for: entry.status))
                             .frame(width: 14, height: 14)
@@ -159,8 +160,11 @@ struct HistoryView: View {
         }
     }
 
-    private func weekdayAbbrev(_ date: Date) -> String {
-        return FormatterCache.shared.weekdayAbbrevFormatter.string(from: date)
+    private func weekdayName(for date: Date) -> String {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: date)
+        guard let weekDay = WeekDay(weekday: weekday) else { return "" }
+        return weekDay.name
     }
 
     // COMMENTED OUT - Search functionality disabled for now

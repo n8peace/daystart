@@ -82,6 +82,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 - **Automated Cleanup**: Scheduled cleanup of old audio files and data with RLS policies
 - **Comprehensive Cost Tracking**: Monitoring of OpenAI and ElevenLabs usage with detailed logging
 - **Timezone Handling**: Accurate date/time calculations across timezones with local date awareness
+- **Daily Generic DayStart**: Automated daily audio briefing at 4:45 AM ET for non-personalized content
 
 ## Requirements
 
@@ -301,7 +302,21 @@ SPORTS_API_KEY=your-sports-api-key (optional)
    SELECT cron.schedule('cleanup-audio', '0 2 * * *', 'SELECT cleanup_old_audio_files();');
    ```
 
-3. **Configure RLS policies** for security (already included in migrations)
+3. **Configure external cron service** (e.g., cron-job.org) for daily generic DayStart:
+   - URL: `https://YOUR_PROJECT.supabase.co/functions/v1/create_job`
+   - Schedule: `45 4 * * *` (4:45 AM ET daily)
+   - Method: POST
+   - Headers:
+     ```json
+     {
+       "Authorization": "Bearer YOUR_SERVICE_ROLE_KEY",
+       "x-client-info": "DAILY_GENERIC",
+       "Content-Type": "application/json"
+     }
+     ```
+   - Body: See technical documentation for configuration details
+
+4. **Configure RLS policies** for security (already included in migrations)
 
 ### iOS App Store Preparation
 

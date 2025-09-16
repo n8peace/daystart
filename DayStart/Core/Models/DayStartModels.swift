@@ -104,6 +104,18 @@ enum WeekDay: Int, CaseIterable, Codable, Identifiable {
     
     var name: String {
         switch self {
+        case .sunday: return "Su"
+        case .monday: return "M"
+        case .tuesday: return "Tu"
+        case .wednesday: return "W"
+        case .thursday: return "Th"
+        case .friday: return "F"
+        case .saturday: return "Sa"
+        }
+    }
+    
+    var shortName: String {
+        switch self {
         case .sunday: return "Sun"
         case .monday: return "Mon"
         case .tuesday: return "Tue"

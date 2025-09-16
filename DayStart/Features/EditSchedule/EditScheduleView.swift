@@ -764,6 +764,8 @@ struct DayToggleChip: View {
                     dark: isSelected ? .heavy : .medium
                 )
                 .foregroundColor(isSelected ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .frame(width: 40, height: 40)
                 .background(
                     Circle()
