@@ -89,6 +89,19 @@ serve(async (req: Request): Promise<Response> => {
     }
     const user_id = clientInfo;
 
+    // Track purchase user for analytics (non-critical, fail-safe)
+    const authType = req.headers.get('x-auth-type');
+    try {
+      if (authType === 'purchase') {
+        await supabase.rpc('track_purchase_user', {
+          p_receipt_id: user_id,
+          p_is_test: user_id.startsWith('tx_')
+        });
+      }
+    } catch (error) {
+      console.warn('User tracking failed (non-critical):', error);
+    }
+
     // Calculate estimated ready time (1-2 minutes from now with 1-minute cron schedule)
     const estimated_ready_time = new Date(Date.now() + (1.5 * 60 * 1000)).toISOString();
 

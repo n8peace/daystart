@@ -5,10 +5,16 @@
 ---
 
 ## v2025.09.16 (Build 2) - September 16, 2025
-🍌 **The "Compact Day Names" Release**
-🗓️ **Fixed day of week display on small screens**
+🍌 **The "User Analytics & Complete Experience" Release**
+🎙️ **Multiple iOS improvements, automated daily briefings, and user tracking implementation**
 
 ### iOS App Updates:
+🐛 **Permission Flow Fix:**
+- Fixed critical timing bug where weather permission dialog appeared after page transition
+- Users who granted location permission were still having weather disabled
+- Permission status now properly displays before advancing to next page
+- Both weather and calendar permission pages now follow iOS HIG standards
+
 🐛 **Day Abbreviation Fix:**
 - Fixed issue where day names were truncated with ellipsis (W...) on smaller screens
 - Fixed issue where day names wrapped to next line (We\nd) with larger font sizes
@@ -17,16 +23,11 @@
 - Consistent day name display across Edit Schedule and History views
 - Better support for accessibility text sizes and smaller device screens
 
-### Code Architecture:
-- Added `shortName` property to WeekDay enum for backward compatibility
-- Updated HistoryView to use WeekDay enum instead of DateFormatter for consistency
-- Ensured all day displays remain on single line with proper constraints
-
----
-
-## v2025.09.16 (Build 1) - September 16, 2025
-🍌 **The "Daily Generic DayStart" Release**
-🎙️ **Added automated daily generic audio briefing**
+🎯 **UX Improvements:**
+- Removed non-standard swipe gesture for triggering permission dialogs
+- Swipe navigation now works naturally on all onboarding pages
+- Clear visual feedback shows permission status (✓ Enabled or ✗ Disabled)
+- Users can advance via button tap or swipe after permission is determined
 
 ### Backend Updates:
 🆕 **Daily Generic DayStart:**
@@ -36,6 +37,25 @@
 - Uses "good_feelings" quote preference and voice2 (Rachel) from ElevenLabs
 - Skips weather and calendar sections for generic audience
 - 3-minute duration optimized for general market/news updates
+
+📊 **Purchase Users Analytics Implementation:**
+- Implemented purchase_users table tracking across all user-facing Edge Functions
+- Added fail-safe tracking calls to create_job, get_audio_status, submit_feedback, get_jobs, update_jobs, and update_job_snapshots
+- Only tracks users with x-auth-type: 'purchase' to avoid anonymous/test pollution
+- Automatically detects test receipts (starting with 'tx_') and flags appropriately
+- Non-critical tracking - failures don't affect core functionality
+- Enables user analytics: retention, activity patterns, and business intelligence
+- 100% backwards compatible - no impact on current app versions
+- Added comprehensive analytics SQL queries for monitoring user engagement
+
+### Technical Details:
+- Added `shortName` property to WeekDay enum for backward compatibility
+- Updated HistoryView to use WeekDay enum instead of DateFormatter for consistency
+- Ensured all day displays remain on single line with proper constraints
+- Removed automatic page navigation from permission request functions
+- Updated button logic to handle navigation separately from permission requests
+- Eliminated race condition between permission dialog and page transitions
+- Maintained backwards compatibility with existing user preferences
 
 ---
 

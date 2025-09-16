@@ -48,6 +48,19 @@ serve(async (req: Request): Promise<Response> => {
     }
     const userId = clientInfo;
 
+    // Track purchase user for analytics (non-critical, fail-safe)
+    const authType = req.headers.get('x-auth-type');
+    try {
+      if (authType === 'purchase') {
+        await supabase.rpc('track_purchase_user', {
+          p_receipt_id: userId,
+          p_is_test: userId.startsWith('tx_')
+        });
+      }
+    } catch (error) {
+      console.warn('User tracking failed (non-critical):', error);
+    }
+
     // Parse query parameters
     const url = new URL(req.url);
     const startDate = url.searchParams.get('start_date');

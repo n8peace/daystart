@@ -69,6 +69,19 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('MISSING_USER_ID', 'x-client-info header required', request_id);
     }
 
+    // Track purchase user for analytics (non-critical, fail-safe)
+    const authType = req.headers.get('x-auth-type');
+    try {
+      if (authType === 'purchase') {
+        await supabase.rpc('track_purchase_user', {
+          p_receipt_id: clientInfo,
+          p_is_test: clientInfo.startsWith('tx_')
+        });
+      }
+    } catch (error) {
+      console.warn('User tracking failed (non-critical):', error);
+    }
+
     console.log(`📋 Updating snapshots for ${body.job_ids.length} jobs for user ${clientInfo}`);
 
     // Build update payload with only snapshot data

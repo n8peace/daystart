@@ -651,6 +651,7 @@ struct OnboardingView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, geometry.size.width * 0.10)
                         .opacity(textOpacity)
+                    }
                 }
                 
                 Spacer(minLength: geometry.size.height * 0.06)

@@ -60,6 +60,19 @@ serve(async (req: Request): Promise<Response> => {
       return errorResponse('MISSING_USER_ID', 'x-client-info header required', request_id);
     }
 
+    // Track purchase user for analytics (non-critical, fail-safe)
+    const authType = req.headers.get('x-auth-type');
+    try {
+      if (authType === 'purchase') {
+        await supabase.rpc('track_purchase_user', {
+          p_receipt_id: user_id,
+          p_is_test: user_id.startsWith('tx_')
+        });
+      }
+    } catch (error) {
+      console.warn('User tracking failed (non-critical):', error);
+    }
+
     let body: UpdateJobsRequest;
     try {
       body = await req.json();

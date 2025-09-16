@@ -68,6 +68,18 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Track purchase user for analytics (non-critical, fail-safe)
+    try {
+      if (authType === 'purchase') {
+        await supabase.rpc('track_purchase_user', {
+          p_receipt_id: userId,
+          p_is_test: userId.startsWith('tx_')
+        });
+      }
+    } catch (error) {
+      console.warn('User tracking failed (non-critical):', error);
+    }
+
     // Insert feedback using service role (bypasses RLS)
     const { error } = await supabase
       .from('app_feedback')

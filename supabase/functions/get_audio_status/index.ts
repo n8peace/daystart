@@ -59,6 +59,19 @@ serve(async (req: Request): Promise<Response> => {
     }
     const user_id = clientInfo;
 
+    // Track purchase user for analytics (non-critical, fail-safe)
+    const authType = req.headers.get('x-auth-type');
+    try {
+      if (authType === 'purchase') {
+        await supabase.rpc('track_purchase_user', {
+          p_receipt_id: user_id,
+          p_is_test: user_id.startsWith('tx_')
+        });
+      }
+    } catch (error) {
+      console.warn('User tracking failed (non-critical):', error);
+    }
+
     // Query job for this user and date
     const { data: job, error: jobError } = await supabase
       .from('jobs')
