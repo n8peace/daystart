@@ -1,6 +1,7 @@
 import SwiftUI
 import StoreKit
 import CoreLocation
+import EventKit
 
 
 struct ContentToggleRow: View {
@@ -132,6 +133,67 @@ struct OnboardingView: View {
         selectedVoice != nil
     }
     
+    var canNavigateFromLocationPage: Bool {
+        locationPermissionStatus != .notDetermined
+    }
+    
+    var canNavigateFromCalendarPage: Bool {
+        calendarPermissionStatus != .notDetermined
+    }
+    
+    var canNavigateFromCurrentPage: Bool {
+        if currentPage == 5 { return canNavigateFromLocationPage }
+        if currentPage == 6 { return canNavigateFromCalendarPage }
+        return true // All other pages can always navigate
+    }
+    
+    // MARK: - Permission Status Mapping Helpers
+    
+    private func mapLocationStatus(_ status: CLAuthorizationStatus) -> PermissionStatus {
+        switch status {
+        case .notDetermined:
+            return .notDetermined
+        case .denied, .restricted:
+            return .denied
+        case .authorizedWhenInUse, .authorizedAlways:
+            return .granted
+        @unknown default:
+            return .notDetermined
+        }
+    }
+    
+    private func mapCalendarStatus() -> PermissionStatus {
+        let authStatus = EKEventStore.authorizationStatus(for: .event)
+        
+        switch authStatus {
+        case .notDetermined:
+            return .notDetermined
+        case .denied, .restricted:
+            return .denied
+        case .authorized:
+            return .granted
+        case .fullAccess:
+            return .granted
+        case .writeOnly:
+            return .granted
+        @unknown default:
+            return .notDetermined
+        }
+    }
+    
+    // MARK: - Permission Status Synchronization
+    
+    private func syncPermissionStatuses() {
+        // Sync location permission status
+        let currentLocationStatus = LocationManager.shared.authorizationStatus
+        locationPermissionStatus = mapLocationStatus(currentLocationStatus)
+        
+        // Sync calendar permission status  
+        calendarPermissionStatus = mapCalendarStatus()
+        
+        logger.log("Synced permission statuses - Location: \(locationPermissionStatus), Calendar: \(calendarPermissionStatus)", level: .info)
+    }
+    
     var selectedDaysSummary: String {
         let sortedDays = selectedDays.sorted { $0.rawValue < $1.rawValue }
         
@@ -190,33 +252,75 @@ struct OnboardingView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
-                .simultaneousGesture(
-                    // Only intercept forward swipes on permission pages
-                    (currentPage == 5 || currentPage == 6) ? 
-                        DragGesture()
-                            .onEnded { value in
-                                let swipeThreshold: CGFloat = 50
-                                
-                                // Forward swipe only (left to right motion, negative translation.width)
-                                if value.translation.width < -swipeThreshold {
-                                    if currentPage == 5 {
-                                        // Weather permission page - request location permission
-                                        Task {
-                                            await requestLocationPermission()
-                                        }
-                                    } else if currentPage == 6 {
-                                        // Calendar permission page - request calendar permission
-                                        Task {
-                                            await requestCalendarPermission()
+                .allowsHitTesting(canNavigateFromCurrentPage)
+                .overlay(
+                    // Gesture blocking overlay for permission pages when permissions are undetermined
+                    ((currentPage == 5 || currentPage == 6) && !canNavigateFromCurrentPage) ? 
+                        Rectangle()
+                            .fill(Color.clear)
+                            .contentShape(Rectangle()) // Ensures the entire area is tappable
+                            .gesture(
+                                DragGesture()
+                                    .onEnded { value in
+                                        let swipeThreshold: CGFloat = 50
+                                        
+                                        if value.translation.width < -swipeThreshold {
+                                            // Forward swipe - trigger permission request immediately
+                                            if currentPage == 5 && locationPermissionStatus == .notDetermined {
+                                                logger.logUserAction("Location permission auto-requested on blocked swipe")
+                                                impactFeedback()
+                                                Task {
+                                                    await requestLocationPermission()
+                                                }
+                                            } else if currentPage == 6 && calendarPermissionStatus == .notDetermined {
+                                                logger.logUserAction("Calendar permission auto-requested on blocked swipe")
+                                                impactFeedback()
+                                                Task {
+                                                    await requestCalendarPermission()
+                                                }
+                                            }
+                                        } else if value.translation.width > swipeThreshold {
+                                            // Backward swipe - always allow
+                                            if currentPage == 6 {
+                                                logger.logUserAction("Calendar to location backward swipe (overlay)")
+                                                impactFeedback()
+                                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                                    currentPage = 5
+                                                }
+                                            } else if currentPage == 5 {
+                                                logger.logUserAction("Location to content backward swipe (overlay)")
+                                                impactFeedback()
+                                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                                    currentPage = 4
+                                                }
+                                            }
                                         }
                                     }
+                            )
+                            .onTapGesture {
+                                // Handle taps on overlay - trigger permission request immediately
+                                if currentPage == 5 && locationPermissionStatus == .notDetermined {
+                                    logger.logUserAction("Location permission auto-requested on tap")
+                                    impactFeedback()
+                                    Task {
+                                        await requestLocationPermission()
+                                    }
+                                } else if currentPage == 6 && calendarPermissionStatus == .notDetermined {
+                                    logger.logUserAction("Calendar permission auto-requested on tap")
+                                    impactFeedback()
+                                    Task {
+                                        await requestCalendarPermission()
+                                    }
                                 }
-                                // Backward swipes (positive translation.width) are ignored, allowing normal TabView behavior
-                            } : nil
+                            }
+                    : nil
                 )
                 .onAppear {
                     logger.log("🎓 New onboarding view appeared", level: .info)
                     logger.logUserAction("Onboarding started", details: ["initialPage": currentPage])
+                    
+                    // Sync permission statuses with actual system state
+                    syncPermissionStatuses()
                     
                     // Phase 2: Fetch products for dynamic pricing
                     Task {
@@ -230,6 +334,27 @@ struct OnboardingView: View {
                     // Ensure first page animations start properly with a slight delay
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         startPageAnimation()
+                    }
+                }
+                .onReceive(LocationManager.shared.$authorizationStatus) { newStatus in
+                    let newLocationStatus = mapLocationStatus(newStatus)
+                    if newLocationStatus != locationPermissionStatus {
+                        logger.log("Location permission status changed: \(locationPermissionStatus) → \(newLocationStatus)", level: .info)
+                        locationPermissionStatus = newLocationStatus
+                        
+                        // Update weather inclusion based on new status
+                        includeWeather = (newLocationStatus == .granted)
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                    // Re-sync calendar status when app becomes active (after permission dialogs)
+                    let newCalendarStatus = mapCalendarStatus()
+                    if newCalendarStatus != calendarPermissionStatus {
+                        logger.log("Calendar permission status changed when app became active: \(calendarPermissionStatus) → \(newCalendarStatus)", level: .info)
+                        calendarPermissionStatus = newCalendarStatus
+                        
+                        // Update calendar inclusion based on new status
+                        includeCalendar = (newCalendarStatus == .granted)
                     }
                 }
                 .onReceive(purchaseManager.$purchaseState) { purchaseState in
@@ -873,7 +998,11 @@ struct OnboardingView: View {
                             .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
-                        Text("We'll ask for your location to add local weather to your DayStart")
+                        Text(locationPermissionStatus == .notDetermined ? 
+                             "We'll ask for your location to add local weather to your DayStart" :
+                             locationPermissionStatus == .granted ?
+                             "Location access enabled! Weather will be included in your DayStart" :
+                             "Location access disabled. Weather will not be included")
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
@@ -903,15 +1032,26 @@ struct OnboardingView: View {
                 
                 // CTA Button
                 Button(action: {
-                    Task {
-                        await requestLocationPermission()
+                    if locationPermissionStatus == .notDetermined {
+                        logger.logUserAction("Location permission request triggered by button")
+                        impactFeedback()
+                        Task {
+                            await requestLocationPermission()
+                        }
+                    } else {
+                        // Permission already determined, navigate to next page
+                        logger.logUserAction("Location permission page navigation", details: ["status": "\(locationPermissionStatus)"])
+                        impactFeedback()
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 6
+                        }
                     }
                 }) {
                     HStack {
                         Image(systemName: locationPermissionStatus == .granted ? "checkmark.circle.fill" : 
                               locationPermissionStatus == .denied ? "xmark.circle.fill" : "location.fill")
-                        Text(locationPermissionStatus == .granted ? "Location Enabled" : 
-                             locationPermissionStatus == .denied ? "Location Disabled" : "Continue")
+                        Text(locationPermissionStatus == .granted ? "Next" : 
+                             locationPermissionStatus == .denied ? "Next" : "Continue")
                     }
                     .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
                     .foregroundColor(.white)
@@ -1005,7 +1145,11 @@ struct OnboardingView: View {
                             .padding(.horizontal, geometry.size.width * 0.05)
                             .opacity(textOpacity)
                         
-                        Text("We'll ask to access your calendar to include today's events in your DayStart")
+                        Text(calendarPermissionStatus == .notDetermined ? 
+                             "We'll ask to access your calendar to include today's events in your DayStart" :
+                             calendarPermissionStatus == .granted ?
+                             "Calendar access enabled! Your events will be included in your DayStart" :
+                             "Calendar access disabled. Events will not be included")
                             .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                             .multilineTextAlignment(.center)
@@ -1034,15 +1178,26 @@ struct OnboardingView: View {
                 
                 // CTA Button
                 Button(action: {
-                    Task {
-                        await requestCalendarPermission()
+                    if calendarPermissionStatus == .notDetermined {
+                        logger.logUserAction("Calendar permission request triggered by button")
+                        impactFeedback()
+                        Task {
+                            await requestCalendarPermission()
+                        }
+                    } else {
+                        // Permission already determined, navigate to next page
+                        logger.logUserAction("Calendar permission page navigation", details: ["status": "\(calendarPermissionStatus)"])
+                        impactFeedback()
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 7
+                        }
                     }
                 }) {
                     HStack {
                         Image(systemName: calendarPermissionStatus == .granted ? "checkmark.circle.fill" : 
                               calendarPermissionStatus == .denied ? "xmark.circle.fill" : "calendar")
-                        Text(calendarPermissionStatus == .granted ? "Calendar Enabled" : 
-                             calendarPermissionStatus == .denied ? "Calendar Disabled" : "Continue")
+                        Text(calendarPermissionStatus == .granted ? "Next" : 
+                             calendarPermissionStatus == .denied ? "Next" : "Continue")
                     }
                     .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
                     .foregroundColor(.white)
@@ -1932,16 +2087,14 @@ struct OnboardingView: View {
         let granted = await locationManager.requestLocationPermission()
         
         await MainActor.run {
-            if granted {
-                locationPermissionStatus = .granted
-                includeWeather = true
-            } else {
-                locationPermissionStatus = .denied
-                includeWeather = false
-            }
+            // Status will be updated automatically via onReceive monitoring
+            // Just update the include weather preference based on result
+            includeWeather = granted
             impactFeedback()
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                currentPage = 6
+            
+            // Force sync in case of timing issues
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                syncPermissionStatuses()
             }
         }
         
@@ -1953,18 +2106,18 @@ struct OnboardingView: View {
         let granted = await calendarManager.requestCalendarAccess()
         
         await MainActor.run {
-            if granted {
-                calendarPermissionStatus = .granted
-                includeCalendar = true
-            } else {
-                calendarPermissionStatus = .denied
-                includeCalendar = false
-            }
+            // Status will be updated automatically via onReceive monitoring when app becomes active
+            // Just update the include calendar preference based on result
+            includeCalendar = granted
             impactFeedback()
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                currentPage = 7
+            
+            // Force sync in case of timing issues
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                syncPermissionStatuses()
             }
         }
+        
+        logger.log("Calendar permission request completed: \(granted)", level: .info)
     }
     
     // MARK: - Helper Views
