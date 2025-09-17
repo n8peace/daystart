@@ -1,8 +1,12 @@
-# App Store Connect Configuration for DayStart AI v2025.09.4
+# App Store Connect Configuration for DayStart AI
+
+## Current Live Version: 2025.09.4 (Build 10)
+## Next Release: 2025.09.16 (Build 2)
 
 ## Basic Information
 - **App Name:** DayStart AI
-- **Version:** 2025.09.4
+- **Current Version:** 2025.09.4 (Build 10) - Live on App Store
+- **Next Version:** 2025.09.16 (Build 2)
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 
@@ -67,6 +71,27 @@ By subscribing, you agree that payment will be charged to your Apple Account at 
 ## Subtitle (30 characters max)
 ```
 AI Audio News & Weather Brief
+```
+
+## What's New in Version 2025.09.16
+```
+🍌 Rise and shine, DayStarters! We've been up before dawn making your mornings even better:
+
+SMOOTHER THAN BANANA BUTTER:
+• Fixed that pesky weather permission timing - no more dialog surprises!
+• Simplified setup - we'll start you off with all 7 days (because who doesn't want daily brilliance?)
+• Days of the week got a makeover: M, Tu, W, Th, F, Sa, Su - short, sweet, and fits on any screen!
+
+FASTER WAKE-UPS:
+• Reduced buffering time from 3 to 2 minutes (that's 60 seconds more snooze for you!)
+• Welcome DayStart now works like a charm - no more accidental cancellations
+
+MORE SPORTS, MORE SCORES:
+• Increased sports coverage in longer briefings - because we know you need ALL the highlights
+
+Bug fixes? We squashed 'em. Permission flows? Smooth as silk. Your perfect morning? Still just one tap away.
+
+Sweet dreams! 🌅
 ```
 
 ## What's New in Version 2025.09.4
@@ -194,54 +219,41 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 - [x] Product IDs updated to daystart_monthly_subscription & daystart_annual_subscription ✓
 - [x] Paywall text updated to "Skip the scrolling, get briefed" ✓
 - [x] dSYM generation settings added ✓
-- [ ] Test app works without purchase (good empty state)
-- [ ] Complete subscription metadata in App Store Connect
-- [ ] Ensure Supabase backend is running during review
+- [x] Test app works without purchase (good empty state)
+- [x] Complete subscription metadata in App Store Connect
+- [x] Ensure Supabase backend is running during review
 
-### App Store Review Notes (Full)
+### App Store Review Notes - Version 2025.09.16
 ```
-TESTING INSTRUCTIONS:
-- Use sandbox Apple ID for in-app purchases
-- App requires network connectivity for audio generation
-- Open app → Complete onboarding → Purchase subscription (or Restore) → Tap "Start Welcome DayStart" → Audio plays immediately
-- First audio briefing may take 2-3 minutes to generate
-- Subsequent briefings are faster due to caching
-- The welcome DayStart will be ready immediately for reviewer testing, even before the next scheduled occurrence
+QUICK TEST:
+1. Use sandbox Apple ID
+2. Complete onboarding → Purchase subscription → Tap "Start Welcome DayStart"
+3. Audio plays immediately (2-3 min generation for first briefing)
 
-APP OVERVIEW:
-DayStart is a subscription-based app that delivers personalized audio morning briefings. No login is required - users are identified by StoreKit transaction IDs.
+WHAT'S NEW:
+• Fixed permission timing bugs
+• Improved day abbreviations (M, Tu, W, Th, F, Sa, Su)
+• Faster buffering (2 min vs 3 min)
+• More sports stories in longer briefings
 
-SUBSCRIPTION DETAILS:
-- Auto-renewable subscriptions with product IDs: daystart_annual_subscription, daystart_monthly_subscription
-- Monthly and Annual subscriptions both include free trials (3-day and 7-day respectively)
-- Test with sandbox account - purchases are free in TestFlight
-- Restore purchases functionality available on paywall screen
+WEATHERKIT:
+• Yes, app uses WeatherKit for weather data
+• Weather plays automatically in every briefing (no navigation needed)
+• Toggle weather: Onboarding page 5 or Edit screen
+• Apple Weather attribution properly displayed
 
-BACKGROUND PROCESSING JUSTIFICATION:
-DayStart uses background processing for audio prefetching to ensure seamless morning briefing experience. The BGProcessingTask:
-- Runs 2 hours before user's scheduled wake time
-- Downloads personalized audio content from our backend
-- Prevents playback delays/failures when audio is requested
-- Uses requiresNetworkConnectivity=true for efficiency
-- Essential for core briefing functionality
+SUBSCRIPTIONS:
+• Product IDs: daystart_monthly_subscription, daystart_annual_subscription
+• Free trials: 3-day (monthly), 7-day (annual)
+• No login required - uses StoreKit receipt IDs
 
-Background processing is limited to audio preparation only and completes quickly with proper task management.
+BACKGROUND PROCESSING:
+Essential for prefetching audio 2 hours before scheduled wake time. Prevents playback delays.
 
-PRIVACY & PERMISSIONS:
-- Location permission is optional - used only for weather updates if granted (approximate location)
-- Calendar permission is optional - used only for read-only access to include event summaries if granted
-- App functions without permissions but with reduced personalization
-- All permissions have clear purpose strings explaining usage
-- Data may be transmitted to backend for personalized briefing generation - see privacy policy: https://daystart.bananaintelligence.ai/privacy
-
-TECHNICAL DETAILS:
-- Supabase keys in Info.plist are public anonymous keys with Row Level Security enforced
-- No sensitive secrets are included in the app bundle
-- Receipt-based authentication system - users identified by StoreKit transaction IDs
-- Audio generation happens server-side, app streams/caches results
-
-CONTENT:
-All news, weather, and market data is aggregated from public APIs and feeds. The app personalizes audio briefings by combining this public information with the user's calendar events and preferences. AI-generated summaries are created server-side based on this personalized data mix.
+PERMISSIONS (BOTH OPTIONAL):
+• Location: Weather updates only
+• Calendar: Event summaries only
+• App works without permissions
 
 CONTACT: nate@bananaintelligence.ai
 ```
@@ -264,20 +276,21 @@ CONTACT: nate@bananaintelligence.ai
 - [x] NSCalendarsUsageDescription added to Info.plist
 - [x] Paywall messaging updated
 - [x] Archive successfully uploaded to App Store Connect
-- [x] Build 3 (2025.09.4) submitted to App Store after successful testing
+- [x] Build 10 (2025.09.4) submitted to App Store - Currently LIVE
+- [x] Build 2 (2025.09.16) ready for next submission
 
 ### Remaining Tasks
-- [ ] App Store Connect setup
-  - [ ] Prepare app screenshots (iPhone & iPad sizes)
-  - [ ] Configure privacy settings as listed above
+- [x] App Store Connect setup
+  - [x] Prepare app screenshots (iPhone & iPad sizes)
+  - [x] Configure privacy settings as listed above
   
-- [ ] Testing & Validation
-  - [ ] Test purchase flow with sandbox account
-  - [ ] Test app works without location permission
-  - [ ] Test app works without calendar permission
-  - [ ] Test on clean device without debug environment
+- [x] Testing & Validation
+  - [x] Test purchase flow with sandbox account
+  - [x] Test app works without location permission
+  - [x] Test app works without calendar permission
+  - [x] Test on clean device without debug environment
   
-- [ ] Marketing Assets (Optional)
-  - [ ] App preview video
-  - [ ] Marketing website at daystart.bananaintelligence.ai
-  - [ ] Support documentation at daystart.bananaintelligence.ai
+- [x] Marketing Assets (Optional)
+  - [x] App preview video
+  - [x] Marketing website at daystart.bananaintelligence.ai
+  - [x] Support documentation at daystart.bananaintelligence.ai

@@ -12,15 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 ### Changed
-- Increased sports story limits for longer briefings: 3-minute briefings now include 2 sports (was 1), 5-minute briefings include 3 sports (was 1), and 5+ minute briefings include 3 sports (was 2)
 ### Fixed
 ### Removed
 
 ---
 
-## [2025.09.16] - 2025-09-16
+## [2025.09.16] - 2025-09-16 (Next Release)
 
-**Build:** 1 | **Commit:** `de4a1de`
+**Build:** 2 | **Commit:** `ffdb752`
 
 ### Added
 - iOS best practice permission flow with complete gesture blocking
@@ -35,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - **Critical:** Permission timing bug where weather dialog appeared after page transition
 - **Critical:** Users who granted location permission having weather incorrectly disabled
+- **Critical:** Weather and calendar features not enabled in onboarding when permissions were already granted
 - Day abbreviation display truncated with ellipsis (W...) on smaller screens
 - Day names wrapping to next line (We\nd) with larger font sizes
 - Welcome DayStart could be cancelled if user's schedule didn't include current day
@@ -47,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Welcome DayStart completely separate from regular scheduled DayStarts
 - Healthcheck timeouts increased to reduce false positives from cold starts
 - Performance: Reduced buffering countdown from 3 minutes to 2 minutes
+- Increased sports story limits for longer briefings: 3-minute briefings now include 2 sports (was 1), 5-minute briefings include 3 sports (was 1), and 5+ minute briefings include 3 sports (was 2)
 
 ### Technical Details
 - Added `canNavigateFromCurrentPage` computed property for permission validation
@@ -58,7 +59,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2025.09.4] - 2025-09-12 🚀
+## [2025.09.4] - 2025-09-12 🚀 (Currently Live)
 
 **Build:** 10 | **Commit:** `500cc04` | **App Store Release**
 

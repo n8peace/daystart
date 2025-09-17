@@ -225,8 +225,8 @@ class SupabaseClient {
         let today = calendar.startOfDay(for: Date())
         var jobsCreated = 0
         
-        // Create jobs for the next 14 days
-        for dayOffset in 0..<14 {
+        // Create jobs for the next 3 days (to ensure at least 48 hours coverage)
+        for dayOffset in 0..<3 {
             guard let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: today) else {
                 continue
             }
@@ -266,8 +266,8 @@ class SupabaseClient {
                     with: preferences,
                     schedule: schedule,
                     locationData: snapshot.location,
-                    weatherData: dayOffset <= 1 ? snapshot.weather : nil, // Only include weather for near-term
-                    calendarEvents: dayOffset <= 1 ? snapshot.calendar : nil, // Only include calendar for near-term
+                    weatherData: snapshot.weather, // Include weather for all 3 days
+                    calendarEvents: snapshot.calendar, // Include calendar for all 3 days
                     isWelcome: false
                 )
                 

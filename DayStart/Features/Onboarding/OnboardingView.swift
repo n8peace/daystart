@@ -191,6 +191,10 @@ struct OnboardingView: View {
         // Sync calendar permission status  
         calendarPermissionStatus = mapCalendarStatus()
         
+        // Update include flags based on current permissions
+        includeWeather = (locationPermissionStatus == .granted)
+        includeCalendar = (calendarPermissionStatus == .granted)
+        
         logger.log("Synced permission statuses - Location: \(locationPermissionStatus), Calendar: \(calendarPermissionStatus)", level: .info)
     }
     

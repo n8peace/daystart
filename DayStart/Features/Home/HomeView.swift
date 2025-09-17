@@ -845,7 +845,7 @@ struct HomeView: View {
         let countdownText = viewModel.preparingCountdownText.components(separatedBy: ":").compactMap({ Int($0) })
         guard countdownText.count == 2 else { return 0 }
         
-        let totalSeconds = 180.0 // 3 minutes
+        let totalSeconds = 120.0 // 2 minutes
         let remainingSeconds = Double(countdownText[0] * 60 + countdownText[1])
         return max(0, min(1, (totalSeconds - remainingSeconds) / totalSeconds))
     }
