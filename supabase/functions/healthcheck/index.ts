@@ -543,6 +543,19 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
     : report.overall_status === 'warn'
     ? "🤔 We've detected some minor bruises on our banana infrastructure..."
     : "🚨 Houston, we have a banana emergency! Critical issues detected."
+  
+  // Dynamic colors based on status
+  const borderColor = report.overall_status === 'pass' 
+    ? '#10b981'  // Green for pass
+    : report.overall_status === 'warn'
+    ? '#f59e0b'  // Orange for warn (existing)
+    : '#dc2626'  // Red for fail
+  
+  const gradientColors = report.overall_status === 'pass'
+    ? '#10b981,#059669'  // Green gradient
+    : report.overall_status === 'warn'
+    ? '#fbbf24,#f59e0b'  // Orange gradient (existing)
+    : '#ef4444,#dc2626'  // Red gradient
 
   // Create check rows with better formatting
   const checkRows = report.checks
@@ -598,9 +611,21 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
     </div>
   ` : ''
 
-  // AI Diagnosis section
+  // AI Diagnosis section with dynamic colors
+  const aiDiagnosisBg = report.overall_status === 'pass'
+    ? 'linear-gradient(135deg,#d1fae5,#a7f3d0)'  // Light green
+    : report.overall_status === 'warn'
+    ? 'linear-gradient(135deg,#fef3c7,#fde68a)'  // Light yellow (existing)
+    : 'linear-gradient(135deg,#fee2e2,#fecaca)'  // Light red
+    
+  const aiDiagnosisBorder = report.overall_status === 'pass'
+    ? '#10b981'  // Green
+    : report.overall_status === 'warn'
+    ? '#f59e0b'  // Orange (existing)
+    : '#dc2626'  // Red
+    
   const aiDiagnosisHtml = report.ai_diagnosis ? `
-    <div style="margin-bottom:20px;padding:16px;background:linear-gradient(135deg,#fef3c7,#fde68a);border:2px solid #f59e0b;border-radius:12px;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
+    <div style="margin-bottom:20px;padding:16px;background:${aiDiagnosisBg};border:2px solid ${aiDiagnosisBorder};border-radius:12px;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
       <h3 style="margin:0 0 8px 0;font-size:16px;color:#111;display:flex;align-items:center">
         🧠 AI Diagnosis
       </h3>
@@ -612,9 +637,9 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0;padding:0;background:#FFFDF0">
       <tr>
         <td>
-          <table role="presentation" align="center" width="680" cellspacing="0" cellpadding="0" style="margin:24px auto;background:#ffffff;border:2px solid #f59e0b;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)">
+          <table role="presentation" align="center" width="680" cellspacing="0" cellpadding="0" style="margin:24px auto;background:#ffffff;border:2px solid ${borderColor};border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)">
             <tr>
-              <td style="background:linear-gradient(135deg,#fbbf24,#f59e0b);padding:24px;text-align:center">
+              <td style="background:linear-gradient(135deg,${gradientColors});padding:24px;text-align:center">
                 <h1 style="margin:0 0 8px 0;font-size:28px;color:#111">🍌 DayStart Health Report</h1>
                 <p style="margin:0;font-size:16px;color:#111;font-weight:500">${statusMessage}</p>
               </td>

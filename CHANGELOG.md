@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 ### Changed
+- Greeting format now omits comma and name when user has no preferred name set (says "Good morning, it's..." instead of "Good morning, there, it's...")
+- Healthcheck emails now use color-coded borders and headers based on status (green for pass, orange for warn, red for fail)
 ### Fixed
 ### Removed
 
@@ -19,7 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.09.16] - 2025-09-16 (Next Release)
 
-**Build:** 2 | **Commit:** `ffdb752`
+**Build:** 2 | **Commit:** `0500777`
 
 ### Added
 - iOS best practice permission flow with complete gesture blocking
@@ -35,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Critical:** Permission timing bug where weather dialog appeared after page transition
 - **Critical:** Users who granted location permission having weather incorrectly disabled
 - **Critical:** Weather and calendar features not enabled in onboarding when permissions were already granted
+- **Critical:** Onboarding creating 14 days of jobs instead of 48 hours (reduced from 14 days to 3 days)
 - Day abbreviation display truncated with ellipsis (W...) on smaller screens
 - Day names wrapping to next line (We\nd) with larger font sizes
 - Welcome DayStart could be cancelled if user's schedule didn't include current day

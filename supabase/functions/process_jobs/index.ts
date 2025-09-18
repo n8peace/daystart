@@ -1807,7 +1807,10 @@ FACT RULES
  - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style. For longer scripts, add more context or a brief reflection to enrich the quote section.
 
 CONTENT ORDER (adapt if sections are missing)
-1) Standard opening: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!" followed by a three-second pause using EXACTLY "[3 second pause]" on its own line.
+1) Standard opening: 
+   - If user.preferredName is "there": "Good morning, it's {friendly date}. This is DayStart!"
+   - Otherwise: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!"
+   followed by a three-second pause using EXACTLY "[3 second pause]" on its own line.
 1a) Day context (if dayContext.encouragement is provided): Include it naturally after the greeting, one or two sentences max. Vary tone so it doesn't feel canned.
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.

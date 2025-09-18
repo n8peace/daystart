@@ -17,7 +17,7 @@ morning,briefing,ai,news,weather,calendar,audio,productivity,routine,personalize
 
 ## Promotional Text (170 characters max)
 ```
-Start your day informed! Get personalized AI audio briefings with weather, news, calendar events & more - all in one hands-free morning update.
+Start your day informed! Get personalized AI audio briefings with weather, news, events, sports, stocks & more. It's like your own, personal podcast to start the day.
 ```
 
 ## App Description (4000 characters max)
@@ -27,15 +27,12 @@ Skip the scrolling, start informed. Transform your morning routine with DayStart
 Wake up to a professionally narrated summary of everything you need to know for the day ahead. No more frantically checking multiple apps or scrolling through endless feeds. DayStart AI brings it all together in one seamless, hands-free audio experience.
 
 WHAT'S INCLUDED IN YOUR BRIEFING:
-• Local Weather Forecast - Current conditions and today's outlook for your exact location (powered by WeatherKit)
+• Local Weather Forecast - Current conditions and today's outlook for your exact location
 • Breaking News - Top stories from trusted sources, intelligently curated
 • Calendar Events - Your schedule for the day, meeting times, and reminders  
 • Stock Market Updates - Track your portfolio and market movements
 • Sports Scores - Results from your favorite teams
 • Daily Inspiration - Motivational quotes to energize your morning
-
-WEATHERKIT INTEGRATION:
-DayStart AI uses WeatherKit to provide accurate, hyperlocal weather information. Weather data is automatically included in every morning briefing - no navigation required. Simply press play on your DayStart and weather information will be seamlessly integrated into your personalized audio briefing.
 
 KEY FEATURES:
 • AI-Powered Personalization - Our advanced AI learns your preferences and interests
@@ -51,8 +48,8 @@ PERFECT FOR:
 
 HOW IT WORKS:
 1. Set your wake-up time and content preferences
-2. DayStart AI generates your personalized briefing overnight
-3. Wake up to your custom audio briefing or play it when ready
+2. DayStart AI does the hard work and generates your personalized briefing overnight
+3. Wake up with your custom audio briefing ready to go
 4. Start your day informed, inspired, and ahead of the curve
 
 SUBSCRIPTION OPTIONS:
@@ -64,8 +61,6 @@ Join others who've revolutionized their mornings with DayStart AI. Because the b
 
 Privacy Policy: https://daystart.bananaintelligence.ai/privacy
 Terms of Service: https://daystart.bananaintelligence.ai/terms
-
-By subscribing, you agree that payment will be charged to your Apple Account at confirmation of purchase. Your subscription will automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. You can manage and cancel your subscriptions in your Apple Account settings.
 ```
 
 ## Subtitle (30 characters max)
@@ -75,23 +70,23 @@ AI Audio News & Weather Brief
 
 ## What's New in Version 2025.09.16
 ```
-🍌 Rise and shine, DayStarters! We've been up before dawn making your mornings even better:
+Rise and shine, DayStarters! We've been up before dawn making your mornings even better:
 
 SMOOTHER THAN BANANA BUTTER:
-• Fixed that pesky weather permission timing - no more dialog surprises!
-• Simplified setup - we'll start you off with all 7 days (because who doesn't want daily brilliance?)
-• Days of the week got a makeover: M, Tu, W, Th, F, Sa, Su - short, sweet, and fits on any screen!
+- Fixed that pesky weather permission timing - no more dialog surprises!
+- Simplified setup - we'll start you off with all 7 days (because who doesn't want daily brilliance?)
+- Days of the week got a makeover: M, Tu, W, Th, F, Sa, Su - short, sweet, and fits on any screen!
 
-FASTER WAKE-UPS:
-• Reduced buffering time from 3 to 2 minutes (that's 60 seconds more snooze for you!)
-• Welcome DayStart now works like a charm - no more accidental cancellations
+FASTER CREATION:
+- Reduced buffering time from 3 to 2 minutes (33% speed increase, take that!)
+- Welcome DayStart now works like a charm - no more accidental cancellations
 
 MORE SPORTS, MORE SCORES:
-• Increased sports coverage in longer briefings - because we know you need ALL the highlights
+- Increased sports coverage in longer briefings - because we know you need ALL the highlights
 
 Bug fixes? We squashed 'em. Permission flows? Smooth as silk. Your perfect morning? Still just one tap away.
 
-Sweet dreams! 🌅
+Sweet dreams!
 ```
 
 ## What's New in Version 2025.09.4
@@ -228,32 +223,33 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 QUICK TEST:
 1. Use sandbox Apple ID
 2. Complete onboarding → Purchase subscription → Tap "Start Welcome DayStart"
-3. Audio plays immediately (2-3 min generation for first briefing)
+3. Audio plays after 2 mins or less of buffering.
+
 
 WHAT'S NEW:
-• Fixed permission timing bugs
-• Improved day abbreviations (M, Tu, W, Th, F, Sa, Su)
-• Faster buffering (2 min vs 3 min)
-• More sports stories in longer briefings
+- Simplified onboarding, removed days of the week selection (screenshot attached)
+- Improved day abbreviations (M, Tu, W, Th, F, Sa, Su), better universal UI
+- Faster buffering (2 min vs 3 min)
+- More sports stories in longer briefings
 
 WEATHERKIT:
-• Yes, app uses WeatherKit for weather data
-• Weather plays automatically in every briefing (no navigation needed)
-• Toggle weather: Onboarding page 5 or Edit screen
-• Apple Weather attribution properly displayed
+- Yes, app uses WeatherKit for weather data
+- Weather plays automatically in every briefing (no navigation needed)
+- Toggle weather: Onboarding page 5 or Edit screen
+- Apple Weather attribution properly displayed
 
 SUBSCRIPTIONS:
-• Product IDs: daystart_monthly_subscription, daystart_annual_subscription
-• Free trials: 3-day (monthly), 7-day (annual)
-• No login required - uses StoreKit receipt IDs
+- Product IDs: daystart_monthly_subscription, daystart_annual_subscription
+- Free trials: 3-day (monthly), 7-day (annual)
+- No login required - uses StoreKit receipt IDs
 
 BACKGROUND PROCESSING:
 Essential for prefetching audio 2 hours before scheduled wake time. Prevents playback delays.
 
 PERMISSIONS (BOTH OPTIONAL):
-• Location: Weather updates only
-• Calendar: Event summaries only
-• App works without permissions
+- Location: Weather updates only
+- Calendar: Event summaries only
+- App works without permissions
 
 CONTACT: nate@bananaintelligence.ai
 ```
