@@ -151,6 +151,7 @@ class HomeViewModel: ObservableObject {
     @Published var toastMessage: String?
     @Published var showReviewGate = false
     @Published var showFeedbackSheet = false
+    @Published var isManualRefreshing = false
     
     private var timer: Timer?
     private var pauseTimeoutTimer: Timer?
@@ -692,8 +693,14 @@ class HomeViewModel: ObservableObject {
             let welcomeScheduler = WelcomeDayStartScheduler.shared
             
             if welcomeScheduler.isWelcomePending {
-                // Stay in idle but show welcome countdown UI
-                stateTransitionManager.transitionTo(.idle)
+                // Show preparing view while welcome is being prepared
+                startPreparingState(isWelcome: true)
+                logger.log("⏳ Welcome DayStart is being prepared - showing preparing view", level: .info)
+                
+                // Start polling for welcome audio
+                Task {
+                    await checkWelcomeAudioStatus()
+                }
                 return
             }
             
@@ -964,6 +971,19 @@ class HomeViewModel: ObservableObject {
                     // Load audio services and start playing (will handle state transitions)
                     Task {
                         await loadAudioServicesAndStart(scheduledTime: scheduledTime)
+                    }
+                } else if audioStatus.success && audioStatus.status == "queued", let jobId = audioStatus.jobId {
+                    logger.log("🚀 DayStart is queued, triggering immediate processing for job: \(jobId)", level: .info)
+                    
+                    // Trigger immediate processing
+                    Task {
+                        do {
+                            try await serviceRegistry.supabaseClient.invokeProcessJob(jobId: jobId)
+                            logger.log("✅ Successfully triggered processing for job: \(jobId)", level: .info)
+                        } catch {
+                            logger.logError(error, context: "Failed to trigger processing for job: \(jobId)")
+                            // Continue polling normally if trigger fails
+                        }
                     }
                 } else if audioStatus.status == "failed" {
                     // Job failed
@@ -1242,6 +1262,19 @@ class HomeViewModel: ObservableObject {
                     
                     // Haptic feedback for early completion
                     HapticManager.shared.notification(type: .success)
+                } else if audioStatus.success && audioStatus.status == "queued", let jobId = audioStatus.jobId {
+                    logger.log("🚀 Welcome DayStart is queued, triggering immediate processing for job: \(jobId)", level: .info)
+                    
+                    // Trigger immediate processing
+                    Task {
+                        do {
+                            try await serviceRegistry.supabaseClient.invokeProcessJob(jobId: jobId)
+                            logger.log("✅ Successfully triggered processing for welcome job: \(jobId)", level: .info)
+                        } catch {
+                            logger.logError(error, context: "Failed to trigger processing for welcome job: \(jobId)")
+                            // Continue polling normally if trigger fails
+                        }
+                    }
                 } else if audioStatus.status == "failed" {
                     // Job failed
                     connectionError = .supabaseError
@@ -1442,16 +1475,38 @@ class HomeViewModel: ObservableObject {
         currentDayStart = nil
         
         if isWelcomeFlow {
-            // For welcome flow, clean up welcome scheduler and go directly to idle
+            // For welcome flow, clean up welcome scheduler and go to idle
             WelcomeDayStartScheduler.shared.cancelWelcomeDayStart()
             state = .idle
             connectionError = nil
-            // Don't call updateState() to avoid triggering error checking
+            // Set up idle state manually without calling updateState()
+            setupIdleStateAfterExit()
         } else {
-            // For regular DayStart, transition normally
+            // For regular DayStart, go to idle and set up proper idle content
             state = .idle
-            updateState()
+            connectionError = nil
+            
+            // Set up idle state manually without calling updateState()
+            setupIdleStateAfterExit()
         }
+    }
+    
+    private func setupIdleStateAfterExit() {
+        // Calculate next DayStart time based on current schedule
+        nextDayStartTime = userPreferences.schedule.nextOccurrence
+        
+        // Start countdown display if there's a scheduled time
+        if nextDayStartTime != nil {
+            updateCountdownDisplay()
+        } else {
+            // No schedule set - show appropriate message
+            countdownText = ""
+        }
+        
+        // Clear any completion flags since user manually exited
+        hasCompletedCurrentOccurrence = false
+        
+        logger.log("🏠 Idle state set up after user exit - next: \(nextDayStartTime?.description ?? "none")", level: .info)
     }
     
     /// Trigger snapshot update after playing a DayStart
@@ -1820,6 +1875,59 @@ class HomeViewModel: ObservableObject {
         loadingTimeoutTimer = nil
         
         loadingMessages.stopRotatingMessages()
+    }
+    
+    // MARK: - Manual Refresh
+    
+    func manualRefresh() async {
+        // Only allow refresh in appropriate states
+        guard state == .idle || state == .completed else {
+            logger.log("🔄 Manual refresh blocked - inappropriate state: \(state)", level: .info)
+            return
+        }
+        
+        // Check 4-hour lockout through existing business logic
+        guard let nextTime = nextDayStartTime, 
+              !userPreferences.isWithinLockoutPeriod(of: nextTime) else {
+            await MainActor.run {
+                toastMessage = "Please wait before requesting your next DayStart"
+            }
+            logger.log("🔄 Manual refresh blocked - 4-hour lockout active", level: .info)
+            return
+        }
+        
+        await MainActor.run {
+            isManualRefreshing = true
+            // Haptic feedback
+            HapticManager.shared.impact(style: .light)
+            logger.log("🔄 Manual refresh started", level: .info)
+        }
+        
+        // Store start time for minimum duration
+        let refreshStartTime = Date()
+        
+        // Use existing audio status check logic
+        if let nextTime = nextDayStartTime {
+            await checkAudioStatus(for: nextTime)
+        } else {
+            // Update other state without audio check
+            await MainActor.run {
+                validateAndUpdateState()
+            }
+        }
+        
+        // Ensure minimum 2.5 second duration for UX feedback
+        let elapsed = Date().timeIntervalSince(refreshStartTime)
+        let minimumDuration: TimeInterval = 2.5
+        
+        if elapsed < minimumDuration {
+            try? await Task.sleep(nanoseconds: UInt64((minimumDuration - elapsed) * 1_000_000_000))
+        }
+        
+        await MainActor.run {
+            isManualRefreshing = false
+            logger.log("🔄 Manual refresh completed", level: .info)
+        }
     }
     
     // MARK: - Pause Timeout Management

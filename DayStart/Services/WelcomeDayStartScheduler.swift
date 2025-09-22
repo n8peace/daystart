@@ -30,6 +30,10 @@ class WelcomeDayStartScheduler: ObservableObject {
         
         logger.log("🎉 PHASE 4: Welcome DayStart ready instantly with background preparation", level: .info)
         
+        // Set pending state immediately to show preparing view
+        isWelcomePending = true
+        logger.log("⏳ Welcome DayStart preparation started", level: .info)
+        
         // PHASE 4: Make welcome instantly available, prepare content in background
         Task {
             await performDeferredInitialization()
@@ -126,8 +130,8 @@ class WelcomeDayStartScheduler: ObservableObject {
     private func beginPolling() {
         logger.log("📊 Starting audio status polling for welcome DayStart", level: .info)
         
-        // Poll every 30 seconds
-        audioStatusTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        // Poll every 10 seconds (consistent with regular DayStarts)
+        audioStatusTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { [weak self] in
                 await self?.checkAudioStatus()
             }
@@ -160,6 +164,17 @@ class WelcomeDayStartScheduler: ObservableObject {
                 // Send notification
                 await sendReadyNotification()
                 hasNotifiedReady = true
+            } else if audioStatus.success && audioStatus.status == "queued", let jobId = audioStatus.jobId {
+                logger.log("🚀 Welcome DayStart is queued, triggering immediate processing for job: \(jobId)", level: .info)
+                
+                // Trigger immediate processing
+                do {
+                    try await SupabaseClient.shared.invokeProcessJob(jobId: jobId)
+                    logger.log("✅ Successfully triggered processing for welcome job: \(jobId)", level: .info)
+                } catch {
+                    logger.logError(error, context: "Failed to trigger processing for welcome job: \(jobId)")
+                    // Continue polling normally if trigger fails
+                }
             } else {
                 logger.log("⏳ Welcome DayStart audio status: \(audioStatus.status ?? "unknown")", level: .debug)
             }

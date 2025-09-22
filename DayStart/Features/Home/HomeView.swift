@@ -216,6 +216,9 @@ struct HomeView: View {
                     .padding(.bottom, 30)
                 }
                 .padding()
+                .refreshable {
+                    await viewModel.manualRefresh()
+                }
                 .onChange(of: viewModel.state) { newState in
                     let logger = DebugLogger.shared
                     logger.log("🎵 HomeView: State changed from \(previousState) to \(newState)", level: .info)

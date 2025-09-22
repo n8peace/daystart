@@ -28,6 +28,7 @@ struct EditScheduleView: View {
     @State private var showToast = false
     @State private var showingLocationDeniedAlert = false
     @State private var showingCalendarDeniedAlert = false
+    @State private var showingDiscardAlert = false
     
     private let logger = DebugLogger.shared
     
@@ -176,9 +177,13 @@ struct EditScheduleView: View {
             .toolbar(content: {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(action: {
-                        dismissTask?.cancel()
-                        dismissTask = Task {
-                            presentationMode.wrappedValue.dismiss()
+                        if hasUnsavedChanges {
+                            showingDiscardAlert = true
+                        } else {
+                            dismissTask?.cancel()
+                            dismissTask = Task {
+                                presentationMode.wrappedValue.dismiss()
+                            }
                         }
                     }) {
                         Image(systemName: "xmark")
@@ -282,6 +287,31 @@ struct EditScheduleView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Calendar events require calendar access. You can enable this in Settings > DayStart > Calendars.")
+        }
+        .alert("Unsaved Changes", isPresented: $showingDiscardAlert) {
+            Button("Save Changes", role: .none) {
+                logger.logUserAction("Save EditSchedule - unsaved changes alert")
+                saveChanges()
+                dismissTask?.cancel()
+                dismissTask = Task {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    await MainActor.run {
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
+            Button("Discard Changes", role: .destructive) {
+                logger.logUserAction("Discard EditSchedule changes")
+                dismissTask?.cancel()
+                dismissTask = Task {
+                    presentationMode.wrappedValue.dismiss()
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                logger.logUserAction("Cancel discard EditSchedule changes")
+            }
+        } message: {
+            Text("You have unsaved changes. Would you like to save them before leaving?")
         }
     }
     

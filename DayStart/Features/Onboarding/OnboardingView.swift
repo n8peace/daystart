@@ -451,9 +451,37 @@ struct OnboardingView: View {
                 // Pain points grid
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
                     PainPointCard(icon: "❌", text: "Unsure where to start", geometry: geometry)
+                        .onTapGesture {
+                            logger.logUserAction("Pain point card tapped")
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 1 
+                            }
+                        }
                     PainPointCard(icon: "❌", text: "Overwhelmed by the day", geometry: geometry)
+                        .onTapGesture {
+                            logger.logUserAction("Pain point card tapped")
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 1 
+                            }
+                        }
                     PainPointCard(icon: "❌", text: "No motivation to rise", geometry: geometry)
+                        .onTapGesture {
+                            logger.logUserAction("Pain point card tapped")
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 1 
+                            }
+                        }
                     PainPointCard(icon: "❌", text: "Same boring routine", geometry: geometry)
+                        .onTapGesture {
+                            logger.logUserAction("Pain point card tapped")
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 1 
+                            }
+                        }
                 }
                 .padding(.horizontal, geometry.size.width * 0.10)
                 .opacity(textOpacity)
@@ -508,8 +536,29 @@ struct OnboardingView: View {
                 // Feature preview cards
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 16) {
                     FeaturePreviewCard(icon: "📰", title: "News", subtitle: "Stay informed", geometry: geometry)
+                        .onTapGesture {
+                            logger.logUserAction("Feature preview card tapped")
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 2 
+                            }
+                        }
                     FeaturePreviewCard(icon: "☁️", title: "Weather", subtitle: "Dress right", geometry: geometry)
+                        .onTapGesture {
+                            logger.logUserAction("Feature preview card tapped")
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 2 
+                            }
+                        }
                     FeaturePreviewCard(icon: "📅", title: "Calendar", subtitle: "Never miss", geometry: geometry)
+                        .onTapGesture {
+                            logger.logUserAction("Feature preview card tapped")
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 2 
+                            }
+                        }
                 }
                 .padding(.horizontal, geometry.size.width * 0.10)
                 .opacity(textOpacity)
@@ -1992,6 +2041,10 @@ struct OnboardingView: View {
             "includeQuotes": includeQuotes,
             "selectedVoice": selectedVoice?.name ?? "[none]"
         ])
+        
+        // Start welcome DayStart for existing subscribers who skip paywall
+        WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
+        logger.log("🎉 Welcome DayStart scheduled for existing subscriber", level: .info)
         
         // Complete onboarding - settings already saved and job already processing
         onComplete()

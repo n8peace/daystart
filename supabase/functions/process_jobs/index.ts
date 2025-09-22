@@ -1044,7 +1044,10 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     locationData: job.location_data,
     weatherData: job.weather_data,
     calendarEvents: job.calendar_events,
-    contentData: contentData
+    contentData: contentData,
+    is_welcome: job.is_welcome || false,
+    user_id: job.user_id,
+    scheduled_at: job.scheduled_at
   };
 
   // Get dynamic limits based on user's duration
@@ -1055,7 +1058,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   console.log(`[DEBUG] Duration: ${duration}s, Target words: ${targetWords}, Max tokens: ${maxTokens}`);
   
   // Create prompt for GPT-4
-  const prompt = buildScriptPrompt(context);
+  const prompt = await buildScriptPrompt(context);
   
   // Log the prompt for debugging
   console.log('[DEBUG] Prompt length:', prompt.length, 'characters');
@@ -1481,7 +1484,7 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
   }
 }
 
-function buildScriptPrompt(context: any): string {
+async function buildScriptPrompt(context: any): Promise<string> {
   // Parse the date in the user's timezone, not UTC
   console.log(`📅 Parsing date: ${context.date} in timezone: ${context.timezone}`);
   
@@ -1764,6 +1767,93 @@ PAUSING & FLOW
 - Keep sentences mostly under 18 words.
 `;
 
+  // ========================================
+  // WELCOME DAYSTART - First-time user experience
+  // ========================================
+  // Check if this is a welcome job
+  if (context.is_welcome) {
+    // Try to get tomorrow's scheduled time
+    let tomorrowScheduleText = "according to your preferences";
+    
+    try {
+      // Calculate tomorrow's date
+      const tomorrow = new Date(dateString);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowDateString = tomorrow.toISOString().split('T')[0];
+      
+      // Query for tomorrow's job
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      
+      const { data: tomorrowJob } = await supabase
+        .from('jobs')
+        .select('scheduled_at')
+        .eq('user_id', context.user_id)
+        .eq('local_date', tomorrowDateString)
+        .not('status', 'eq', 'cancelled')
+        .single();
+      
+      if (tomorrowJob?.scheduled_at) {
+        const scheduledTime = new Date(tomorrowJob.scheduled_at);
+        // Format time for display (e.g., "6:30 AM")
+        const timeString = scheduledTime.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true,
+          timeZone: context.timezone
+        });
+        tomorrowScheduleText = `for ${timeString}`;
+      }
+    } catch (error) {
+      console.log('[DEBUG] Could not fetch tomorrow schedule:', error);
+    }
+    
+    // Return special welcome prompt
+    return `
+You are creating a WELCOME script for a brand new DayStart user. This is their first experience.
+
+Write a 50-60 second welcome script (about 120-150 words) with this EXACT structure:
+
+1) Opening: 
+   - If user.preferredName is "there" or empty: "Hello! Welcome to DayStart!"
+   - Otherwise: "Hello, {user.preferredName}! Welcome to DayStart!"
+2) [3 second pause]
+3) Introduction: "This is your personalized daily briefing, created just for you. Tomorrow, your DayStart is scheduled ${tomorrowScheduleText}. You can change this time and customize all your preferences by tapping Edit in the app."
+4) [3 second pause]  
+5) Preview (15-20 seconds): Give a taste of what they'll hear, using any available data:
+   ${context.includeWeather && context.weatherData ? '- One sentence about tomorrow\'s weather' : ''}
+   ${context.includeNews && data.news.length > 0 ? '- One interesting news headline' : ''}
+   ${context.calendarEvents?.length > 0 ? '- Mention they have events tomorrow' : ''}
+6) [2 second pause]
+7) Motivation: "Here's today's motivation: The journey of a thousand miles begins with a single step. This is your first step to more productive mornings."
+8) [1 second pause]
+9) Closing: "That's it for today. Have a good DayStart."
+10) [2 second pause]
+
+STRICT RULES:
+- Use EXACTLY the bracketed pause format shown: "[X second pause]" on its own line
+- Keep total length to 50-60 seconds (120-150 words)
+- Sound warm and welcoming, not robotic
+- If no content is available for preview, use: "Each morning, you'll get weather updates, top news, and more, all personalized for your day."
+- Spell out all numbers and times in words for TTS (e.g., "six thirty A M" not "6:30 AM")
+
+Available data:
+${JSON.stringify({
+  user: {
+    preferredName: context.preferredName || "there"
+  },
+  weather: context.weatherData || null,
+  news: data.news.slice(0, 3),
+  hasCalendar: (context.calendarEvents?.length || 0) > 0
+}, null, 2)}
+`;
+  }
+
+  // ========================================
+  // REGULAR DAYSTART - Daily briefing for existing users
+  // ========================================
+  // Continue with regular script generation...
   return `
 You are a professional morning briefing writer for a TTS wake-up app. Your job: write a concise, warm, highly-personalized script that sounds natural when spoken aloud.
 
@@ -1800,6 +1890,7 @@ FACT RULES
 - Do not generalize. If you have at least one company in stocks.focus, always mention it specifically by name. Avoid generic phrases like "the market is mixed."
 - If today is Saturday or Sunday, omit equity updates entirely. Only mention cryptocurrencies if present.
 - Never mention a team or matchup unless it appears in the sports data for today.
+- IMPORTANT: When referring to Donald Trump in any news context, he is the CURRENT president, not former president. Always refer to him as "President Trump" or "the president" when discussing current political news.
  - Mention ONLY teams present in sportsTeamWhitelist (exact names). If the sports array is empty, omit the sports section entirely.
  - When choosing news, prefer items that mention the user's neighborhood/city/county/adjacent areas; next, state-level; then national; then international. If user.location.neighborhood exists, use it for hyper-local references (e.g., "Mar Vista" instead of just "Los Angeles").
  - Use 1–2 transitions, choosing from data.transitions.
