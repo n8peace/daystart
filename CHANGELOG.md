@@ -22,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.09.22] - 2025-09-22
 
-**Build:** 1 | **Commit:** `0eebfe0`
+**Build:** 2 | **Commit:** `37b8add`
 
 ### Added
 - Customized welcome DayStart script with 60-second introduction for new users
@@ -42,6 +42,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Updated AI prompt to correctly identify Donald Trump as the current president in news content
 
 ### Fixed
+- Fixed critical issue where welcome DayStarts could be overwritten by regular DayStarts during onboarding
+- Added purchase validation to prevent premature job creation before subscription completion
+- Enhanced backend job creation to prioritize welcome jobs when duplicate requests occur
+- Added client-side validation to verify welcome jobs are created correctly
+- Improved job creation idempotency to preserve welcome job status
 - Users can no longer accidentally lose unsaved changes when dismissing the settings screen
 - Users no longer confused by non-interactive cards that appeared clickable in onboarding pages 1 and 2
 - Fixed onboarding flow going directly to idle instead of welcome DayStart for existing subscribers
