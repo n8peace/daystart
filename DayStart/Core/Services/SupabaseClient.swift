@@ -202,7 +202,8 @@ class SupabaseClient {
                 estimatedReadyTime: jobResponse.estimated_ready_time.flatMap { ISO8601DateFormatter().date(from: $0) },
                 errorCode: jobResponse.error_code,
                 errorMessage: jobResponse.error_message,
-                requestId: jobResponse.request_id
+                requestId: jobResponse.request_id,
+                isWelcome: jobResponse.is_welcome
             )
             
         } catch {
@@ -722,6 +723,7 @@ private struct CreateJobAPIResponse: Codable {
     let error_code: String?
     let error_message: String?
     let request_id: String?
+    let is_welcome: Bool?
 }
 
 private struct AudioStatusAPIResponse: Codable {
@@ -747,6 +749,7 @@ struct JobResponse {
     let errorCode: String?
     let errorMessage: String?
     let requestId: String?
+    let isWelcome: Bool?
 }
 
 struct AudioStatusResponse {

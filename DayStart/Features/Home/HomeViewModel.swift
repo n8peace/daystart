@@ -1207,6 +1207,12 @@ class HomeViewModel: ObservableObject {
     }
     
     private func checkAndCreateWelcomeJobIfNeeded() async {
+        // Don't create jobs if user hasn't purchased
+        guard case .purchased = PurchaseManager.shared.purchaseState else {
+            logger.log("⚠️ Skipping welcome job creation - user hasn't purchased yet", level: .warning)
+            return
+        }
+        
         do {
             let supabaseClient = serviceRegistry.supabaseClient
             let currentDate = Date()
@@ -1225,10 +1231,16 @@ class HomeViewModel: ObservableObject {
                     schedule: userPreferences.schedule,
                     locationData: snapshot.location,
                     weatherData: snapshot.weather,
-                    calendarEvents: snapshot.calendar
+                    calendarEvents: snapshot.calendar,
+                    isWelcome: true
                 )
                 
                 logger.log("✅ Welcome job created: \(jobResponse.jobId ?? "unknown") with status: \(jobResponse.status ?? "unknown")", level: .info)
+                
+                // Validate that this is actually a welcome job
+                if jobResponse.isWelcome != true {
+                    logger.log("⚠️ WARNING: Created job is not marked as welcome! This may result in incorrect content.", level: .error)
+                }
             }
         } catch {
             logger.logError(error, context: "Failed to check/create welcome job")

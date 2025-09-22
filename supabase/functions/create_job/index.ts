@@ -41,6 +41,7 @@ interface CreateJobResponse {
   error_code?: string;
   error_message?: string;
   request_id: string;
+  is_welcome?: boolean;
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -108,15 +109,66 @@ serve(async (req: Request): Promise<Response> => {
     // Check existing job to avoid status regression
     const { data: existingJob } = await supabase
       .from('jobs')
-      .select('job_id, status, estimated_ready_time')
+      .select('job_id, status, estimated_ready_time, is_welcome')
       .eq('user_id', user_id)
       .eq('local_date', body.local_date)
       .single();
 
     const forceUpdate = !!(body as any).force_update;
+    
+    // Special case: If incoming request is a welcome job but existing job is not,
+    // always update to make it a welcome job
+    const shouldUpgradeToWelcome = body.is_welcome === true && existingJob?.is_welcome === false;
 
-    if (existingJob && (existingJob.status === 'processing' || existingJob.status === 'ready')) {
-      if (forceUpdate) {
+    if (existingJob) {
+      // If the new request is a welcome job but the existing one isn't, always upgrade
+      if (shouldUpgradeToWelcome) {
+        // Update the existing job to be a welcome job, regardless of status
+        const { data: updatedJob, error: updateErr } = await supabase
+          .from('jobs')
+          .update({
+            is_welcome: true,
+            priority: 100,
+            updated_at: new Date().toISOString()
+          })
+          .eq('job_id', existingJob.job_id)
+          .select('job_id, status, estimated_ready_time, is_welcome')
+          .single();
+
+        if (updateErr) {
+          console.error('Database error (welcome upgrade):', updateErr);
+          return createErrorResponse('DATABASE_ERROR', 'Failed to upgrade to welcome job', request_id);
+        }
+
+        await logRequest(supabase, {
+          request_id,
+          user_id,
+          endpoint: '/create_job',
+          method: 'POST',
+          status_code: 200,
+          response_time_ms: Date.now() - start_time,
+          user_agent: req.headers.get('user-agent'),
+          ip_address: req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')
+        });
+
+        const response: CreateJobResponse = {
+          success: true,
+          job_id: updatedJob.job_id,
+          status: updatedJob.status,
+          estimated_ready_time: updatedJob.estimated_ready_time,
+          is_welcome: updatedJob.is_welcome,
+          request_id
+        };
+
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+      }
+      
+      // Handle processing/ready status jobs
+      if (existingJob.status === 'processing' || existingJob.status === 'ready') {
+        if (forceUpdate) {
         // Re-queue existing job with updated settings and clear generated fields
         let process_not_before: string | undefined = undefined;
         try {
@@ -160,10 +212,11 @@ serve(async (req: Request): Promise<Response> => {
             estimated_ready_time,
             status: 'queued',
             priority: body.is_welcome ? 100 : calculatePriority(body.local_date, body.scheduled_at),
+            is_welcome: body.is_welcome || existingJob.is_welcome || false,
             updated_at: new Date().toISOString()
           })
           .eq('job_id', existingJob.job_id)
-          .select('job_id, status, estimated_ready_time')
+          .select('job_id, status, estimated_ready_time, is_welcome')
           .single();
 
         if (updateErr) {
@@ -187,6 +240,34 @@ serve(async (req: Request): Promise<Response> => {
           job_id: updatedJob.job_id,
           status: updatedJob.status,
           estimated_ready_time: updatedJob.estimated_ready_time,
+          is_welcome: updatedJob.is_welcome,
+          request_id
+        };
+
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+        }
+
+        // Do not regress status; return existing details
+        await logRequest(supabase, {
+          request_id,
+          user_id,
+          endpoint: '/create_job',
+          method: 'POST',
+          status_code: 200,
+          response_time_ms: Date.now() - start_time,
+          user_agent: req.headers.get('user-agent'),
+          ip_address: req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')
+        });
+
+        const response: CreateJobResponse = {
+          success: true,
+          job_id: existingJob.job_id,
+          status: existingJob.status,
+          estimated_ready_time: existingJob.estimated_ready_time,
+          is_welcome: existingJob.is_welcome,
           request_id
         };
 
@@ -195,31 +276,6 @@ serve(async (req: Request): Promise<Response> => {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       }
-
-      // Do not regress status; return existing details
-      await logRequest(supabase, {
-        request_id,
-        user_id,
-        endpoint: '/create_job',
-        method: 'POST',
-        status_code: 200,
-        response_time_ms: Date.now() - start_time,
-        user_agent: req.headers.get('user-agent'),
-        ip_address: req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')
-      });
-
-      const response: CreateJobResponse = {
-        success: true,
-        job_id: existingJob.job_id,
-        status: existingJob.status,
-        estimated_ready_time: existingJob.estimated_ready_time,
-        request_id
-      };
-
-      return new Response(JSON.stringify(response), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-      });
     }
 
     // Compute process_not_before (default to scheduled_at - 2h if not provided)
@@ -257,6 +313,7 @@ serve(async (req: Request): Promise<Response> => {
         estimated_ready_time,
         status: 'queued',
         priority: body.is_welcome ? 100 : calculatePriority(body.local_date, body.scheduled_at),
+        is_welcome: body.is_welcome || false,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,local_date',
@@ -287,6 +344,7 @@ serve(async (req: Request): Promise<Response> => {
       job_id: job.job_id,
       status: job.status,
       estimated_ready_time: job.estimated_ready_time,
+      is_welcome: job.is_welcome,
       request_id
     };
 
