@@ -11,20 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
-- Process jobs optimization: Automatically triggers job processing when audio status returns "queued" during preparing state
-- Welcome DayStart now shows proper preparing view with countdown and fun rotating messages instead of blank loading
 
 ### Changed
-- Welcome DayStart polling interval reduced from 30 seconds to 10 seconds (consistent with regular DayStarts)
-- Onboarding completion for existing subscribers now properly triggers welcome DayStart flow
-- Welcome scheduler sets pending state synchronously to avoid race conditions
-- Updated AI prompt to correctly identify Donald Trump as the current president in news content
 
 ### Fixed
-- Fixed onboarding flow going directly to idle instead of welcome DayStart for existing subscribers
-- Fixed "x" button during audio playback - now properly returns to idle state with appropriate countdown/schedule content instead of staying in playing state
-- Fixed preparing view not showing countdown timer and rotating messages for welcome DayStarts
-- Fixed race condition where welcome scheduler async initialization could complete before HomeView loaded
 
 ### Removed
 
@@ -32,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.09.22] - 2025-09-22
 
-**Build:** 1 | **Commit:** TBD
+**Build:** 1 | **Commit:** `2af4f9d`
 
 ### Added
 - Customized welcome DayStart script with 60-second introduction for new users
@@ -41,13 +31,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Confirmation dialog when exiting EditScheduleView with unsaved changes
 - Pull-to-refresh functionality on Home screen for manual status checking
 - Pain point and feature cards in onboarding are now tappable to advance to the next screen
+- Process jobs optimization: Automatically triggers job processing when audio status returns "queued" during preparing state
+- Welcome DayStart now shows proper preparing view with countdown and fun rotating messages instead of blank loading
 
 ### Changed
 - Home screen now transitions directly to welcome-ready state after onboarding instead of showing a brief idle state first
+- Welcome DayStart polling interval reduced from 30 seconds to 10 seconds (consistent with regular DayStarts)
+- Onboarding completion for existing subscribers now properly triggers welcome DayStart flow
+- Welcome scheduler sets pending state synchronously to avoid race conditions
+- Updated AI prompt to correctly identify Donald Trump as the current president in news content
 
 ### Fixed
 - Users can no longer accidentally lose unsaved changes when dismissing the settings screen
 - Users no longer confused by non-interactive cards that appeared clickable in onboarding pages 1 and 2
+- Fixed onboarding flow going directly to idle instead of welcome DayStart for existing subscribers
+- Fixed "x" button during audio playback - now properly returns to idle state with appropriate countdown/schedule content instead of staying in playing state
+- Fixed preparing view not showing countdown timer and rotating messages for welcome DayStarts
+- Fixed race condition where welcome scheduler async initialization could complete before HomeView loaded
 
 ### Removed
 

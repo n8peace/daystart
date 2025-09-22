@@ -68,38 +68,25 @@ Terms of Service: https://daystart.bananaintelligence.ai/terms
 AI Audio News & Weather Brief
 ```
 
-## What's New in Version 2025.09.16
+## What's New in Version 2025.09.22
 ```
-Rise and shine, DayStarters! We've been up before dawn making your mornings even better:
+Rise and shine, DayStarters! We've been burning the midnight banana oil to perfect your mornings:
 
-SMOOTHER THAN BANANA BUTTER:
-- Fixed that pesky weather permission timing - no more dialog surprises!
-- Simplified setup - we'll start you off with all 7 days (because who doesn't want daily brilliance?)
-- Days of the week got a makeover: M, Tu, W, Th, F, Sa, Su - short, sweet, and fits on any screen!
+WELCOME TO THE FAMILY:
+- Brand new Welcome DayStart - a 60-second personalized intro for new friends!
 
-FASTER CREATION:
-- Reduced buffering time from 3 to 2 minutes (33% speed increase, take that!)
-- Welcome DayStart now works like a charm - no more accidental cancellations
+SMOOTHER THAN A PEELED BANANA:
+- Pull-to-refresh on home screen - because sometimes you just can't wait!
+- Tappable cards in onboarding - they finally do what they look like they should!
+- Fixed the "x" button during playback - it actually takes you home now (revolutionary!)
+- Settings won't lose your changes anymore - we added a "are you sure?" safety net
 
-MORE SPORTS, MORE SCORES:
-- Increased sports coverage in longer briefings - because we know you need ALL the highlights
+BEHIND THE SCENES MAGIC:
+- Welcome DayStart shows proper countdown with fun messages (no more blank stares)
+- Faster polling for quicker audio delivery
+- Smarter job processing - less waiting, more listening!
 
-Bug fixes? We squashed 'em. Permission flows? Smooth as silk. Your perfect morning? Still just one tap away.
-
-Sweet dreams!
-```
-
-## What's New in Version 2025.09.4
-```
-Welcome to DayStart AI! 
-
-• Personalized AI-generated morning briefings
-• Weather, news, calendar integration  
-• High-quality voice synthesis
-• Customizable content preferences
-• Offline playback support
-
-Try monthly (3-day free trial) or annual (7-day free trial) subscriptions!
+Wake up winning!
 ```
 
 ## Categories
@@ -218,19 +205,22 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 - [x] Complete subscription metadata in App Store Connect
 - [x] Ensure Supabase backend is running during review
 
-### App Store Review Notes - Version 2025.09.16
+### App Store Review Notes - Version 2025.09.22
 ```
 QUICK TEST:
 1. Use sandbox Apple ID
 2. Complete onboarding → Purchase subscription → Tap "Start Welcome DayStart"
-3. Audio plays after 2 mins or less of buffering.
+3. Welcome DayStart plays after ~2 mins buffering (60-second personalized intro)
 
-
-WHAT'S NEW:
-- Simplified onboarding, removed days of the week selection (screenshot attached)
-- Improved day abbreviations (M, Tu, W, Th, F, Sa, Su), better universal UI
-- Faster buffering (2 min vs 3 min)
-- More sports stories in longer briefings
+WHAT'S NEW IN 2025.09.22:
+- NEW: Welcome DayStart - 60-second personalized introduction for first-time users
+- Pull-to-refresh on home screen for manual status updates
+- Tappable onboarding cards (pain points & features now advance screens)
+- Fixed "x" button during playback - properly returns to idle state
+- Confirmation dialog prevents accidental loss of unsaved schedule changes
+- Improved countdown display during Welcome DayStart preparation
+- Faster status polling (10 seconds vs 30 seconds)
+- Fixed onboarding-to-welcome transition for existing subscribers
 
 WEATHERKIT:
 - Yes, app uses WeatherKit for weather data
@@ -287,6 +277,6 @@ CONTACT: nate@bananaintelligence.ai
   - [x] Test on clean device without debug environment
   
 - [x] Marketing Assets (Optional)
-  - [x] App preview video
+  - [] App preview video
   - [x] Marketing website at daystart.bananaintelligence.ai
   - [x] Support documentation at daystart.bananaintelligence.ai
