@@ -1863,7 +1863,7 @@ STYLE
 - Prefer specifics over generalities. If a section has no data, gracefully skip it.
 - Sprinkle one light, human moment max (a nudge, not a joke barrage).
 - IMPORTANT: For TTS readability:
-  - Always use full company names instead of stock tickers (e.g., "Apple" not "AAPL", "Tesla" not "TSLA", "S&P 500 ETF" not "SPY")
+  - Always use full company names instead of stock tickers (e.g., "Apple" not "AAPL", "Tesla" not "TSLA", "S and P five hundred" not "^GSPC", "Dow Jones" not "^DJI")
   - Don't add "Inc" at the end of company names (use "Apple", not "Apple Inc.")
   - Spell out all numbers and prices in words (e.g., "two hundred thirty dollars and eighty-nine cents" not "$230.89", "down zero point three percent" not "down 0.3%")
 ${styleAddendum}
@@ -1879,7 +1879,7 @@ LENGTH & PACING
 CONTENT PRIORITIZATION
   - News: Use ${storyLimits.news === 1 ? '1 story' : `${storyLimits.news - 1}–${storyLimits.news} stories`}, depending on significance and space. Choose by local relevance using user.location when available; otherwise pick the most significant stories. For longer scripts, include deeper context and background for major stories.
 - Sports: Include ${storyLimits.sports} update(s) max in your script. You have more options to choose from, but select only the most relevant ${storyLimits.sports} for the user based on location, significance, or excitement. If off-season or no fixtures, skip gracefully.
-- Stocks: Include ${storyLimits.stocks} market point(s) max in your script. You have access to more stocks for better selection, but mention only ${storyLimits.stocks} total. Always prioritize user's focus symbols if provided.
+- Stocks: ALWAYS mention ALL stocks in stocks.focus (user's selected symbols) regardless of script length. These are the user's personal picks and must all be included. For additional market commentary beyond user picks, limit to ${storyLimits.stocks} total market points.
  - Weather: If present, include high/low temperatures (from highTemperatureF/lowTemperatureF), precipitation chance (from precipitationChance), and current conditions. Spell out all temperatures and percentages in words for TTS.
  - Astronomy: If a meteor shower is present, add viewing advice tailored to the user's location (window, direction, light pollution note). Otherwise, omit.
 - Calendar: Call out today's top 1–3 items with time ranges and one helpful nudge. PRIORITIZE personal/social events over routine ones: favor events with people (dinners, meetings with friends), celebrations (birthdays, parties), or unique activities (concerts, trips, appointments) over standard work meetings, commutes, or routine tasks.
@@ -1894,7 +1894,7 @@ FACT RULES
  - Mention ONLY teams present in sportsTeamWhitelist (exact names). If the sports array is empty, omit the sports section entirely.
  - When choosing news, prefer items that mention the user's neighborhood/city/county/adjacent areas; next, state-level; then national; then international. If user.location.neighborhood exists, use it for hyper-local references (e.g., "Mar Vista" instead of just "Los Angeles").
  - Use 1–2 transitions, choosing from data.transitions.
- - Stocks: Always mention EACH company in stocks.focus by name, one sentence each. Include price and direction (up/down, with rounded percent change). If multiple focus companies exist, weave them together (e.g., "Apple is down, while Tesla is climbing"). For cryptocurrencies, use subtle context like "crypto trades around the clock" to make weekend updates feel intentional. Mention broader indices (from stocks.others) ONLY if space allows. NEVER say "the rest of the market is mixed" unless no other data is available. Always use company names (Apple, Tesla, Bitcoin, Ethereum, etc.) not tickers. Format prices without cents (e.g., "one hundred fifty dollars" not "one hundred fifty dollars and twenty-five cents") and round percentages to nearest tenth (e.g., "up two point three percent" not "up two point three four percent").
+ - Stocks: CRITICAL - Always mention EVERY SINGLE company in stocks.focus by name, one sentence each. These are the user's personally selected stocks and ALL must be included regardless of script length. Include price and direction (up/down, with rounded percent change). If multiple focus companies exist, weave them together (e.g., "Apple is down, while Tesla is climbing"). For cryptocurrencies, use subtle context like "crypto trades around the clock" to make weekend updates feel intentional. Mention broader indices (from stocks.others) ONLY if space allows AND after covering all focus stocks. NEVER say "the rest of the market is mixed" unless no other data is available. Always use company names (Apple, Tesla, Bitcoin, Ethereum, etc.) not tickers. Format prices without cents (e.g., "one hundred fifty dollars" not "one hundred fifty dollars and twenty-five cents") and round percentages to nearest tenth (e.g., "up two point three percent" not "up two point three four percent").
  - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style. For longer scripts, add more context or a brief reflection to enrich the quote section.
 
 CONTENT ORDER (adapt if sections are missing)
@@ -1907,7 +1907,7 @@ CONTENT ORDER (adapt if sections are missing)
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
 4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.
 5) Sports (if include.sports): Brief, focused update. Mention major local teams or significant national stories.
-6) Stocks (if include.stocks): Market pulse using company names and numbers spelled out. Call out focusSymbols prominently when present.
+6) Stocks (if include.stocks): ALWAYS mention ALL companies in stocks.focus first (these are the user's personal picks). Use company names and spell out numbers. After covering all user picks, add broader market context only if space allows.
 7) Quote (if include.quotes): Select a quote that matches the user's quotePreference (if provided in data). The quote should align with that tradition/style (e.g., Buddhist wisdom, Stoic philosophy, Christian scripture, etc.). Follow with a one-line tie-back to today's vibe.
 8) Close with the provided signOff from the data — choose the one that fits the day's tone best.
 9) Add a 1-second pause after the signOff using EXACTLY "[1 second pause]" on its own line.

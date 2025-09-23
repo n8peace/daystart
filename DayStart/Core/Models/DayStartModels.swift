@@ -211,7 +211,7 @@ extension UserSettings {
             includeNews: true,
             includeSports: true,
             includeStocks: true,
-            stockSymbols: ["AAPL", "TSLA", "SPY"],
+            stockSymbols: ["AAPL", "TSLA", "^GSPC"],
             includeCalendar: false,
             includeQuotes: true,
             quotePreference: .goodFeelings,

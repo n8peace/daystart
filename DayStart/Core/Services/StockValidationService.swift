@@ -52,8 +52,10 @@ class StockValidationService: ObservableObject {
     private let knownValidSymbols: Set<String> = [
         // Original tech stocks
         "AAPL", "GOOGL", "GOOG", "MSFT", "AMZN", "TSLA", "META", "NVDA", "NFLX",
-        // Additional popular stocks (matching backend expansion)
-        "SPY", "QQQ", "IWM", "VTI", "VOO", "JPM", "JNJ", "V", "PG", "UNH",
+        // Market indices
+        "^GSPC", "^DJI",
+        // Popular ETFs and stocks (matching backend expansion)
+        "SPY", "QQQ", "DIA", "IWM", "VTI", "VOO", "JPM", "JNJ", "V", "PG", "UNH",
         "HD", "DIS", "MA", "PYPL", "BAC", "ADBE", "CRM", "AMD", "INTC",
         // Extended list (existing validation symbols)
         "CMCSA", "XOM", "VZ", "KO", "PFE", "CSCO", "PEP", "T", "MRK", "WMT", 
@@ -170,7 +172,10 @@ class StockValidationService: ObservableObject {
             "TSLA": "Tesla Inc.",
             "META": "Meta Platforms Inc.",
             "NVDA": "NVIDIA Corp.",
+            "^GSPC": "S&P 500 Index",
+            "^DJI": "Dow Jones Industrial Average",
             "SPY": "SPDR S&P 500 ETF",
+            "DIA": "SPDR Dow Jones ETF",
             "QQQ": "Invesco QQQ ETF",
             "BTC-USD": "Bitcoin",
             "ETH-USD": "Ethereum",

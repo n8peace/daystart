@@ -429,8 +429,10 @@ async function fetchYahooFinance(supabase: any): Promise<any> {
   const baseSymbols = [
     // Original tech stocks
     'AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX',
-    // Additional popular stocks
-    'SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'JPM', 'JNJ', 'V', 'PG', 'UNH',
+    // Market indices
+    '^GSPC', '^DJI',
+    // Popular ETFs and stocks
+    'SPY', 'QQQ', 'DIA', 'IWM', 'VTI', 'VOO', 'JPM', 'JNJ', 'V', 'PG', 'UNH',
     'HD', 'DIS', 'MA', 'PYPL', 'BAC', 'ADBE', 'CRM', 'AMD', 'INTC',
     // Crypto pairs
     'BTC-USD', 'ETH-USD', 'ADA-USD', 'SOL-USD',

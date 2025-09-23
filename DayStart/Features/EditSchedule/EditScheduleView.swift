@@ -372,6 +372,7 @@ struct EditScheduleView: View {
                     .adaptiveFontWeight(light: .medium, dark: .semibold)
                 
                 HStack(spacing: 8) {
+                    Spacer()
                     ForEach(WeekDay.allCases) { day in
                         DayToggleChip(
                             day: day,
@@ -389,6 +390,7 @@ struct EditScheduleView: View {
                             hasUnsavedChanges: hasUnsavedChanges
                         )
                     }
+                    Spacer()
                 }
                 .padding(.vertical, 4)
                 

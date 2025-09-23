@@ -20,9 +20,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2025.09.23] - 2025-09-23
+
+**Build:** 1 | **Commit:** TBD | **Status:** In development
+
+### Added
+- Market indices ^GSPC (S&P 500) and ^DJI (Dow Jones) now included in default Yahoo Finance data pulls
+- Stock validation service recognizes market index symbols (^GSPC, ^DJI) with proper display names
+
+### Changed
+- Default user stock symbols updated from ["AAPL", "TSLA", "SPY"] to ["AAPL", "TSLA", "^GSPC"] to show actual S&P 500 index instead of ETF
+- Process jobs script generation now ensures ALL user-selected stocks are mentioned regardless of DayStart length
+- Updated TTS prompt to properly pronounce index names (e.g., "S and P five hundred" instead of "^GSPC")
+
+### Fixed
+- Days of the week in Edit & Schedule screen now center properly on larger phone screens instead of being left-justified
+
+---
+
 ## [2025.09.22] - 2025-09-22
 
-**Build:** 2 | **Commit:** `bfe9dc9`
+**Build:** 2 | **Commit:** `401ba53` | **Status:** Submitted for App Store review on 2025-09-22, waiting for review
 
 ### Added
 - Customized welcome DayStart script with 60-second introduction for new users
