@@ -208,7 +208,7 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 - [x] Complete subscription metadata in App Store Connect
 - [x] Ensure Supabase backend is running during review
 
-### App Store Review Notes - Version 2025.09.22
+### App Store Review Notes - Version 2025.09.25
 ```
 QUICK TEST:
 1. Experience how successful leaders start their day
@@ -224,15 +224,14 @@ KEY FEATURES:
 - Professional voice synthesis
 - No login required, privacy-first approach
 
-WHAT'S NEW IN 2025.09.22:
-- NEW: Welcome Brief, 60-second personalized introduction for first-time users
-- Pull-to-refresh on home screen for manual status updates
-- Tappable onboarding cards (pain points & features now advance screens)
-- Fixed "x" button during playback, properly returns to idle state
-- Confirmation dialog prevents accidental loss of unsaved schedule changes
-- Improved countdown display during Welcome Brief preparation
-- Faster status polling (10 seconds vs 30 seconds)
-- Fixed onboarding-to-welcome transition for existing subscribers
+WHAT'S NEW IN 2025.09.25:
+- Market indices support: S&P 500 (^GSPC) and Dow Jones (^DJI) now available
+- Enhanced stock pronunciation for professional narration
+- All user-selected stocks mentioned regardless of brief length
+- Default stock selections updated to market indices + Bitcoin
+- Improved schedule screen layout on all iPhone sizes
+- Backend optimizations for faster content processing
+- Automated cleanup keeps everything running smoothly
 
 WEATHERKIT:
 - Yes, app uses WeatherKit for weather data
