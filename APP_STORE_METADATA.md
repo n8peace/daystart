@@ -1,63 +1,65 @@
 # App Store Connect Configuration for DayStart AI
 
-## Current Live Version: 2025.09.4 (Build 10)
-## Next Release: 2025.09.16 (Build 2)
+## Current Live Version: 2025.09.22 (Build 2)
+## Next Release: 2025.09.25 (Build 1)
 
 ## Basic Information
 - **App Name:** DayStart AI
-- **Current Version:** 2025.09.4 (Build 10) - Live on App Store
-- **Next Version:** 2025.09.16 (Build 2)
+- **Current Version:** 2025.09.22 (Build 2) - Live on App Store
+- **Next Version:** 2025.09.25 (Build 1)
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 
 ## Keywords (100 characters max)
 ```
-morning,briefing,ai,news,weather,calendar,audio,productivity,routine,personalized,habit
+morning,briefing,ai,intelligence,news,weather,calendar,audio,productivity,executive,entrepreneur
 ```
 
 ## Promotional Text (170 characters max)
 ```
-Start your day informed! Get personalized AI audio briefings with weather, news, events, sports, stocks & more. It's like your own, personal podcast to start the day.
+The morning ritual of world-class leaders. Your personalized 3 minute intelligence brief with news, markets, weather & calendar, delivered daily by AI.
 ```
 
 ## App Description (4000 characters max)
 ```
-Skip the scrolling, start informed. Transform your morning routine with DayStart AI - your intelligent personal assistant that creates custom audio briefings tailored just for you.
+The most successful people in the world don't start their day scrolling. They start with a brief.
 
-Wake up to a professionally narrated summary of everything you need to know for the day ahead. No more frantically checking multiple apps or scrolling through endless feeds. DayStart AI brings it all together in one seamless, hands-free audio experience.
+DayStart AI is the first Morning Intelligence Platform, delivering your Personal Morning Brief in just 3 minutes. It's not an alarm. It's not a podcast. It's not the news. It's the intelligence advantage that ambitious professionals use to start ahead.
 
-WHAT'S INCLUDED IN YOUR BRIEFING:
-• Local Weather Forecast - Current conditions and today's outlook for your exact location
-• Breaking News - Top stories from trusted sources, intelligently curated
-• Calendar Events - Your schedule for the day, meeting times, and reminders  
-• Stock Market Updates - Track your portfolio and market movements
-• Sports Scores - Results from your favorite teams
-• Daily Inspiration - Motivational quotes to energize your morning
+Every morning, your brief is curated overnight and narrated like a Chief of Staff prepared it, with the news, markets, weather, and schedule that matter to you.
+
+Stop reacting. Start leading.
+
+DayStart AI transforms your mornings with a custom intelligence briefing tailored to your life and priorities. No endless feeds. No wasted time. Just the information that matters, ready when you wake up.
+
+WHAT'S INCLUDED:
+• News Intelligence: Top headlines, curated for relevance
+• Market Updates: Market movements that affect you
+• Weather Forecast: Local and global outlook
+• Calendar Summary: Your day's priorities, crystallized
+• Sports & Culture: Results and highlights from what you follow
+• Daily Inspiration: A motivational spark to start strong
 
 KEY FEATURES:
-• AI-Powered Personalization - Our advanced AI learns your preferences and interests
-• Natural Voice Synthesis - Crystal-clear narration that sounds remarkably human
-• Offline Playback - Download briefings for your commute
-• Customizable Content - Choose exactly what you want to hear
+• AI-Powered Personalization: A briefing unique to you
+• Professional Narration: Natural voices, no robotic tone
+• Offline Playback: Perfect for commutes or workouts
+• Full Customization: Choose the topics that matter most
+
+Trusted by ambitious professionals worldwide.
 
 PERFECT FOR:
-• Busy professionals who need to stay informed
-• Commuters who want hands-free news updates during their drive
-• Morning exercisers looking for audio content
-• Anyone who values their time and wants a smarter morning routine
+• Leaders who want to stay ahead of the curve
+• Busy professionals who need clarity, fast
+• Entrepreneurs building the next big thing
+• Parents with no time to scroll in the morning
+• Anyone striving to start each day sharper and more informed
 
-HOW IT WORKS:
-1. Set your wake-up time and content preferences
-2. DayStart AI does the hard work and generates your personalized briefing overnight
-3. Wake up with your custom audio briefing ready to go
-4. Start your day informed, inspired, and ahead of the curve
+SUBSCRIPTIONS:
+• Monthly: $4.99 with 3-day free trial
+• Annual: $39.99 with 7-day free trial (save 33%)
 
-SUBSCRIPTION OPTIONS:
-• 3 and 7-day free trials to experience the full power of DayStart AI
-• Monthly subscription: $4.99/month
-• Annual subscription: $39.99/year (save 33%)
-
-Join others who've revolutionized their mornings with DayStart AI. Because the best days start with the right information.
+You don't just wake up. You start ahead.
 
 Privacy Policy: https://daystart.bananaintelligence.ai/privacy
 Terms of Service: https://daystart.bananaintelligence.ai/terms
@@ -65,28 +67,29 @@ Terms of Service: https://daystart.bananaintelligence.ai/terms
 
 ## Subtitle (30 characters max)
 ```
-AI Audio News & Weather Brief
+Your Personal Morning Brief
 ```
 
-## What's New in Version 2025.09.22
+## What's New in Version 2025.09.25
 ```
-Rise and shine, DayStarters! We've been burning the midnight banana oil to perfect your mornings:
+Transform your mornings with the intelligence advantage of successful leaders:
 
-WELCOME TO THE FAMILY:
-- Brand new Welcome DayStart - a 60-second personalized intro for new friends!
+NEW POSITIONING, SAME EXCELLENCE:
+- Reintroduced as "Your Personal Morning Brief" for ambitious professionals
+- Enhanced App Store presence to help more leaders discover their morning advantage
+- Refined messaging throughout to emphasize the 3 minute intelligence brief
 
-SMOOTHER THAN A PEELED BANANA:
-- Pull-to-refresh on home screen - because sometimes you just can't wait!
-- Tappable cards in onboarding - they finally do what they look like they should!
-- Fixed the "x" button during playback - it actually takes you home now (revolutionary!)
-- Settings won't lose your changes anymore - we added a "are you sure?" safety net
+MARKET INTELLIGENCE UPGRADE:
+- S&P 500 and Dow Jones indices now included in market updates
+- Smarter stock pronunciation for professional narration
+- All your selected stocks mentioned regardless of brief length
 
-BEHIND THE SCENES MAGIC:
-- Welcome DayStart shows proper countdown with fun messages (no more blank stares)
-- Faster polling for quicker audio delivery
-- Smarter job processing - less waiting, more listening!
+REFINED EXPERIENCE:
+- Schedule screen displays properly on all iPhone sizes
+- Welcome Brief correctly previews tomorrow's content
+- More engaging closing that keeps you coming back
 
-Wake up winning!
+Because successful mornings start with clarity, not chaos.
 ```
 
 ## Categories
@@ -121,15 +124,15 @@ Wake up winning!
 
 ## Subscription Group
 - **Reference Name:** DayStart Premium
-- **Description:** Unlock unlimited AI-powered morning briefings tailored just for you
+- **Description:** Unlock your Personal Morning Brief, the same intelligence advantage used by successful leaders worldwide. Transform how you start each day
 
 ### Monthly Subscription - Localization (English)
-- **Display Name:** Monthly Pass
-- **Description:** Get unlimited personalized morning briefings with weather, news, calendar events, and market updates. Includes 3-day free trial.
+- **Display Name:** Monthly Leadership Pass
+- **Description:** Get your Personal Morning Brief delivered daily. Join successful professionals who start each day with intelligence, not information overload. Includes 3-day free trial.
 
 ### Annual Subscription - Localization (English)  
-- **Display Name:** Annual Pass
-- **Description:** Get unlimited personalized morning briefings with weather, news, calendar events, and market updates. Save 33% with 7-day free trial.
+- **Display Name:** Annual Leadership Pass
+- **Description:** Get your Personal Morning Brief delivered daily. The choice of leaders who invest in their morning advantage. Save 33% with 7-day free trial.
 
 ### Monthly Subscription - Review Notes
 ```
@@ -208,17 +211,26 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 ### App Store Review Notes - Version 2025.09.22
 ```
 QUICK TEST:
-1. Use sandbox Apple ID
-2. Complete onboarding → Purchase subscription → Tap "Start Welcome DayStart"
-3. Welcome DayStart plays after ~2 mins buffering (60-second personalized intro)
+1. Experience how successful leaders start their day
+2. Complete onboarding → Start free trial → Receive your first Personal Morning Brief
+3. Your brief is generated in ~2 minutes (60-second Welcome Brief for new leaders)
+
+POSITIONING:
+DayStart AI delivers a Personal Morning Brief, the same type of intelligence briefing successful executives receive. We've democratized this advantage for ambitious professionals.
+
+KEY FEATURES:
+- 3 minute audio intelligence briefs
+- Personalized to each user's priorities
+- Professional voice synthesis
+- No login required, privacy-first approach
 
 WHAT'S NEW IN 2025.09.22:
-- NEW: Welcome DayStart - 60-second personalized introduction for first-time users
+- NEW: Welcome Brief, 60-second personalized introduction for first-time users
 - Pull-to-refresh on home screen for manual status updates
 - Tappable onboarding cards (pain points & features now advance screens)
-- Fixed "x" button during playback - properly returns to idle state
+- Fixed "x" button during playback, properly returns to idle state
 - Confirmation dialog prevents accidental loss of unsaved schedule changes
-- Improved countdown display during Welcome DayStart preparation
+- Improved countdown display during Welcome Brief preparation
 - Faster status polling (10 seconds vs 30 seconds)
 - Fixed onboarding-to-welcome transition for existing subscribers
 
@@ -231,7 +243,7 @@ WEATHERKIT:
 SUBSCRIPTIONS:
 - Product IDs: daystart_monthly_subscription, daystart_annual_subscription
 - Free trials: 3-day (monthly), 7-day (annual)
-- No login required - uses StoreKit receipt IDs
+- No login required, uses StoreKit receipt IDs
 
 BACKGROUND PROCESSING:
 Essential for prefetching audio 2 hours before scheduled wake time. Prevents playback delays.
@@ -262,8 +274,8 @@ CONTACT: nate@bananaintelligence.ai
 - [x] NSCalendarsUsageDescription added to Info.plist
 - [x] Paywall messaging updated
 - [x] Archive successfully uploaded to App Store Connect
-- [x] Build 10 (2025.09.4) submitted to App Store - Currently LIVE
-- [x] Build 2 (2025.09.16) ready for next submission
+- [x] Build 2 (2025.09.22) submitted to App Store - Currently LIVE
+- [x] Build 1 (2025.09.25) ready for next submission
 
 ### Remaining Tasks
 - [x] App Store Connect setup

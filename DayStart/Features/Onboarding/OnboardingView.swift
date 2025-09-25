@@ -1944,7 +1944,9 @@ struct OnboardingView: View {
         // CRITICAL: Create the first job immediately after successful paywall conversion
         Task {
             do {
-                let snapshot = await SnapshotBuilder.shared.buildSnapshot()
+                // For welcome DayStart, get tomorrow's weather and calendar events
+                let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+                let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: tomorrow)
                 
                 // 1. Create welcome job for today only
                 let jobResponse = try await SupabaseClient.shared.createJob(

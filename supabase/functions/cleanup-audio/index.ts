@@ -116,6 +116,8 @@ async function cleanupAudioAsync(request_id: string): Promise<void> {
     errors: []
   }
 
+  let logId: number | null = null
+
   try {
     // Create Supabase client with service role for full access
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -144,7 +146,7 @@ async function cleanupAudioAsync(request_id: string): Promise<void> {
       throw new Error(`Failed to create log entry: ${logError.message}`)
     }
 
-    const logId = logEntry.id
+    logId = logEntry.id
 
     // Get list of files to cleanup (default 10 days)
     const daysToKeep = 10
@@ -240,6 +242,119 @@ async function cleanupAudioAsync(request_id: string): Promise<void> {
     result.runtime_seconds = runtime
 
     console.log(`✅ Audio cleanup completed for request ${request_id}: ${result.files_deleted} deleted, ${result.files_failed} failed`)
+
+    // Clean up test-deploy files and folders
+    try {
+      console.log(`🧪 Starting test-deploy cleanup...`)
+      
+      // Get all folders at root level
+      const { data: folders, error: listError } = await supabase.storage
+        .from('daystart-audio')
+        .list('', { 
+          limit: 1000,
+          offset: 0
+        })
+
+      if (listError) {
+        console.error('Failed to list storage folders:', listError)
+        result.errors.push(`Test-deploy cleanup failed: ${listError.message}`)
+      } else {
+        // Filter for test-deploy folders
+        const testDeployFolders = folders?.filter(item => 
+          item.name.startsWith('test-deploy-')
+        ) || []
+
+        console.log(`Found ${testDeployFolders.length} test-deploy folders to clean up`)
+
+        let testDeployFilesDeleted = 0
+        let testDeployFoldersDeleted = 0
+
+        // Delete each test-deploy folder and its contents
+        for (const folder of testDeployFolders) {
+          try {
+            // List all contents in the test-deploy folder
+            const { data: datefolders } = await supabase.storage
+              .from('daystart-audio')
+              .list(folder.name, { limit: 1000 })
+
+            // For each date folder within the test-deploy folder
+            for (const datefolder of datefolders || []) {
+              const datePath = `${folder.name}/${datefolder.name}`
+              
+              // List files in the date folder
+              const { data: files } = await supabase.storage
+                .from('daystart-audio')
+                .list(datePath, { limit: 1000 })
+
+              if (files && files.length > 0) {
+                // Construct full paths for deletion
+                const filePaths = files.map(file => `${datePath}/${file.name}`)
+                
+                // Delete all files
+                const { error: deleteError } = await supabase.storage
+                  .from('daystart-audio')
+                  .remove(filePaths)
+
+                if (deleteError) {
+                  console.error(`Failed to delete files in ${datePath}:`, deleteError)
+                  result.errors.push(`Test-deploy deletion failed for ${datePath}: ${deleteError.message}`)
+                } else {
+                  testDeployFilesDeleted += files.length
+                  console.log(`Deleted ${files.length} files from ${datePath}`)
+                }
+              }
+            }
+
+            testDeployFoldersDeleted++
+            console.log(`Cleaned up test-deploy folder: ${folder.name}`)
+
+          } catch (folderError) {
+            console.error(`Error processing test-deploy folder ${folder.name}:`, folderError)
+            result.errors.push(`Test-deploy folder ${folder.name}: ${folderError.message}`)
+          }
+        }
+
+        // Clean up test-deploy job records from database
+        const { data: deletedJobs, error: dbError } = await supabase
+          .from('jobs')
+          .delete()
+          .like('user_id', 'test-deploy-%')
+          .select('job_id')
+
+        const testDeployJobsDeleted = deletedJobs?.length || 0
+
+        if (dbError) {
+          console.error('Failed to delete test-deploy job records:', dbError)
+          result.errors.push(`Test-deploy DB cleanup failed: ${dbError.message}`)
+        }
+
+        console.log(`✅ Test-deploy cleanup completed: ${testDeployFoldersDeleted} folders, ${testDeployFilesDeleted} files, ${testDeployJobsDeleted} job records`)
+        
+        // Update log entry with test-deploy cleanup stats
+        if (logId) {
+          await supabase
+            .from('audio_cleanup_log')
+            .update({
+              error_details: result.errors.length > 0 ? 
+                { 
+                  errors: result.errors,
+                  test_deploy_folders_deleted: testDeployFoldersDeleted,
+                  test_deploy_files_deleted: testDeployFilesDeleted,
+                  test_deploy_jobs_deleted: testDeployJobsDeleted
+                } : 
+                {
+                  test_deploy_folders_deleted: testDeployFoldersDeleted,
+                  test_deploy_files_deleted: testDeployFilesDeleted,
+                  test_deploy_jobs_deleted: testDeployJobsDeleted
+                }
+            })
+            .eq('id', logId)
+        }
+      }
+    } catch (testDeployError) {
+      console.error('Test-deploy cleanup failed:', testDeployError)
+      result.errors.push(`Test-deploy cleanup error: ${testDeployError.message}`)
+    }
 
   } catch (error) {
     console.error(`❌ Audio cleanup async processing failed for request ${request_id}:`, error)

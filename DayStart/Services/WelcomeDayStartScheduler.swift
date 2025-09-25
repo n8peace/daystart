@@ -309,8 +309,9 @@ class WelcomeDayStartScheduler: ObservableObject {
         let settings = await UserPreferences.shared.settings
         
         do {
-            // Build snapshot for context
-            let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: localDate)
+            // Build snapshot for context - for welcome DayStart, get tomorrow's data
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: localDate) ?? localDate
+            let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: tomorrow)
             
             // Create job for today
             _ = try await SupabaseClient.shared.createJob(
@@ -339,7 +340,9 @@ class WelcomeDayStartScheduler: ObservableObject {
             return
         }
         
-        let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: Date())
+        // For welcome DayStart, get tomorrow's weather and calendar events
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: tomorrow)
         
         do {
             _ = try await SupabaseClient.shared.createJob(

@@ -1222,8 +1222,9 @@ class HomeViewModel: ObservableObject {
             if audioStatus.status == "not_found" || audioStatus.status == "failed" {
                 logger.log("🔄 Creating welcome job - status: \(audioStatus.status)", level: .info)
                 
-                // Load snapshot builder to get current data
-                let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot(for: currentDate)
+                // Load snapshot builder to get tomorrow's data for welcome DayStart
+                let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+                let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot(for: tomorrow)
                 
                 let jobResponse = try await supabaseClient.createJob(
                     for: currentDate,

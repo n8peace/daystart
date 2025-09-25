@@ -1,22 +1,23 @@
-# DayStart
+# DayStart AI
 
-A personalized, AI-powered iOS morning briefing app that combines your local weather, news, sports, stocks, and motivational content into a custom audio briefing delivered with natural voices and ready the moment you wake up.
+Your Personal Morning Brief. The intelligence advantage that successful leaders use to start each day.
 
-Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speech.
+DayStart AI delivers personalized 3-minute audio briefings with news, markets, weather, and calendar events. Built for ambitious professionals who value their time and want to start each day informed, not overwhelmed.
+
+Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini, and ElevenLabs text-to-speech.
 
 ## 🚀 App Store Status
 
-**Current Status**: App submitted to App Store Connect
+**Current Status**: Live on App Store (v2025.09.22 Build 2)
 - ✅ Backend deployed and tested in production with receipt-based authentication
 - ✅ App Store Connect configured with subscription products ($4.99/month, $39.99/year)
 - ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete
-- ✅ Legal documents updated with Banana Intelligence, LLC info
-- ✅ App Privacy and Content Rights sections completed in App Store Connect
-- ✅ Comprehensive App Store metadata prepared (see [app-store-metadata.md](app-store-metadata.md))
-- ✅ Enhanced script generation with longer, richer content (up to 6 news stories)
-- ✅ All critical blockers resolved
-- ✅ Build uploaded to App Store Connect
-- 🟡 **In Review**: Awaiting Apple review process
+- ✅ Legal documents hosted at daystart.bananaintelligence.ai
+- ✅ New positioning as "Your Personal Morning Brief" targeting ambitious professionals
+- ✅ 3-minute intelligence briefings with dynamic content scaling
+- ✅ Welcome Brief for new users (60-second personalized introduction)
+- 🟢 **Live**: v2025.09.22 Build 2 available for download on the App Store
+- 🔨 **In Development**: v2025.09.25 Build 1 with enhanced App Store positioning
 
 ## Table of Contents
 - [Features](#features)
@@ -31,32 +32,32 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 
 ## Features
 
-### ✅ Complete User Experience
-- **Welcome Flow**: Guided onboarding with personalization setup
-- **Auto-Start Welcome**: First DayStart automatically begins after onboarding
-- **Smart Scheduling**: Flexible wake time and day selection with 4-hour lockout
-- **Live Countdown**: Dynamic countdown to next DayStart with anticipation previews
-- **Instant Playback**: Pre-downloaded audio for immediate start
-- **Audio Controls**: Full playback controls with seek, skip ±10s, and speed adjustment (0.5x-2.0x)
-- **History & Transcripts**: Access to past DayStarts with full transcripts and replay
-- **Streak Tracking**: Visual progress tracking for daily consistency
+### ✅ Complete Executive Experience
+- **Personal Morning Brief**: 3-minute intelligence briefings tailored to your priorities
+- **Welcome Brief**: 60-second personalized introduction for first-time users
+- **Smart Scheduling**: Set your brief time and preferred days
+- **Live Countdown**: Always know when your next brief arrives
+- **Instant Playback**: Pre-downloaded audio ready when you wake up
+- **Professional Controls**: Full playback with seek, skip ±10s, and speed adjustment (0.5x-2.0x)
+- **Brief History**: Access past briefings with full transcripts
+- **Leadership Streak**: Track your consistency like successful professionals do
 
-### ✅ Content & Personalization
-- **Weather Integration**: WeatherKit-powered local weather and forecasts
-- **Calendar Events**: EventKit integration for today's schedule highlights
-- **Enhanced News Coverage**: Up to 6 curated news stories with deeper context and local relevance
-- **Sports**: Team-specific updates for favorite sports teams (up to 2 stories)
-- **Stock Market**: Custom stock symbols with expanded market insights (up to 3 stories)
-- **Enriched Motivational Quotes**: Daily inspiration with deeper reflection and context (150+ words)
-- **Voice Selection**: 3 AI-generated voice options with high-quality ElevenLabs synthesis
-- **Dynamic Length Control**: Intelligent content scaling (2-10 minutes) with priority-based expansion
+### ✅ Intelligence & Personalization
+- **Weather Intelligence**: Hyperlocal conditions and smart forecasts
+- **Calendar Analysis**: Your day's priorities, crystallized
+- **News Curation**: Top headlines filtered for relevance, not volume
+- **Market Updates**: Track your portfolio and key indices (S&P 500, Dow Jones)
+- **Sports Results**: Updates from teams you actually follow
+- **Daily Motivation**: Thoughtful quotes to start strong
+- **Professional Voices**: 3 natural AI voices via ElevenLabs
+- **3-Minute Promise**: Precisely crafted briefs that respect your time
 
-### ✅ Enhanced Script Generation
-- **Intelligent Content Allocation**: Dynamic word budgets that scale with briefing length
-- **Priority-Based Expansion**: News and quotes prioritized for longer scripts
-- **Local Relevance**: Smart news selection based on user location (neighborhood → city → state → national)
-- **Context-Rich Content**: Longer briefings include deeper analysis and background
-- **Advanced TTS Optimization**: Scripts optimized for natural speech patterns and pacing
+### ✅ Intelligent Brief Generation
+- **Smart Content Balance**: Optimized allocation across all brief sections
+- **Relevance Engine**: Location-aware news selection and prioritization
+- **Context Awareness**: Important background included when needed
+- **Natural Narration**: Scripts crafted for professional voice synthesis
+- **Executive Summary Style**: Information density without overwhelm
 
 ### ✅ Advanced Technical Features
 - **Background Audio Prefetching**: BGTaskScheduler integration for seamless playback
@@ -74,11 +75,11 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4, and ElevenLabs text-to-speec
 - **Supabase Integration**: Production-ready backend with PostgreSQL and receipt-based authentication
 - **Advanced Job Queue System**: `FOR UPDATE SKIP LOCKED` for scalable processing with retry logic
 - **Intelligent Content Caching**: Hourly content refresh with deduplication and source trust scoring
-- **Enhanced Audio Generation**: 
-  - OpenAI GPT-4o-mini for cost-effective script generation
-  - ElevenLabs eleven_flash_v2_5 TTS model for superior voice quality
-  - Dynamic content scaling (6 news, 3 stocks, 150-word quotes)
-  - Context-aware expansion and contraction algorithms
+- **Professional Brief Generation**: 
+  - OpenAI GPT-4o-mini for intelligent script creation
+  - ElevenLabs eleven_flash_v2_5 for broadcast-quality voice
+  - 3-minute briefs with optimal content mix
+  - Smart summarization that captures what matters
 - **Automated Cleanup**: Scheduled cleanup of old audio files and data with RLS policies
 - **Comprehensive Cost Tracking**: Monitoring of OpenAI and ElevenLabs usage with detailed logging
 - **Timezone Handling**: Accurate date/time calculations across timezones with local date awareness

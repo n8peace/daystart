@@ -1828,7 +1828,7 @@ Write a 50-60 second welcome script (about 120-150 words) with this EXACT struct
 6) [2 second pause]
 7) Motivation: "Here's today's motivation: The journey of a thousand miles begins with a single step. This is your first step to more productive mornings."
 8) [1 second pause]
-9) Closing: "That's it for today. Have a good DayStart."
+9) Closing: "That's it for your welcome DayStart. I'll see you tomorrow at ${tomorrowScheduleText} where we'll go deeper. Have a good DayStart."
 10) [2 second pause]
 
 STRICT RULES:

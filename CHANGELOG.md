@@ -20,27 +20,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2025.09.23] - 2025-09-23
+## [2025.09.25] - 2025-09-25
 
-**Build:** 1 | **Commit:** TBD | **Status:** In development
+**Build:** 1 | **Commit:** `f222e93` | **Status:** In development
 
 ### Added
 - Market indices ^GSPC (S&P 500) and ^DJI (Dow Jones) now included in default Yahoo Finance data pulls
 - Stock validation service recognizes market index symbols (^GSPC, ^DJI) with proper display names
+- Automatic cleanup of test-deploy artifacts in cleanup-audio edge function
+  - Deletes all test-deploy folders and files from storage bucket
+  - Removes test-deploy job records from database
+  - Tracks test-deploy cleanup stats in audio_cleanup_log
 
 ### Changed
+- **New App Store positioning: "Your Personal Morning Brief"** - repositioned as the intelligence advantage successful leaders use
+- **Introduced as "Morning Intelligence Platform"** - category-creating positioning that differentiates from alarms, podcasts, and news apps
+- App Store metadata completely rewritten to target ambitious professionals who value their time
+- Enhanced app description opener: "The most successful people in the world don't start their day scrolling. They start with a brief."
+- Added clear differentiation statement: "It's not an alarm. It's not a podcast. It's not the news."
+- Subtitle changed from "AI Audio News & Weather Brief" to "Your Personal Morning Brief"
+- Keywords updated to include "executive" and "entrepreneur" - removed generic "success" term
+- Promotional text strengthened with "world-class leaders" instead of "successful leaders"
+- New closing tagline: "You don't just wake up. You start ahead." replacing "successful mornings start with clarity, not chaos"
+- Removed generic "50+ industries" claim, now "Trusted by ambitious professionals worldwide"
+- Standardized all duration references to "3 minutes" throughout metadata (previously mixed "3-minute" and "3 minutes")
+- Subscription display names now "Monthly/Annual Leadership Pass" to align with executive positioning
 - Default user stock symbols updated from ["AAPL", "TSLA", "SPY"] to ["AAPL", "TSLA", "^GSPC"] to show actual S&P 500 index instead of ETF
 - Process jobs script generation now ensures ALL user-selected stocks are mentioned regardless of DayStart length
 - Updated TTS prompt to properly pronounce index names (e.g., "S and P five hundred" instead of "^GSPC")
 
 ### Fixed
 - Days of the week in Edit & Schedule screen now center properly on larger phone screens instead of being left-justified
+- Welcome DayStart now correctly shows tomorrow's weather and calendar events instead of today's when previewing what's coming up
+- Updated welcome DayStart closing to be more engaging: "I'll see you tomorrow at {scheduled time} where we'll go deeper"
 
 ---
 
 ## [2025.09.22] - 2025-09-22
 
-**Build:** 2 | **Commit:** `401ba53` | **Status:** Submitted for App Store review on 2025-09-22, waiting for review
+**Build:** 2 | **Commit:** `401ba53` | **Status:** **LIVE** on App Store as of 2025-09-24
 
 ### Added
 - Customized welcome DayStart script with 60-second introduction for new users
