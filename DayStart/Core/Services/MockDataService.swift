@@ -258,7 +258,7 @@ class MockDataService {
             let weather = generateMockWeather()
             let news = generateMockNews()
             let sports = generateMockSports()
-            let stocks = generateMockStocks(symbols: ["AAPL", "TSLA", "^GSPC"])
+            let stocks = generateMockStocks(symbols: ["^GSPC", "^DJI", "BTC-USD"])
             let quote = generateMockQuote(preference: .inspirational)
             
             // Determine audio availability:
@@ -306,7 +306,7 @@ class MockDataService {
                 weather: generateMockWeather(),
                 news: generateMockNews(),
                 sports: generateMockSports(),
-                stocks: generateMockStocks(symbols: ["AAPL", "TSLA", "^GSPC"]),
+                stocks: generateMockStocks(symbols: ["^GSPC", "^DJI", "BTC-USD"]),
                 quote: generateMockQuote(preference: .inspirational),
                 customPrompt: "",
                 transcript: "Sample DayStart audio for Aug 8, 2025.",

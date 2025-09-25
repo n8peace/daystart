@@ -22,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.09.25] - 2025-09-25
 
-**Build:** 1 | **Commit:** `f222e93` | **Status:** In development
+**Build:** 1 | **Commit:** `6d2cb2d` | **Status:** In development
 
 ### Added
 - Market indices ^GSPC (S&P 500) and ^DJI (Dow Jones) now included in default Yahoo Finance data pulls

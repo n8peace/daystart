@@ -79,7 +79,7 @@ struct OnboardingView: View {
     @State private var includeNews = true
     @State private var includeSports = true
     @State private var includeStocks = true
-    @State private var stockSymbols = "SPY, DIA, BTC-USD"
+    @State private var stockSymbols = "^GSPC, ^DJI, BTC-USD"
     @State private var includeCalendar = false
     @State private var includeQuotes = true
     @State private var selectedQuoteType: QuotePreference = .goodFeelings
