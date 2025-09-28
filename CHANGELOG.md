@@ -22,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.09.25] - 2025-09-25
 
-**Build:** 1 | **Commit:** `25ea0f4` | **Status:** Submitted to App Store for review
+**Build:** 1 | **Commit:** `a62989e` | **Status:** **LIVE** on App Store as of 2025-09-27
 
 ### Added
 - Market indices ^GSPC (S&P 500) and ^DJI (Dow Jones) now included in default Yahoo Finance data pulls
@@ -45,7 +45,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Removed generic "50+ industries" claim, now "Trusted by ambitious professionals worldwide"
 - Standardized all duration references to "3 minutes" throughout metadata (previously mixed "3-minute" and "3 minutes")
 - Subscription display names now "Monthly/Annual Leadership Pass" to align with executive positioning
-- Default user stock symbols updated from ["AAPL", "TSLA", "SPY"] to ["AAPL", "TSLA", "^GSPC"] to show actual S&P 500 index instead of ETF
+- Default stock symbols updated from ["AAPL", "TSLA", "^GSPC"] to ["^GSPC", "^DJI", "BTC-USD"] for new users
+- Onboarding default stocks updated from "SPY, DIA, BTC-USD" to "^GSPC, ^DJI, BTC-USD" to use market indices
+- MockDataService test data updated to use new default stock symbols
 - Process jobs script generation now ensures ALL user-selected stocks are mentioned regardless of DayStart length
 - Updated TTS prompt to properly pronounce index names (e.g., "S and P five hundred" instead of "^GSPC")
 
