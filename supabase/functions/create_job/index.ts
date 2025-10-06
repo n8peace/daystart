@@ -3,8 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { clientCorsHeaders } from "../_shared/cors.ts";
 
 interface CreateJobRequest {
-  local_date: string; // YYYY-MM-DD
-  scheduled_at: string; // ISO timestamp
+  local_date: string; // YYYY-MM-DD or "TODAY"
+  scheduled_at: string; // ISO timestamp or "NOW"
   preferred_name?: string;
   include_weather: boolean;
   include_news: boolean;
@@ -31,6 +31,8 @@ interface CreateJobRequest {
   force_update?: boolean;
   // Flag to indicate this is a welcome/onboarding job
   is_welcome?: boolean;
+  // Flag to indicate this is a social media DayStart
+  social_daystart?: boolean;
 }
 
 interface CreateJobResponse {
@@ -77,6 +79,25 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('INVALID_JSON', 'Invalid JSON in request body', request_id);
     }
 
+    // Handle special date values before validation
+    if (body.local_date === "TODAY") {
+      // Convert to YYYY-MM-DD in the requested timezone
+      const today = new Date().toLocaleDateString('en-CA', { 
+        timeZone: body.timezone 
+      });
+      body.local_date = today;
+      console.log(`Converted TODAY to ${today} in timezone ${body.timezone}`);
+    }
+
+    // Handle special scheduled_at values
+    if (body.scheduled_at === "NOW") {
+      const now = new Date();
+      body.scheduled_at = now.toISOString();
+      // Set process_not_before to NOW for immediate processing
+      body.process_not_before = now.toISOString();
+      console.log(`Converted NOW to ${body.scheduled_at} with immediate processing`);
+    }
+
     // Validate required fields
     const validation = validateRequest(body);
     if (!validation.valid) {
@@ -89,6 +110,13 @@ serve(async (req: Request): Promise<Response> => {
       return createErrorResponse('MISSING_USER_ID', 'x-client-info header required', request_id);
     }
     const user_id = clientInfo;
+
+    // Auto-detect social DayStart from x-client-info
+    const socialPatterns = ['DAILY_GENERIC', 'SOCIAL_TIKTOK', 'SOCIAL_YOUTUBE', 'SOCIAL_INSTAGRAM'];
+    if (!body.social_daystart && socialPatterns.some(pattern => clientInfo.includes(pattern))) {
+      body.social_daystart = true;
+      console.log(`Auto-detected social DayStart from x-client-info: ${clientInfo}`);
+    }
 
     // Track purchase user for analytics (non-critical, fail-safe)
     const authType = req.headers.get('x-auth-type');
@@ -128,6 +156,7 @@ serve(async (req: Request): Promise<Response> => {
           .from('jobs')
           .update({
             is_welcome: true,
+            social_daystart: body.social_daystart || false,
             priority: 100,
             updated_at: new Date().toISOString()
           })
@@ -197,6 +226,7 @@ serve(async (req: Request): Promise<Response> => {
             location_data: body.location_data,
             weather_data: body.weather_data,
             calendar_events: body.calendar_events,
+            social_daystart: body.social_daystart || false,
             tts_provider: 'openai',
             // Clear generated results and costs
             script_content: null,
@@ -309,6 +339,7 @@ serve(async (req: Request): Promise<Response> => {
         location_data: body.location_data,
         weather_data: body.weather_data,
         calendar_events: body.calendar_events,
+        social_daystart: body.social_daystart || false,
         tts_provider: 'openai',
         estimated_ready_time,
         status: 'queued',

@@ -1046,6 +1046,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     calendarEvents: job.calendar_events,
     contentData: contentData,
     is_welcome: job.is_welcome || false,
+    social_daystart: job.social_daystart || false,
     user_id: job.user_id,
     scheduled_at: job.scheduled_at
   };
@@ -1608,6 +1609,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
       quotes: !!context.includeQuotes,
       calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0
     },
+    social_daystart: context.social_daystart || false,
     budget: sectionBudget(duration, {
       weather: !!context.includeWeather,
       news: !!context.includeNews,
@@ -1902,7 +1904,8 @@ CONTENT ORDER (adapt if sections are missing)
    - If user.preferredName is "there": "Good morning, it's {friendly date}. This is DayStart!"
    - Otherwise: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!"
    followed by a three-second pause using EXACTLY "[3 second pause]" on its own line.
-1a) Day context (if dayContext.encouragement is provided): Include it naturally after the greeting, one or two sentences max. Vary tone so it doesn't feel canned.
+1a) Social intro (ONLY if social_daystart is true): After the greeting and pause, add: "Welcome to your daily DayStart AI briefing — your personalized morning update." followed by "[1 second pause]" on its own line.
+1b) Day context (if dayContext.encouragement is provided): Include it naturally after the greeting (and social intro if present), one or two sentences max. Vary tone so it doesn't feel canned.
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
 4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.
@@ -1911,8 +1914,9 @@ CONTENT ORDER (adapt if sections are missing)
 7) Quote (if include.quotes): Select a quote that matches the user's quotePreference (if provided in data). The quote should align with that tradition/style (e.g., Buddhist wisdom, Stoic philosophy, Christian scripture, etc.). Follow with a one-line tie-back to today's vibe.
 8) Close with the provided signOff from the data — choose the one that fits the day's tone best.
 9) Add a 1-second pause after the signOff using EXACTLY "[1 second pause]" on its own line.
-10) Add the standardized ending phrase: "That's it for today. Have a good DayStart."
-11) End the script with a final 2-second pause using EXACTLY "[2 second pause]" on its own line.
+10) Social outro (ONLY if social_daystart is true): Before the final message, add: "To get your own personalized DayStart every morning, search DayStart AI in the App Store." followed by "[1 second pause]" on its own line.
+11) Add the standardized ending phrase: "That's it for today. Have a good DayStart."
+12) End the script with a final 2-second pause using EXACTLY "[2 second pause]" on its own line.
 
 STRICT OUTPUT RULES — DO NOT BREAK
 - Output: PLAIN TEXT ONLY.

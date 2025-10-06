@@ -11,8 +11,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Support for social media DayStarts with `social_daystart` field
+- Special date handling: `local_date` can now be "TODAY" (converts to YYYY-MM-DD in timezone)
+- Special time handling: `scheduled_at` can now be "NOW" (immediate processing)
+- Auto-detection of social DayStarts based on x-client-info patterns (DAILY_GENERIC, SOCIAL_TIKTOK, etc.)
+- Social intro/outro content for TikTok and other platforms:
+  - Intro: "Welcome to your daily DayStart AI briefing — your personalized morning update in 90 seconds or less."
+  - Outro: "To get your own personalized DayStart every morning, search DayStart AI in the App Store."
+- Database migration 029: Add social_daystart column with index for efficient querying
 
 ### Changed
+- create_job edge function now handles special date/time values before validation
+- process_jobs adds intro/outro for social DayStarts when social_daystart=true
 
 ### Fixed
 
@@ -20,9 +30,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2025.10.16] - 2025-10-16
+
+**Build:** 1 | **Commit:** TBD | **Status:** In Development
+
+### Removed
+- Deleted unused MockDataService.swift file (364 lines)
+  - Service was not referenced anywhere in codebase
+  - Not included in Xcode project build
+  - No production impact - all data comes from Supabase
+
+---
+
 ## [2025.09.25] - 2025-09-25
 
-**Build:** 1 | **Commit:** `a62989e` | **Status:** **LIVE** on App Store as of 2025-09-27
+**Build:** 1 | **Commit:** `1df1c98` | **Status:** **LIVE** on App Store as of 2025-09-27
 
 ### Added
 - Market indices ^GSPC (S&P 500) and ^DJI (Dow Jones) now included in default Yahoo Finance data pulls
@@ -141,7 +163,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2025.09.4] - 2025-09-12 🚀 (Currently Live)
+## [2025.09.4] - 2025-09-12 🚀
 
 **Build:** 10 | **Commit:** `500cc04` | **App Store Release**
 
