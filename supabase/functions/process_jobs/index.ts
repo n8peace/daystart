@@ -1101,7 +1101,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   const fewShotExample = {
     role: 'system',
     content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
-${timeAwareGreeting}, Jordan, it's Monday, August eighteenth. This is DayStart!
+Good morning, Jordan, it's Monday, August eighteenth. This is DayStart!
 
 [3 second pause]
 
