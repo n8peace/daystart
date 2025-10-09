@@ -295,6 +295,35 @@ function isWeekend(dateISO: string, tz?: string): boolean {
   return day === 0 || day === 6;
 }
 
+// Get time-aware greeting based on scheduled time in user's timezone
+function getTimeAwareGreeting(scheduledAt: string, timezone: string): string {
+  try {
+    const scheduledTime = new Date(scheduledAt);
+    const hour = parseInt(scheduledTime.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      hour12: false,
+      timeZone: timezone
+    }));
+    
+    // 3:00 AM - 11:59 AM: Good morning
+    if (hour >= 3 && hour < 12) {
+      return 'Good morning';
+    }
+    // 12:00 PM - 4:59 PM: Good afternoon
+    else if (hour >= 12 && hour < 17) {
+      return 'Good afternoon';
+    }
+    // 5:00 PM - 2:59 AM: Good evening
+    else {
+      return 'Good evening';
+    }
+  } catch (error) {
+    console.error(`Error getting time-aware greeting: ${error}`);
+    // Default to morning if parsing fails
+    return 'Good morning';
+  }
+}
+
 // Get day context with weekday encouragements and US holidays
 function getDayContext(dateISO: string, tz?: string): { label: string, encouragements: string[] } {
   const target = tz 
@@ -1072,7 +1101,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   const fewShotExample = {
     role: 'system',
     content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
-Good morning, Jordan, it's Monday, August eighteenth. This is DayStart!
+${timeAwareGreeting}, Jordan, it's Monday, August eighteenth. This is DayStart!
 
 [3 second pause]
 
@@ -1515,6 +1544,10 @@ async function buildScriptPrompt(context: any): Promise<string> {
   const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T12:00:00`;
   console.log(`📅 Using date string: ${dateString} with timezone: ${context.timezone}`);
   
+  // Get time-aware greeting based on scheduled time
+  const timeAwareGreeting = getTimeAwareGreeting(context.scheduled_at, context.timezone);
+  console.log(`🕐 Time-aware greeting: ${timeAwareGreeting} for scheduled time: ${context.scheduled_at}`);
+  
   // Parse the date in the user's timezone by using the date string directly
   const date = new Date(dateString).toLocaleDateString('en-US', { 
     weekday: 'long', 
@@ -1901,8 +1934,8 @@ FACT RULES
 
 CONTENT ORDER (adapt if sections are missing)
 1) Standard opening: 
-   - If user.preferredName is "there": "Good morning, it's {friendly date}. This is DayStart!"
-   - Otherwise: "Good morning, {user.preferredName}, it's {friendly date}. This is DayStart!"
+   - If user.preferredName is "there": "${timeAwareGreeting}, it's {friendly date}. This is DayStart!"
+   - Otherwise: "${timeAwareGreeting}, {user.preferredName}, it's {friendly date}. This is DayStart!"
    followed by a three-second pause using EXACTLY "[3 second pause]" on its own line.
 1a) Social intro (ONLY if social_daystart is true): After the greeting and pause, add: "Welcome to your daily DayStart AI briefing — your personalized morning update." followed by "[1 second pause]" on its own line.
 1b) Day context (if dayContext.encouragement is provided): Include it naturally after the greeting (and social intro if present), one or two sentences max. Vary tone so it doesn't feel canned.

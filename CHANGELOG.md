@@ -22,51 +22,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.16] - 2025-10-16
 
-**Build:** 1 | **Commit:** TBD | **Status:** In Development
+**Build:** 1 | **Commit:** 6a9325b | **Status:** In Development, Partially Deployed
 
 ### Added
-- Intelligent notification variety system with personalized content
-  - 7 morning notification styles: weather, calendar, streak, day-of-week, duration, location, energizing
-  - 4 night-before reminder styles: weather preview, calendar preview, day preview, time reminder
-  - 5 streak preservation styles: milestone, competitive, motivational, time warning, weekday perfect
-  - Smart rotation algorithm avoids repetition and tracks usage history
-  - Priority system for extreme weather, streak milestones, and busy calendars
-  - Personalized with real user data: temperature, calendar events, location, streak count
-- Support for social media DayStarts with `social_daystart` field
-- Special date handling: `local_date` can now be "TODAY" (converts to YYYY-MM-DD in timezone)
-- Special time handling: `scheduled_at` can now be "NOW" (immediate processing)
-- Auto-detection of social DayStarts based on x-client-info patterns (DAILY_GENERIC, SOCIAL_TIKTOK, etc.)
-- Social intro/outro content for TikTok and other platforms:
-  - Intro: "Welcome to your daily DayStart AI briefing — your personalized morning update in 90 seconds or less."
-  - Outro: "To get your own personalized DayStart every morning, search DayStart AI in the App Store."
-- Database migration 029: Add social_daystart column with index for efficient querying
-- create_job edge function now handles special date/time values before validation
-- process_jobs adds intro/outro for social DayStarts when social_daystart=true
-- Enhanced healthcheck monitoring with comprehensive job tracking:
-  - Tracks ALL queued jobs, not just those within 2-hour window
-  - Separate metrics for overdue jobs (past scheduled time)
-  - Tomorrow morning job monitoring with alerts
-  - FAIL condition for jobs overdue >10 minutes
-  - WARN condition for jobs overdue >5 minutes
-  - Special email sections for overdue jobs and tomorrow's schedule
-  - AI diagnosis updated to understand overdue job impact
+- **Time-Aware Greetings** - DayStart now greets you appropriately based on your scheduled time
+  - 3:00 AM - 11:59 AM: "Good morning"
+  - 12:00 PM - 4:59 PM: "Good afternoon"  
+  - 5:00 PM - 2:59 AM: "Good evening"
+  - Uses your timezone and scheduled DayStart time for accurate greeting
+- **Smart Notification System** - Personalized morning/evening notifications with intelligent variety
+  - 16 unique notification styles that rotate based on context (weather, calendar, streaks)
+  - Priority alerts for extreme weather, streak milestones, and busy days
+  - Tracks usage history to avoid repetition
+  
+- **Social Media Support** - Generate shareable DayStarts for TikTok and other platforms
+  - Auto-detection of social requests
+  - Custom intro/outro for viral content
+  
+- **Enhanced Job Monitoring** - Improved healthcheck system
+  - Tracks all queued jobs with overdue alerts
+  - Email notifications for jobs delayed >5 minutes
 
 ### Fixed
-- Future job scheduling bug where jobs created 48 hours in advance had incorrect dates
-  - Jobs scheduled for tomorrow had `local_date` correct but `scheduled_at` set to previous day
-  - Added optional `targetDate` parameter to createJob for proper date calculation
-  - Fixed createInitialScheduleJobs to pass target date separately from scheduled time
-  - Ensures users receive DayStarts on the correct day
+- **Future Scheduling Bug** - Jobs scheduled 48+ hours ahead now process on the correct day
 
 ### Removed
-- Deleted unused MockDataService.swift file (364 lines)
-  - Service was not referenced anywhere in codebase
-  - Not included in Xcode project build
-  - No production impact - all data comes from Supabase
+- **MockDataService.swift** - Deleted unused test file (no production impact)
 
 ---
 
-## [2025.9.25] - 2025-10-16
+## [2025.9.25] - 2025-09-25
 
 **Build:** 1 | **Commit:** `1df1c98` | **Status:** **LIVE** on App Store as of 2025-09-27
 
