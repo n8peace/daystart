@@ -359,8 +359,7 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
   } else if (
     overdueGt5Count > 0 || // Any job overdue by >5 minutes = WARN
     (queuedGt10.count ?? 0) > 0 || 
-    ((updatesLastHour ?? 0) === 0 && (eligibleQueuedCount ?? 0) > 0) ||
-    ((tomorrowQueued.count ?? 0) > 0 && now.getHours() >= 22) // Tomorrow jobs not processing after 10pm = WARN
+    ((updatesLastHour ?? 0) === 0 && (eligibleQueuedCount ?? 0) > 0)
   ) {
     status = 'warn'
   }
@@ -786,18 +785,11 @@ function getJobsSummaryHtml(report: HealthReport): string {
   
   // Tomorrow morning jobs section
   if (hasTomorrow) {
-    const now = new Date()
-    const isLateEvening = now.getHours() >= 20 // After 8pm
-    const bgColor = isLateEvening ? '#fef3c7' : '#dbeafe'
-    const borderColor = isLateEvening ? '#f59e0b' : '#3b82f6'
-    const textColor = isLateEvening ? '#78350f' : '#1e3a8a'
-    
     sections.push(`
-      <div style="margin-top:20px;padding:16px;background:${bgColor};border:1px solid ${borderColor};border-radius:8px">
-        <h3 style="margin:0 0 8px 0;font-size:14px;color:${textColor}">📅 Tomorrow Morning DayStarts</h3>
-        <p style="margin:0;font-size:13px;line-height:1.5;color:${textColor}">
+      <div style="margin-top:20px;padding:16px;background:#dbeafe;border:1px solid #3b82f6;border-radius:8px">
+        <h3 style="margin:0 0 8px 0;font-size:14px;color:#1e3a8a">📅 Tomorrow Morning DayStarts</h3>
+        <p style="margin:0;font-size:13px;line-height:1.5;color:#1e3a8a">
           <strong>${details.tomorrowMorning.total} users</strong> are expecting their morning briefing tomorrow.
-          ${isLateEvening ? '<br>⚠️ These should start processing soon to be ready by morning!' : ''}
         </p>
       </div>
     `)
