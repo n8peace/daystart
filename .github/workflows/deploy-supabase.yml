@@ -11,6 +11,10 @@ on:
       - 'supabase/**'
   workflow_dispatch: # Manual trigger
 
+concurrency:
+  group: deploy-supabase-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   TEST_RECEIPT_ID: test-deploy-${{ github.run_id }}
   MAX_WAIT_TIME: 300
