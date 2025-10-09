@@ -1,12 +1,12 @@
 # App Store Connect Configuration for DayStart AI
 
 ## Current Live Version: 2025.09.22 (Build 2)
-## Next Release: 2025.09.25 (Build 1)
+## Next Release: 2025.10.16 (Build 1)
 
 ## Basic Information
 - **App Name:** DayStart AI
 - **Current Version:** 2025.09.22 (Build 2) - Live on App Store
-- **Next Version:** 2025.09.25 (Build 1)
+- **Next Version:** 2025.10.16 (Build 1)
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 
@@ -70,7 +70,7 @@ Terms of Service: https://daystart.bananaintelligence.ai/terms
 Your Personal Morning Brief
 ```
 
-## What's New in Version 2025.09.25
+## What's New in Version 2025.10.16
 ```
 Transform your mornings with the intelligence advantage of successful leaders:
 
@@ -208,7 +208,7 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 - [x] Complete subscription metadata in App Store Connect
 - [x] Ensure Supabase backend is running during review
 
-### App Store Review Notes - Version 2025.09.25
+### App Store Review Notes - Version 2025.10.16
 ```
 QUICK TEST:
 1. Experience how successful leaders start their day
@@ -224,7 +224,7 @@ KEY FEATURES:
 - Professional voice synthesis
 - No login required, privacy-first approach
 
-WHAT'S NEW IN 2025.09.25:
+WHAT'S NEW IN 2025.10.16:
 - Market indices support: S&P 500 (^GSPC) and Dow Jones (^DJI) now available
 - Enhanced stock pronunciation for professional narration
 - All user-selected stocks mentioned regardless of brief length
@@ -274,7 +274,7 @@ CONTACT: nate@bananaintelligence.ai
 - [x] Paywall messaging updated
 - [x] Archive successfully uploaded to App Store Connect
 - [x] Build 2 (2025.09.22) submitted to App Store - Currently LIVE
-- [x] Build 1 (2025.09.25) ready for next submission
+- [x] Build 1 (2025.10.16) ready for next submission
 
 ### Remaining Tasks
 - [x] App Store Connect setup

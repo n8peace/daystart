@@ -113,6 +113,7 @@ class SupabaseClient {
     
     func createJob(
         for date: Date,
+        targetDate: Date? = nil,  // NEW: Optional target date for correct local_date calculation
         with preferences: UserSettings,
         schedule: DayStartSchedule,
         locationData: LocationData? = nil,
@@ -129,8 +130,11 @@ class SupabaseClient {
         
         var request = await createRequest(for: url, method: "POST")
         
+        // Use targetDate for local_date if provided (for future jobs), otherwise use scheduled date
+        let dateForLocalDate = targetDate ?? date
+        
         let jobRequest = CreateJobRequest(
-            local_date: localDateString(from: date),
+            local_date: localDateString(from: dateForLocalDate),
             scheduled_at: ISO8601DateFormatter().string(from: date),
             preferred_name: preferences.preferredName,
             include_weather: preferences.includeWeather,
@@ -264,6 +268,7 @@ class SupabaseClient {
                 
                 _ = try await createJob(
                     for: scheduledTime,
+                    targetDate: targetDate,  // Pass the actual date separately
                     with: preferences,
                     schedule: schedule,
                     locationData: snapshot.location,

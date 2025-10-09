@@ -181,18 +181,33 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
   const start = Date.now()
   const now = new Date()
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+  const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString()
   const tenMinAgo = new Date(now.getTime() - 10 * 60 * 1000).toISOString()
   const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000).toISOString()
   const nowIso = now.toISOString()
   const nowPlus2hIso = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString()
   const nowPlus2hMinus10mIso = new Date(now.getTime() + 2 * 60 * 60 * 1000 - 10 * 60 * 1000).toISOString()
   const nowPlus2hMinus30mIso = new Date(now.getTime() + 2 * 60 * 60 * 1000 - 30 * 60 * 1000).toISOString()
+  
+  // Tomorrow morning window (4am - 10am in UTC, adjust as needed)
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(4, 0, 0, 0)
+  const tomorrowMorningStart = tomorrow.toISOString()
+  tomorrow.setHours(10, 0, 0, 0)
+  const tomorrowMorningEnd = tomorrow.toISOString()
 
-  const [queued, processing, ready, failed] = await Promise.all([
+  const [queued, processing, ready, failed, allQueued, overdueQueued, tomorrowQueued] = await Promise.all([
     supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'queued').gte('created_at', since24h),
     supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'processing').gte('created_at', since24h),
     supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'ready').gte('created_at', since24h),
     supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'failed').gte('created_at', since24h),
+    // ALL queued jobs regardless of creation time
+    supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'queued'),
+    // Overdue jobs (scheduled in the past)
+    supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'queued').lt('scheduled_at', nowIso),
+    // Tomorrow morning jobs
+    supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'queued').gte('scheduled_at', tomorrowMorningStart).lte('scheduled_at', tomorrowMorningEnd),
   ])
 
   const counts = {
@@ -257,6 +272,36 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
   const queuedGt10 = { count: eligibleQueuedGt10 ?? 0 }
   const queuedGt30 = { count: eligibleQueuedGt30 ?? 0 }
 
+  // Check overdue jobs (scheduled in the past but still queued)
+  const overdueCount = overdueQueued.count ?? 0
+  let oldestOverdueMinutes: number | null = null
+  let overdueGt5Count = 0
+  let overdueGt10Count = 0
+  
+  if (overdueCount > 0) {
+    // Get oldest overdue job
+    const { data: oldestOverdue } = await supabase
+      .from('jobs')
+      .select('scheduled_at')
+      .eq('status', 'queued')
+      .lt('scheduled_at', nowIso)
+      .order('scheduled_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    
+    if (oldestOverdue?.scheduled_at) {
+      oldestOverdueMinutes = Math.floor((now.getTime() - new Date(oldestOverdue.scheduled_at).getTime()) / 60000)
+    }
+    
+    // Count overdue jobs older than 5 and 10 minutes
+    const [overdueGt5, overdueGt10] = await Promise.all([
+      supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'queued').lt('scheduled_at', fiveMinAgo),
+      supabase.from('jobs').select('*', { head: true, count: 'exact' }).eq('status', 'queued').lt('scheduled_at', tenMinAgo),
+    ])
+    overdueGt5Count = overdueGt5.count ?? 0
+    overdueGt10Count = overdueGt10.count ?? 0
+  }
+
   // Stuck processing
   const twentyMinAgo = new Date(now.getTime() - 20 * 60 * 1000).toISOString()
   const { count: stuckByLease } = await supabase
@@ -280,18 +325,43 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
   // Determine status
   let status: CheckStatus = 'pass'
   const notes: Record<string, unknown> = {
-    counts,
+    counts: {
+      ...counts,
+      totalQueued: allQueued.count ?? 0,
+      overdueQueued: overdueCount,
+      tomorrowMorning: tomorrowQueued.count ?? 0,
+    },
     oldestQueuedMinutes,
     eligibleQueued: eligibleQueuedCount ?? 0,
     queuedOlderThan10m: queuedGt10.count ?? 0,
     queuedOlderThan30m: queuedGt30.count ?? 0,
+    overdue: {
+      total: overdueCount,
+      oldestMinutes: oldestOverdueMinutes,
+      olderThan5m: overdueGt5Count,
+      olderThan10m: overdueGt10Count,
+    },
+    tomorrowMorning: {
+      total: tomorrowQueued.count ?? 0,
+      timeWindow: `${tomorrowMorningStart} to ${tomorrowMorningEnd}`,
+    },
     stuckProcessing: (stuckByLease ?? 0) + (staleProcessing ?? 0),
     updatesLastHour: updatesLastHour ?? 0,
   }
 
-  if ((queuedGt30.count ?? 0) > 0 || ((stuckByLease ?? 0) + (staleProcessing ?? 0)) > 0) {
+  // Updated fail/warn conditions with overdue job monitoring
+  if (
+    overdueGt10Count > 0 || // Any job overdue by >10 minutes = FAIL
+    (queuedGt30.count ?? 0) > 0 || 
+    ((stuckByLease ?? 0) + (staleProcessing ?? 0)) > 0
+  ) {
     status = 'fail'
-  } else if ((queuedGt10.count ?? 0) > 0 || ((updatesLastHour ?? 0) === 0 && (eligibleQueuedCount ?? 0) > 0)) {
+  } else if (
+    overdueGt5Count > 0 || // Any job overdue by >5 minutes = WARN
+    (queuedGt10.count ?? 0) > 0 || 
+    ((updatesLastHour ?? 0) === 0 && (eligibleQueuedCount ?? 0) > 0) ||
+    ((tomorrowQueued.count ?? 0) > 0 && now.getHours() >= 22) // Tomorrow jobs not processing after 10pm = WARN
+  ) {
     status = 'warn'
   }
 
@@ -578,6 +648,19 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
         } else {
           detailsHtml = '<span style="color:#16a34a">No errors detected</span>'
         }
+      } else if (c.name === 'jobs_queue' && c.details) {
+        const d = c.details as any
+        detailsHtml = `
+          <div style="font-size:13px;line-height:1.5">
+            <strong>Queued:</strong> ${d.counts?.totalQueued || 0} total (${d.counts?.queued || 0} in last 24h)
+            ${d.overdue?.total > 0 ? `<br><span style="color:#dc2626;font-weight:600">🚨 ${d.overdue.total} OVERDUE jobs!</span>` : ''}
+            ${d.overdue?.oldestMinutes ? `<br><span style="color:#dc2626">Oldest overdue: ${d.overdue.oldestMinutes} minutes ago</span>` : ''}
+            ${d.overdue?.olderThan10m > 0 ? `<br><span style="color:#dc2626">• ${d.overdue.olderThan10m} overdue >10min</span>` : ''}
+            ${d.overdue?.olderThan5m > 0 && d.overdue?.olderThan10m === 0 ? `<br><span style="color:#f59e0b">• ${d.overdue.olderThan5m} overdue >5min</span>` : ''}
+            ${d.tomorrowMorning?.total > 0 ? `<br><span style="color:#3b82f6">📅 ${d.tomorrowMorning.total} scheduled for tomorrow morning</span>` : ''}
+            ${d.eligibleQueued > 0 ? `<br>Eligible for processing: ${d.eligibleQueued}` : ''}
+            ${d.stuckProcessing > 0 ? `<br><span style="color:#dc2626;font-weight:600">⚠️ ${d.stuckProcessing} stuck processing!</span>` : ''}
+          </div>`
       } else {
         detailsHtml = `<pre style="margin:0;font-family:ui-monospace,monospace;font-size:11px;color:#666">${escapeHtml(JSON.stringify(c.details ?? c.error ?? {}, null, 2))}</pre>`
       }
@@ -657,6 +740,8 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
                 
                 ${recentErrorsHtml}
                 
+                ${getJobsSummaryHtml(report)}
+                
                 <div style="margin-top:20px;padding:12px;background:#f3f4f6;border-radius:8px;font-size:11px;color:#6b7280;text-align:center">
                   <strong>Request ID:</strong> ${report.request_id}<br>
                   <strong>Runtime:</strong> ${report.duration_ms}ms • ${new Date(report.started_at).toLocaleString()}
@@ -668,6 +753,57 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
       </tr>
     </table>
   </body></html>`
+}
+
+function getJobsSummaryHtml(report: HealthReport): string {
+  const jobsCheck = report.checks.find(c => c.name === 'jobs_queue')
+  if (!jobsCheck?.details) return ''
+  
+  const details = jobsCheck.details as any
+  const hasOverdue = details.overdue?.total > 0
+  const hasTomorrow = details.tomorrowMorning?.total > 0
+  
+  if (!hasOverdue && !hasTomorrow) return ''
+  
+  let sections = []
+  
+  // Overdue jobs section
+  if (hasOverdue) {
+    sections.push(`
+      <div style="margin-top:20px;padding:16px;background:#fee2e2;border:2px solid #dc2626;border-radius:8px">
+        <h3 style="margin:0 0 12px 0;font-size:14px;color:#7f1d1d">🚨 OVERDUE JOBS ALERT</h3>
+        <p style="margin:0;font-size:13px;line-height:1.5;color:#991b1b">
+          <strong>${details.overdue.total} jobs</strong> are overdue and should have been processed already!
+          ${details.overdue.oldestMinutes ? `<br>The oldest has been waiting for <strong>${details.overdue.oldestMinutes} minutes</strong>.` : ''}
+          ${details.overdue.olderThan10m > 0 ? `<br><strong>${details.overdue.olderThan10m} jobs</strong> have been overdue for more than 10 minutes.` : ''}
+        </p>
+        <p style="margin:8px 0 0 0;font-size:12px;color:#7f1d1d">
+          <strong>Action Required:</strong> Check process_jobs function for errors or stuck processing.
+        </p>
+      </div>
+    `)
+  }
+  
+  // Tomorrow morning jobs section
+  if (hasTomorrow) {
+    const now = new Date()
+    const isLateEvening = now.getHours() >= 20 // After 8pm
+    const bgColor = isLateEvening ? '#fef3c7' : '#dbeafe'
+    const borderColor = isLateEvening ? '#f59e0b' : '#3b82f6'
+    const textColor = isLateEvening ? '#78350f' : '#1e3a8a'
+    
+    sections.push(`
+      <div style="margin-top:20px;padding:16px;background:${bgColor};border:1px solid ${borderColor};border-radius:8px">
+        <h3 style="margin:0 0 8px 0;font-size:14px;color:${textColor}">📅 Tomorrow Morning DayStarts</h3>
+        <p style="margin:0;font-size:13px;line-height:1.5;color:${textColor}">
+          <strong>${details.tomorrowMorning.total} users</strong> are expecting their morning briefing tomorrow.
+          ${isLateEvening ? '<br>⚠️ These should start processing soon to be ready by morning!' : ''}
+        </p>
+      </div>
+    `)
+  }
+  
+  return sections.join('')
 }
 
 function buildEmailText(report: HealthReport & { ai_diagnosis?: string }): string {
@@ -693,6 +829,20 @@ function buildEmailText(report: HealthReport & { ai_diagnosis?: string }): strin
       lines.push(`   - ${errorDetails.errors_24h} errors (${errorDetails.error_rate_percent}%)`)
       if (errorDetails.process_jobs_errors > 0) {
         lines.push(`   - ⚠️  ${errorDetails.process_jobs_errors} process_jobs failures!`)
+      }
+    } else if (c.name === 'jobs_queue' && c.details) {
+      const d = c.details as any
+      if (d.overdue?.total > 0) {
+        lines.push(`   - 🚨 ${d.overdue.total} OVERDUE jobs!`)
+        if (d.overdue.oldestMinutes) {
+          lines.push(`   - Oldest overdue: ${d.overdue.oldestMinutes} minutes`)
+        }
+      }
+      if (d.tomorrowMorning?.total > 0) {
+        lines.push(`   - 📅 ${d.tomorrowMorning.total} jobs scheduled for tomorrow morning`)
+      }
+      if (d.counts?.totalQueued > 0) {
+        lines.push(`   - Total queued: ${d.counts.totalQueued}`)
       }
     }
   })
@@ -721,13 +871,15 @@ async function getAIDiagnosis(checks: CheckResult[]): Promise<string> {
   const systemPrompt = `You are analyzing a DayStart backend healthcheck. DayStart delivers AI-generated morning briefings with audio.
 Key context:
 - process_jobs: Core function that generates audio content (CRITICAL)
+- Jobs are scheduled for specific times (usually morning) and should process 2 hours before scheduled_at
+- Overdue jobs: Jobs past their scheduled_at that haven't been processed (CRITICAL USER IMPACT)
 - Rate limiting: Users have 4-hour cooldown between DayStarts  
 - Queue processing: Jobs are processed in order with retry logic
 - Content cache: External APIs cached for 12 hours
 
 Provide a concise diagnosis (2-3 sentences max) that includes:
 1. Root cause analysis
-2. Impact on users
+2. Impact on users (especially for overdue jobs - users missing their morning briefings)
 3. Recommended action (or "No action needed" if working as designed)`
 
   const userPrompt = `Healthcheck issues found:
