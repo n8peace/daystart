@@ -1568,6 +1568,37 @@ struct OnboardingView: View {
                         
                         Spacer(minLength: isCompactHeight ? 12 : geometry.size.height * 0.04)
                 
+                // Show promotional banner if any products have promotional pricing
+                if !purchaseManager.availablePromotions.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "flame.fill")
+                            .foregroundColor(.white)
+                            .font(.system(size: isCompactHeight ? 14 : 16, weight: .bold))
+                        
+                        Text("LIMITED TIME OFFER")
+                            .font(.system(size: isCompactHeight ? 14 : 16, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Image(systemName: "flame.fill")
+                            .foregroundColor(.white)
+                            .font(.system(size: isCompactHeight ? 14 : 16, weight: .bold))
+                    }
+                    .padding(.horizontal, isCompactHeight ? 16 : 20)
+                    .padding(.vertical, isCompactHeight ? 6 : 8)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.red, Color.orange],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(20)
+                    .shadow(color: Color.red.opacity(0.4), radius: 8, x: 0, y: 4)
+                    .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
+                    .padding(.bottom, isCompactHeight ? 8 : 12)
+                }
+                
                 // Pricing options - optimized for conversion
                 if purchaseManager.isLoadingProducts {
                     // Loading state
@@ -1624,7 +1655,21 @@ struct OnboardingView: View {
                             HStack(spacing: 12) {
                                 PricingCard(
                                     title: "Annual Pass",
-                            price: getProduct(for: "daystart_annual_subscription")?.displayPrice ?? "$39.99/year",
+                            price: {
+                                let product = getProduct(for: "daystart_annual_subscription")
+                                let promoInfo = getPromotionalPriceInfo(for: product)
+                                return promoInfo.price.isEmpty ? "$39.99/year" : promoInfo.price
+                            }(),
+                            originalPrice: {
+                                let product = getProduct(for: "daystart_annual_subscription")
+                                let promoInfo = getPromotionalPriceInfo(for: product)
+                                return promoInfo.originalPrice
+                            }(),
+                            promotionalBadge: {
+                                let product = getProduct(for: "daystart_annual_subscription")
+                                let promoInfo = getPromotionalPriceInfo(for: product)
+                                return promoInfo.badge
+                            }(),
                             subtitle: nil,
                             badge: "🔥 Most Popular",
                             trialText: getTrialText(for: getProduct(for: "daystart_annual_subscription")) ?? "7-Day Free Trial",
@@ -1641,7 +1686,21 @@ struct OnboardingView: View {
                         
                         PricingCard(
                             title: "Monthly Pass",
-                            price: getProduct(for: "daystart_monthly_subscription")?.displayPrice ?? "$4.99/month",
+                            price: {
+                                let product = getProduct(for: "daystart_monthly_subscription")
+                                let promoInfo = getPromotionalPriceInfo(for: product)
+                                return promoInfo.price.isEmpty ? "$4.99/month" : promoInfo.price
+                            }(),
+                            originalPrice: {
+                                let product = getProduct(for: "daystart_monthly_subscription")
+                                let promoInfo = getPromotionalPriceInfo(for: product)
+                                return promoInfo.originalPrice
+                            }(),
+                            promotionalBadge: {
+                                let product = getProduct(for: "daystart_monthly_subscription")
+                                let promoInfo = getPromotionalPriceInfo(for: product)
+                                return promoInfo.badge
+                            }(),
                             subtitle: nil,
                             badge: nil,
                             trialText: getTrialText(for: getProduct(for: "daystart_monthly_subscription")) ?? "3-Day Free Trial",
@@ -1660,7 +1719,21 @@ struct OnboardingView: View {
                             VStack(spacing: 12) {
                                 PricingCard(
                                     title: "Annual Pass",
-                                    price: getProduct(for: "daystart_annual_subscription")?.displayPrice ?? "$39.99/year",
+                                    price: {
+                                        let product = getProduct(for: "daystart_annual_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.price.isEmpty ? "$39.99/year" : promoInfo.price
+                                    }(),
+                                    originalPrice: {
+                                        let product = getProduct(for: "daystart_annual_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.originalPrice
+                                    }(),
+                                    promotionalBadge: {
+                                        let product = getProduct(for: "daystart_annual_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.badge
+                                    }(),
                                     subtitle: nil,
                                     badge: "🔥 Most Popular",
                                     trialText: getTrialText(for: getProduct(for: "daystart_annual_subscription")) ?? "7-Day Free Trial",
@@ -1677,7 +1750,21 @@ struct OnboardingView: View {
                                 
                                 PricingCard(
                                     title: "Monthly Pass",
-                                    price: getProduct(for: "daystart_monthly_subscription")?.displayPrice ?? "$4.99/month",
+                                    price: {
+                                        let product = getProduct(for: "daystart_monthly_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.price.isEmpty ? "$4.99/month" : promoInfo.price
+                                    }(),
+                                    originalPrice: {
+                                        let product = getProduct(for: "daystart_monthly_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.originalPrice
+                                    }(),
+                                    promotionalBadge: {
+                                        let product = getProduct(for: "daystart_monthly_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.badge
+                                    }(),
                                     subtitle: nil,
                                     badge: nil,
                                     trialText: getTrialText(for: getProduct(for: "daystart_monthly_subscription")) ?? "3-Day Free Trial",
@@ -1911,6 +1998,12 @@ struct OnboardingView: View {
                 
                 // Use real StoreKit purchase (works in both debug and production)
                 logger.log("💳 Initiating StoreKit purchase", level: .info)
+                
+                // Promotional offers are automatically applied by StoreKit
+                if purchaseManager.availablePromotions[product.id] != nil {
+                    logger.log("🎁 Promotional pricing available for this purchase", level: .info)
+                }
+                
                 try await PurchaseManager.shared.purchase(productId: product.id)
                 
                 await MainActor.run {
@@ -2137,6 +2230,25 @@ struct OnboardingView: View {
             return "then \(product.displayPrice) monthly"
         }
         return "then \(product.displayPrice) auto-renews"
+    }
+    
+    private func getPromotionalPriceInfo(for product: Product?) -> (price: String, originalPrice: String?, badge: String?) {
+        guard let product = product else {
+            return (price: "", originalPrice: nil, badge: nil)
+        }
+        
+        // Check if PurchaseManager has promotional pricing for this product
+        if let promoInfo = purchaseManager.getPromotionalPrice(for: product) {
+            let formatter = product.priceFormatStyle
+            let promoPrice = promoInfo.promotional.formatted(formatter)
+            let originalPrice = product.displayPrice
+            let badge = "\(promoInfo.savingsPercent)% OFF"
+            
+            return (price: promoPrice, originalPrice: originalPrice, badge: badge)
+        }
+        
+        // No promotional pricing, return regular price
+        return (price: product.displayPrice, originalPrice: nil, badge: nil)
     }
     
     // MARK: - Permission Handling
@@ -2481,6 +2593,8 @@ struct PreviewSummaryCard: View {
 struct PricingCard: View {
     let title: String
     let price: String
+    let originalPrice: String?
+    let promotionalBadge: String?
     let subtitle: String?
     let badge: String?
     let trialText: String
@@ -2517,9 +2631,37 @@ struct PricingCard: View {
                         .font(.system(size: isCompactHeight ? 16 : min(18, geometry.size.width * 0.045), weight: .bold))
                         .foregroundColor(BananaTheme.ColorToken.text)
                     
-                    Text(price)
-                        .font(.system(size: isCompactHeight ? 18 : min(20, geometry.size.width * 0.05), weight: .bold))
-                        .foregroundColor(BananaTheme.ColorToken.primary)
+                    // Show promotional pricing if available
+                    if let originalPrice = originalPrice {
+                        VStack(spacing: 2) {
+                            // Original price with strikethrough
+                            Text(originalPrice)
+                                .font(.system(size: isCompactHeight ? 14 : min(16, geometry.size.width * 0.04), weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                .strikethrough(true, color: Color.red.opacity(0.8))
+                            
+                            // Promotional price
+                            Text(price)
+                                .font(.system(size: isCompactHeight ? 18 : min(20, geometry.size.width * 0.05), weight: .bold))
+                                .foregroundColor(BananaTheme.ColorToken.primary)
+                        }
+                        
+                        // Show promotional badge if available
+                        if let promotionalBadge = promotionalBadge {
+                            Text(promotionalBadge)
+                                .font(.system(size: isCompactHeight ? 10 : min(11, geometry.size.width * 0.028), weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color.red)
+                                .cornerRadius(4)
+                        }
+                    } else {
+                        // Regular price display
+                        Text(price)
+                            .font(.system(size: isCompactHeight ? 18 : min(20, geometry.size.width * 0.05), weight: .bold))
+                            .foregroundColor(BananaTheme.ColorToken.primary)
+                    }
                     
                     if let subtitle = subtitle {
                         Text(subtitle)

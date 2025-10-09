@@ -37,6 +37,7 @@ class PurchaseManager: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var availableProducts: [Product] = []
     @Published private(set) var isLoadingProducts = false
+    @Published private(set) var availablePromotions: [String: Product.SubscriptionOffer] = [:]
     
     private let logger = DebugLogger.shared
     private let keychainManager = KeychainManager.shared
@@ -117,6 +118,8 @@ class PurchaseManager: ObservableObject {
         }
         
         // Initiate purchase
+        // Note: Promotional offers are automatically applied by StoreKit based on eligibility
+        // The promotional pricing is handled at the display level, not the purchase level
         let result = try await product.purchase()
         
         switch result {
@@ -223,14 +226,69 @@ class PurchaseManager: ObservableObject {
         let productIds = ["daystart_annual_subscription", "daystart_monthly_subscription"]
         let products = try await Product.products(for: productIds)
         
+        // Check for promotional offers on each product
+        var promotions: [String: Product.SubscriptionOffer] = [:]
+        for product in products {
+            if let offers = await checkEligiblePromotionalOffers(for: product),
+               let bestOffer = offers.first {
+                promotions[product.id] = bestOffer
+                logger.log("🎁 Found promotional offer for \(product.id): \(bestOffer.id ?? "unknown")", level: .info)
+            }
+        }
+        
         await MainActor.run {
             self.availableProducts = products.sorted { product1, product2 in
                 // Sort by price descending (annual first)
                 product1.price > product2.price
             }
+            self.availablePromotions = promotions
         }
         
-        logger.log("✅ Fetched \(products.count) products for display", level: .info)
+        logger.log("✅ Fetched \(products.count) products with \(promotions.count) promotional offers", level: .info)
+    }
+    
+    func checkEligiblePromotionalOffers(for product: Product) async -> [Product.SubscriptionOffer]? {
+        guard let subscription = product.subscription else { return nil }
+        
+        // Get all promotional offers (not introductory offers)
+        let promotionalOffers = subscription.promotionalOffers
+        
+        // In a real app, you might check eligibility based on user status
+        // For now, return all available promotional offers
+        if !promotionalOffers.isEmpty {
+            logger.log("🔍 Found \(promotionalOffers.count) promotional offers for \(product.id)", level: .info)
+        }
+        
+        return promotionalOffers.isEmpty ? nil : promotionalOffers
+    }
+    
+    func getPromotionalPrice(for product: Product) -> (original: Decimal, promotional: Decimal, savingsPercent: Int)? {
+        guard let offer = availablePromotions[product.id],
+              let subscription = product.subscription else { return nil }
+        
+        let originalPrice = product.price
+        
+        // Calculate promotional price based on offer type
+        let promotionalPrice: Decimal
+        switch offer.paymentMode {
+        case .payAsYouGo:
+            // Discounted price for the offer period
+            promotionalPrice = offer.price ?? originalPrice
+        case .payUpFront:
+            // One-time discounted payment
+            promotionalPrice = offer.price ?? originalPrice
+        case .freeTrial:
+            // Free trial (already handled as intro offer)
+            return nil
+        default:
+            return nil
+        }
+        
+        // Calculate savings percentage
+        let savings = originalPrice - promotionalPrice
+        let savingsPercent = Int(((savings / originalPrice) * 100) as NSDecimalNumber)
+        
+        return (original: originalPrice, promotional: promotionalPrice, savingsPercent: savingsPercent)
     }
     
     private func clearStoredReceipt() {

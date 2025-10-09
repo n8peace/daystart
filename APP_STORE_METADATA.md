@@ -5,7 +5,7 @@
 
 ## Basic Information
 - **App Name:** DayStart AI
-- **Subtitle:**  How Leaders Start Their Day
+- **Subtitle:**  1st AI Morning Brief
 - **Current Version:** 2025.09.22 (Build 2) - Live on App Store
 - **Next Version:** 2025.10.16 (Build 1)
 - **Support URL:** https://daystart.bananaintelligence.ai
@@ -91,8 +91,8 @@ Because successful mornings start with clarity, not chaos.
 ```
 
 ## Categories
-- **Primary:** Lifestyle
-- **Secondary:** Productivity
+- **Primary:** Productivity
+- **Secondary:** News
 
 ## Age Rating
 - **13+**

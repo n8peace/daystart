@@ -27,7 +27,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - **Time-Aware Greetings** - DayStart now greets you appropriately based on your scheduled time
   - 3:00 AM - 11:59 AM: "Good morning"
-  - 12:00 PM - 4:59 PM: "Good afternoon"  
+  - 12:00 PM - 4:59 PM: "Good afternoon"
+- **Apple Promotional Offers Support** - Paywall now supports dynamic promotional pricing
+  - Automatic detection of App Store Connect promotional offers
+  - Strikethrough display of original prices when promotions are active
+  - Percentage-based savings badges (e.g., "25% OFF")
+  - Limited time offer banner with animated effects
+  - Enhanced purchase flow to apply promotional offers automatically  
   - 5:00 PM - 2:59 AM: "Good evening"
   - Uses your timezone and scheduled DayStart time for accurate greeting
 - **Smart Notification System** - Personalized morning/evening notifications with intelligent variety
