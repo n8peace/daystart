@@ -1098,6 +1098,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   console.log('================== PROMPT END ==================');
 
   // Few-shot example to lock in the style
+  // Fixed: Changed ${timeAwareGreeting} to static "Good morning" to resolve undefined variable error
   const fewShotExample = {
     role: 'system',
     content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
