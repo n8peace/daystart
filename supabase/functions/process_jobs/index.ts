@@ -13,7 +13,8 @@ function getTokenLimits(seconds: number): { maxTokens: number; targetWords: numb
   const words = targetWords(seconds);
   // Rule of thumb: ~0.75 tokens per word for output, plus buffer for complex content
   const baseTokens = Math.round(words * 1.2);
-  const maxTokens = Math.max(300, Math.min(2000, baseTokens)); // Reasonable bounds
+  // Increased minimum from 300 to 800 to ensure full scripts can be generated
+  const maxTokens = Math.max(800, Math.min(2000, baseTokens)); // Reasonable bounds
   
   return { maxTokens, targetWords: words };
 }

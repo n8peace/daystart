@@ -22,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.16] - 2025-10-16
 
-**Build:** 1 | **Commit:** f991df6 | **Status:** App In Development, Supabase Deployed
+**Build:** 1 | **Commit:** 618f32d | **Status:** App In Development, Supabase Deployed
 
 ### Added
 - **Time-Aware Greetings** - DayStart now greets you appropriately based on your scheduled time
@@ -48,6 +48,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Enhanced Job Monitoring** - Improved healthcheck system
   - Tracks all queued jobs with overdue alerts
   - Email notifications for jobs delayed >5 minutes
+
+### Changed
+- **Enhanced Social DayStart for TikTok** - Optimized social_daystart generation for viral content
+  - Uses "Hello" greeting instead of time-aware greetings for consistency
+  - Increased content density: 4 news stories, 2 sports, 3 stocks (vs 2/1/1 for regular)
+  - Shorter pauses and transitions for punchier delivery
+  - Energetic, viral-focused language style ("Breaking:", "Just in:", "Wild update:")
+  - Sports prioritization: playoffs > local teams > big matchups > rivalries
+  - Social media engagement-focused sign-offs
+  - Optimized word budgets for 91-second target duration
 
 ### Fixed
 - **Future Scheduling Bug** - Jobs scheduled 48+ hours ahead now process on the correct day
