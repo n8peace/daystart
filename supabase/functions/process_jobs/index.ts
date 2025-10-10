@@ -19,7 +19,22 @@ function getTokenLimits(seconds: number): { maxTokens: number; targetWords: numb
 }
 
 // Dynamic story count based on duration
-function getStoryLimits(seconds: number): { news: number; sports: number; stocks: number } {
+function getStoryLimits(seconds: number, isSocialDaystart: boolean = false): { news: number; sports: number; stocks: number } {
+  // Enhanced limits for social_daystart to pack more content
+  if (isSocialDaystart) {
+    if (seconds <= 60) {
+      return { news: 3, sports: 2, stocks: 2 };
+    } else if (seconds <= 100) {
+      // ~91 seconds target: more stories for TikTok
+      return { news: 4, sports: 2, stocks: 3 };
+    } else if (seconds <= 180) {
+      return { news: 5, sports: 3, stocks: 4 };
+    } else {
+      return { news: 7, sports: 4, stocks: 5 };
+    }
+  }
+  
+  // Regular limits
   if (seconds <= 60) {
     // 1 minute: bare minimum
     return { news: 2, sports: 1, stocks: 1 };
@@ -269,8 +284,19 @@ function teamWhitelistFromSports(sports: any[] = []): string[] {
 }
 
 // Compute a rough per-section word budget based on duration and what's included
-function sectionBudget(seconds: number, include: { weather: boolean; calendar: boolean; news: boolean; sports: boolean; stocks: boolean; quotes: boolean }): Record<string, number> {
-  const base: Array<[string, number]> = [
+function sectionBudget(seconds: number, include: { weather: boolean; calendar: boolean; news: boolean; sports: boolean; stocks: boolean; quotes: boolean }, isSocialDaystart: boolean = false): Record<string, number> {
+  const base: Array<[string, number]> = isSocialDaystart ? [
+    // Social daystart: more content, less fluff
+    ['greeting',  20],  // Shorter greeting
+    ['weather',   include.weather ? 60 : 0],  // Brief weather if included
+    ['calendar',  include.calendar ? 60 : 0],  // Brief calendar if included
+    ['news',      include.news ? 480 : 0],  // More news stories
+    ['sports',    include.sports ? 100 : 0],  // Slightly more sports
+    ['stocks',    include.stocks ? 120 : 0],  // More stock coverage
+    ['quote',     include.quotes ? 60 : 0],  // Brief quote if included
+    ['close',     20],  // Shorter closing
+  ] : [
+    // Regular daystart allocations
     ['greeting',  40],
     ['weather',   include.weather ? 120 : 0],
     ['calendar',  include.calendar ? 120 : 0],
@@ -569,6 +595,22 @@ function getRandomSignOff() {
   ];
   
   return signOffOptions[Math.floor(Math.random() * signOffOptions.length)];
+}
+
+function getSocialSignOff() {
+  const socialSignOffOptions = [
+    "That's your morning download — drop a comment with your take.",
+    "Stay informed, stay ahead — what caught your attention today?",
+    "Consider yourself briefed — now go make some headlines of your own.",
+    "That's today's intel — share if you found something worth talking about.",
+    "Knowledge dropped — what's your move?",
+    "You're now dangerously well-informed — use this power wisely.",
+    "Morning brief complete — which story hit different?",
+    "That's the scoop — bet you didn't see that coming.",
+    "Armed with info, ready for anything — let's see what today brings."
+  ];
+  
+  return socialSignOffOptions[Math.floor(Math.random() * socialSignOffOptions.length)];
 }
 
 // Enhanced retry + timeout wrapper with detailed logging
@@ -1224,7 +1266,7 @@ That's it for today. Have a good DayStart.
     const band = { min: Math.round(target * 0.9), max: Math.round(target * 1.1) };
 
     // Build a conservative context JSON for the adjust step
-    const storyLimits = getStoryLimits(duration);
+    const storyLimits = getStoryLimits(duration, context.social_daystart);
     const flattenedNews = flattenAndDedupeNews(context.contentData?.news || []).slice(0, 80);
     const allSports = flattenAndParseSports(context.contentData?.sports || []);
     const sportsToday = filterValidSportsItems(allSports, context.date, context.timezone).slice(0, 15);
@@ -1545,8 +1587,8 @@ async function buildScriptPrompt(context: any): Promise<string> {
   const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T12:00:00`;
   console.log(`📅 Using date string: ${dateString} with timezone: ${context.timezone}`);
   
-  // Get time-aware greeting based on scheduled time
-  const timeAwareGreeting = getTimeAwareGreeting(context.scheduled_at, context.timezone);
+  // Get time-aware greeting based on scheduled time (or "Hello" for social_daystart)
+  const timeAwareGreeting = context.social_daystart ? "Hello" : getTimeAwareGreeting(context.scheduled_at, context.timezone);
   console.log(`🕐 Time-aware greeting: ${timeAwareGreeting} for scheduled time: ${context.scheduled_at}`);
   
   // Parse the date in the user's timezone by using the date string directly
@@ -1563,7 +1605,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
   const { targetWords } = getTokenLimits(duration);
   const lowerBound = Math.round(targetWords * 0.9);
   const upperBound = Math.round(targetWords * 1.1);
-  const storyLimits = getStoryLimits(duration);
+  const storyLimits = getStoryLimits(duration, context.social_daystart);
   
   // Prefer compact news if available, else fall back to raw
   function collectCompactNews(cd: any): Array<{description: string, source?: string, publishedAt?: string}> {
@@ -1651,7 +1693,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
       stocks: !!context.includeStocks,
       quotes: !!context.includeQuotes,
       calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0
-    }),
+    }, context.social_daystart),
     weather: context.weatherData || null,
     news: (compactNews.length > 0
       ? compactNews.map(n => ({
@@ -1666,7 +1708,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
     sportsTeamWhitelist: teamWhitelistFromSports(sportsToday),
     localityHints: localityHints(context.locationData),
     transitions: getRandomTransitions(),
-    signOff: getRandomSignOff(),
+    signOff: context.social_daystart ? getSocialSignOff() : getRandomSignOff(),
     dayContext: {
       weekday: dayContext.label,
       encouragement: encouragement,
@@ -1902,6 +1944,17 @@ STYLE
   - Always use full company names instead of stock tickers (e.g., "Apple" not "AAPL", "Tesla" not "TSLA", "S and P five hundred" not "^GSPC", "Dow Jones" not "^DJI")
   - Don't add "Inc" at the end of company names (use "Apple", not "Apple Inc.")
   - Spell out all numbers and prices in words (e.g., "two hundred thirty dollars and eighty-nine cents" not "$230.89", "down zero point three percent" not "down 0.3%")
+${context.social_daystart ? `
+SOCIAL DAYSTART STYLE OVERRIDE (for TikTok):
+- Lead with the most viral or shareable story - something that makes people go "wow"
+- Use more energetic, punchy language: "Breaking:", "Just in:", "Wild update:", "Big news:"
+- Focus on superlatives and wow-factors: biggest movers, shocking developments, unexpected turns
+- Skip mundane updates, focus on surprises and things that spark conversation
+- Keep energy HIGH throughout - this is entertainment, not just information
+- For stocks: emphasize the dramatic moves, meme stocks, crypto volatility
+- For sports: focus on upsets, comebacks, playoff implications, star performances
+- For news: prioritize stories that are trending, controversial, or surprising
+` : ''}
 ${styleAddendum}
  - Use 1–2 transitions between sections. Add bracketed pauses on their own line between major sections for natural pauses using EXACTLY this format: "[1 second pause]".
  - Keep ellipses to ≤1 per paragraph within sections and em dashes to ≤2 per paragraph.
@@ -1914,7 +1967,7 @@ LENGTH & PACING
 
 CONTENT PRIORITIZATION
   - News: Use ${storyLimits.news === 1 ? '1 story' : `${storyLimits.news - 1}–${storyLimits.news} stories`}, depending on significance and space. Choose by local relevance using user.location when available; otherwise pick the most significant stories. For longer scripts, include deeper context and background for major stories.
-- Sports: Include ${storyLimits.sports} update(s) max in your script. You have more options to choose from, but select only the most relevant ${storyLimits.sports} for the user based on location, significance, or excitement. If off-season or no fixtures, skip gracefully.
+- Sports: Include ${storyLimits.sports} update(s) max in your script. Prioritize in this order: 1) Championship/playoff games, 2) Local team games (based on user.location), 3) Biggest matchups by team rankings, 4) Rivalry games. Select the highest priority ${storyLimits.sports} stories available. If off-season or no fixtures, skip gracefully.
 - Stocks: ALWAYS mention ALL stocks in stocks.focus (user's selected symbols) regardless of script length. These are the user's personal picks and must all be included. For additional market commentary beyond user picks, limit to ${storyLimits.stocks} total market points.
  - Weather: If present, include high/low temperatures (from highTemperatureF/lowTemperatureF), precipitation chance (from precipitationChance), and current conditions. Spell out all temperatures and percentages in words for TTS.
  - Astronomy: If a meteor shower is present, add viewing advice tailored to the user's location (window, direction, light pollution note). Otherwise, omit.
@@ -1937,7 +1990,7 @@ CONTENT ORDER (adapt if sections are missing)
 1) Standard opening: 
    - If user.preferredName is "there": "${timeAwareGreeting}, it's {friendly date}. This is DayStart!"
    - Otherwise: "${timeAwareGreeting}, {user.preferredName}, it's {friendly date}. This is DayStart!"
-   followed by a three-second pause using EXACTLY "[3 second pause]" on its own line.
+   followed by a ${context.social_daystart ? 'one-second pause using EXACTLY "[1 second pause]"' : 'three-second pause using EXACTLY "[3 second pause]"'} on its own line.
 1a) Social intro (ONLY if social_daystart is true): After the greeting and pause, add: "Welcome to your daily DayStart AI briefing — your personalized morning update." followed by "[1 second pause]" on its own line.
 1b) Day context (if dayContext.encouragement is provided): Include it naturally after the greeting (and social intro if present), one or two sentences max. Vary tone so it doesn't feel canned.
 2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
