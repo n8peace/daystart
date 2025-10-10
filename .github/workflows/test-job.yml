@@ -1,0 +1,282 @@
+name: Test DayStart Job
+
+on:
+  workflow_dispatch:
+    inputs:
+      daystart_length:
+        description: 'DayStart length in seconds'
+        required: false
+        default: '30'
+        type: choice
+        options:
+          - '30'
+          - '60'
+          - '120'
+          - '180'
+          - '300'
+      voice_option:
+        description: 'Voice option'
+        required: false
+        default: 'voice1'
+        type: choice
+        options:
+          - 'voice1'
+          - 'voice2'
+          - 'voice3'
+          - 'voice4'
+          - 'voice5'
+      include_news:
+        description: 'Include news'
+        required: false
+        default: true
+        type: boolean
+      include_weather:
+        description: 'Include weather'
+        required: false
+        default: false
+        type: boolean
+      include_sports:
+        description: 'Include sports'
+        required: false
+        default: false
+        type: boolean
+      include_stocks:
+        description: 'Include stocks'
+        required: false
+        default: false
+        type: boolean
+      include_calendar:
+        description: 'Include calendar'
+        required: false
+        default: false
+        type: boolean
+      include_quotes:
+        description: 'Include quotes'
+        required: false
+        default: true
+        type: boolean
+      quote_preference:
+        description: 'Quote preference'
+        required: false
+        default: 'motivational'
+        type: choice
+        options:
+          - 'motivational'
+          - 'funny'
+          - 'philosophical'
+
+env:
+  TEST_RECEIPT_ID: test-manual-${{ github.run_id }}
+  MAX_WAIT_TIME: 300
+  CHECK_INTERVAL: 10
+
+jobs:
+  test-job:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Create test job
+      id: test_job
+      run: |
+        echo "🧪 Creating test DayStart job..."
+        echo "📍 Test receipt ID: ${{ env.TEST_RECEIPT_ID }}"
+        echo "⚙️ Configuration:"
+        echo "  - Length: ${{ inputs.daystart_length }}s"
+        echo "  - Voice: ${{ inputs.voice_option }}"
+        echo "  - News: ${{ inputs.include_news }}"
+        echo "  - Weather: ${{ inputs.include_weather }}"
+        echo "  - Sports: ${{ inputs.include_sports }}"
+        echo "  - Stocks: ${{ inputs.include_stocks }}"
+        echo "  - Calendar: ${{ inputs.include_calendar }}"
+        echo "  - Quotes: ${{ inputs.include_quotes }} (${{ inputs.quote_preference }})"
+        
+        # Schedule for immediate processing (current time + 1 minute)
+        TODAY=$(date -u +%Y-%m-%d)
+        # Generate ISO timestamp with Z suffix
+        if date -u -v +1M +%Y-%m-%d >/dev/null 2>&1; then
+          # macOS
+          SCHEDULED_AT=$(date -u -v +1M +%Y-%m-%dT%H:%M:%SZ)
+        else
+          # Linux
+          SCHEDULED_AT=$(date -u -d "+1 minute" +%Y-%m-%dT%H:%M:%SZ)
+        fi
+        
+        echo "📅 Scheduled for immediate processing: ${SCHEDULED_AT}"
+        
+        # Create test job
+        RESPONSE=$(curl -s -X POST \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+          -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
+          -H "x-auth-type: test-manual" \
+          -d "{
+            \"local_date\": \"${TODAY}\",
+            \"scheduled_at\": \"${SCHEDULED_AT}\",
+            \"preferred_name\": \"Manual Test\",
+            \"include_weather\": ${{ inputs.include_weather }},
+            \"include_news\": ${{ inputs.include_news }},
+            \"include_sports\": ${{ inputs.include_sports }},
+            \"include_stocks\": ${{ inputs.include_stocks }},
+            \"stock_symbols\": [],
+            \"include_calendar\": ${{ inputs.include_calendar }},
+            \"include_quotes\": ${{ inputs.include_quotes }},
+            \"quote_preference\": \"${{ inputs.quote_preference }}\",
+            \"voice_option\": \"${{ inputs.voice_option }}\",
+            \"daystart_length\": ${{ inputs.daystart_length }},
+            \"timezone\": \"America/New_York\",
+            \"test_mode\": true
+          }" \
+          "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/create_job")
+        
+        echo "📄 API Response: ${RESPONSE}"
+        
+        # Extract job ID
+        JOB_ID=$(echo "${RESPONSE}" | grep -o '"job_id":"[^"]*' | cut -d'"' -f4)
+        
+        if [[ -z "${JOB_ID}" ]]; then
+          echo "❌ Failed to extract job ID from response"
+          echo "🔍 Looking for 'job_id' field in: ${RESPONSE}"
+          # Try to extract error message if present
+          ERROR_MSG=$(echo "${RESPONSE}" | grep -o '"error":"[^"]*' | cut -d'"' -f4)
+          if [[ -n "${ERROR_MSG}" ]]; then
+            echo "❌ Error: ${ERROR_MSG}"
+          fi
+          exit 1
+        fi
+        
+        echo "✅ Test job created with ID: ${JOB_ID}"
+        echo "job_id=${JOB_ID}" >> $GITHUB_OUTPUT
+        
+    - name: Monitor test job
+      id: monitor
+      run: |
+        JOB_ID="${{ steps.test_job.outputs.job_id }}"
+        TODAY=$(date -u +%Y-%m-%d)
+        echo "📊 Monitoring job: ${JOB_ID}"
+        
+        START_TIME=$(date +%s)
+        JOB_STATUS="pending"
+        LAST_STATUS=""
+        
+        while [[ "${JOB_STATUS}" != "completed" && "${JOB_STATUS}" != "ready" ]]; do
+          CURRENT_TIME=$(date +%s)
+          ELAPSED=$((CURRENT_TIME - START_TIME))
+          
+          if [[ ${ELAPSED} -gt ${{ env.MAX_WAIT_TIME }} ]]; then
+            echo "❌ Job processing timeout after ${MAX_WAIT_TIME} seconds"
+            exit 1
+          fi
+          
+          # Check job status
+          API_URL="https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/get_audio_status?date=${TODAY}&job_id=${JOB_ID}"
+          
+          STATUS_RESPONSE=$(curl -s -X GET \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
+            "${API_URL}")
+          
+          JOB_STATUS=$(echo "${STATUS_RESPONSE}" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
+          
+          # Only print status if it changed
+          if [[ "${JOB_STATUS}" != "${LAST_STATUS}" ]]; then
+            case "${JOB_STATUS}" in
+              "completed"|"ready")
+                echo "✅ Job completed successfully!"
+                echo "📊 Final response:"
+                echo "${STATUS_RESPONSE}" | python3 -m json.tool || echo "${STATUS_RESPONSE}"
+                
+                # Extract audio URL if available
+                AUDIO_URL=$(echo "${STATUS_RESPONSE}" | grep -o '"audio_url":"[^"]*' | cut -d'"' -f4)
+                if [[ -n "${AUDIO_URL}" ]]; then
+                  echo "🎵 Audio URL: ${AUDIO_URL}"
+                  echo "audio_url=${AUDIO_URL}" >> $GITHUB_OUTPUT
+                fi
+                ;;
+              "failed")
+                echo "❌ Job failed!"
+                echo "${STATUS_RESPONSE}" | python3 -m json.tool || echo "${STATUS_RESPONSE}"
+                
+                # Run debug script if available
+                if [[ -f "scripts/debug-process-jobs.sh" ]]; then
+                  echo "🔍 Running debug collection..."
+                  SUPABASE_PROJECT_REF="${{ secrets.SUPABASE_PROJECT_REF }}" \
+                  SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+                  bash scripts/debug-process-jobs.sh "${JOB_ID}" || true
+                fi
+                exit 1
+                ;;
+              "processing")
+                echo "⏳ Job is processing... (${ELAPSED}s elapsed)"
+                ;;
+              "queued")
+                echo "📋 Job is queued... (${ELAPSED}s elapsed)"
+                ;;
+              *)
+                if [[ -n "${JOB_STATUS}" ]]; then
+                  echo "📊 Job status: ${JOB_STATUS} (${ELAPSED}s elapsed)"
+                fi
+                ;;
+            esac
+            LAST_STATUS="${JOB_STATUS}"
+          fi
+          
+          sleep ${{ env.CHECK_INTERVAL }}
+        done
+        
+    - name: Clean up test data
+      if: always()
+      run: |
+        JOB_ID="${{ steps.test_job.outputs.job_id }}"
+        if [[ -n "${JOB_ID}" ]]; then
+          echo "🧹 Cleaning up test job ${JOB_ID}..."
+          
+          # Delete job record
+          CLEANUP_URL="https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/rest/v1/jobs?job_id=eq.${JOB_ID}"
+          
+          DELETE_RESPONSE=$(curl -s -w "\n%{http_code}" -X DELETE \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
+            "${CLEANUP_URL}")
+          
+          HTTP_CODE=$(echo "${DELETE_RESPONSE}" | tail -n1)
+          
+          if [[ "${HTTP_CODE}" == "204" ]]; then
+            echo "✅ Test job deleted successfully"
+          else
+            echo "⚠️ Cleanup returned status ${HTTP_CODE}"
+            echo "Response: ${DELETE_RESPONSE}"
+            
+            # Try alternative column name
+            echo "🔄 Trying with 'id' column..."
+            curl -s -X DELETE \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+              -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+              -H "x-client-info: ${{ env.TEST_RECEIPT_ID }}" \
+              "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/rest/v1/jobs?id=eq.${JOB_ID}" || true
+          fi
+        fi
+        
+    - name: Test summary
+      if: always()
+      run: |
+        echo "📝 Test Job Summary"
+        echo "=================="
+        echo "Status: ${{ job.status }}"
+        echo "Job ID: ${{ steps.test_job.outputs.job_id || 'Not created' }}"
+        if [[ -n "${{ steps.monitor.outputs.audio_url }}" ]]; then
+          echo "Audio: ${{ steps.monitor.outputs.audio_url }}"
+        fi
+        echo "Configuration:"
+        echo "  - Length: ${{ inputs.daystart_length }}s"
+        echo "  - Voice: ${{ inputs.voice_option }}"
+        echo "  - Features: ${{ inputs.include_news && 'News' || '' }} ${{ inputs.include_weather && 'Weather' || '' }} ${{ inputs.include_sports && 'Sports' || '' }} ${{ inputs.include_stocks && 'Stocks' || '' }} ${{ inputs.include_calendar && 'Calendar' || '' }} ${{ inputs.include_quotes && 'Quotes' || '' }}"
+        echo "=================="
+        if [[ "${{ job.status }}" == "success" ]]; then
+          echo "✅ Test completed successfully!"
+        else
+          echo "❌ Test failed or was cancelled"
+        fi
