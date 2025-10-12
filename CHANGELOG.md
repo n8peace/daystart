@@ -15,6 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 ### Fixed
+- Social DayStart promotional outro now properly included in generated scripts
+  - Added separate few-shot example for social DayStart format
+  - Script generation now selects appropriate example based on social_daystart flag
 
 ### Removed
 
@@ -61,6 +64,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - **Future Scheduling Bug** - Jobs scheduled 48+ hours ahead now process on the correct day
+- **Script Generation Token Limits** - Increased minimum token allocation from 300 to 800
+  - Fixes truncated scripts for short duration DayStarts (especially 60-90 second social_daystart)
+  - Ensures complete script generation even for brief morning updates
 
 ### Removed
 - **MockDataService.swift** - Deleted unused test file (no production impact)

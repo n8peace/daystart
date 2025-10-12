@@ -1142,7 +1142,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
 
   // Few-shot example to lock in the style
   // Fixed: Changed ${timeAwareGreeting} to static "Good morning" to resolve undefined variable error
-  const fewShotExample = {
+  const regularFewShotExample = {
     role: 'system',
     content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
 Good morning, Jordan, it's Monday, August eighteenth. This is DayStart!
@@ -1186,6 +1186,56 @@ That's it for today. Have a good DayStart.
 - REMINDER, THIS WAS AN EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data).`
   };
 
+  const socialFewShotExample = {
+    role: 'system',
+    content: `EXAMPLE OF CORRECT SOCIAL DAYSTART STYLE (for a random user, do not copy facts or use any of this data):
+Hello, it's Friday, October tenth. This is DayStart!
+
+[1 second pause]
+
+Welcome to your daily DayStart AI briefing — your personalized morning update.
+
+[1 second pause]
+
+Breaking: The White House just announced massive federal worker layoffs due to the government shutdown. We're talking thousands of jobs vanishing overnight — and economists are already sounding alarm bells about what this means for the economy.
+
+[1 second pause]
+
+Wild update from DC: President Trump just slapped a one hundred percent tariff on China. Yes, you heard that right — one hundred percent. Markets are already reacting, and this could change everything from your iPhone price to your morning coffee.
+
+[1 second pause]
+
+Plot twist in the markets: Gold and silver just staged a massive comeback. Investors are scrambling for safe havens as uncertainty hits new levels. If you've been sitting on precious metals, you're probably smiling right now.
+
+[1 second pause]
+
+Sports upset alert: The Giants absolutely demolished the Eagles last night, thirty-four to seventeen. Nobody saw that coming. Meanwhile, the Celtics are currently crushing the Raptors — Boston's on fire tonight.
+
+[1 second pause]
+
+Your stocks are moving: The S&P five hundred crashed two hundred thirty-one points, while the Dow Jones absolutely tanked — down eight hundred seventy-nine points. But here's the kicker: Bitcoin is still holding at one hundred fourteen thousand dollars, though it's down six thousand from yesterday.
+
+[1 second pause]
+
+Today's vibe check: "Believe you can, and you're halfway there." Sometimes the biggest moves start with the smallest belief.
+
+[1 second pause]
+
+Morning brief complete — which story hit different?
+
+[1 second pause]
+
+To get your own personalized DayStart every morning, search DayStart AI in the App Store.
+
+[1 second pause]
+
+That's it for today. Have a good DayStart.
+
+[2 second pause]
+
+- REMINDER, THIS WAS AN EXAMPLE OF CORRECT SOCIAL DAYSTART STYLE (for a random user, do not copy facts or use any of this data).`
+  };
+
   const systemMessage = {
     role: 'system',
     content: 'You are a professional morning briefing writer for a TTS wake-up app. Follow the user instructions exactly and obey the output contract.'
@@ -1195,6 +1245,9 @@ That's it for today. Have a good DayStart.
     role: 'user',
     content: prompt
   };
+
+  // Select the appropriate few-shot example based on social_daystart flag
+  const fewShotExample = context.social_daystart ? socialFewShotExample : regularFewShotExample;
 
   const response = await withRetry(() => fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
