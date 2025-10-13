@@ -720,7 +720,19 @@ class HomeViewModel: ObservableObject {
             return
         }
         
-        guard let nextOccurrence = userPreferences.schedule.nextOccurrence else {
+        // Check if we need to skip today due to existing audio
+        let hasAudioForToday = checkIfAudioExistsForToday()
+        let nextOccurrence: Date?
+        
+        if hasAudioForToday {
+            // Skip today and get tomorrow's occurrence
+            nextOccurrence = userPreferences.schedule.nextOccurrenceAfterToday
+        } else {
+            // Use normal next occurrence
+            nextOccurrence = userPreferences.schedule.nextOccurrence
+        }
+        
+        guard let nextOccurrence = nextOccurrence else {
             // No schedule found
             withAnimation(.none) {
                 stateTransitionManager.transitionTo(.idle, animated: false)
@@ -1345,6 +1357,30 @@ class HomeViewModel: ObservableObject {
         return userPreferences.schedule.repeatDays.contains(weekDay)
     }
     
+    private func checkIfAudioExistsForToday() -> Bool {
+        // Check for regular DayStart audio
+        if let todayScheduledTime = getTodayScheduledTime(),
+           serviceRegistry.audioCache.hasAudio(for: todayScheduledTime) {
+            return true
+        }
+        
+        // Check for welcome DayStart audio (uses Date() for today)
+        if serviceRegistry.audioCache.hasAudio(for: Date()) {
+            return true
+        }
+        
+        // Also check history as a backup
+        let calendar = Calendar.current
+        let hasHistoryToday = userPreferences.history.contains { dayStart in
+            if let scheduledTime = dayStart.scheduledTime {
+                return calendar.isDateInToday(scheduledTime)
+            }
+            return calendar.isDateInToday(dayStart.date)
+        }
+        
+        return hasHistoryToday
+    }
+    
     func startDayStart() {
         logger.logUserAction("Start DayStart", details: ["time": Date().description])
         
@@ -1511,7 +1547,12 @@ class HomeViewModel: ObservableObject {
     
     private func setupIdleStateAfterExit() {
         // Calculate next DayStart time based on current schedule
-        nextDayStartTime = userPreferences.schedule.nextOccurrence
+        // Check if we need to skip today due to existing audio
+        if checkIfAudioExistsForToday() {
+            nextDayStartTime = userPreferences.schedule.nextOccurrenceAfterToday
+        } else {
+            nextDayStartTime = userPreferences.schedule.nextOccurrence
+        }
         
         // Start countdown display if there's a scheduled time
         if nextDayStartTime != nil {

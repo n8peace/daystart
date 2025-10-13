@@ -1,8 +1,5 @@
 # App Store Connect Configuration for DayStart AI
 
-## Current Live Version: 2025.09.22 (Build 2)
-## Next Release: 2025.10.16 (Build 1)
-
 ## Basic Information
 - **App Name:** DayStart AI: Morning Briefing
 - **Subtitle:** Wake Up. Get Briefed. Succeed.

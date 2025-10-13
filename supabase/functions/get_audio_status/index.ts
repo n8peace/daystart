@@ -42,6 +42,7 @@ serve(async (req: Request): Promise<Response> => {
     // Extract parameters from URL
     const url = new URL(req.url);
     const date = url.searchParams.get('date');
+    const markCompleted = url.searchParams.get('mark_completed') === 'true';
 
     if (!date) {
       return createErrorResponse('MISSING_PARAMETER', 'Date parameter is required (YYYY-MM-DD)', request_id);
@@ -75,7 +76,7 @@ serve(async (req: Request): Promise<Response> => {
     // Query job for this user and date
     const { data: job, error: jobError } = await supabase
       .from('jobs')
-      .select('job_id, status, audio_file_path, audio_duration, transcript, estimated_ready_time, error_code, error_message')
+      .select('job_id, status, audio_file_path, audio_duration, transcript, estimated_ready_time, error_code, error_message, user_completed')
       .eq('user_id', user_id)
       .eq('local_date', date)
       .single();
@@ -123,6 +124,30 @@ serve(async (req: Request): Promise<Response> => {
         }
       } catch (error) {
         console.error('Signed URL generation error:', error);
+      }
+    }
+
+    // Mark as completed if requested and job is ready
+    if (markCompleted && job.status === 'ready' && !job.user_completed) {
+      try {
+        const { error: updateError } = await supabase
+          .from('jobs')
+          .update({
+            user_completed: true,
+            user_completed_at: new Date().toISOString()
+          })
+          .eq('job_id', job.job_id)
+          .eq('user_id', user_id);
+
+        if (updateError) {
+          console.warn('Failed to mark job as completed:', updateError);
+          // Don't fail the request, just log the error
+        } else {
+          console.log(`Marked job ${job.job_id} as completed for user ${user_id}`);
+        }
+      } catch (error) {
+        console.warn('Error marking job as completed:', error);
+        // Don't fail the request, just log the error
       }
     }
 

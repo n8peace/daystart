@@ -81,6 +81,35 @@ struct DayStartSchedule: Codable, Equatable {
         
         return nil
     }
+    
+    var nextOccurrenceAfterToday: Date? {
+        // No DayStart if no days are selected
+        guard !repeatDays.isEmpty else { return nil }
+        
+        let calendar = Calendar.current
+        let now = Date()
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))!
+        
+        let todayComponents = calendar.dateComponents([.hour, .minute], from: time)
+        
+        // Start checking from tomorrow (dayOffset starts at 1)
+        for dayOffset in 1..<8 {
+            guard let candidateDate = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
+            
+            let weekday = calendar.component(.weekday, from: candidateDate)
+            if let weekDay = WeekDay(weekday: weekday), repeatDays.contains(weekDay) {
+                var components = calendar.dateComponents([.year, .month, .day], from: candidateDate)
+                components.hour = todayComponents.hour
+                components.minute = todayComponents.minute
+                
+                if let scheduledTime = calendar.date(from: components) {
+                    return scheduledTime
+                }
+            }
+        }
+        
+        return nil
+    }
 }
 
 enum WeekDay: Int, CaseIterable, Codable, Identifiable {

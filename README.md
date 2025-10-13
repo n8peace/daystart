@@ -17,7 +17,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini, and ElevenLabs text-to
 - ✅ 3-minute intelligence briefings with dynamic content scaling
 - ✅ Welcome Brief for new users (60-second personalized introduction)
 - 🟢 **Live**: v2025.09.22 Build 2 available for download on the App Store
-- 🔨 **In Development**: v2025.10.16 Build 1 with enhanced App Store positioning
+- 🔨 **In Development**: v2025.10.16 Build 2 with enhanced App Store positioning
 
 ## Table of Contents
 - [Features](#features)

@@ -22,7 +22,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.16] - 2025-10-16
 
-**Build:** 1 | **Commit:** 8d7c0d3 | **Status:** App In Development, Supabase Deployed
+**Build:** 2 | **Commit:** TBD | **Status:** App In Development
+
+### Fixed
+- **Countdown Timer After Rescheduling** - Fixed issue where countdown would incorrectly show today's time after rescheduling when audio had already been generated
+  - Countdown now properly skips to tomorrow when audio exists for today
+  - Checks both regular DayStart and welcome DayStart audio
+  - Maintains correct countdown after app restart
+
+### Added
+- **User Completion Tracking** - Backend support for tracking when users complete 80%+ of their DayStart
+  - New `user_completed` column in jobs table for completion tracking
+  - Optional `mark_completed` parameter in get_audio_status API
+  - Backwards compatible - existing app versions continue working normally
+  - Foundation for future "True North" completion statistics
+
+---
+
+## [2025.10.16] - 2025-10-16
+
+**Build:** 1 | **Commit:** c4e71cb | **Status:** Supabase Deployed
 
 ### Added
 - **Job Backfill System** - Automatically creates DayStart jobs for users returning after being away
