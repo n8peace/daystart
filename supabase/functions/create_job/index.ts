@@ -202,7 +202,7 @@ serve(async (req: Request): Promise<Response> => {
         let process_not_before: string | undefined = undefined;
         try {
           const sched = new Date(body.scheduled_at);
-          const defaultNotBefore = new Date(sched.getTime() - 2 * 60 * 60 * 1000).toISOString();
+          const defaultNotBefore = new Date(sched.getTime() - 45 * 60 * 1000).toISOString();
           process_not_before = body.process_not_before || defaultNotBefore;
         } catch (_) {}
 
@@ -308,11 +308,11 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // Compute process_not_before (default to scheduled_at - 2h if not provided)
+    // Compute process_not_before (default to scheduled_at - 45m if not provided)
     let process_not_before: string | undefined = undefined;
     try {
       const sched = new Date(body.scheduled_at);
-      const defaultNotBefore = new Date(sched.getTime() - 2 * 60 * 60 * 1000).toISOString();
+      const defaultNotBefore = new Date(sched.getTime() - 45 * 60 * 1000).toISOString();
       process_not_before = body.process_not_before || defaultNotBefore;
     } catch (_) {}
 

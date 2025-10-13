@@ -177,7 +177,7 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
       .from('jobs')
       .select('*', { head: true, count: 'exact' })
       .eq('status', 'ready')
-      .gte('updated_at', since24h)
+      .gte('completed_at', since24h)
     
     if (error) {
       return { name: 'daystarts_completed', status: 'fail', error: error.message, duration_ms: Date.now() - start }
@@ -188,10 +188,10 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
     // Also get some stats on audio generation times
     const { data: recentCompleted } = await supabase
       .from('jobs')
-      .select('created_at, updated_at, user_id')
+      .select('created_at, completed_at, user_id')
       .eq('status', 'ready')
-      .gte('updated_at', since24h)
-      .order('updated_at', { ascending: false })
+      .gte('completed_at', since24h)
+      .order('completed_at', { ascending: false })
       .limit(10)
     
     // Calculate average generation time for recent jobs
@@ -199,8 +199,8 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
     if (recentCompleted && recentCompleted.length > 0) {
       const totalMinutes = recentCompleted.reduce((sum, job) => {
         const created = new Date(job.created_at).getTime()
-        const updated = new Date(job.updated_at).getTime()
-        return sum + ((updated - created) / (1000 * 60))
+        const completed = new Date(job.completed_at).getTime()
+        return sum + ((completed - created) / (1000 * 60))
       }, 0)
       avgGenerationMinutes = totalMinutes / recentCompleted.length
     }

@@ -176,6 +176,7 @@ class AudioPrefetchManager {
                 _ = try? await Task.detached(priority: .background) {
                     try await supabaseClient.createJob(
                         for: scheduledTime,
+                        targetDate: localDate,
                         with: UserPreferences.shared.settings,
                         schedule: UserPreferences.shared.schedule,
                         locationData: snapshot.location,
