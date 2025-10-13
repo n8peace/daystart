@@ -289,6 +289,57 @@ class SupabaseClient {
         return jobsCreated
     }
     
+    // MARK: - Today Job Backfill
+    
+    /// Creates a job for today if none exists and today is a scheduled day
+    func createTodayJobIfNeeded(
+        with preferences: UserSettings,
+        schedule: DayStartSchedule
+    ) async throws -> Bool {
+        logger.log("📅 Checking if today job needs to be created", level: .info)
+        
+        let calendar = Calendar.current
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
+        
+        // Check if today is a scheduled day
+        let weekday = calendar.component(.weekday, from: now)
+        let dayOfWeek = WeekDay.fromCalendarWeekday(weekday)
+        
+        guard schedule.repeatDays.contains(dayOfWeek) else {
+            logger.log("⏭️ Today is not a scheduled day", level: .debug)
+            return false
+        }
+        
+        // Check if a job already exists for today
+        let audioStatus = try await getAudioStatus(for: today)
+        
+        if audioStatus.status != "not_found" {
+            logger.log("✅ Job already exists for today: \(audioStatus.status)", level: .info)
+            return false
+        }
+        
+        logger.log("🔄 Creating today's job with high priority", level: .info)
+        
+        // Build snapshot for today
+        let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: now)
+        
+        // Create job with "NOW" scheduling for immediate processing
+        let jobResponse = try await createJob(
+            for: now, // Use "NOW" for immediate processing
+            targetDate: today, // But target today's date
+            with: preferences,
+            schedule: schedule,
+            locationData: snapshot.location,
+            weatherData: snapshot.weather,
+            calendarEvents: snapshot.calendar,
+            isWelcome: false
+        )
+        
+        logger.log("✅ Today job created: \(jobResponse.jobId ?? "unknown") with status: \(jobResponse.status ?? "unknown")", level: .info)
+        return true
+    }
+    
     // MARK: - Bulk Update Jobs API
     func updateJobs(
         dates: [Date],

@@ -15,9 +15,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 ### Fixed
-- Social DayStart promotional outro now properly included in generated scripts
-  - Added separate few-shot example for social DayStart format
-  - Script generation now selects appropriate example based on social_daystart flag
 
 ### Removed
 
@@ -25,9 +22,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.16] - 2025-10-16
 
-**Build:** 1 | **Commit:** 618f32d | **Status:** App In Development, Supabase Deployed
+**Build:** 1 | **Commit:** 8d7c0d3 | **Status:** App In Development, Supabase Deployed
 
 ### Added
+- **Job Backfill System** - Automatically creates DayStart jobs for users returning after being away
+  - Login-time backfill creates today's job if missing and scheduled
+  - On-demand job creation when DayStart is clicked but no job exists
+  - High-priority immediate processing for user-initiated requests
 - **Time-Aware Greetings** - DayStart now greets you appropriately based on your scheduled time
   - 3:00 AM - 11:59 AM: "Good morning"
   - 12:00 PM - 4:59 PM: "Good afternoon"
@@ -48,11 +49,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Auto-detection of social requests
   - Custom intro/outro for viral content
   
+- **Onboarding Redesign** - First impressions now match our executive positioning
+  - Page 1: "Wake Up. Get Briefed. Succeed." with professional three-stage animation
+  - Page 2: Interactive briefing preview showing "Your Chief of Staff, Working While You Sleep"
+  - Navy-to-gold gradient backgrounds for authority and sophistication
+  - Replaced playful elements with executive-focused design language
+  - New briefing module previews: Market Intelligence, Strategic Calendar, Executive Summary
+  - Professional audio waveform visualization replacing cartoon animations
+  - Refined CTAs: "Get My Morning Brief" and "Let's Build Your Brief"
+  - Added credibility markers and temporal context throughout
+  
 - **Enhanced Job Monitoring** - Improved healthcheck system
   - Tracks all queued jobs with overdue alerts
   - Email notifications for jobs delayed >5 minutes
 
 ### Changed
+- **Enhanced Priority System** - Better job queue management for immediate and overdue requests
+  - "NOW" jobs get highest priority (100) for immediate processing
+  - Past-due jobs get urgent priority (75) 
+  - Maintains existing priority levels for future scheduled jobs
 - **Enhanced Social DayStart for TikTok** - Optimized social_daystart generation for viral content
   - Uses "Hello" greeting instead of time-aware greetings for consistency
   - Increased content density: 4 news stories, 2 sports, 3 stocks (vs 2/1/1 for regular)
@@ -63,6 +78,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Optimized word budgets for 91-second target duration
 
 ### Fixed
+- **Social DayStart Promotional Outro** - Now properly included in generated scripts
+  - Added separate few-shot example for social DayStart format
+  - Script generation now selects appropriate example based on social_daystart flag
 - **Future Scheduling Bug** - Jobs scheduled 48+ hours ahead now process on the correct day
 - **Script Generation Token Limits** - Increased minimum token allocation from 300 to 800
   - Fixes truncated scripts for short duration DayStarts (especially 60-90 second social_daystart)

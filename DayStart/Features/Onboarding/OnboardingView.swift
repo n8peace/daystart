@@ -65,6 +65,38 @@ struct MockProduct {
     }
 }
 
+struct BriefingModuleRow: View {
+    let title: String
+    let icon: String
+    let geometry: GeometryProxy
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: min(18, geometry.size.width * 0.045)))
+                .foregroundColor(BananaTheme.ColorToken.primary)
+                .frame(width: 24, height: 24)
+            
+            Text(title)
+                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                .foregroundColor(BananaTheme.ColorToken.text)
+            
+            Spacer()
+            
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: min(16, geometry.size.width * 0.04)))
+                .foregroundColor(BananaTheme.ColorToken.success.opacity(0.7))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(BananaTheme.ColorToken.background.opacity(0.5))
+                .stroke(BananaTheme.ColorToken.border.opacity(0.2), lineWidth: 1)
+        )
+    }
+}
+
 struct OnboardingView: View {
     let onComplete: () -> Void
     
@@ -98,6 +130,7 @@ struct OnboardingView: View {
     @State private var animationTrigger = false
     @State private var heroScale: CGFloat = 1.0
     @State private var textOpacity: Double = 1.0  // Start visible for first page
+    @State private var animationStage = 0  // For three-stage animation on page 1
     @State private var onboardingStartTime = Date()
     
     // Date formatter
@@ -401,212 +434,183 @@ struct OnboardingView: View {
         }
     }
     
-    // MARK: - Page 1: Pain Point Hook (10%)
+    // MARK: - Page 1: Wake Up. Get Briefed. Succeed. (10%)
     private var painPointPage: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
                 Spacer(minLength: geometry.size.height * 0.08)
                 
-                VStack(spacing: geometry.size.height * 0.04) {
-                    // Animated emoji transformation
-                    HStack(spacing: 20) {
-                        Text("😴")
-                            .font(.system(size: min(80, geometry.size.width * 0.15)))
-                            .scaleEffect(animationTrigger ? 0.8 : 1.2)
-                            .opacity(animationTrigger ? 0.3 : 1.0)
+                VStack(spacing: geometry.size.height * 0.05) {
+                        // Three-stage animated headline
+                        VStack(spacing: 12) {
+                            Text("Wake Up.")
+                                .font(.system(size: min(36, geometry.size.width * 0.09), weight: .bold, design: .rounded))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                .opacity(animationStage >= 1 ? 1 : 0)
+                                .animation(.easeInOut(duration: 0.6), value: animationStage)
+                            
+                            Text("Get Briefed.")
+                                .font(.system(size: min(36, geometry.size.width * 0.09), weight: .bold, design: .rounded))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                .opacity(animationStage >= 2 ? 1 : 0)
+                                .animation(.easeInOut(duration: 0.6), value: animationStage)
+                            
+                            Text("Succeed.")
+                                .font(.system(size: min(36, geometry.size.width * 0.09), weight: .bold, design: .rounded))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                .opacity(animationStage >= 3 ? 1 : 0)
+                                .animation(.easeInOut(duration: 0.6), value: animationStage)
+                        }
+                        .multilineTextAlignment(.center)
+                        .id("animation-\(animationStage)") // Force re-render on state change
                         
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: min(30, geometry.size.width * 0.10)))
-                            .foregroundColor(BananaTheme.ColorToken.primary)
-                            .scaleEffect(animationTrigger ? 1.2 : 0.8)
-                        
-                        Text("😊")
-                            .font(.system(size: min(80, geometry.size.width * 0.15)))
-                            .scaleEffect(animationTrigger ? 1.2 : 0.8)
-                            .opacity(animationTrigger ? 1.0 : 0.3)
+                        VStack(spacing: geometry.size.height * 0.02) {
+                            Text("The first morning intelligence briefing built for ambitious professionals.")
+                                .font(.system(size: min(18, geometry.size.width * 0.045), weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, geometry.size.width * 0.10)
+                                .opacity(animationStage >= 3 ? textOpacity : 0)
+                                .animation(.easeInOut(duration: 0.6).delay(0.3), value: animationStage)
+                            
+                            Text("You're about to experience how the most successful people start their day.")
+                                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .regular))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, geometry.size.width * 0.10)
+                                .opacity(animationStage >= 3 ? textOpacity : 0)
+                                .animation(.easeInOut(duration: 0.6).delay(0.5), value: animationStage)
+                        }
                     }
-                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
                     
-                    VStack(spacing: geometry.size.height * 0.02) {
-                        Text("Mornings Suck. We Get It.")
-                            .font(.system(size: min(32, geometry.size.width * 0.10), weight: .bold, design: .rounded))
-                            .foregroundColor(BananaTheme.ColorToken.text)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                            .padding(.horizontal, geometry.size.width * 0.05)
-                            .opacity(textOpacity)
+                    Spacer()
+                    
+                    // CTA Button (appears after animation completes)
+                    VStack(spacing: 16) {
+                        Button(action: { 
+                            logger.logUserAction("Get My Morning Brief CTA tapped")
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 1 
+                            }
+                        }) {
+                            Text("Get My Morning Brief")
+                                .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: max(56, geometry.size.height * 0.07))
+                                .background(
+                                    LinearGradient(
+                                        colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .cornerRadius(16)
+                                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                        }
+                        .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                        .padding(.horizontal, geometry.size.width * 0.10)
+                        .opacity(animationStage >= 3 ? 1 : 0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(3.5), value: animationStage)
                         
-                        Text("Most people start their day feeling lost and overwhelmed.")
-                            .font(.system(size: min(18, geometry.size.width * 0.045), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, geometry.size.width * 0.10)
-                            .opacity(textOpacity)
+                        // Powered by Banana Intelligence with link
+                        Button(action: {
+                            if let url = URL(string: "https://bananaintelligence.ai/") {
+                                UIApplication.shared.open(url)
+                            }
+                        }) {
+                            Text("Powered by 🍌🧠 Banana Intelligence")
+                                .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .opacity(animationStage >= 3 ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.6).delay(4), value: animationStage)
                     }
+                    .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                 }
-                
-                Spacer(minLength: geometry.size.height * 0.06)
-                
-                // Pain points grid
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
-                    PainPointCard(icon: "❌", text: "Unsure where to start", geometry: geometry)
-                        .onTapGesture {
-                            logger.logUserAction("Pain point card tapped")
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 1 
-                            }
-                        }
-                    PainPointCard(icon: "❌", text: "Overwhelmed by the day", geometry: geometry)
-                        .onTapGesture {
-                            logger.logUserAction("Pain point card tapped")
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 1 
-                            }
-                        }
-                    PainPointCard(icon: "❌", text: "No motivation to rise", geometry: geometry)
-                        .onTapGesture {
-                            logger.logUserAction("Pain point card tapped")
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 1 
-                            }
-                        }
-                    PainPointCard(icon: "❌", text: "Same boring routine", geometry: geometry)
-                        .onTapGesture {
-                            logger.logUserAction("Pain point card tapped")
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 1 
-                            }
-                        }
-                }
-                .padding(.horizontal, geometry.size.width * 0.10)
-                .opacity(textOpacity)
-                
-                Spacer(minLength: geometry.size.height * 0.08)
-                
-                // CTA Button
-                Button(action: { 
-                    logger.logUserAction("Pain point CTA tapped")
-                    impactFeedback()
-                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                        currentPage = 1 
-                    }
-                }) {
-                    Text("Transform My Mornings")
-                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: max(56, geometry.size.height * 0.07))
-                        .background(
-                            LinearGradient(
-                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(16)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
-                }
-                .scaleEffect(animationTrigger ? 1.05 : 1.0)
-                .padding(.horizontal, geometry.size.width * 0.10)
-                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
-                .opacity(textOpacity)
             }
         }
-    }
     
-    // MARK: - Page 2: Value Demo (20%)
+    // MARK: - Page 2: Your Chief of Staff (20%)
     private var valueDemoPage: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
                 Spacer(minLength: geometry.size.height * 0.08)
                 
                 VStack(spacing: geometry.size.height * 0.05) {
-                    animatedPhoneView(geometry: geometry)
+                    // Text content (moved to top)
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("Your Chief of Staff")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
+                            .opacity(textOpacity)
+                        
+                        Text("Each day, your personalized brief is prepared overnight — markets, news, weather, and your day, distilled and narrated.")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.10)
+                            .opacity(textOpacity)
+                        
+                    }
                     
-                    valueDemoText(geometry: geometry)
+                    // Briefing preview card (moved below text)
+                    briefingPreviewCard(geometry: geometry)
                 }
                 
-                Spacer(minLength: geometry.size.height * 0.04)
+                Spacer()
                 
-                // Feature preview cards
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 16) {
-                    FeaturePreviewCard(icon: "📰", title: "News", subtitle: "Stay informed", geometry: geometry)
-                        .onTapGesture {
-                            logger.logUserAction("Feature preview card tapped")
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 2 
-                            }
+                // Bottom content
+                VStack(spacing: 16) {
+                    // Personalized Info. Zero Scrolling.
+                    Text("Personalized Info. Zero Scrolling.")
+                        .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                        .opacity(textOpacity)
+                    
+                    // CTA
+                    Button(action: {
+                        logger.logUserAction("Build Your Brief CTA tapped")
+                        impactFeedback()
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 2 
                         }
-                    FeaturePreviewCard(icon: "☁️", title: "Weather", subtitle: "Dress right", geometry: geometry)
-                        .onTapGesture {
-                            logger.logUserAction("Feature preview card tapped")
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 2 
-                            }
-                        }
-                    FeaturePreviewCard(icon: "📅", title: "Calendar", subtitle: "Never miss", geometry: geometry)
-                        .onTapGesture {
-                            logger.logUserAction("Feature preview card tapped")
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 2 
-                            }
-                        }
-                }
-                .padding(.horizontal, geometry.size.width * 0.10)
-                .opacity(textOpacity)
-                
-                Spacer(minLength: geometry.size.height * 0.04)
-                
-                // Social proof
-                HStack(spacing: 8) {
-                    ForEach(0..<5) { _ in
-                        Image(systemName: "star.fill")
-                            .foregroundColor(BananaTheme.ColorToken.primary)
-                            .font(.system(size: min(16, geometry.size.width * 0.04)))
-                    }
-                    Text("Join others who start better")
-                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                }
-                .opacity(textOpacity)
-                
-                Spacer(minLength: geometry.size.height * 0.06)
-                
-                // CTA
-                Button(action: {
-                    logger.logUserAction("Value demo CTA tapped")
-                    impactFeedback()
-                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                        currentPage = 2 
-                    }
-                }) {
-                    Text("See How It Works")
-                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: max(56, geometry.size.height * 0.07))
-                        .background(
-                            LinearGradient(
-                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
-                                startPoint: .leading,
-                                endPoint: .trailing
+                    }) {
+                        Text("Let's Build Your Brief")
+                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(56, geometry.size.height * 0.07))
+                            .background(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                        )
-                        .cornerRadius(16)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                            .cornerRadius(16)
+                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                    .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                    .padding(.horizontal, geometry.size.width * 0.10)
+                    
+                    // Credibility line
+                    Text("Trusted by ambitious professionals worldwide.")
+                        .font(.system(size: min(13, geometry.size.width * 0.032), weight: .regular))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, geometry.size.width * 0.10)
+                        .opacity(textOpacity)
                 }
-                .scaleEffect(animationTrigger ? 1.05 : 1.0)
-                .padding(.horizontal, geometry.size.width * 0.10)
                 .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
-                .opacity(textOpacity)
             }
         }
     }
@@ -1948,7 +1952,64 @@ struct OnboardingView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
+    private func briefingPreviewCard(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 16) {
+            // Timestamp header
+            HStack {
+                Text("Prepared 05:47 AM")
+                    .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                
+                Text("•")
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                
+                Text("Ready 06:00 AM")
+                    .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                    .foregroundColor(BananaTheme.ColorToken.primary)
+            }
+            
+            // Briefing modules
+            VStack(spacing: 12) {
+                BriefingModuleRow(title: "Market Intelligence", icon: "chart.line.uptrend.xyaxis", geometry: geometry)
+                BriefingModuleRow(title: "Strategic Calendar", icon: "calendar", geometry: geometry)
+                BriefingModuleRow(title: "Executive Summary", icon: "newspaper", geometry: geometry)
+                BriefingModuleRow(title: "Operational Weather", icon: "cloud.sun", geometry: geometry)
+            }
+            
+            // Audio waveform visualization
+            HStack(spacing: 3) {
+                ForEach(0..<20) { index in
+                    let baseHeight = 10.0 + Double(index % 3) * 10.0 + (index % 2 == 0 ? 5.0 : 0.0)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(BananaTheme.ColorToken.primary.opacity(0.7))
+                        .frame(width: 3, height: baseHeight)
+                        .scaleEffect(y: animationTrigger ? 1.2 : 0.8)
+                        .animation(
+                            .easeInOut(duration: 0.5)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(index) * 0.05),
+                            value: animationTrigger
+                        )
+                }
+            }
+            .frame(height: 40)
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(BananaTheme.ColorToken.card)
+                .shadow(color: BananaTheme.ColorToken.shadow, radius: 8, x: 0, y: 4)
+        )
+        .padding(.horizontal, geometry.size.width * 0.10)
+        .opacity(textOpacity)
+    }
+    
     private func startPageAnimation() {
+        // Reset animation stage for page 1
+        if currentPage == 0 {
+            animationStage = 0
+        }
+        
         // Ensure content is visible
         withAnimation(.easeInOut(duration: 0.6)) {
             textOpacity = 1.0
@@ -1962,6 +2023,31 @@ struct OnboardingView: View {
         // Trigger hero scale animation for first page
         withAnimation(.spring(response: 0.8, dampingFraction: 0.7).delay(0.4)) {
             heroScale = 1.02
+        }
+        
+        // Special animation sequence for page 1
+        if currentPage == 0 {
+            // Add a small delay to ensure the view has rendered with reset values
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                // Stage 1: Wake Up
+                withAnimation(.easeInOut(duration: 0.6)) {
+                    animationStage = 1
+                }
+                
+                // Stage 2: Get Briefed
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        animationStage = 2
+                    }
+                }
+                
+                // Stage 3: Succeed (with pause)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        animationStage = 3
+                    }
+                }
+            }
         }
     }
     
@@ -2301,81 +2387,6 @@ struct OnboardingView: View {
             .animation(.easeInOut(duration: 0.8).repeatForever().delay(Double(index) * 0.1), value: animationTrigger)
     }
     
-    private func animatedPhoneView(geometry: GeometryProxy) -> some View {
-        ZStack {
-            phoneShape(geometry: geometry)
-            soundWaves(geometry: geometry)
-        }
-    }
-    
-    private func phoneShape(geometry: GeometryProxy) -> some View {
-        let phoneWidth = min(120, geometry.size.width * 0.25)
-        let phoneHeight = min(180, geometry.size.height * 0.22)
-        let screenWidth = min(100, geometry.size.width * 0.21)
-        let screenHeight = min(160, geometry.size.height * 0.19)
-        
-        return RoundedRectangle(cornerRadius: 25)
-            .fill(BananaTheme.ColorToken.primary)
-            .frame(width: phoneWidth, height: phoneHeight)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.black)
-                    .frame(width: screenWidth, height: screenHeight)
-            )
-    }
-    
-    private func soundWaves(geometry: GeometryProxy) -> some View {
-        ForEach(0..<3) { index in
-            soundWave(index: index, geometry: geometry)
-        }
-    }
-    
-    private func soundWave(index: Int, geometry: GeometryProxy) -> some View {
-        let baseSize = 60 + (index * 40)
-        let relativeSizeMultiplier = 0.12 + Double(index) * 0.08
-        let relativeSize = geometry.size.width * relativeSizeMultiplier
-        let waveSize = min(Double(baseSize), relativeSize)
-        
-        let scale = animationTrigger ? 1.0 + Double(index) * 0.2 : 0.8
-        let opacity = animationTrigger ? 0.3 : 0.7
-        let animation = Animation.easeInOut(duration: 1.2).repeatForever().delay(Double(index) * 0.2)
-        
-        return Circle()
-            .stroke(BananaTheme.ColorToken.accent, lineWidth: 3)
-            .frame(width: waveSize)
-            .scaleEffect(scale)
-            .opacity(opacity)
-            .animation(animation, value: animationTrigger)
-    }
-    
-    private func valueDemoText(geometry: GeometryProxy) -> some View {
-        VStack(spacing: geometry.size.height * 0.02) {
-            mainTitle(geometry: geometry)
-            subtitle(geometry: geometry)
-        }
-    }
-    
-    private func mainTitle(geometry: GeometryProxy) -> some View {
-        let fontSize = min(28, geometry.size.width * 0.07)
-        
-        return Text("Your AI Morning Companion")
-            .font(.system(size: fontSize, weight: .bold, design: .rounded))
-            .foregroundColor(BananaTheme.ColorToken.text)
-            .multilineTextAlignment(.center)
-            .opacity(textOpacity)
-    }
-    
-    private func subtitle(geometry: GeometryProxy) -> some View {
-        let fontSize = min(16, geometry.size.width * 0.04)
-        let padding = geometry.size.width * 0.10
-        
-        return Text("A personalized audio briefing that makes every morning better")
-            .font(.system(size: fontSize, weight: .medium))
-            .foregroundColor(BananaTheme.ColorToken.secondaryText)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, padding)
-            .opacity(textOpacity)
-    }
     
     private func floatingIconsView(geometry: GeometryProxy) -> some View {
         let emojis = ["📰", "☁️", "📅", "📈"]

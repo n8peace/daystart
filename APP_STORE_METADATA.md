@@ -4,8 +4,8 @@
 ## Next Release: 2025.10.16 (Build 1)
 
 ## Basic Information
-- **App Name:** DayStart AI
-- **Subtitle:**  1st AI Morning Brief
+- **App Name:** DayStart AI: Morning Briefing
+- **Subtitle:** Wake Up. Get Briefed. Succeed.
 - **Current Version:** 2025.09.22 (Build 2) - Live on App Store
 - **Next Version:** 2025.10.16 (Build 1)
 - **Support URL:** https://daystart.bananaintelligence.ai
@@ -13,14 +13,12 @@
 
 ## Keywords (100 characters max)
 ```
-morning,briefing,ai,intelligence,news,weather,calendar,audio,productivity,executive,entrepreneur
+morning,briefing,ai,intelligence,productivity,news,weather,calendar,leadership,focus,routine,daily
 ```
 
 ## Promotional Text (170 characters max)
 ```
-The most successful people don’t start their day scrolling. They start with a brief.
-
-DayStart AI is the first Morning Intelligence Platform, created by Banana Intelligence. It delivers your personal 3-minute morning brief with the news, markets, weather, and calendar that matter to you.
+Wake up. Get briefed. Lead the day. DayStart delivers your personalized 3-minute AI morning brief with weather, calendar, news, sports, and inspiration.
 ```
 
 ## App Description (4000 characters max)
@@ -33,7 +31,7 @@ Every morning, your brief is curated overnight and narrated like a Chief of Staf
 
 Stop reacting. Start leading.
 
-DayStart AI transforms your mornings with a custom intelligence briefing tailored to your life and priorities. No endless feeds. No wasted time. Just the information that matters, ready when you wake up.
+DayStart AI transforms your morning routine with a personalized intelligence briefing tailored to your priorities. No endless feeds. No wasted time. Just the information that matters, ready when you wake up.
 
 WHAT'S INCLUDED:
 • News Intelligence: Top headlines, curated for relevance

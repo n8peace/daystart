@@ -257,6 +257,9 @@ class HomeViewModel: ObservableObject {
             
             validateAndUpdateState()
             
+            // Check if today needs a job (backfill for users returning after being away)
+            await checkAndCreateTodayJobIfNeeded()
+            
             // Initialize snapshot update system if user has active schedule
             if !userPreferences.schedule.repeatDays.isEmpty {
                 await initializeSnapshotUpdateSystem()
@@ -1157,13 +1160,15 @@ class HomeViewModel: ObservableObject {
             
             // If job doesn't exist or failed, create a new one
             if audioStatus.status == "not_found" || audioStatus.status == "failed" {
-                logger.log("🔄 Creating job for \(scheduledTime) - status: \(audioStatus.status)", level: .info)
+                logger.log("🔄 Creating on-demand job for \(scheduledTime) - status: \(audioStatus.status)", level: .info)
                 
                 // Load snapshot builder to get current data
                 let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot(for: scheduledTime)
                 
+                // Use "NOW" for immediate processing since user clicked DayStart
                 let jobResponse = try await supabaseClient.createJob(
-                    for: scheduledTime,
+                    for: Date(), // Use current time for "NOW" scheduling
+                    targetDate: Calendar.current.startOfDay(for: scheduledTime), // But target the correct date
                     with: userPreferences.settings,
                     schedule: userPreferences.schedule,
                     locationData: snapshot.location,
@@ -1532,6 +1537,23 @@ class HomeViewModel: ObservableObject {
         // Trigger update in background for remaining scheduled jobs
         Task {
             await ServiceRegistry.shared.snapshotUpdateManager.updateSnapshotsForUpcomingJobs(trigger: .dayStartPlayed)
+        }
+    }
+    
+    /// Check if today needs a job created (backfill for users returning after being away)
+    private func checkAndCreateTodayJobIfNeeded() async {
+        do {
+            let created = try await serviceRegistry.supabaseClient.createTodayJobIfNeeded(
+                with: userPreferences.settings,
+                schedule: userPreferences.schedule
+            )
+            
+            if created {
+                logger.log("✅ Today job backfill created successfully", level: .info)
+            }
+        } catch {
+            logger.logError(error, context: "Failed to create today job backfill")
+            // Don't show UI error for backfill failures - this is background operation
         }
     }
     

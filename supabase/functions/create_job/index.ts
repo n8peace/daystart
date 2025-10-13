@@ -436,9 +436,20 @@ function calculatePriority(localDate: string, scheduledAt: string): number {
   const hoursUntilScheduled = (scheduled.getTime() - now.getTime()) / (1000 * 60 * 60);
 
   // Welcome/First DayStart priority: 100
+  // Immediate processing (NOW jobs): 100
   // Same-day urgent (< 4 hours): 75
   // Regular (4-24 hours): 50
   // Background (> 24 hours): 25
+  
+  // Check if this is a "NOW" job (scheduled within 1 minute of current time)
+  if (Math.abs(hoursUntilScheduled) < (1/60)) {
+    return 100; // Immediate processing
+  }
+  
+  // Handle past-due jobs as urgent
+  if (hoursUntilScheduled < 0) {
+    return 75; // Past due, high priority
+  }
   
   if (hoursUntilScheduled < 4) {
     return 75; // Urgent
