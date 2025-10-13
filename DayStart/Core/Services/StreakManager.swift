@@ -138,6 +138,15 @@ final class StreakManager: ObservableObject {
                 Task {
                     await notificationScheduler.cancelTodaysMissedNotification()
                     await notificationScheduler.cancelTodaysEveningReminder()
+                    
+                    // Update backend to mark as user_completed
+                    do {
+                        _ = try await ServiceRegistry.shared.supabaseClient.markDayStartCompleted(for: delivered)
+                        logger.log("✅ Backend updated: marked DayStart as completed", level: .info)
+                    } catch {
+                        // Log error but don't fail - local tracking is source of truth
+                        logger.logError(error, context: "Failed to update backend completion status")
+                    }
                 }
                 logger.log("🔥 Streak +1 recorded for \(deliveredKey)", level: .info)
             }
@@ -166,6 +175,15 @@ final class StreakManager: ObservableObject {
                 Task {
                     await notificationScheduler.cancelTodaysMissedNotification()
                     await notificationScheduler.cancelTodaysEveningReminder()
+                    
+                    // Update backend to mark as user_completed
+                    do {
+                        _ = try await ServiceRegistry.shared.supabaseClient.markDayStartCompleted(for: delivered)
+                        logger.log("✅ Backend updated: marked today's DayStart as completed", level: .info)
+                    } catch {
+                        // Log error but don't fail - local tracking is source of truth
+                        logger.logError(error, context: "Failed to update backend completion status for today")
+                    }
                 }
                 logger.log("🔥 Streak +1 recorded for today", level: .info)
             }

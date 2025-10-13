@@ -35,6 +35,49 @@ class SupabaseClient {
     
     // MARK: - Audio Status API
     
+    func markDayStartCompleted(for date: Date) async throws -> Bool {
+        let dateString = localDateString(from: date)
+        let url = functionsURL.appendingPathComponent("get_audio_status")
+            .appendingQueryItem(name: "date", value: dateString)
+            .appendingQueryItem(name: "mark_completed", value: "true")
+        
+        logger.log("✅ Supabase API: Marking DayStart completed for date: \(dateString)", level: .info)
+        #if DEBUG
+        logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        #endif
+        
+        let request = await createRequest(for: url, method: "GET")
+        #if DEBUG
+        logger.logNetworkRequest(request)
+        #endif
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                logger.log("❌ Supabase API: Invalid response type", level: .error)
+                throw SupabaseError.invalidResponse
+            }
+            
+            logger.log("📥 Supabase API: Response status (mark_completed): \(httpResponse.statusCode)", level: .info)
+            
+            guard httpResponse.statusCode == 200 else {
+                logger.log("❌ Supabase API: HTTP \(httpResponse.statusCode)", level: .error)
+                throw SupabaseError.httpError(httpResponse.statusCode)
+            }
+            
+            // Parse response to check success
+            if let responseData = try? JSONDecoder().decode(AudioStatusAPIResponse.self, from: data) {
+                return responseData.success
+            }
+            
+            return false
+        } catch {
+            logger.logError(error, context: "Failed to mark DayStart completed")
+            throw error
+        }
+    }
+    
     func getAudioStatus(for date: Date) async throws -> AudioStatusResponse {
         let dateString = localDateString(from: date) // Canonical local calendar day (YYYY-MM-DD)
         let url = functionsURL.appendingPathComponent("get_audio_status")
