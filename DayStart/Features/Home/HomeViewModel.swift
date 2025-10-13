@@ -652,6 +652,15 @@ class HomeViewModel: ObservableObject {
         updateStateWorkItem?.cancel()
         
         updateStateWorkItem = DispatchWorkItem { [weak self] in
+            // Check for stuck transitions and clear if needed
+            if let self = self, self.isTransitioning {
+                let timeSinceLastChange = Date().timeIntervalSince(self.lastStateChangeTime)
+                if timeSinceLastChange > 2.0 {
+                    // Transition has been stuck for more than 2 seconds, force clear
+                    self.logger.log("⚠️ Clearing stuck transition after \(timeSinceLastChange)s", level: .warning)
+                    self.isTransitioning = false
+                }
+            }
             self?.performStateUpdate()
         }
         
@@ -704,6 +713,7 @@ class HomeViewModel: ObservableObject {
                 Task {
                     await checkWelcomeAudioStatus()
                 }
+                isTransitioning = false
                 return
             }
             
@@ -711,12 +721,14 @@ class HomeViewModel: ObservableObject {
                 // Show welcome ready screen - user must tap to start
                 stateTransitionManager.transitionTo(.welcomeReady)
                 logger.log("🎁 Welcome DayStart is ready - showing welcome ready screen", level: .info)
+                isTransitioning = false
                 return
             }
         }
         
         // Don't update state if currently playing audio
         if state == .playing {
+            isTransitioning = false
             return
         }
         
