@@ -19,8 +19,8 @@ interface UpdateJobsRequest {
     voice_option?: string;
     daystart_length?: number;
     timezone?: string;
+    schedule_time?: string; // NEW: Time in HH:MM format (e.g., "07:30") for calculating scheduled_at
   };
-  scheduled_time?: string; // NEW: ISO8601 string for updating scheduled_at field
   force_requeue?: boolean;
   cancel_for_removed_dates?: string[]; // NEW: dates to cancel jobs for due to schedule changes
   reactivate_for_added_dates?: string[]; // NEW: dates to reactivate cancelled jobs for
@@ -90,28 +90,59 @@ serve(async (req: Request): Promise<Response> => {
     const dd = String(now.getDate()).padStart(2, '0');
     const todayStr = `${yyyy}-${mm}-${dd}`;
 
-    const updatePayload: Record<string, any> = buildUpdatePayload(body);
+    let updated: any[] = [];
 
-    let query = supabase
-      .from('jobs')
-      .update(updatePayload)
-      .eq('user_id', user_id)
-      .in('status', statuses as any);
+    // If we need to update scheduled_at based on schedule_time, we need to update each job individually
+    const needsScheduleUpdate = body.settings?.schedule_time !== undefined && body.settings?.timezone !== undefined;
 
-    if (Array.isArray(body.dates) && body.dates.length > 0) {
-      query = query.in('local_date', body.dates);
-    } else if (body.date_range) {
-      query = query
-        .gte('local_date', body.date_range.start_local_date)
-        .lte('local_date', body.date_range.end_local_date);
+    if (needsScheduleUpdate && Array.isArray(body.dates) && body.dates.length > 0) {
+      // Update each job individually to calculate correct scheduled_at for each date
+      for (const localDate of body.dates) {
+        const updatePayload = buildUpdatePayload(body, localDate);
+
+        const { data: jobUpdated, error } = await supabase
+          .from('jobs')
+          .update(updatePayload)
+          .eq('user_id', user_id)
+          .eq('local_date', localDate)
+          .in('status', statuses as any)
+          .select('job_id, local_date, status');
+
+        if (error) {
+          console.error(`Update job error for date ${localDate}:`, error);
+          return errorResponse('DATABASE_ERROR', `Failed to update job for date ${localDate}`, request_id);
+        }
+
+        if (jobUpdated) {
+          updated.push(...jobUpdated);
+        }
+      }
     } else {
-      query = query.gte('local_date', todayStr);
-    }
+      // Use bulk update for other cases (no schedule_time change)
+      const updatePayload = buildUpdatePayload(body);
 
-    const { data: updated, error } = await query.select('job_id, local_date, status');
-    if (error) {
-      console.error('Update jobs error:', error);
-      return errorResponse('DATABASE_ERROR', 'Failed to update jobs', request_id);
+      let query = supabase
+        .from('jobs')
+        .update(updatePayload)
+        .eq('user_id', user_id)
+        .in('status', statuses as any);
+
+      if (Array.isArray(body.dates) && body.dates.length > 0) {
+        query = query.in('local_date', body.dates);
+      } else if (body.date_range) {
+        query = query
+          .gte('local_date', body.date_range.start_local_date)
+          .lte('local_date', body.date_range.end_local_date);
+      } else {
+        query = query.gte('local_date', todayStr);
+      }
+
+      const { data: bulkUpdated, error } = await query.select('job_id, local_date, status');
+      if (error) {
+        console.error('Update jobs error:', error);
+        return errorResponse('DATABASE_ERROR', 'Failed to update jobs', request_id);
+      }
+      updated = bulkUpdated || [];
     }
 
     // Handle job cancellation for removed schedule dates
@@ -188,7 +219,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 });
 
-function buildUpdatePayload(body: UpdateJobsRequest): Record<string, any> {
+function buildUpdatePayload(body: UpdateJobsRequest, localDate?: string): Record<string, any> {
   const payload: Record<string, any> = { updated_at: new Date().toISOString() };
   const s = body.settings || {};
   if (s.preferred_name !== undefined) payload.preferred_name = s.preferred_name;
@@ -204,9 +235,9 @@ function buildUpdatePayload(body: UpdateJobsRequest): Record<string, any> {
   if (s.daystart_length !== undefined) payload.daystart_length = s.daystart_length;
   if (s.timezone !== undefined) payload.timezone = s.timezone;
 
-  // NEW: Handle scheduled_at updates
-  if (body.scheduled_time !== undefined) {
-    payload.scheduled_at = body.scheduled_time;
+  // NEW: Calculate scheduled_at for each job individually based on its local_date
+  if (s.schedule_time !== undefined && s.timezone !== undefined && localDate !== undefined) {
+    payload.scheduled_at = calculateScheduledAt(localDate, s.schedule_time, s.timezone);
   }
 
   if (body.force_requeue) {
@@ -225,6 +256,39 @@ function buildUpdatePayload(body: UpdateJobsRequest): Record<string, any> {
   }
 
   return payload;
+}
+
+// NEW: Calculate scheduled_at timestamp for a specific date
+function calculateScheduledAt(localDate: string, scheduleTime: string, timezone: string): string {
+  // Create a date string that represents the desired local time
+  const localDateTimeString = `${localDate}T${scheduleTime}:00`;
+  
+  // Create a date assuming it's UTC first
+  const baseDate = new Date(localDateTimeString);
+  
+  // Use Intl.DateTimeFormat to find the UTC time that gives us the desired local time
+  const formatter = new Intl.DateTimeFormat('sv-SE', { // ISO format
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  // Get what time the base date shows in the target timezone
+  const formattedInTimezone = formatter.format(baseDate).replace(' ', 'T');
+  
+  // Calculate the difference between what we want and what we got
+  const wantedTime = new Date(localDateTimeString);
+  const actualTime = new Date(formattedInTimezone);
+  const timeDiff = wantedTime.getTime() - actualTime.getTime();
+  
+  // Adjust the base date by the difference
+  const correctedUtc = new Date(baseDate.getTime() + timeDiff);
+  
+  return correctedUtc.toISOString();
 }
 
 function errorResponse(code: string, message: string, request_id: string): Response {

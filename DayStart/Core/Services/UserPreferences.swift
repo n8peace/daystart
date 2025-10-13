@@ -295,28 +295,17 @@ class UserPreferences: ObservableObject {
             // Update jobs with current settings, cancel removed dates, and reactivate added dates
             // Always update if there are scheduled dates (to handle time changes) or if there are cancellations/reactivations
             if !shouldBeScheduledDates.isEmpty || !datesToCancel.isEmpty || !datesToReactivate.isEmpty {
-                // Calculate the scheduled time for the first date to use as the new time for all jobs
-                let scheduledTime: Date? = shouldBeScheduledDates.first.map { firstDate in
-                    // Create scheduled time by combining the first date with the current schedule time
-                    let scheduledCalendar = Calendar.current
-                    let timeComponents = scheduledCalendar.dateComponents([.hour, .minute, .second], from: currentSchedule.time)
-                    let dateComponents = scheduledCalendar.dateComponents([.year, .month, .day], from: firstDate)
-                    
-                    var combinedComponents = DateComponents()
-                    combinedComponents.year = dateComponents.year
-                    combinedComponents.month = dateComponents.month
-                    combinedComponents.day = dateComponents.day
-                    combinedComponents.hour = timeComponents.hour
-                    combinedComponents.minute = timeComponents.minute
-                    combinedComponents.second = timeComponents.second
-                    
-                    return scheduledCalendar.date(from: combinedComponents) ?? firstDate
-                }
+                // Convert schedule time to HH:MM format for server-side calculation
+                let scheduleTimeString: String? = {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "HH:mm"
+                    return formatter.string(from: currentSchedule.time)
+                }()
                 
                 let result = try await supabaseClient.updateJobs(
                     dates: shouldBeScheduledDates, 
                     with: settings, 
-                    scheduledTime: scheduledTime, // NEW: Pass the scheduled time to update scheduled_at field
+                    scheduleTime: scheduleTimeString, // NEW: Pass the schedule time for server-side scheduled_at calculation
                     cancelDates: datesToCancel,
                     reactivateDates: datesToReactivate
                 )

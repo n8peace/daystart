@@ -387,7 +387,7 @@ class SupabaseClient {
     func updateJobs(
         dates: [Date],
         with settings: UserSettings,
-        scheduledTime: Date? = nil, // NEW: When provided, updates scheduled_at for all jobs
+        scheduleTime: String? = nil, // NEW: Time in HH:MM format (e.g., "07:30") for recalculating scheduled_at
         cancelDates: [Date] = [],
         reactivateDates: [Date] = [],
         forceRequeue: Bool = false
@@ -425,9 +425,9 @@ class SupabaseClient {
                 quote_preference: settings.quotePreference.rawValue,
                 voice_option: "voice\(settings.selectedVoice.rawValue + 1)",
                 daystart_length: settings.dayStartLength * 60, // Convert minutes to seconds
-                timezone: TimeZone.current.identifier
+                timezone: TimeZone.current.identifier,
+                schedule_time: scheduleTime // NEW: Time for recalculating scheduled_at
             ),
-            scheduled_time: scheduledTime.map { ISO8601DateFormatter().string(from: $0) }, // NEW: Handle scheduled time
             force_requeue: forceRequeue,
             cancel_for_removed_dates: cancelDateStrings,
             reactivate_for_added_dates: reactivateDateStrings
@@ -732,7 +732,6 @@ private struct UpdateJobsRequest: Codable {
     let date_range: DateRangeFilter?
     let statuses: [String]?
     let settings: UpdateSettings?
-    let scheduled_time: String? // NEW: ISO8601 string for updating scheduled_at field
     let force_requeue: Bool?
     let cancel_for_removed_dates: [String]?
     let reactivate_for_added_dates: [String]?
@@ -756,6 +755,7 @@ private struct UpdateSettings: Codable {
     let voice_option: String?
     let daystart_length: Int?
     let timezone: String?
+    let schedule_time: String? // NEW: Time in HH:MM format for scheduled_at calculation
 }
 
 private struct UpdateJobsAPIResponse: Codable {
