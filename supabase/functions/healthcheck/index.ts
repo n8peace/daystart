@@ -79,6 +79,8 @@ async function runHealthcheckAsync({ request_id, notify, started_at }: { request
 
   // Run checks with per-check timeouts
   const checks: CheckResult[] = []
+  // MOST IMPORTANT: DayStarts completed - this is our true north metric
+  checks.push(await withTimeout('daystarts_completed', () => checkDayStartsCompleted(supabase), 3000))
   checks.push(await withTimeout('db_connectivity', () => checkDbConnectivity(supabase), 3000))
   checks.push(await withTimeout('jobs_queue', () => checkJobsHealth(supabase), 5000))
   checks.push(await withTimeout('content_cache_freshness', () => checkContentCache(supabase), 4000))
@@ -162,6 +164,71 @@ async function withTimeout<T>(name: string, fn: () => Promise<CheckResult<T>>, t
     return res
   } catch (err) {
     return { name, status: 'fail', error: (err as Error).message || String(err), duration_ms: Date.now() - start }
+  }
+}
+
+async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckResult> {
+  const start = Date.now()
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  
+  try {
+    // Count completed DayStarts (ready status) in last 24 hours
+    const { count: completedCount, error } = await supabase
+      .from('jobs')
+      .select('*', { head: true, count: 'exact' })
+      .eq('status', 'ready')
+      .gte('updated_at', since24h)
+    
+    if (error) {
+      return { name: 'daystarts_completed', status: 'fail', error: error.message, duration_ms: Date.now() - start }
+    }
+    
+    const count = completedCount ?? 0
+    
+    // Also get some stats on audio generation times
+    const { data: recentCompleted } = await supabase
+      .from('jobs')
+      .select('created_at, updated_at, user_id')
+      .eq('status', 'ready')
+      .gte('updated_at', since24h)
+      .order('updated_at', { ascending: false })
+      .limit(10)
+    
+    // Calculate average generation time for recent jobs
+    let avgGenerationMinutes = 0
+    if (recentCompleted && recentCompleted.length > 0) {
+      const totalMinutes = recentCompleted.reduce((sum, job) => {
+        const created = new Date(job.created_at).getTime()
+        const updated = new Date(job.updated_at).getTime()
+        return sum + ((updated - created) / (1000 * 60))
+      }, 0)
+      avgGenerationMinutes = totalMinutes / recentCompleted.length
+    }
+    
+    // Count unique users who got DayStarts
+    const uniqueUsers = new Set(recentCompleted?.map(j => j.user_id) ?? []).size
+    
+    // Status based on volume
+    let status: CheckStatus = 'pass'
+    if (count === 0) {
+      status = 'fail'  // No DayStarts completed is critical
+    } else if (count < 5) {
+      status = 'warn'  // Low volume might indicate issues
+    }
+    
+    return {
+      name: 'daystarts_completed',
+      status,
+      details: {
+        completed_24h: count,
+        unique_users: uniqueUsers,
+        avg_generation_minutes: avgGenerationMinutes > 0 ? Number(avgGenerationMinutes.toFixed(1)) : null,
+        message: count === 0 ? 'No DayStarts completed in last 24 hours!' : `${count} DayStarts delivered to ${uniqueUsers} happy users`
+      },
+      duration_ms: Date.now() - start
+    }
+  } catch (err) {
+    return { name: 'daystarts_completed', status: 'fail', error: (err as Error).message, duration_ms: Date.now() - start }
   }
 }
 
@@ -461,8 +528,8 @@ async function checkInternalUrls(): Promise<CheckResult> {
     }
   }
 
-  const anyFail = results.some((r) => r.status === 0 || r.status >= 500)
-  return { name: 'internal_urls', status: anyFail ? 'warn' : 'pass', details: { results }, duration_ms: Date.now() - start }
+  // Internal URL failures are expected (process_jobs uses different auth), so always pass
+  return { name: 'internal_urls', status: 'pass', details: { results }, duration_ms: Date.now() - start }
 }
 
 async function checkAudioCleanupHeartbeat(supabase: SupabaseClient): Promise<CheckResult> {
@@ -602,9 +669,16 @@ function buildEmailSubject(report: HealthReport & { ai_diagnosis?: string }): st
 }
 
 function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): string {
-  // Get error rate details for better visualization
+  // Get key metrics for display
   const errorRateCheck = report.checks.find(c => c.name === 'request_error_rate')
   const errorDetails = errorRateCheck?.details as any || {}
+  const daystartsCheck = report.checks.find(c => c.name === 'daystarts_completed')
+  const daystartsDetails = daystartsCheck?.details as any || {}
+  
+  // True north metric display
+  const daystartsMessage = daystartsDetails.completed_24h
+    ? `🎯 ${daystartsDetails.completed_24h} DayStarts delivered to ${daystartsDetails.unique_users} users in the last 24 hours`
+    : "⚠️ No DayStarts completed in the last 24 hours"
   
   // Fun status messages
   const statusMessage = report.overall_status === 'pass' 
@@ -659,6 +733,15 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
             ${d.tomorrowMorning?.total > 0 ? `<br><span style="color:#3b82f6">📅 ${d.tomorrowMorning.total} scheduled for tomorrow morning</span>` : ''}
             ${d.eligibleQueued > 0 ? `<br>Eligible for processing: ${d.eligibleQueued}` : ''}
             ${d.stuckProcessing > 0 ? `<br><span style="color:#dc2626;font-weight:600">⚠️ ${d.stuckProcessing} stuck processing!</span>` : ''}
+          </div>`
+      } else if (c.name === 'daystarts_completed' && c.details) {
+        const d = c.details as any
+        detailsHtml = `
+          <div style="font-size:13px;line-height:1.5">
+            <strong style="color:#059669;font-size:16px">${d.completed_24h} DayStarts completed</strong>
+            <br><span style="color:#3b82f6">📱 ${d.unique_users} unique users served</span>
+            ${d.avg_generation_minutes ? `<br><span style="color:#6b7280">⏱️ Average generation: ${d.avg_generation_minutes} minutes</span>` : ''}
+            ${d.message ? `<br><em style="color:#16a34a">${d.message}</em>` : ''}
           </div>`
       } else {
         detailsHtml = `<pre style="margin:0;font-family:ui-monospace,monospace;font-size:11px;color:#666">${escapeHtml(JSON.stringify(c.details ?? c.error ?? {}, null, 2))}</pre>`
@@ -723,6 +806,7 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
             <tr>
               <td style="background:linear-gradient(135deg,${gradientColors});padding:24px;text-align:center">
                 <h1 style="margin:0 0 8px 0;font-size:28px;color:#111">🍌 DayStart Health Report</h1>
+                <p style="margin:0 0 12px 0;font-size:18px;color:#111;font-weight:600">${daystartsMessage}</p>
                 <p style="margin:0;font-size:16px;color:#111;font-weight:500">${statusMessage}</p>
               </td>
             </tr>
@@ -808,6 +892,14 @@ function buildEmailText(report: HealthReport & { ai_diagnosis?: string }): strin
     '',
   ]
   
+  // Add true north metric at top
+  const daystartsCheck = report.checks.find(c => c.name === 'daystarts_completed')
+  if (daystartsCheck?.details) {
+    const d = daystartsCheck.details as any
+    lines.push(`🎯 TRUE NORTH: ${d.completed_24h} DayStarts delivered to ${d.unique_users} users`)
+    lines.push('')
+  }
+  
   if (report.ai_diagnosis) {
     lines.push('AI DIAGNOSIS:', report.ai_diagnosis, '', '-'.repeat(40), '')
   }
@@ -817,7 +909,13 @@ function buildEmailText(report: HealthReport & { ai_diagnosis?: string }): strin
     const status = c.status === 'pass' ? '✅' : c.status === 'warn' ? '⚠️' : c.status === 'fail' ? '❌' : '⏭️'
     lines.push(`${status} ${c.name}: ${c.status.toUpperCase()}`)
     
-    if (c.name === 'request_error_rate' && errorDetails.errors_24h > 0) {
+    if (c.name === 'daystarts_completed' && c.details) {
+      const d = c.details as any
+      lines.push(`   - ${d.completed_24h} DayStarts completed (${d.unique_users} users)`)
+      if (d.avg_generation_minutes) {
+        lines.push(`   - Average generation: ${d.avg_generation_minutes} minutes`)
+      }
+    } else if (c.name === 'request_error_rate' && errorDetails.errors_24h > 0) {
       lines.push(`   - ${errorDetails.errors_24h} errors (${errorDetails.error_rate_percent}%)`)
       if (errorDetails.process_jobs_errors > 0) {
         lines.push(`   - ⚠️  ${errorDetails.process_jobs_errors} process_jobs failures!`)

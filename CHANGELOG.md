@@ -22,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.16] - 2025-10-16
 
-**Build:** 2 | **Commit:** TBD | **Status:** App In Development
+**Build:** 2 | **Commit:** efbca2a | **Status:** App In Development, Supabase Deployed
 
 ### Fixed
 - **Countdown Timer After Rescheduling** - Fixed issue where countdown would incorrectly show today's time after rescheduling when audio had already been generated
@@ -36,6 +36,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Optional `mark_completed` parameter in get_audio_status API
   - Backwards compatible - existing app versions continue working normally
   - Foundation for future "True North" completion statistics
+- **Enhanced Healthcheck Monitoring** - Improved system health reporting with user-focused metrics
+  - DayStarts completed in last 24 hours now displayed as primary "True North" metric
+  - Shows total completions, unique users served, and average generation time
+  - Removed false warnings for expected internal URL check failures
+  - Better visibility into actual user value delivery vs technical metrics
 
 ---
 
