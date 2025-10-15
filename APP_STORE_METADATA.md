@@ -4,7 +4,7 @@
 - **App Name:** DayStart AI: Morning Briefing
 - **Subtitle:** Wake Up. Get Briefed. Succeed.
 - **Current Version:** 2025.09.22 (Build 2) - Live on App Store
-- **Next Version:** 2025.10.16 (Build 1)
+- **Next Version:** 2025.10.16 (Build 2) - In App Store Review
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 

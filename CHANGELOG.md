@@ -13,6 +13,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 ### Changed
+- **Increased Job Processing Capacity** - Quadrupled the maximum jobs processed per edge function run from 50 to 200
+  - Reduces cold starts and improves overall throughput
+  - Better utilizes the 400-second edge function timeout
+  - Enables handling up to 2,400 DayStarts/hour theoretical capacity
+  - Improves ability to handle peak times like 6 AM scheduling rush
 
 ### Fixed
 

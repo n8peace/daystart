@@ -188,7 +188,7 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
     // Also get some stats on audio generation times
     const { data: recentCompleted } = await supabase
       .from('jobs')
-      .select('created_at, completed_at, user_id')
+      .select('created_at, completed_at, scheduled_at, user_id')
       .eq('status', 'ready')
       .gte('completed_at', since24h)
       .order('completed_at', { ascending: false })
@@ -199,8 +199,10 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
     if (recentCompleted && recentCompleted.length > 0) {
       const totalMinutes = recentCompleted.reduce((sum, job) => {
         const created = new Date(job.created_at).getTime()
+        const scheduled = new Date(job.scheduled_at).getTime()
         const completed = new Date(job.completed_at).getTime()
-        return sum + ((completed - created) / (1000 * 60))
+        const processingStart = Math.max(created, scheduled)
+        return sum + ((completed - processingStart) / (1000 * 60))
       }, 0)
       avgGenerationMinutes = totalMinutes / recentCompleted.length
     }
@@ -658,13 +660,13 @@ function buildEmailSubject(report: HealthReport & { ai_diagnosis?: string }): st
   const d = new Date(report.started_at)
   const friendly = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
   
-  // Fun subject lines based on status
+  // Professional subject lines based on status
   if (report.overall_status === 'pass') {
-    return `🍌 Everything's a-peel-ing! — ${friendly}`
+    return `DayStart System Health: Operational — ${friendly}`
   } else if (report.overall_status === 'warn') {
-    return `🍌⚠️ Banana bruises detected — ${friendly}`
+    return `DayStart System Health: Degraded Performance — ${friendly}`
   } else {
-    return `🍌🔥 Time to split - we have issues! — ${friendly}`
+    return `DayStart System Health: Critical Issues — ${friendly}`
   }
 }
 
@@ -675,35 +677,53 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
   const daystartsCheck = report.checks.find(c => c.name === 'daystarts_completed')
   const daystartsDetails = daystartsCheck?.details as any || {}
   
-  // True north metric display
+  // True north metric - prominent display
   const daystartsMessage = daystartsDetails.completed_24h
-    ? `🎯 ${daystartsDetails.completed_24h} DayStarts delivered to ${daystartsDetails.unique_users} users in the last 24 hours`
-    : "⚠️ No DayStarts completed in the last 24 hours"
+    ? `${daystartsDetails.completed_24h} DayStarts delivered to ${daystartsDetails.unique_users} users in the last 24 hours`
+    : "No DayStarts completed in the last 24 hours"
   
-  // Fun status messages
+  // Generation time for quick reference
+  const genTimeMessage = daystartsDetails.avg_generation_minutes 
+    ? `${daystartsDetails.avg_generation_minutes}min avg generation`
+    : ""
+  
+  // Professional status messages
   const statusMessage = report.overall_status === 'pass' 
-    ? "🎉 Your DayStart backend is running smoother than a perfectly ripe banana!"
+    ? "All systems operational"
     : report.overall_status === 'warn'
-    ? "🤔 We've detected some minor bruises on our banana infrastructure..."
-    : "🚨 Houston, we have a banana emergency! Critical issues detected."
+    ? "Minor issues detected - monitoring required"
+    : "Critical issues require immediate attention"
+    
+  const statusBadge = report.overall_status === 'pass'
+    ? "OPERATIONAL"
+    : report.overall_status === 'warn' 
+    ? "DEGRADED"
+    : "CRITICAL"
   
-  // Dynamic colors based on status
+  // Professional color scheme
   const borderColor = report.overall_status === 'pass' 
-    ? '#10b981'  // Green for pass
+    ? '#059669'  // Professional green
     : report.overall_status === 'warn'
-    ? '#f59e0b'  // Orange for warn (existing)
-    : '#dc2626'  // Red for fail
+    ? '#d97706'  // Professional amber
+    : '#dc2626'  // Professional red
   
-  const gradientColors = report.overall_status === 'pass'
-    ? '#10b981,#059669'  // Green gradient
+  const headerBg = report.overall_status === 'pass'
+    ? '#f0f9ff'  // Light blue background
     : report.overall_status === 'warn'
-    ? '#fbbf24,#f59e0b'  // Orange gradient (existing)
-    : '#ef4444,#dc2626'  // Red gradient
+    ? '#fffbeb'  // Light amber background
+    : '#fef2f2'  // Light red background
+    
+  const statusBadgeColor = report.overall_status === 'pass'
+    ? '#059669'  // Green
+    : report.overall_status === 'warn'
+    ? '#d97706'  // Amber
+    : '#dc2626'  // Red
 
-  // Create check rows with better formatting
+  // Create check rows with professional formatting
   const checkRows = report.checks
     .map((c) => {
-      const statusEmoji = c.status === 'pass' ? '✅' : c.status === 'warn' ? '⚠️' : c.status === 'fail' ? '❌' : '⏭️'
+      const statusIndicator = c.status === 'pass' ? '●' : c.status === 'warn' ? '●' : c.status === 'fail' ? '●' : '○'
+      const statusColor = c.status === 'pass' ? '#059669' : c.status === 'warn' ? '#d97706' : c.status === 'fail' ? '#dc2626' : '#6b7280'
       const bgColor = c.status === 'pass' ? '#f0fdf4' : c.status === 'warn' ? '#fffbeb' : c.status === 'fail' ? '#fef2f2' : '#f9fafb'
       
       // Format details based on check type
@@ -749,74 +769,88 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
       
       return `
         <tr style="background:${bgColor}">
-          <td style="padding:12px;border-bottom:1px solid #e5e7eb">
-            <span style="font-weight:600">${statusEmoji} ${c.name}</span>
+          <td style="padding:16px;border-bottom:1px solid #e5e7eb">
+            <span style="color:${statusColor};font-size:16px;margin-right:8px">${statusIndicator}</span>
+            <span style="font-weight:500;color:#374151">${c.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
           </td>
-          <td style="padding:12px;border-bottom:1px solid #e5e7eb">
+          <td style="padding:16px;border-bottom:1px solid #e5e7eb">
             ${detailsHtml}
           </td>
         </tr>`
     })
     .join('')
 
-  // Recent errors section
+  // Recent errors section with professional styling
   const recentErrorsHtml = errorDetails.recent_errors?.length > 0 ? `
-    <div style="margin-top:20px;padding:16px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px">
-      <h3 style="margin:0 0 12px 0;font-size:14px;color:#92400e">📋 Recent Error Samples</h3>
-      <table style="width:100%;font-size:12px;font-family:ui-monospace,monospace">
-        ${errorDetails.recent_errors.map((err: any) => `
-          <tr>
-            <td style="padding:4px 8px;white-space:nowrap;color:#666">${new Date(err.timestamp).toLocaleTimeString()}</td>
-            <td style="padding:4px 8px;font-weight:600">${err.endpoint}</td>
-            <td style="padding:4px 8px;color:#dc2626">${err.error_code}</td>
-            <td style="padding:4px 8px;color:#666">${err.status_code}</td>
-          </tr>
-        `).join('')}
-      </table>
+    <div style="margin-bottom:32px">
+      <h2 style="margin:0 0 20px 0;color:#374151;font-size:18px;font-weight:600">Recent Errors</h2>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;overflow:hidden">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#fee2e2">
+              <th style="padding:12px 16px;text-align:left;color:#991b1b;font-weight:600">Time</th>
+              <th style="padding:12px 16px;text-align:left;color:#991b1b;font-weight:600">Endpoint</th>
+              <th style="padding:12px 16px;text-align:left;color:#991b1b;font-weight:600">Error</th>
+              <th style="padding:12px 16px;text-align:left;color:#991b1b;font-weight:600">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${errorDetails.recent_errors.map((err: any) => `
+              <tr style="border-top:1px solid #fecaca">
+                <td style="padding:12px 16px;color:#6b7280;font-family:ui-monospace,monospace">${new Date(err.timestamp).toLocaleTimeString()}</td>
+                <td style="padding:12px 16px;color:#374151;font-weight:500">${err.endpoint}</td>
+                <td style="padding:12px 16px;color:#dc2626;font-weight:500">${err.error_code}</td>
+                <td style="padding:12px 16px;color:#6b7280">${err.status_code}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
     </div>
   ` : ''
 
-  // AI Diagnosis section with dynamic colors
-  const aiDiagnosisBg = report.overall_status === 'pass'
-    ? 'linear-gradient(135deg,#d1fae5,#a7f3d0)'  // Light green
-    : report.overall_status === 'warn'
-    ? 'linear-gradient(135deg,#fef3c7,#fde68a)'  // Light yellow (existing)
-    : 'linear-gradient(135deg,#fee2e2,#fecaca)'  // Light red
-    
-  const aiDiagnosisBorder = report.overall_status === 'pass'
-    ? '#10b981'  // Green
-    : report.overall_status === 'warn'
-    ? '#f59e0b'  // Orange (existing)
-    : '#dc2626'  // Red
-    
+  // AI Diagnosis section with professional styling
   const aiDiagnosisHtml = report.ai_diagnosis ? `
-    <div style="margin-bottom:20px;padding:16px;background:${aiDiagnosisBg};border:2px solid ${aiDiagnosisBorder};border-radius:12px;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
-      <h3 style="margin:0 0 8px 0;font-size:16px;color:#111;display:flex;align-items:center">
-        🧠 AI Diagnosis
-      </h3>
-      <p style="margin:0;color:#111;font-size:14px;line-height:1.6">${escapeHtml(report.ai_diagnosis)}</p>
+    <div style="margin-bottom:32px">
+      <h2 style="margin:0 0 20px 0;color:#374151;font-size:18px;font-weight:600">Analysis</h2>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:20px">
+        <p style="margin:0;color:#0f172a;font-size:14px;line-height:1.6">${escapeHtml(report.ai_diagnosis)}</p>
+      </div>
     </div>
   ` : ''
 
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#FFFDF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0;padding:0;background:#FFFDF0">
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0;padding:0;background:#f8fafc">
       <tr>
         <td>
-          <table role="presentation" align="center" width="680" cellspacing="0" cellpadding="0" style="margin:24px auto;background:#ffffff;border:2px solid ${borderColor};border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1)">
+          <table role="presentation" align="center" width="680" cellspacing="0" cellpadding="0" style="margin:32px auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1)">
             <tr>
-              <td style="background:linear-gradient(135deg,${gradientColors});padding:24px;text-align:center">
-                <h1 style="margin:0 0 8px 0;font-size:28px;color:#111">🍌 DayStart Health Report</h1>
-                <p style="margin:0 0 12px 0;font-size:18px;color:#111;font-weight:600">${daystartsMessage}</p>
-                <p style="margin:0;font-size:16px;color:#111;font-weight:500">${statusMessage}</p>
+              <td style="background:${headerBg};padding:32px;border-bottom:1px solid #e5e7eb">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+                  <div>
+                    <h1 style="margin:0 0 4px 0;font-size:24px;color:#111827;font-weight:600">DayStart System Health Report</h1>
+                    <p style="margin:0;font-size:14px;color:#6b7280">Daily Operations Summary • ${new Date().toLocaleDateString()}</p>
+                  </div>
+                  <div style="text-align:right">
+                    <span style="background:${statusBadgeColor};color:#ffffff;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;letter-spacing:0.5px">${statusBadge}</span>
+                  </div>
+                </div>
+                <div style="background:#ffffff;border-radius:8px;padding:24px;border:1px solid #e5e7eb">
+                  <div style="text-align:center">
+                    <p style="margin:0 0 8px 0;font-size:32px;color:#111827;font-weight:700">${daystartsDetails.completed_24h || 0}</p>
+                    <p style="margin:0 0 4px 0;font-size:16px;color:#6b7280;font-weight:500">DayStarts delivered to ${daystartsDetails.unique_users || 0} users</p>
+                    ${genTimeMessage ? `<p style="margin:0;font-size:14px;color:#9ca3af">${genTimeMessage.replace('⏱️ ', '')}</p>` : ''}
+                  </div>
+                </div>
               </td>
             </tr>
             <tr>
               <td style="padding:24px">
                 ${aiDiagnosisHtml}
                 
-                <div style="margin-bottom:20px;padding:16px;background:#f9fafb;border-radius:8px">
-                  <h3 style="margin:0 0 12px 0;font-size:16px">📊 System Checks</h3>
-                  <table style="width:100%;border-collapse:collapse">
+                <div style="margin-bottom:32px">
+                  <h2 style="margin:0 0 20px 0;color:#374151;font-size:18px;font-weight:600">System Components</h2>
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;background:#ffffff">
                     ${checkRows}
                   </table>
                 </div>
@@ -896,7 +930,7 @@ function buildEmailText(report: HealthReport & { ai_diagnosis?: string }): strin
   const daystartsCheck = report.checks.find(c => c.name === 'daystarts_completed')
   if (daystartsCheck?.details) {
     const d = daystartsCheck.details as any
-    lines.push(`🎯 TRUE NORTH: ${d.completed_24h} DayStarts delivered to ${d.unique_users} users`)
+    lines.push(`TRUE NORTH: ${d.completed_24h} DayStarts delivered to ${d.unique_users} users`)
     lines.push('')
   }
   

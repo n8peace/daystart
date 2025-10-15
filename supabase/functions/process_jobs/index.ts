@@ -3,8 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 // Local lint shim for Deno globals in non-Deno editors
 declare const Deno: any;
 
-// Helper: ~145 wpm is natural TTS; adjust as needed
-function targetWords(seconds: number, wpm = 145): number {
+// Helper: ~170 wpm for fuller content; adjust as needed
+function targetWords(seconds: number, wpm = 170): number {
   return Math.round((seconds / 60) * wpm);
 }
 
@@ -24,30 +24,30 @@ function getStoryLimits(seconds: number, isSocialDaystart: boolean = false): { n
   // Enhanced limits for social_daystart to pack more content
   if (isSocialDaystart) {
     if (seconds <= 60) {
-      return { news: 3, sports: 2, stocks: 2 };
+      return { news: 5, sports: 3, stocks: 2 };
     } else if (seconds <= 100) {
       // ~91 seconds target: more stories for TikTok
-      return { news: 4, sports: 2, stocks: 3 };
+      return { news: 6, sports: 3, stocks: 3 };
     } else if (seconds <= 180) {
-      return { news: 5, sports: 3, stocks: 4 };
+      return { news: 7, sports: 4, stocks: 4 };
     } else {
-      return { news: 7, sports: 4, stocks: 5 };
+      return { news: 9, sports: 5, stocks: 5 };
     }
   }
   
-  // Regular limits
+  // Regular limits (increased by +2 news, +1 sports)
   if (seconds <= 60) {
     // 1 minute: bare minimum
-    return { news: 2, sports: 1, stocks: 1 };
+    return { news: 4, sports: 2, stocks: 1 };
   } else if (seconds <= 180) {
     // 3 minutes: light coverage
-    return { news: 3, sports: 2, stocks: 2 };
+    return { news: 5, sports: 3, stocks: 2 };
   } else if (seconds <= 300) {
     // 5 minutes: standard coverage
-    return { news: 5, sports: 3, stocks: 2 };
+    return { news: 7, sports: 4, stocks: 2 };
   } else {
     // 5+ minutes: comprehensive coverage
-    return { news: 6, sports: 3, stocks: 3 };
+    return { news: 8, sports: 4, stocks: 3 };
   }
 }
 
@@ -373,8 +373,7 @@ function getDayContext(dateISO: string, tz?: string): { label: string, encourage
       "Clean slate Monday",
       "Monday reset",
       "New chapter starts",
-      "Week's first lap",
-      ""  // Allow skipping
+      "Week's first lap"
     );
   }
   
@@ -386,8 +385,7 @@ function getDayContext(dateISO: string, tz?: string): { label: string, encourage
       "Momentum building",
       "Tuesday tempo",
       "Second verse",
-      "Finding the rhythm",
-      ""
+      "Finding the rhythm"
     );
   }
   
@@ -401,8 +399,7 @@ function getDayContext(dateISO: string, tz?: string): { label: string, encourage
       "Wednesday wisdom",
       "Peak of the week",
       "Midweek milestone",
-      "Center stage Wednesday",
-      ""
+      "Center stage Wednesday"
     );
   }
   
@@ -415,8 +412,7 @@ function getDayContext(dateISO: string, tz?: string): { label: string, encourage
       "Fourth quarter energy",
       "Thursday momentum",
       "Nearly to the summit",
-      "One more day",
-      ""
+      "One more day"
     );
   }
   
@@ -431,8 +427,7 @@ function getDayContext(dateISO: string, tz?: string): { label: string, encourage
       "Week's final act",
       "Weekend countdown",
       "Friday finish line",
-      "Last lap",
-      ""
+      "Last lap"
     );
   }
   
@@ -444,8 +439,7 @@ function getDayContext(dateISO: string, tz?: string): { label: string, encourage
       "Time to recharge",
       "Saturday slow-down",
       "Weekend breathing room",
-      "Saturday freedom",
-      ""
+      "Saturday freedom"
     );
   }
   
@@ -457,8 +451,7 @@ function getDayContext(dateISO: string, tz?: string): { label: string, encourage
       "Gentle Sunday",
       "Week prep day",
       "Sunday pause",
-      "Rest and reset",
-      ""
+      "Rest and reset"
     );
   }
 
@@ -612,6 +605,35 @@ function getSocialSignOff() {
   ];
   
   return socialSignOffOptions[Math.floor(Math.random() * socialSignOffOptions.length)];
+}
+
+// Validate social DayStart script contains required elements
+function validateSocialScript(script: string, isSocial: boolean): { isValid: boolean; missingElements: string[] } {
+  if (!isSocial) {
+    return { isValid: true, missingElements: [] };
+  }
+
+  const missingElements: string[] = [];
+  
+  // Check for App Store outro
+  if (!script.includes("To get your own personalized DayStart every morning, search DayStart AI in the App Store")) {
+    missingElements.push("App Store outro");
+  }
+  
+  // Check for final ending
+  if (!script.includes("That's it for today. Have a good DayStart.")) {
+    missingElements.push("Final standardized ending");
+  }
+  
+  // Check for social intro
+  if (!script.includes("Welcome to your daily DayStart AI briefing — your personalized morning update")) {
+    missingElements.push("Social intro");
+  }
+  
+  return {
+    isValid: missingElements.length === 0,
+    missingElements
+  };
 }
 
 // Enhanced retry + timeout wrapper with detailed logging
@@ -852,8 +874,8 @@ async function processJobsAsync(worker_id: string, request_id: string, specificJ
       }
     } else {
       // Parallel batch processing
-      const batchSize = 10; // Process 10 jobs in parallel
-      const maxTotalJobs = 50; // Maximum total jobs to process per run
+      const batchSize = 20; // Process 20 jobs in parallel - increased from 10 to improve throughput
+      const maxTotalJobs = 200; // Maximum total jobs to process per run - increased from 50 to improve throughput
       let totalProcessed = 0;
 
       while (totalProcessed < maxTotalJobs) {
@@ -947,6 +969,18 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
 
   // Generate script content and track costs
   const scriptResult = await generateScript(job);
+  
+  // Validate social DayStart script contains required elements
+  if (job.social_daystart) {
+    const validation = validateSocialScript(scriptResult.content, true);
+    if (!validation.isValid) {
+      console.log(`⚠️ Social DayStart validation failed for job ${job.job_id}. Missing: ${validation.missingElements.join(', ')}`);
+      // Log the issue but continue - we don't want to fail the job, just track the problem
+      console.log(`📝 Generated script preview: ${scriptResult.content.substring(0, 500)}...`);
+    } else {
+      console.log(`✅ Social DayStart validation passed for job ${job.job_id}`);
+    }
+  }
   
   // Update job with script and OpenAI cost
   await supabase
@@ -1401,7 +1435,7 @@ async function adjustToTargetBand(text: string, band: { min: number; max: number
   const instruction = `
 You previously wrote a morning TTS script. ${direction.toUpperCase()} it by ${requested} words (±15 words).
 - Keep exactly the same facts; do NOT add names/teams not in JSON.
-- If expanding: prioritize news and quotes first - add deeper context to the top news stories, then enrich the quote with brief reflection, then add details to weather and calendar. Only enrich by rephrasing or expanding reflection. Do not invent new factual details.
+- If expanding: prioritize news and quotes first - add essential context to the top news stories, then enrich the quote with brief reflection, then add details to weather and calendar. Keep additions factual and professional. Do not invent new factual details.
 - If tightening: remove the least important detail from stocks first, then trim the last news item, avoiding cuts to quotes.
 - Preserve the pausing style (—, …, blank lines) and tone.
 Return ONLY the revised script.
@@ -1573,7 +1607,8 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
         model: 'gpt-4o-mini-tts',
         voice: voice,
         input: processedScript,
-        response_format: 'aac'
+        response_format: 'aac',
+        speed: 1.05
       }),
     });
 
@@ -1773,7 +1808,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
         const userSymbols = (context.stockSymbols || []).map(normalizeSymbol);
         
         if (userSymbols.length > 0) {
-          // User has specific symbols - filter for those
+          // User has specific symbols - include ALL of them without limits
           return filteredStocks
             .filter(s => {
               const normalizedStockSymbol = normalizeSymbol(s.symbol || '');
@@ -1797,28 +1832,12 @@ async function buildScriptPrompt(context: any): Promise<string> {
               isCrypto: crypto.some(c => c.symbol === s.symbol)
             }));
         } else {
-          // No user symbols - select major indices and top movers for focus
-          const majorIndices = ['SPY', 'QQQ', 'IWM', 'DIA'];
-          const majorStocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN'];
-          const defaultFocusSymbols = [...majorIndices, ...majorStocks];
+          // No user symbols - use default: S&P 500, Dow Jones, and Bitcoin
+          const defaultSymbols = ['^GSPC', '^DJI', 'BTC-USD'];
           
-          // First try to get major indices/stocks
-          const focusStocks = filteredStocks
-            .filter(s => defaultFocusSymbols.includes(s.symbol || ''))
-            .slice(0, storyLimits.stocks);
-          
-          // If we don't have enough, add top movers by percent change
-          if (focusStocks.length < storyLimits.stocks) {
-            const topMovers = filteredStocks
-              .filter(s => !focusStocks.some(f => f.symbol === s.symbol))
-              .sort((a, b) => Math.abs(b.percentChange || 0) - Math.abs(a.percentChange || 0))
-              .slice(0, storyLimits.stocks - focusStocks.length);
-            
-            focusStocks.push(...topMovers);
-          }
-          
-          return focusStocks
-            .slice(0, storyLimits.stocks)
+          // Get exactly these 3 symbols
+          return filteredStocks
+            .filter(s => defaultSymbols.includes(s.symbol || ''))
             .map(s => ({
               name: s.name,
               symbol: s.symbol,
@@ -1987,18 +2006,22 @@ ${JSON.stringify({
   // ========================================
   // Continue with regular script generation...
   return `
-You are a professional morning briefing writer for a TTS wake-up app. Your job: write a concise, warm, highly-personalized script that sounds natural when spoken aloud.
+You are an executive assistant delivering a professional morning briefing. Your job: write a concise, warm, highly-personalized script that sounds natural when spoken aloud - informative and direct, but personally invested in the user's day.
 
 STYLE
-- Warm, conversational, confident; no filler.
+- Professional but warm, like an executive assistant delivering a morning briefing.
 - Use short sentences and varied rhythm.
 - Prefer specifics over generalities. If a section has no data, gracefully skip it.
-- Sprinkle one light, human moment max (a nudge, not a joke barrage).
+- Stay informative and direct; avoid excessive commentary or casual observations.
 - IMPORTANT: For TTS readability:
   - Always use full company names instead of stock tickers (e.g., "Apple" not "AAPL", "Tesla" not "TSLA", "S and P five hundred" not "^GSPC", "Dow Jones" not "^DJI")
   - Don't add "Inc" at the end of company names (use "Apple", not "Apple Inc.")
   - Spell out all numbers and prices in words (e.g., "two hundred thirty dollars and eighty-nine cents" not "$230.89", "down zero point three percent" not "down 0.3%")
 ${context.social_daystart ? `
+🚨 SOCIAL DAYSTART MODE ACTIVE - SPECIAL REQUIREMENTS:
+MANDATORY: You MUST include App Store outro: "To get your own personalized DayStart every morning, search DayStart AI in the App Store." 
+MANDATORY: You MUST end with: "That's it for today. Have a good DayStart."
+
 SOCIAL DAYSTART STYLE OVERRIDE (for TikTok):
 - Lead with the most viral or shareable story - something that makes people go "wow"
 - Use more energetic, punchy language: "Breaking:", "Just in:", "Wild update:", "Big news:"
@@ -2020,12 +2043,12 @@ LENGTH & PACING
   - If the draft is shorter than ${lowerBound}, expand by adding one concrete, relevant detail in the highest-priority sections (weather, calendar, top news) until within range. If longer than ${upperBound}, tighten by removing the least important detail. No filler.
 
 CONTENT PRIORITIZATION
-  - News: Use ${storyLimits.news === 1 ? '1 story' : `${storyLimits.news - 1}–${storyLimits.news} stories`}, depending on significance and space. Choose by local relevance using user.location when available; otherwise pick the most significant stories. For longer scripts, include deeper context and background for major stories.
+  - News: Use ${storyLimits.news === 1 ? '1 story' : `${storyLimits.news - 1}–${storyLimits.news} stories`}, depending on significance and space. Choose by local relevance using user.location when available; otherwise pick the most significant stories. Keep stories concise and factual - lead with the key development, then essential context only.
 - Sports: Include ${storyLimits.sports} update(s) max in your script. Prioritize in this order: 1) Championship/playoff games, 2) Local team games (based on user.location), 3) Biggest matchups by team rankings, 4) Rivalry games. Select the highest priority ${storyLimits.sports} stories available. If off-season or no fixtures, skip gracefully.
 - Stocks: ALWAYS mention ALL stocks in stocks.focus (user's selected symbols) regardless of script length. These are the user's personal picks and must all be included. For additional market commentary beyond user picks, limit to ${storyLimits.stocks} total market points.
  - Weather: If present, include high/low temperatures (from highTemperatureF/lowTemperatureF), precipitation chance (from precipitationChance), and current conditions. Spell out all temperatures and percentages in words for TTS.
  - Astronomy: If a meteor shower is present, add viewing advice tailored to the user's location (window, direction, light pollution note). Otherwise, omit.
-- Calendar: Call out today's top 1–3 items with time ranges and one helpful nudge. PRIORITIZE personal/social events over routine ones: favor events with people (dinners, meetings with friends), celebrations (birthdays, parties), or unique activities (concerts, trips, appointments) over standard work meetings, commutes, or routine tasks.
+- Calendar: Call out today's top 1–3 items with time ranges and one helpful nudge. PRIORITIZE personal/social events over routine ones: favor events with people (dinners, meetings with friends), celebrations (parties, anniversaries), or unique activities (concerts, trips, appointments) over standard work meetings, commutes, or routine tasks. For birthdays: ONLY mention family member birthdays (those containing words like mom, dad, mother, father, sister, brother, aunt, uncle, grandma, grandpa, grandmother, grandfather, cousin, son, daughter, child, family) - skip all other birthdays.
 
 FACT RULES
 - Use ONLY facts present in the JSON data.
@@ -2047,7 +2070,7 @@ CONTENT ORDER (adapt if sections are missing)
    followed by a ${context.social_daystart ? 'one-second pause using EXACTLY "[1 second pause]"' : 'three-second pause using EXACTLY "[3 second pause]"'} on its own line.
 1a) Social intro (ONLY if social_daystart is true): After the greeting and pause, add: "Welcome to your daily DayStart AI briefing — your personalized morning update." followed by "[1 second pause]" on its own line.
 1b) Day context (if dayContext.encouragement is provided): Include it naturally after the greeting (and social intro if present), one or two sentences max. Vary tone so it doesn't feel canned.
-2) Weather (only if include.weather): actionable and hyper-relevant to the user's day. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see...").
+2) Weather (only if include.weather): Clear, factual weather update with temperatures and conditions. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see..."). Keep it professional and practical.
 3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
 4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.
 5) Sports (if include.sports): Brief, focused update. Mention major local teams or significant national stories.
@@ -2055,9 +2078,17 @@ CONTENT ORDER (adapt if sections are missing)
 7) Quote (if include.quotes): Select a quote that matches the user's quotePreference (if provided in data). The quote should align with that tradition/style (e.g., Buddhist wisdom, Stoic philosophy, Christian scripture, etc.). Follow with a one-line tie-back to today's vibe.
 8) Close with the provided signOff from the data — choose the one that fits the day's tone best.
 9) Add a 1-second pause after the signOff using EXACTLY "[1 second pause]" on its own line.
-10) Social outro (ONLY if social_daystart is true): Before the final message, add: "To get your own personalized DayStart every morning, search DayStart AI in the App Store." followed by "[1 second pause]" on its own line.
+10) **CRITICAL FOR SOCIAL DAYSTART**: If social_daystart is true, you MUST include this App Store outro before the final message: "To get your own personalized DayStart every morning, search DayStart AI in the App Store." followed by "[1 second pause]" on its own line. This is MANDATORY for social content.
 11) Add the standardized ending phrase: "That's it for today. Have a good DayStart."
 12) End the script with a final 2-second pause using EXACTLY "[2 second pause]" on its own line.
+
+FINAL REMINDER FOR SOCIAL DAYSTART: If social_daystart is true, your script MUST end with this exact sequence:
+[Your signOff message]
+[1 second pause]
+To get your own personalized DayStart every morning, search DayStart AI in the App Store.
+[1 second pause]
+That's it for today. Have a good DayStart.
+[2 second pause]
 
 STRICT OUTPUT RULES — DO NOT BREAK
 - Output: PLAIN TEXT ONLY.
