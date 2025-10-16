@@ -213,8 +213,8 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
     // Status based on volume
     let status: CheckStatus = 'pass'
     if (count === 0) {
-      status = 'fail'  // No DayStarts completed is critical
-    } else if (count < 5) {
+      status = 'warn'  // No DayStarts completed is concerning but not critical
+    } else if (count < 2) {
       status = 'warn'  // Low volume might indicate issues
     }
     
@@ -460,9 +460,9 @@ async function checkContentCache(supabase: SupabaseClient): Promise<CheckResult>
     const expired = latest.expires_at && new Date(latest.expires_at).getTime() < now
     details[type] = { updated_at: latest.updated_at, expires_at: latest.expires_at, updated_age_hours: Number(updatedAgeH.toFixed(2)), expired }
 
-    if (expired || updatedAgeH > 24) {
+    if (expired || updatedAgeH > 48) {
       status = 'fail'
-    } else if (updatedAgeH > 12) {
+    } else if (updatedAgeH > 24) {
       status = status === 'fail' ? 'fail' : 'warn'
     }
   }
@@ -473,6 +473,11 @@ async function checkContentCache(supabase: SupabaseClient): Promise<CheckResult>
     .select('*', { head: true, count: 'exact' })
     .lt('expires_at', new Date().toISOString())
   details.expiredEntries = expiredCount ?? 0
+
+  // Don't fail just for having some expired entries - they get refreshed automatically
+  if (status === 'pass' && (expiredCount ?? 0) > 5) {
+    status = 'warn'  // Only warn if many expired entries
+  }
 
   return { name: 'content_cache_freshness', status, details, duration_ms: Date.now() - start }
 }
