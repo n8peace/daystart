@@ -27,7 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.16] - 2025-10-16
 
-**Build:** 2 | **Commit:** 3e1153b | **Status:** Submitted for Review (10/13/2025), Supabase Deployed
+**Build:** 2 | **Commit:** 3e1153b | **Status:** **LIVE** on App Store as of 2025-10-16
 
 ### Fixed
 - **Countdown Timer After Rescheduling** - Fixed issue where countdown would incorrectly show today's time after rescheduling when audio had already been generated
