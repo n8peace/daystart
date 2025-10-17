@@ -220,7 +220,7 @@ struct EditScheduleView: View {
                 onCancel: {
                     showFeedbackSheet = false
                 },
-                onSubmit: { category, message, includeDiagnostics in
+                onSubmit: { category, message, email, includeDiagnostics in
                     Task {
                         let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
                         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
@@ -234,7 +234,8 @@ struct EditScheduleView: View {
                             app_version: appVersion,
                             build: build,
                             device_model: deviceModel,
-                            os_version: osVersion
+                            os_version: osVersion,
+                            email: email
                         )
                         do {
                             let ok = try await SupabaseClient.shared.submitAppFeedback(payload)

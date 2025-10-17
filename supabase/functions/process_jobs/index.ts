@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { getDailyQuote, CATEGORY_MAPPING } from "../_shared/quoteSelector.ts";
 // Local lint shim for Deno globals in non-Deno editors
 declare const Deno: any;
 
@@ -290,21 +291,21 @@ function sectionBudget(seconds: number, include: { weather: boolean; calendar: b
     // Social daystart: more content, less fluff
     ['greeting',  20],  // Shorter greeting
     ['weather',   include.weather ? 60 : 0],  // Brief weather if included
-    ['calendar',  include.calendar ? 60 : 0],  // Brief calendar if included
+    ['calendar',  include.calendar ? 90 : 0],  // Brief calendar if included
     ['news',      include.news ? 480 : 0],  // More news stories
     ['sports',    include.sports ? 100 : 0],  // Slightly more sports
     ['stocks',    include.stocks ? 120 : 0],  // More stock coverage
-    ['quote',     include.quotes ? 60 : 0],  // Brief quote if included
+    ['quote',     include.quotes ? 80 : 0],  // Brief quote if included
     ['close',     20],  // Shorter closing
   ] : [
     // Regular daystart allocations
     ['greeting',  40],
     ['weather',   include.weather ? 120 : 0],
-    ['calendar',  include.calendar ? 120 : 0],
+    ['calendar',  include.calendar ? 180 : 0],
     ['news',      include.news ? 500 : 0],
     ['sports',    include.sports ? 90 : 0],
     ['stocks',    include.stocks ? 80 : 0],
-    ['quote',     include.quotes ? 150 : 0],
+    ['quote',     include.quotes ? 200 : 0],
     ['close',     40],
   ];
   const total = base.reduce((sum, [, w]) => sum + w, 0) || 1;
@@ -564,13 +565,36 @@ function getRandomTransitions() {
   const toStocksOptions = ['On the tape —', 'For your watchlist —', 'Markets at the open —'];
   const toQuoteOptions = ['Pocket this —', 'A line to carry —', 'One thought for the morning —'];
   
+  // Subtle transitions between news stories - used sparingly for natural flow
+  const newsStoryTransitions = [
+    'Also,', 'Plus,', 'Meanwhile,', 'Next,',
+    'In other news,', 'On another front,', 'Elsewhere,',
+    'Back home,', 'Nationally,', 'Locally,'
+  ];
+  
+  // Generate multiple news story transition options for AI to choose from
+  // Returns empty string ~40% of the time to avoid overuse
+  function getNewsStoryTransitions() {
+    const transitions = [];
+    for (let i = 0; i < 3; i++) {
+      if (Math.random() < 0.6) { // 60% chance to include a transition
+        const randomTransition = newsStoryTransitions[Math.floor(Math.random() * newsStoryTransitions.length)];
+        if (!transitions.includes(randomTransition)) {
+          transitions.push(randomTransition);
+        }
+      }
+    }
+    return transitions;
+  }
+  
   return {
     toWeather: toWeatherOptions[Math.floor(Math.random() * toWeatherOptions.length)],
     toCalendar: toCalendarOptions[Math.floor(Math.random() * toCalendarOptions.length)],
     toNews: toNewsOptions[Math.floor(Math.random() * toNewsOptions.length)],
     toSports: toSportsOptions[Math.floor(Math.random() * toSportsOptions.length)],
     toStocks: toStocksOptions[Math.floor(Math.random() * toStocksOptions.length)],
-    toQuote: toQuoteOptions[Math.floor(Math.random() * toQuoteOptions.length)]
+    toQuote: toQuoteOptions[Math.floor(Math.random() * toQuoteOptions.length)],
+    newsStory: getNewsStoryTransitions()
   };
 }
 
@@ -1852,6 +1876,23 @@ async function buildScriptPrompt(context: any): Promise<string> {
       others: []  // Will be populated after focus is determined
     },
     quotePreference: context.quotePreference || null,
+    selectedQuote: (() => {
+      if (context.quotePreference && context.includeQuotes) {
+        const today = new Date();
+        const libraryKey = CATEGORY_MAPPING[context.quotePreference];
+        
+        if (libraryKey) {
+          const quote = getDailyQuote(libraryKey, today, context.timezone);
+          if (quote) {
+            console.log(`[Quote Selection] Selected ${context.quotePreference} quote: "${quote.substring(0, 50)}..."`);
+            return quote;
+          }
+        }
+        
+        console.warn(`[Quote Selection] Could not find quote for preference: ${context.quotePreference}`);
+      }
+      return null;
+    })(),
     calendarEvents: context.calendarEvents || []
   };
   
@@ -2043,12 +2084,12 @@ LENGTH & PACING
   - If the draft is shorter than ${lowerBound}, expand by adding one concrete, relevant detail in the highest-priority sections (weather, calendar, top news) until within range. If longer than ${upperBound}, tighten by removing the least important detail. No filler.
 
 CONTENT PRIORITIZATION
-  - News: Use ${storyLimits.news === 1 ? '1 story' : `${storyLimits.news - 1}–${storyLimits.news} stories`}, depending on significance and space. Choose by local relevance using user.location when available; otherwise pick the most significant stories. Keep stories concise and factual - lead with the key development, then essential context only.
+  - News: Use ${storyLimits.news === 1 ? '1 story' : `${storyLimits.news - 1}–${storyLimits.news} stories`}, depending on significance and space. Choose by local relevance using user.location when available; otherwise pick the most significant stories. Keep stories concise and factual - lead with the key development, then essential context only. When including multiple news stories, occasionally use subtle transitions from data.transitions.newsStory (if provided) to delineate between stories - but not for every story to maintain natural flow.
 - Sports: Include ${storyLimits.sports} update(s) max in your script. Prioritize in this order: 1) Championship/playoff games, 2) Local team games (based on user.location), 3) Biggest matchups by team rankings, 4) Rivalry games. Select the highest priority ${storyLimits.sports} stories available. If off-season or no fixtures, skip gracefully.
 - Stocks: ALWAYS mention ALL stocks in stocks.focus (user's selected symbols) regardless of script length. These are the user's personal picks and must all be included. For additional market commentary beyond user picks, limit to ${storyLimits.stocks} total market points.
- - Weather: If present, include high/low temperatures (from highTemperatureF/lowTemperatureF), precipitation chance (from precipitationChance), and current conditions. Spell out all temperatures and percentages in words for TTS.
+ - Weather: If present, include high/low temperatures (from highTemperatureF/lowTemperatureF), precipitation chance (from precipitationChance), and forecast conditions. Use forecast language like "will see", "expecting", "forecast calls for". Include the forecast date context if available. Spell out all temperatures and percentages in words for TTS.
  - Astronomy: If a meteor shower is present, add viewing advice tailored to the user's location (window, direction, light pollution note). Otherwise, omit.
-- Calendar: Call out today's top 1–3 items with time ranges and one helpful nudge. PRIORITIZE personal/social events over routine ones: favor events with people (dinners, meetings with friends), celebrations (parties, anniversaries), or unique activities (concerts, trips, appointments) over standard work meetings, commutes, or routine tasks. For birthdays: ONLY mention family member birthdays (those containing words like mom, dad, mother, father, sister, brother, aunt, uncle, grandma, grandpa, grandmother, grandfather, cousin, son, daughter, child, family) - skip all other birthdays.
+- Calendar: Call out today's top 2–5 items with time ranges and one helpful nudge. PRIORITIZE personal/social events over routine ones: favor events with people (dinners, meetings with friends), celebrations (parties, anniversaries), or unique activities (concerts, trips, appointments) over standard work meetings, commutes, or routine tasks. For birthdays: ONLY mention family member birthdays (those containing words like mom, dad, mother, father, sister, brother, aunt, uncle, grandma, grandpa, grandmother, grandfather, cousin, son, daughter, child, family) - skip all other birthdays.
 
 FACT RULES
 - Use ONLY facts present in the JSON data.
@@ -2061,7 +2102,7 @@ FACT RULES
  - When choosing news, prefer items that mention the user's neighborhood/city/county/adjacent areas; next, state-level; then national; then international. If user.location.neighborhood exists, use it for hyper-local references (e.g., "Mar Vista" instead of just "Los Angeles").
  - Use 1–2 transitions, choosing from data.transitions.
  - Stocks: CRITICAL - Always mention EVERY SINGLE company in stocks.focus by name, one sentence each. These are the user's personally selected stocks and ALL must be included regardless of script length. Include price and direction (up/down, with rounded percent change). If multiple focus companies exist, weave them together (e.g., "Apple is down, while Tesla is climbing"). For cryptocurrencies, use subtle context like "crypto trades around the clock" to make weekend updates feel intentional. Mention broader indices (from stocks.others) ONLY if space allows AND after covering all focus stocks. NEVER say "the rest of the market is mixed" unless no other data is available. Always use company names (Apple, Tesla, Bitcoin, Ethereum, etc.) not tickers. Format prices without cents (e.g., "one hundred fifty dollars" not "one hundred fifty dollars and twenty-five cents") and round percentages to nearest tenth (e.g., "up two point three percent" not "up two point three four percent").
- - Quote: If data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style. For longer scripts, add more context or a brief reflection to enrich the quote section.
+ - Quote: If data.selectedQuote is provided, use that exact quote and add contextual reflection that connects it to the morning ahead. If no selectedQuote but data.quotePreference is provided, generate a quote that authentically reflects that tradition/philosophy (e.g., "Buddhist" = Buddhist teaching, "Stoic" = Stoic wisdom, "Christian" = Christian scripture/teaching, etc.). Keep it genuine to the selected style. For longer scripts, add more context or a brief reflection to enrich the quote section.
 
 CONTENT ORDER (adapt if sections are missing)
 1) Standard opening: 
@@ -2070,12 +2111,12 @@ CONTENT ORDER (adapt if sections are missing)
    followed by a ${context.social_daystart ? 'one-second pause using EXACTLY "[1 second pause]"' : 'three-second pause using EXACTLY "[3 second pause]"'} on its own line.
 1a) Social intro (ONLY if social_daystart is true): After the greeting and pause, add: "Welcome to your daily DayStart AI briefing — your personalized morning update." followed by "[1 second pause]" on its own line.
 1b) Day context (if dayContext.encouragement is provided): Include it naturally after the greeting (and social intro if present), one or two sentences max. Vary tone so it doesn't feel canned.
-2) Weather (only if include.weather): Clear, factual weather update with temperatures and conditions. Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see..."). Keep it professional and practical.
-3) Calendar (if present): call out today's 1–2 most important items with a helpful reminder.
-4) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.
-5) Sports (if include.sports): Brief, focused update. Mention major local teams or significant national stories.
-6) Stocks (if include.stocks): ALWAYS mention ALL companies in stocks.focus first (these are the user's personal picks). Use company names and spell out numbers. After covering all user picks, add broader market context only if space allows.
-7) Quote (if include.quotes): Select a quote that matches the user's quotePreference (if provided in data). The quote should align with that tradition/style (e.g., Buddhist wisdom, Stoic philosophy, Christian scripture, etc.). Follow with a one-line tie-back to today's vibe.
+2) Weather (only if include.weather): Clear, factual weather forecast with temperatures and conditions. Use forecast language ("will see", "expecting", "forecast calls for"). Reference the specific neighborhood if available (e.g., "Mar Vista will see..." instead of "Los Angeles will see..."). Keep it professional and practical.
+3) Calendar (if present): call out today's 2–5 most important items with a helpful reminder.
+4) Quote (if include.quotes): If data.selectedQuote is provided, use that exact quote. Otherwise, select a quote that matches the user's quotePreference. Follow with a one-line tie-back to today's vibe that contextualizes the quote for the morning ahead. This serves as a mindset bridge between personal logistics and world content.
+5) News (if include.news): Select from the provided articles. Lead with the most locally relevant (based on user.location) or highest-impact items.
+6) Sports (if include.sports): Brief, focused update. Mention major local teams or significant national stories.
+7) Stocks (if include.stocks): ALWAYS mention ALL companies in stocks.focus first (these are the user's personal picks). Use company names and spell out numbers. After covering all user picks, add broader market context only if space allows.
 8) Close with the provided signOff from the data — choose the one that fits the day's tone best.
 9) Add a 1-second pause after the signOff using EXACTLY "[1 second pause]" on its own line.
 10) **CRITICAL FOR SOCIAL DAYSTART**: If social_daystart is true, you MUST include this App Store outro before the final message: "To get your own personalized DayStart every morning, search DayStart AI in the App Store." followed by "[1 second pause]" on its own line. This is MANDATORY for social content.

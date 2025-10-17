@@ -4,9 +4,10 @@ struct FeedbackSheetView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedCategory: String = "content_quality"
     @State private var message: String = ""
+    @State private var email: String = ""
     @State private var includeDiagnostics: Bool = true
     let onCancel: () -> Void
-    let onSubmit: (_ category: String, _ message: String?, _ includeDiagnostics: Bool) -> Void
+    let onSubmit: (_ category: String, _ message: String?, _ email: String?, _ includeDiagnostics: Bool) -> Void
     
     var body: some View {
         NavigationView {
@@ -24,6 +25,12 @@ struct FeedbackSheetView: View {
                     TextEditor(text: $message)
                         .frame(minHeight: 120)
                 }
+                Section(header: Text("Contact (optional)")) {
+                    TextField("Email", text: $email)
+                        .keyboardType(.emailAddress)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                }
                 Section {
                     Toggle("Include diagnostics", isOn: $includeDiagnostics)
                 }
@@ -38,7 +45,7 @@ struct FeedbackSheetView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Send") {
-                        onSubmit(selectedCategory, message.isEmpty ? nil : message, includeDiagnostics)
+                        onSubmit(selectedCategory, message.isEmpty ? nil : message, email.isEmpty ? nil : email, includeDiagnostics)
                         dismiss()
                     }
                 }

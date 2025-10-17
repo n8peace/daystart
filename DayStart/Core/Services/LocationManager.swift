@@ -196,6 +196,8 @@ struct WeatherData: Codable {
     let highTemperatureF: Int?
     let lowTemperatureF: Int?
     let precipitationChance: Int? // Percentage (0-100)
+    // Date this forecast is for (YYYY-MM-DD format)
+    let forecastDate: String?
 }
 
 // MARK: - CLAuthorizationStatus Extension

@@ -88,6 +88,8 @@ async function runHealthcheckAsync({ request_id, notify, started_at }: { request
   checks.push(await withTimeout('internal_urls', () => checkInternalUrls(), 6000))
   checks.push(await withTimeout('audio_cleanup_heartbeat', () => checkAudioCleanupHeartbeat(supabase), 3000))
   checks.push(await withTimeout('request_error_rate', () => checkRequestErrorRate(supabase), 3000))
+  checks.push(await withTimeout('external_services', () => checkExternalServices(), 8000))
+  checks.push(await withTimeout('recent_feedback', () => checkRecentFeedback(supabase), 3000))
 
   const overall = aggregateOverall(checks)
   
@@ -194,17 +196,36 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
       .order('completed_at', { ascending: false })
       .limit(10)
     
-    // Calculate average generation time for recent jobs
+    // Calculate average and median generation time for recent jobs
     let avgGenerationMinutes = 0
+    let medianGenerationMinutes = 0
+    const generationTimes: number[] = []
+    
     if (recentCompleted && recentCompleted.length > 0) {
-      const totalMinutes = recentCompleted.reduce((sum, job) => {
+      for (const job of recentCompleted) {
         const created = new Date(job.created_at).getTime()
         const scheduled = new Date(job.scheduled_at).getTime()
         const completed = new Date(job.completed_at).getTime()
-        const processingStart = Math.max(created, scheduled)
-        return sum + ((completed - processingStart) / (1000 * 60))
-      }, 0)
-      avgGenerationMinutes = totalMinutes / recentCompleted.length
+        const processingStart = Math.max(created, scheduled - 2 * 60 * 60 * 1000) // Jobs can start 2h before scheduled
+        const genMinutes = (completed - processingStart) / (1000 * 60)
+        
+        // Filter out outliers (negative times or > 30 minutes)
+        if (genMinutes > 0 && genMinutes < 30) {
+          generationTimes.push(genMinutes)
+        }
+      }
+      
+      if (generationTimes.length > 0) {
+        // Calculate average
+        avgGenerationMinutes = generationTimes.reduce((sum, time) => sum + time, 0) / generationTimes.length
+        
+        // Calculate median
+        const sorted = [...generationTimes].sort((a, b) => a - b)
+        const mid = Math.floor(sorted.length / 2)
+        medianGenerationMinutes = sorted.length % 2 === 0 
+          ? (sorted[mid - 1] + sorted[mid]) / 2 
+          : sorted[mid]
+      }
     }
     
     // Count unique users who got DayStarts
@@ -225,6 +246,7 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
         completed_24h: count,
         unique_users: uniqueUsers,
         avg_generation_minutes: avgGenerationMinutes > 0 ? Number(avgGenerationMinutes.toFixed(1)) : null,
+        median_generation_minutes: medianGenerationMinutes > 0 ? Number(medianGenerationMinutes.toFixed(1)) : null,
         message: count === 0 ? 'No DayStarts completed in last 24 hours!' : `${count} DayStarts delivered to ${uniqueUsers} happy users`
       },
       duration_ms: Date.now() - start
@@ -258,12 +280,15 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
   const nowPlus2hMinus10mIso = new Date(now.getTime() + 2 * 60 * 60 * 1000 - 10 * 60 * 1000).toISOString()
   const nowPlus2hMinus30mIso = new Date(now.getTime() + 2 * 60 * 60 * 1000 - 30 * 60 * 1000).toISOString()
   
-  // Tomorrow morning window (4am - 10am in UTC, adjust as needed)
+  // Tomorrow morning window in Pacific Time (4am - 10am PT)
   const tomorrow = new Date(now)
   tomorrow.setDate(tomorrow.getDate() + 1)
-  tomorrow.setHours(4, 0, 0, 0)
+  // Convert to Pacific Time - using UTC offset (PST = UTC-8, PDT = UTC-7)
+  // For simplicity, we'll use a fixed offset, but ideally would use proper timezone library
+  const pacificOffset = 8 // hours (PST), would be 7 for PDT
+  tomorrow.setUTCHours(4 + pacificOffset, 0, 0, 0) // 4am PT = 12pm UTC (PST)
   const tomorrowMorningStart = tomorrow.toISOString()
-  tomorrow.setHours(10, 0, 0, 0)
+  tomorrow.setUTCHours(10 + pacificOffset, 0, 0, 0) // 10am PT = 6pm UTC (PST)
   const tomorrowMorningEnd = tomorrow.toISOString()
 
   const [queued, processing, ready, failed, allQueued, overdueQueued, tomorrowQueued] = await Promise.all([
@@ -390,6 +415,30 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
     .from('jobs')
     .select('*', { head: true, count: 'exact' })
     .gte('updated_at', new Date(now.getTime() - 60 * 60 * 1000).toISOString())
+    
+  // Get recent failed job details
+  const { data: recentFailures } = await supabase
+    .from('jobs')
+    .select('job_id, user_id, created_at, error_message, attempt_count')
+    .eq('status', 'failed')
+    .gte('created_at', since24h)
+    .order('created_at', { ascending: false })
+    .limit(5)
+    
+  // Group failed jobs by error message
+  const { data: allFailures } = await supabase
+    .from('jobs')
+    .select('error_message')
+    .eq('status', 'failed')
+    .gte('created_at', since24h)
+    
+  const failurePatterns: Record<string, number> = {}
+  if (allFailures) {
+    for (const job of allFailures) {
+      const errorType = job.error_message?.split(':')[0] || 'Unknown error'
+      failurePatterns[errorType] = (failurePatterns[errorType] || 0) + 1
+    }
+  }
 
   // Determine status
   let status: CheckStatus = 'pass'
@@ -413,9 +462,15 @@ async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
     tomorrowMorning: {
       total: tomorrowQueued.count ?? 0,
       timeWindow: `${tomorrowMorningStart} to ${tomorrowMorningEnd}`,
+      timeWindowPT: '4am - 10am PT tomorrow',
     },
     stuckProcessing: (stuckByLease ?? 0) + (staleProcessing ?? 0),
     updatesLastHour: updatesLastHour ?? 0,
+    failures: {
+      recent: recentFailures || [],
+      patterns: failurePatterns,
+      total_24h: counts.failed,
+    },
   }
 
   // Updated fail/warn conditions with overdue job monitoring
@@ -442,41 +497,70 @@ async function checkContentCache(supabase: SupabaseClient): Promise<CheckResult>
   const now = Date.now()
   const details: Record<string, any> = {}
   let status: CheckStatus = 'pass'
+  let missingTypes = 0
+  let missingSources = 0
 
   for (const type of types) {
+    // Get all sources for this content type
     const { data } = await supabase
       .from('content_cache')
-      .select('updated_at, expires_at')
+      .select('api_source, updated_at, expires_at')
       .eq('content_type', type)
       .order('updated_at', { ascending: false })
-      .limit(1)
-    const latest = data && data[0]
-    if (!latest) {
-      details[type] = { status: 'missing' }
-      status = status === 'fail' ? 'fail' : 'warn'
+    
+    if (!data || data.length === 0) {
+      details[type] = { status: 'missing', sources: {} }
+      missingTypes++
+      status = 'fail' // Missing entire type = FAIL
       continue
     }
-    const updatedAgeH = (now - new Date(latest.updated_at).getTime()) / (1000 * 60 * 60)
-    const expired = latest.expires_at && new Date(latest.expires_at).getTime() < now
-    details[type] = { updated_at: latest.updated_at, expires_at: latest.expires_at, updated_age_hours: Number(updatedAgeH.toFixed(2)), expired }
 
-    if (expired || updatedAgeH > 48) {
-      status = 'fail'
-    } else if (updatedAgeH > 24) {
-      status = status === 'fail' ? 'fail' : 'warn'
+    // Group by API source and get latest for each
+    const sourceMap: Record<string, any> = {}
+    const processedSources = new Set<string>()
+    
+    for (const item of data) {
+      if (!processedSources.has(item.api_source)) {
+        processedSources.add(item.api_source)
+        const updatedAgeH = (now - new Date(item.updated_at).getTime()) / (1000 * 60 * 60)
+        const expired = item.expires_at && new Date(item.expires_at).getTime() < now
+        
+        sourceMap[item.api_source] = {
+          updated_at: item.updated_at,
+          expires_at: item.expires_at,
+          updated_age_hours: Number(updatedAgeH.toFixed(2)),
+          expired
+        }
+      }
+    }
+
+    // Check if we have at least one fresh source for this type
+    const freshSources = Object.values(sourceMap).filter(s => !s.expired)
+    const hasFreshContent = freshSources.length > 0
+    
+    details[type] = {
+      status: hasFreshContent ? 'available' : 'all_expired',
+      total_sources: Object.keys(sourceMap).length,
+      fresh_sources: freshSources.length,
+      sources: sourceMap
+    }
+
+    // If all sources for a type are expired, it's concerning but not critical
+    if (!hasFreshContent && status !== 'fail') {
+      missingSources++
+      status = 'warn'
     }
   }
 
-  // Count expired entries
+  // Count total expired entries across all types
   const { count: expiredCount } = await supabase
     .from('content_cache')
     .select('*', { head: true, count: 'exact' })
     .lt('expires_at', new Date().toISOString())
   details.expiredEntries = expiredCount ?? 0
-
-  // Don't fail just for having some expired entries - they get refreshed automatically
-  if (status === 'pass' && (expiredCount ?? 0) > 5) {
-    status = 'warn'  // Only warn if many expired entries
+  details.summary = {
+    missing_types: missingTypes,
+    types_without_fresh_content: missingSources
   }
 
   return { name: 'content_cache_freshness', status, details, duration_ms: Date.now() - start }
@@ -628,6 +712,160 @@ async function checkRequestErrorRate(supabase: SupabaseClient): Promise<CheckRes
   }
 }
 
+async function checkExternalServices(): Promise<CheckResult> {
+  const start = Date.now()
+  const results: Record<string, { status: 'healthy' | 'degraded' | 'down', responseTime?: number, error?: string }> = {}
+  
+  // Check OpenAI
+  try {
+    const openaiStart = Date.now()
+    const openaiKey = Deno.env.get('OPENAI_API_KEY')
+    if (!openaiKey) {
+      results.openai = { status: 'down', error: 'API key not configured' }
+    } else {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+      
+      const response = await fetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+        },
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+      
+      const responseTime = Date.now() - openaiStart
+      if (response.ok) {
+        results.openai = { status: 'healthy', responseTime }
+      } else {
+        results.openai = { status: 'degraded', responseTime, error: `HTTP ${response.status}` }
+      }
+    }
+  } catch (err) {
+    results.openai = { status: 'down', error: (err as Error).message }
+  }
+  
+  // Check ElevenLabs
+  try {
+    const elevenStart = Date.now()
+    const elevenKey = Deno.env.get('ELEVENLABS_API_KEY')
+    if (!elevenKey) {
+      results.elevenlabs = { status: 'down', error: 'API key not configured' }
+    } else {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+      
+      const response = await fetch('https://api.elevenlabs.io/v1/user', {
+        method: 'GET',
+        headers: {
+          'xi-api-key': elevenKey,
+        },
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+      
+      const responseTime = Date.now() - elevenStart
+      if (response.ok) {
+        results.elevenlabs = { status: 'healthy', responseTime }
+      } else {
+        results.elevenlabs = { status: 'degraded', responseTime, error: `HTTP ${response.status}` }
+      }
+    }
+  } catch (err) {
+    results.elevenlabs = { status: 'down', error: (err as Error).message }
+  }
+  
+  // Determine overall status
+  const hasDown = Object.values(results).some(r => r.status === 'down')
+  const hasDegraded = Object.values(results).some(r => r.status === 'degraded')
+  const status: CheckStatus = hasDown ? 'fail' : hasDegraded ? 'warn' : 'pass'
+  
+  return {
+    name: 'external_services',
+    status,
+    details: results,
+    duration_ms: Date.now() - start,
+  }
+}
+
+async function checkRecentFeedback(supabase: SupabaseClient): Promise<CheckResult> {
+  const start = Date.now()
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  
+  try {
+    // Get all feedback from last 24 hours
+    const { data: recentFeedback, error } = await supabase
+      .from('app_feedback')
+      .select('id, user_id, category, message, email, created_at, app_version, device_model')
+      .gte('created_at', since24h)
+      .order('created_at', { ascending: false })
+    
+    if (error) {
+      return { name: 'recent_feedback', status: 'fail', error: error.message, duration_ms: Date.now() - start }
+    }
+    
+    const feedback = recentFeedback || []
+    const total = feedback.length
+    
+    // Count by category
+    const categories: Record<string, number> = {
+      audio_issue: 0,
+      content_quality: 0,
+      scheduling: 0,
+      other: 0
+    }
+    
+    // Recent feedback samples (first 5)
+    const samples = feedback.slice(0, 5).map(f => ({
+      id: f.id,
+      user_id: f.user_id ? `${f.user_id.substring(0, 8)}...` : 'anonymous',
+      category: f.category,
+      message: f.message ? (f.message.length > 100 ? `${f.message.substring(0, 100)}...` : f.message) : null,
+      has_email: !!f.email,
+      created_at: f.created_at,
+      app_version: f.app_version,
+      device_model: f.device_model
+    }))
+    
+    // Count categories
+    for (const f of feedback) {
+      if (f.category in categories) {
+        categories[f.category]++
+      }
+    }
+    
+    // Count critical categories (audio issues, content quality)
+    const criticalCount = categories.audio_issue + categories.content_quality
+    
+    // Determine status based on feedback volume and criticality
+    let status: CheckStatus = 'pass'
+    if (total >= 6 || criticalCount >= 3) {
+      status = 'fail'  // High volume or multiple critical issues
+    } else if (total >= 3 || criticalCount >= 1) {
+      status = 'warn'  // Elevated feedback or some critical issues
+    }
+    
+    return {
+      name: 'recent_feedback',
+      status,
+      details: {
+        total_24h: total,
+        categories,
+        critical_count: criticalCount,
+        samples,
+        message: total === 0 ? 'No user feedback in last 24 hours' : 
+                total === 1 ? '1 user feedback received' : 
+                `${total} user feedback items received`,
+        has_contact_info: feedback.filter(f => f.email).length
+      },
+      duration_ms: Date.now() - start
+    }
+  } catch (err) {
+    return { name: 'recent_feedback', status: 'fail', error: (err as Error).message, duration_ms: Date.now() - start }
+  }
+}
+
 async function sendResendEmail(report: HealthReport & { ai_diagnosis?: string }): Promise<void> {
   const apiKey = Deno.env.get('RESEND_API_KEY')
   const toEmail = Deno.env.get('RESEND_TO_EMAIL')
@@ -663,7 +901,12 @@ async function sendResendEmail(report: HealthReport & { ai_diagnosis?: string })
 
 function buildEmailSubject(report: HealthReport & { ai_diagnosis?: string }): string {
   const d = new Date(report.started_at)
-  const friendly = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  const friendly = d.toLocaleDateString('en-US', { 
+    timeZone: 'America/Los_Angeles',
+    weekday: 'long', 
+    month: 'long', 
+    day: 'numeric' 
+  })
   
   // Professional subject lines based on status
   if (report.overall_status === 'pass') {
@@ -676,6 +919,11 @@ function buildEmailSubject(report: HealthReport & { ai_diagnosis?: string }): st
 }
 
 function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): string {
+  // Extract project reference from Supabase URL for dashboard links
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+  const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || ''
+  const dashboardBase = projectRef ? `https://supabase.com/dashboard/project/${projectRef}` : ''
+  
   // Get key metrics for display
   const errorRateCheck = report.checks.find(c => c.name === 'request_error_rate')
   const errorDetails = errorRateCheck?.details as any || {}
@@ -755,9 +1003,11 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
             ${d.overdue?.oldestMinutes ? `<br><span style="color:#dc2626">Oldest overdue: ${d.overdue.oldestMinutes} minutes ago</span>` : ''}
             ${d.overdue?.olderThan10m > 0 ? `<br><span style="color:#dc2626">• ${d.overdue.olderThan10m} overdue >10min</span>` : ''}
             ${d.overdue?.olderThan5m > 0 && d.overdue?.olderThan10m === 0 ? `<br><span style="color:#f59e0b">• ${d.overdue.olderThan5m} overdue >5min</span>` : ''}
-            ${d.tomorrowMorning?.total > 0 ? `<br><span style="color:#3b82f6">📅 ${d.tomorrowMorning.total} scheduled for tomorrow morning</span>` : ''}
+            ${d.tomorrowMorning?.total > 0 ? `<br><span style="color:#3b82f6">📅 ${d.tomorrowMorning.total} scheduled for tomorrow morning (${d.tomorrowMorning.timeWindowPT})</span>` : ''}
             ${d.eligibleQueued > 0 ? `<br>Eligible for processing: ${d.eligibleQueued}` : ''}
             ${d.stuckProcessing > 0 ? `<br><span style="color:#dc2626;font-weight:600">⚠️ ${d.stuckProcessing} stuck processing!</span>` : ''}
+            ${d.failures?.total_24h > 0 ? `<br><span style="color:#dc2626">❌ ${d.failures.total_24h} failed jobs</span>` : ''}
+            ${dashboardBase && (d.overdue?.total > 0 || d.stuckProcessing > 0 || d.failures?.total_24h > 0) ? `<br><a href="${dashboardBase}/editor/jobs?filter=status%3Ain%3A%28queued%2Cprocessing%2Cfailed%29" style="color:#3b82f6;text-decoration:underline;font-size:12px">View in Dashboard →</a>` : ''}
           </div>`
       } else if (c.name === 'daystarts_completed' && c.details) {
         const d = c.details as any
@@ -766,7 +1016,86 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
             <strong style="color:#059669;font-size:16px">${d.completed_24h} DayStarts completed</strong>
             <br><span style="color:#3b82f6">📱 ${d.unique_users} unique users served</span>
             ${d.avg_generation_minutes ? `<br><span style="color:#6b7280">⏱️ Average generation: ${d.avg_generation_minutes} minutes</span>` : ''}
+            ${d.median_generation_minutes ? `<br><span style="color:#6b7280">📊 Median generation: ${d.median_generation_minutes} minutes</span>` : ''}
             ${d.message ? `<br><em style="color:#16a34a">${d.message}</em>` : ''}
+          </div>`
+      } else if (c.name === 'content_cache_freshness' && c.details) {
+        const d = c.details as any
+        let cacheTableHtml = '<table style="width:100%;border-collapse:collapse;margin-top:8px"><tbody>'
+        
+        for (const [type, info] of Object.entries(d)) {
+          if (type === 'expiredEntries' || type === 'summary') continue
+          
+          const typeInfo = info as any
+          cacheTableHtml += `<tr><td style="padding:4px 0;font-weight:600;text-transform:capitalize">${type}:</td><td style="padding:4px 0">`
+          
+          if (typeInfo.status === 'missing') {
+            cacheTableHtml += '<span style="color:#dc2626">❌ Missing</span>'
+          } else if (typeInfo.status === 'all_expired') {
+            cacheTableHtml += `<span style="color:#f59e0b">⚠️ All sources expired (${typeInfo.total_sources} sources)</span>`
+          } else {
+            cacheTableHtml += `<span style="color:#16a34a">✅ ${typeInfo.fresh_sources}/${typeInfo.total_sources} sources fresh</span>`
+            
+            // Show individual sources if any are expired
+            const expiredSources = Object.entries(typeInfo.sources || {}).filter(([_, s]: [string, any]) => s.expired)
+            if (expiredSources.length > 0) {
+              cacheTableHtml += '<br><span style="font-size:11px;color:#6b7280">Expired: ' + 
+                expiredSources.map(([source]) => source).join(', ') + '</span>'
+            }
+          }
+          
+          cacheTableHtml += '</td></tr>'
+        }
+        
+        cacheTableHtml += '</tbody></table>'
+        
+        detailsHtml = `
+          <div style="font-size:13px;line-height:1.5">
+            ${cacheTableHtml}
+            ${d.expiredEntries > 0 ? `<div style="margin-top:8px;font-size:12px;color:#6b7280">Total expired entries: ${d.expiredEntries}</div>` : ''}
+          </div>`
+      } else if (c.name === 'external_services' && c.details) {
+        const d = c.details as any
+        detailsHtml = '<div style="font-size:13px;line-height:1.5">'
+        
+        for (const [service, info] of Object.entries(d)) {
+          const statusEmoji = info.status === 'healthy' ? '✅' : info.status === 'degraded' ? '⚠️' : '❌'
+          const statusColor = info.status === 'healthy' ? '#16a34a' : info.status === 'degraded' ? '#f59e0b' : '#dc2626'
+          detailsHtml += `<div style="margin-bottom:4px">
+            <span style="color:${statusColor}">${statusEmoji}</span> 
+            <strong style="text-transform:capitalize">${service}:</strong> 
+            ${info.status}
+            ${info.responseTime ? ` (${info.responseTime}ms)` : ''}
+            ${info.error ? ` - ${info.error}` : ''}
+          </div>`
+        }
+        
+        detailsHtml += '</div>'
+      } else if (c.name === 'recent_feedback' && c.details) {
+        const d = c.details as any
+        detailsHtml = `
+          <div style="font-size:13px;line-height:1.5">
+            <strong style="color:#059669;font-size:16px">${d.total_24h} feedback items</strong>
+            ${d.total_24h > 0 ? `
+              <br><span style="color:#6b7280">Categories: 
+                ${d.categories.audio_issue > 0 ? `🔊 ${d.categories.audio_issue} audio` : ''}
+                ${d.categories.content_quality > 0 ? `📰 ${d.categories.content_quality} content` : ''}
+                ${d.categories.scheduling > 0 ? `⏰ ${d.categories.scheduling} scheduling` : ''}
+                ${d.categories.other > 0 ? `❓ ${d.categories.other} other` : ''}
+              </span>` : ''}
+            ${d.critical_count > 0 ? `<br><span style="color:#dc2626;font-weight:600">⚠️ ${d.critical_count} critical issues (audio/content)</span>` : ''}
+            ${d.has_contact_info > 0 ? `<br><span style="color:#3b82f6">📧 ${d.has_contact_info} users provided contact info</span>` : ''}
+            ${d.samples?.length > 0 ? `<br><br><strong>Recent feedback:</strong>
+              ${d.samples.map((s: any) => `
+                <div style="margin:8px 0;padding:8px;background:#f9fafb;border-radius:4px;border-left:3px solid #e5e7eb">
+                  <div style="font-size:12px;color:#6b7280;margin-bottom:4px">
+                    ${s.category} • ${s.user_id} • ${new Date(s.created_at).toLocaleDateString()}
+                    ${s.has_email ? ' 📧' : ''}
+                  </div>
+                  ${s.message ? `<div style="font-size:12px;color:#374151">"${escapeHtml(s.message)}"</div>` : ''}
+                </div>
+              `).join('')}` : ''}
+            ${dashboardBase ? `<br><a href="${dashboardBase}/editor/app_feedback" style="color:#3b82f6;text-decoration:underline;font-size:12px">View All Feedback →</a>` : ''}
           </div>`
       } else {
         detailsHtml = `<pre style="margin:0;font-family:ui-monospace,monospace;font-size:11px;color:#666">${escapeHtml(JSON.stringify(c.details ?? c.error ?? {}, null, 2))}</pre>`
@@ -834,7 +1163,7 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
                   <div>
                     <h1 style="margin:0 0 4px 0;font-size:24px;color:#111827;font-weight:600">DayStart System Health Report</h1>
-                    <p style="margin:0;font-size:14px;color:#6b7280">Daily Operations Summary • ${new Date().toLocaleDateString()}</p>
+                    <p style="margin:0;font-size:14px;color:#6b7280">Daily Operations Summary • ${new Date().toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', month: 'numeric', day: 'numeric', year: 'numeric' })}</p>
                   </div>
                   <div style="text-align:right">
                     <span style="background:${statusBadgeColor};color:#ffffff;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;letter-spacing:0.5px">${statusBadge}</span>
@@ -861,6 +1190,8 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
                 </div>
                 
                 ${recentErrorsHtml}
+                
+                ${getRecentFeedbackHtml(report)}
                 
                 ${getJobsSummaryHtml(report)}
                 
@@ -901,6 +1232,7 @@ function getJobsSummaryHtml(report: HealthReport): string {
         </p>
         <p style="margin:8px 0 0 0;font-size:12px;color:#7f1d1d">
           <strong>Action Required:</strong> Check process_jobs function for errors or stuck processing.
+          ${dashboardBase ? `<br><a href="${dashboardBase}/editor/jobs?filter=status%3Deq%3Dqueued" style="color:#3b82f6;text-decoration:underline">View queued jobs →</a> | <a href="${dashboardBase}/logs/edge-logs?q=process_jobs" style="color:#3b82f6;text-decoration:underline">Check logs →</a>` : ''}
         </p>
       </div>
     `)
@@ -914,6 +1246,77 @@ function getJobsSummaryHtml(report: HealthReport): string {
         <p style="margin:0;font-size:13px;line-height:1.5;color:#1e3a8a">
           <strong>${details.tomorrowMorning.total} users</strong> are expecting their morning briefing tomorrow.
         </p>
+      </div>
+    `)
+  }
+  
+  return sections.join('')
+}
+
+function getRecentFeedbackHtml(report: HealthReport): string {
+  // Extract project reference from Supabase URL for dashboard links
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+  const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || ''
+  const dashboardBase = projectRef ? `https://supabase.com/dashboard/project/${projectRef}` : ''
+  
+  const feedbackCheck = report.checks.find(c => c.name === 'recent_feedback')
+  if (!feedbackCheck?.details) return ''
+  
+  const details = feedbackCheck.details as any
+  const hasHighFeedback = details.total_24h >= 3
+  const hasCritical = details.critical_count > 0
+  
+  if (!hasHighFeedback && !hasCritical) return ''
+  
+  let sections = []
+  
+  // High feedback volume or critical issues section
+  if (hasHighFeedback || hasCritical) {
+    const bgColor = hasCritical ? '#fee2e2' : '#fffbeb'
+    const borderColor = hasCritical ? '#dc2626' : '#f59e0b'
+    const textColor = hasCritical ? '#7f1d1d' : '#92400e'
+    const alertEmoji = hasCritical ? '🚨' : '📝'
+    const alertTitle = hasCritical ? 'CRITICAL USER FEEDBACK' : 'ELEVATED USER FEEDBACK'
+    
+    sections.push(`
+      <div style="margin-bottom:32px">
+        <h2 style="margin:0 0 20px 0;color:#374151;font-size:18px;font-weight:600">User Feedback (24h)</h2>
+        <div style="padding:16px;background:${bgColor};border:2px solid ${borderColor};border-radius:8px">
+          <h3 style="margin:0 0 12px 0;font-size:14px;color:${textColor}">${alertEmoji} ${alertTitle}</h3>
+          <p style="margin:0;font-size:13px;line-height:1.5;color:${textColor}">
+            <strong>${details.total_24h} feedback items</strong> received in the last 24 hours
+            ${hasCritical ? `<br><strong>${details.critical_count} critical issues</strong> (audio or content quality problems)` : ''}
+            ${details.has_contact_info > 0 ? `<br><strong>${details.has_contact_info} users</strong> provided contact information for follow-up` : ''}
+          </p>
+          
+          <div style="margin-top:12px;padding:12px;background:#ffffff;border-radius:6px;font-size:12px">
+            <strong>Categories:</strong>
+            ${details.categories.audio_issue > 0 ? `<span style="margin-right:12px">🔊 Audio: ${details.categories.audio_issue}</span>` : ''}
+            ${details.categories.content_quality > 0 ? `<span style="margin-right:12px">📰 Content: ${details.categories.content_quality}</span>` : ''}
+            ${details.categories.scheduling > 0 ? `<span style="margin-right:12px">⏰ Scheduling: ${details.categories.scheduling}</span>` : ''}
+            ${details.categories.other > 0 ? `<span style="margin-right:12px">❓ Other: ${details.categories.other}</span>` : ''}
+          </div>
+          
+          ${details.samples?.length > 0 ? `
+            <div style="margin-top:12px">
+              <strong style="font-size:12px;color:${textColor}">Recent Examples:</strong>
+              ${details.samples.slice(0, 3).map((s: any) => `
+                <div style="margin:8px 0;padding:8px;background:#ffffff;border-radius:4px;border-left:3px solid ${borderColor}">
+                  <div style="font-size:11px;color:#6b7280;margin-bottom:4px">
+                    <strong>${s.category}</strong> • ${s.user_id} • ${new Date(s.created_at).toLocaleDateString()}
+                    ${s.has_email ? ' 📧' : ''}
+                  </div>
+                  ${s.message ? `<div style="font-size:12px;color:#374151">"${escapeHtml(s.message)}"</div>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          
+          <p style="margin:12px 0 0 0;font-size:12px;color:${textColor}">
+            <strong>Action Recommended:</strong> Review feedback patterns for potential service improvements.
+            ${dashboardBase ? `<br><a href="${dashboardBase}/editor/app_feedback?filter=created_at%3Egte%3D${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]}" style="color:#3b82f6;text-decoration:underline">View All Recent Feedback →</a>` : ''}
+          </p>
+        </div>
       </div>
     `)
   }
@@ -973,6 +1376,25 @@ function buildEmailText(report: HealthReport & { ai_diagnosis?: string }): strin
       if (d.counts?.totalQueued > 0) {
         lines.push(`   - Total queued: ${d.counts.totalQueued}`)
       }
+    } else if (c.name === 'recent_feedback' && c.details) {
+      const d = c.details as any
+      if (d.total_24h > 0) {
+        lines.push(`   - ${d.total_24h} feedback items received`)
+        if (d.critical_count > 0) {
+          lines.push(`   - ⚠️  ${d.critical_count} critical issues (audio/content)`)
+        }
+        if (d.has_contact_info > 0) {
+          lines.push(`   - 📧 ${d.has_contact_info} users provided contact info`)
+        }
+        const categories = []
+        if (d.categories.audio_issue > 0) categories.push(`${d.categories.audio_issue} audio`)
+        if (d.categories.content_quality > 0) categories.push(`${d.categories.content_quality} content`)
+        if (d.categories.scheduling > 0) categories.push(`${d.categories.scheduling} scheduling`)
+        if (d.categories.other > 0) categories.push(`${d.categories.other} other`)
+        if (categories.length > 0) {
+          lines.push(`   - Categories: ${categories.join(', ')}`)
+        }
+      }
     }
   })
   
@@ -997,7 +1419,13 @@ async function getAIDiagnosis(checks: CheckResult[]): Promise<string> {
   // Collect failing/warning checks
   const issues = checks.filter(c => c.status !== 'pass' && c.status !== 'skip')
   
+  // Get normal operating metrics for context
+  const daystartsCheck = checks.find(c => c.name === 'daystarts_completed')
+  const daystartsCount = (daystartsCheck?.details as any)?.completed_24h || 0
+  const medianGenTime = (daystartsCheck?.details as any)?.median_generation_minutes || 0
+  
   const systemPrompt = `You are analyzing a DayStart backend healthcheck. DayStart delivers AI-generated morning briefings with audio.
+
 Key context:
 - process_jobs: Core function that generates audio content (CRITICAL)
 - Jobs are scheduled for specific times (usually morning) and should process 2 hours before scheduled_at
@@ -1006,8 +1434,15 @@ Key context:
 - Queue processing: Jobs are processed in order with retry logic
 - Content cache: External APIs cached for 12 hours
 
+Normal operating parameters:
+- Typical daily volume: 20-50 DayStarts per day (current: ${daystartsCount} in last 24h)
+- Normal generation time: 2-5 minutes (current median: ${medianGenTime} minutes)
+- Expected error rate: <1% of total requests
+- Content cache: Should have at least 1 fresh source per type (news, stocks, sports)
+- External services (OpenAI, ElevenLabs): Critical for audio generation
+
 Provide a concise diagnosis (2-3 sentences max) that includes:
-1. Root cause analysis
+1. Root cause analysis 
 2. Impact on users (especially for overdue jobs - users missing their morning briefings)
 3. Recommended action (or "No action needed" if working as designed)`
 

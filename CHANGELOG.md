@@ -8,18 +8,94 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [2025.10.19] - In Development
+
+**Build:** 1 | **Commit:** TBD | **Status:** In Development
 
 ### Added
+- **External Service Health Monitoring** - Healthcheck now monitors critical external dependencies
+  - Real-time health status for OpenAI API (GPT-4 for content generation)
+  - Real-time health status for ElevenLabs API (voice synthesis)
+  - Response time tracking and degradation detection
+  - Early warning system for external service issues affecting audio generation
+- **Interactive Audio Visualization** - Added dynamic yellow audio bars to playing state
+  - Animated 20-bar visualization matching onboarding design
+  - Real-time audio reactivity - static when silent, dynamic when speaking
+  - Smooth transitions between playing and loading states
+  - Performance-optimized with 10Hz update rate
+- **Optional Email in Feedback Forms** - Added optional contact field to feedback submissions
+  - Optional email field in feedback forms for user follow-up
+  - Fully backwards compatible - existing users unaffected
+  - Secure storage with proper privacy handling
+- **Recent Feedback Monitoring in Healthcheck** - Integration of user feedback tracking
+- **News Story Transitions** - Added subtle transitions between news stories for better audio flow
+  - 10 transition options: one-word ("Also,", "Meanwhile,") and short phrases ("In other news,")
+  - Smart randomization - transitions used ~60% of the time to prevent overuse
+  - Contextual options: "Back home,", "Nationally,", "Locally," for story scope
+  - Maintains current story count and pacing while improving natural flow
+- **Expanded Calendar & Quote Sections** - Increased word budgets for richer content
+  - Regular DayStart: Calendar 120→180 words (+50%), Quote 150→200 words (+33%)
+  - Social DayStart: Calendar 60→90 words (+50%), Quote 60→80 words (+33%)
+  - Calendar coverage expanded from 1-3 events to 2-5 events for more comprehensive daily overview
+  - More room for event details, timing context, and meaningful philosophical content
+  - News remains dominant content focus (~40-49% of total allocation)
+- **Improved Content Flow** - Moved motivational quote section for better pacing
+  - Quote now appears after calendar (position 4) instead of before closing (position 7)
+  - Creates "Personal → Mindset → World" progression (Weather/Calendar → Quote → News/Sports/Stocks)
+  - Quote serves as mindset bridge between daily logistics and external content consumption
+  - Better psychological pacing with natural breathing room before information updates
+- **Deterministic Quote System** - Eliminated daily quote repetition with curated library
+  - Date-based deterministic selection ensures different quote each day, same quote all day
+  - Timezone-aware quote changes: quotes rotate at midnight in user's local time
+  - 12 quote categories matching user preferences with comprehensive coverage:
+    - Buddhist (70 quotes), Christian (50 quotes), Stoic (52 quotes)
+    - Philosophical (50 quotes), Mindfulness (49 quotes), Good Feelings (49 quotes)
+    - Inspirational (49 quotes), Success (50 quotes), Zen (48 quotes)
+  - 400+ authentic quotes from verified sources and public domain works
+  - AI contextualizes selected quotes for morning relevance rather than generating new ones
+  - Enhanced reliability with improved error handling and graceful AI fallback
+  - No external API dependencies - quotes embedded in codebase for reliability
+  - 24-hour feedback monitoring with categorization (audio, content, scheduling, other)
+  - Critical issue detection for audio and content quality problems
+  - Status-based alerting (WARN for 3+ items or critical issues, FAIL for 6+ items)
+  - Professional email reporting with feedback samples and dashboard links
+  - Privacy-protected feedback display (truncated user IDs)
+  - Contact information tracking for user follow-up opportunities
 
 ### Changed
-- **Increased Job Processing Capacity** - Quadrupled the maximum jobs processed per edge function run from 50 to 200
-  - Reduces cold starts and improves overall throughput
-  - Better utilizes the 400-second edge function timeout
-  - Enables handling up to 2,400 DayStarts/hour theoretical capacity
-  - Improves ability to handle peak times like 6 AM scheduling rush
+- **Enhanced Healthcheck Accuracy & Usability** - Major improvements to system health monitoring
+  - Tomorrow morning jobs now calculated in Pacific Time (4am-10am PT) instead of UTC
+  - Failed job tracking with error patterns and recent failure details
+  - Improved generation time calculations with median tracking and outlier detection
+  - Content cache display redesigned as clean table showing fresh/expired sources per type
+  - Added Supabase dashboard quick links for debugging critical issues
+  - AI diagnosis now includes normal operating parameters (20-50 DayStarts/day, 2-5 min generation)
+  - Better timezone handling, cleaner email formatting, and actionable insights
 
 ### Fixed
+- **Date-Specific Weather Forecasts** - Fixed issue where all DayStarts showed identical weather data
+  - Weather now shows forecast for the specific DayStart date, not current conditions
+  - Notifications now prefer forecast temperatures over current temperature with graceful fallback
+  - Added forecast date context and improved forecast language ("will see", "expecting")
+  - Weather service now fetches date-specific forecasts instead of just today's weather
+  - SnapshotBuilder and SnapshotUpdateManager now generate weather per target date
+  - Added robust fallback logic: forecast first, current weather for today if forecast fails
+  - Current temperature maintained for today's DayStart, forecast-only for future dates
+  - Added `forecastDate` field to WeatherData structure for better context
+- **Content Cache Warning Logic** - Fixed false warnings for appropriately expired cache entries
+  - Now only warns if entire content type is missing (FAIL) or all sources expired (WARN)
+  - Properly handles multiple API sources per content type
+  - No longer warns about individual expired entries that get auto-refreshed
+- **Intro Music Playback** - Fixed intro music playing on every play/resume action
+  - Intro music now only plays once at the beginning of each DayStart
+  - Pausing and resuming no longer triggers intro music replay
+  - State tracking ensures intro plays once per track session
+- **Onboarding Page 2 Layout on Smaller Screens** - Fixed content overflow on iPad 11" and smaller devices
+  - Added responsive design patterns consistent with other onboarding pages
+  - Implemented ScrollView fallback for compact screen heights (< 700pt)
+  - Applied minimum length spacers instead of fixed spacing
+  - Reduced spacing values for compact devices to prevent content cutoff
+  - Ensures consistent user experience across all device sizes during onboarding
 
 ### Removed
 
@@ -27,7 +103,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.16] - 2025-10-16
 
-**Build:** 2 | **Commit:** 3e1153b | **Status:** **LIVE** on App Store as of 2025-10-16
+**Build:** 2 | **Commit:** 69f4704 | **Status:** **LIVE** on App Store as of 2025-10-16
 
 ### Fixed
 - **Countdown Timer After Rescheduling** - Fixed issue where countdown would incorrectly show today's time after rescheduling when audio had already been generated
@@ -46,6 +122,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Shows total completions, unique users served, and average generation time
   - Removed false warnings for expected internal URL check failures
   - Better visibility into actual user value delivery vs technical metrics
+
+### Changed
+- **Increased Job Processing Capacity** - Quadrupled the maximum jobs processed per edge function run from 50 to 200
+  - Reduces cold starts and improves overall throughput
+  - Better utilizes the 400-second edge function timeout
+  - Enables handling up to 2,400 DayStarts/hour theoretical capacity
+  - Improves ability to handle peak times like 6 AM scheduling rush
 
 ---
 

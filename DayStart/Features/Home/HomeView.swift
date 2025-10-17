@@ -288,7 +288,7 @@ struct HomeView: View {
                     onCancel: {
                         viewModel.showFeedbackSheet = false
                     },
-                    onSubmit: { category, message, includeDiagnostics in
+                    onSubmit: { category, message, email, includeDiagnostics in
                         Task {
                             let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
                             let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
@@ -303,7 +303,8 @@ struct HomeView: View {
                                 app_version: appVersion,
                                 build: build,
                                 device_model: deviceModel,
-                                os_version: osVersion
+                                os_version: osVersion,
+                                email: email
                             )
                             do {
                                 let ok = try await SupabaseClient.shared.submitAppFeedback(payload)
@@ -882,30 +883,15 @@ struct HomeView: View {
     
     private var playingView: some View {
         VStack(spacing: 30) {
-            VStack(spacing: 12) {
-                // Show music note when loading, waveform when playing
-                /*
-                if AudioPlayerManager.shared.isPlaying {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 48))
-                        .foregroundColor(BananaTheme.ColorToken.text)
-                } else {
-                    Text("🎵")
-                        .font(.system(size: 80))
-                        .scaleEffect(1.2)
-                        .animation(
-                            Animation.easeInOut(duration: 1.5)
-                                .repeatForever(autoreverses: true),
-                            value: viewModel.state
-                        )
-                }
+            VStack(spacing: 20) {
+                // Audio visualization - yellow bars from onboarding
+                AudioVisualizationView()
                 
                 // Show different text based on playing state
                 Text(AudioPlayerManager.shared.isPlaying ? "Playing your DayStart" : "Getting ready...")
                     .adaptiveFont(BananaTheme.Typography.title2)
                     .foregroundColor(BananaTheme.ColorToken.text)
                     .multilineTextAlignment(.center)
-                */
                 
                 // Show loading messages when not playing
                 if !AudioPlayerManager.shared.isPlaying {

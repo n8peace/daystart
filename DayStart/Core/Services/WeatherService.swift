@@ -44,4 +44,16 @@ class WeatherService {
             return nil
         }
     }
+    
+    func getForecast(for location: CLLocation, date: Date) async throws -> DayWeather? {
+        let weather = try await service.weather(for: location)
+        
+        // Find the forecast for the specific date
+        let calendar = Calendar.current
+        let targetDate = calendar.startOfDay(for: date)
+        
+        return weather.dailyForecast.forecast.first { dayWeather in
+            calendar.isDate(dayWeather.date, inSameDayAs: targetDate)
+        }
+    }
 }

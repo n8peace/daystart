@@ -8,7 +8,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini, and ElevenLabs text-to
 
 ## 🚀 App Store Status
 
-**Current Status**: Live on App Store (v2025.10.16 Build 2)
+**Current Status**: Live on App Store (v2025.10.16 Build 2) | In Development: v2025.10.19 Build 1
 - ✅ Backend deployed and tested in production with receipt-based authentication
 - ✅ App Store Connect configured with subscription products ($4.99/month, $39.99/year)
 - ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete

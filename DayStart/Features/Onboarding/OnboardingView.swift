@@ -536,81 +536,167 @@ struct OnboardingView: View {
     // MARK: - Page 2: Your Chief of Staff (20%)
     private var valueDemoPage: some View {
         GeometryReader { geometry in
+            let isCompactHeight = geometry.size.height < 700
+            let topSpacing = isCompactHeight ? geometry.size.height * 0.02 : geometry.size.height * 0.08
+            let sectionSpacing = isCompactHeight ? geometry.size.height * 0.02 : geometry.size.height * 0.05
+            let textSpacing = isCompactHeight ? geometry.size.height * 0.01 : geometry.size.height * 0.02
+            
             VStack(spacing: 0) {
-                Spacer(minLength: geometry.size.height * 0.08)
-                
-                VStack(spacing: geometry.size.height * 0.05) {
-                    // Text content (moved to top)
-                    VStack(spacing: geometry.size.height * 0.02) {
-                        Text("Your Chief of Staff")
-                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
-                            .foregroundColor(BananaTheme.ColorToken.text)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.5)
-                            .padding(.horizontal, geometry.size.width * 0.05)
-                            .opacity(textOpacity)
-                        
-                        Text("Each day, your personalized brief is prepared overnight — markets, news, weather, and your day, distilled and narrated.")
-                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.5)
-                            .padding(.horizontal, geometry.size.width * 0.10)
-                            .opacity(textOpacity)
-                        
-                    }
-                    
-                    // Briefing preview card (moved below text)
-                    briefingPreviewCard(geometry: geometry)
-                }
-                
-                Spacer()
-                
-                // Bottom content
-                VStack(spacing: 16) {
-                    // Personalized Info. Zero Scrolling.
-                    Text("Personalized Info. Zero Scrolling.")
-                        .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
-                        .foregroundColor(BananaTheme.ColorToken.text)
-                        .opacity(textOpacity)
-                    
-                    // CTA
-                    Button(action: {
-                        logger.logUserAction("Build Your Brief CTA tapped")
-                        impactFeedback()
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                            currentPage = 2 
+                if isCompactHeight {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVStack(spacing: 0) {
+                            Spacer(minLength: topSpacing)
+                            
+                            VStack(spacing: sectionSpacing) {
+                                // Text content (moved to top)
+                                VStack(spacing: textSpacing) {
+                                    Text("Your Chief of Staff")
+                                        .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                                        .foregroundColor(BananaTheme.ColorToken.text)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                        .minimumScaleFactor(0.5)
+                                        .padding(.horizontal, geometry.size.width * 0.05)
+                                        .opacity(textOpacity)
+                                    
+                                    Text("Each day, your personalized brief is prepared overnight — markets, news, weather, and your day, distilled and narrated.")
+                                        .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                        .minimumScaleFactor(0.5)
+                                        .padding(.horizontal, geometry.size.width * 0.10)
+                                        .opacity(textOpacity)
+                                }
+                                
+                                // Briefing preview card (moved below text)
+                                briefingPreviewCard(geometry: geometry)
+                                
+                                // Bottom content
+                                VStack(spacing: 12) {
+                                    // Personalized Info. Zero Scrolling.
+                                    Text("Personalized Info. Zero Scrolling.")
+                                        .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
+                                        .foregroundColor(BananaTheme.ColorToken.text)
+                                        .opacity(textOpacity)
+                                    
+                                    // CTA
+                                    Button(action: {
+                                        logger.logUserAction("Build Your Brief CTA tapped")
+                                        impactFeedback()
+                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                            currentPage = 2 
+                                        }
+                                    }) {
+                                        Text("Let's Build Your Brief")
+                                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: max(56, geometry.size.height * 0.07))
+                                            .background(
+                                                LinearGradient(
+                                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                                    startPoint: .leading,
+                                                    endPoint: .trailing
+                                                )
+                                            )
+                                            .cornerRadius(16)
+                                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                                    }
+                                    .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                                    .padding(.horizontal, geometry.size.width * 0.10)
+                                    
+                                    // Credibility line
+                                    Text("Trusted by ambitious professionals worldwide.")
+                                        .font(.system(size: min(13, geometry.size.width * 0.032), weight: .regular))
+                                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, geometry.size.width * 0.10)
+                                        .opacity(textOpacity)
+                                }
+                            }
+                            
+                            Spacer(minLength: isCompactHeight ? 16 : geometry.size.height * 0.04)
                         }
-                    }) {
-                        Text("Let's Build Your Brief")
-                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: max(56, geometry.size.height * 0.07))
-                            .background(
-                                LinearGradient(
-                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(16)
-                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                        .padding(.bottom, max(isCompactHeight ? 16 : 24, geometry.safeAreaInsets.bottom))
                     }
-                    .scaleEffect(animationTrigger ? 1.05 : 1.0)
-                    .padding(.horizontal, geometry.size.width * 0.10)
-                    
-                    // Credibility line
-                    Text("Trusted by ambitious professionals worldwide.")
-                        .font(.system(size: min(13, geometry.size.width * 0.032), weight: .regular))
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, geometry.size.width * 0.10)
-                        .opacity(textOpacity)
+                } else {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: topSpacing)
+                        
+                        VStack(spacing: sectionSpacing) {
+                            // Text content (moved to top)
+                            VStack(spacing: textSpacing) {
+                                Text("Your Chief of Staff")
+                                    .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                                    .foregroundColor(BananaTheme.ColorToken.text)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.5)
+                                    .padding(.horizontal, geometry.size.width * 0.05)
+                                    .opacity(textOpacity)
+                                
+                                Text("Each day, your personalized brief is prepared overnight — markets, news, weather, and your day, distilled and narrated.")
+                                    .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.5)
+                                    .padding(.horizontal, geometry.size.width * 0.10)
+                                    .opacity(textOpacity)
+                            }
+                            
+                            // Briefing preview card (moved below text)
+                            briefingPreviewCard(geometry: geometry)
+                        }
+                        
+                        Spacer(minLength: geometry.size.height * 0.04)
+                        
+                        // Bottom content
+                        VStack(spacing: 16) {
+                            // Personalized Info. Zero Scrolling.
+                            Text("Personalized Info. Zero Scrolling.")
+                                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                .opacity(textOpacity)
+                            
+                            // CTA
+                            Button(action: {
+                                logger.logUserAction("Build Your Brief CTA tapped")
+                                impactFeedback()
+                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                    currentPage = 2 
+                                }
+                            }) {
+                                Text("Let's Build Your Brief")
+                                    .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: max(56, geometry.size.height * 0.07))
+                                    .background(
+                                        LinearGradient(
+                                            colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .cornerRadius(16)
+                                    .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                            }
+                            .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                            .padding(.horizontal, geometry.size.width * 0.10)
+                            
+                            // Credibility line
+                            Text("Trusted by ambitious professionals worldwide.")
+                                .font(.system(size: min(13, geometry.size.width * 0.032), weight: .regular))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, geometry.size.width * 0.10)
+                                .opacity(textOpacity)
+                        }
+                        .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
+                    }
                 }
-                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
             }
         }
     }

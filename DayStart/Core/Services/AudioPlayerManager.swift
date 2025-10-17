@@ -15,6 +15,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     @Published var playbackRate: Float = 1.0
     @Published var currentTrackId: UUID?
     @Published var didFinishPlaying = false
+    @Published var audioLevels: [Float] = Array(repeating: 0.0, count: 20)
     
     private var audioPlayer: AVPlayer?
     private var playerItem: AVPlayerItem?
@@ -22,6 +23,12 @@ class AudioPlayerManager: NSObject, ObservableObject {
     private var previewPlayer: AVAudioPlayer?
     private var previewStopWorkItem: DispatchWorkItem?
     private var nowPlayingInfo: [String: Any] = [:]
+    
+    // Audio level monitoring
+    private var audioEngine: AVAudioEngine?
+    private var audioPlayerNode: AVAudioPlayerNode?
+    private var audioFile: AVAudioFile?
+    private var levelTimer: Timer?
     
     // Intro music dual player system
     private var introPlayer: AVPlayer?
@@ -41,6 +48,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
     // Player coordination state
     private var wasPlayingBeforePreview = false
     private var playbackPositionBeforePreview: TimeInterval = 0
+    private var hasPlayedIntroForCurrentTrack = false
     
     // Notification names for player coordination
     static let willStartPlayingNotification = Notification.Name("AudioPlayerManager.willStartPlaying")
@@ -114,6 +122,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
         currentTime = 0
         didFinishPlaying = false
         currentTrackId = trackId
+        hasPlayedIntroForCurrentTrack = false
         
         // Set up KVO observers
         setupObservers(completion: completion)
@@ -172,6 +181,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
         timeControlStatusObserver = nil
         durationObserver = nil
         
+        // Stop audio level monitoring
+        stopAudioLevelMonitoring()
+        
         // Remove observers for intro player
         introStatusObserver?.invalidate()
         introTimeControlStatusObserver?.invalidate()
@@ -191,8 +203,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
         // Stop and release intro player
         cleanupIntroPlayer()
         
-        // Reset track ID since we're clearing the player
+        // Reset track ID and intro state since we're clearing the player
         currentTrackId = nil
+        hasPlayedIntroForCurrentTrack = false
     }
     
     @objc private func playerDidFinishPlaying() {
@@ -226,6 +239,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
             playerItem = preloadedItem
             audioPlayer = AVPlayer(playerItem: preloadedItem)
             currentTrackId = trackId
+            hasPlayedIntroForCurrentTrack = false
             
             // Set duration if available
             if preloadedItem.duration.isValid && !preloadedItem.duration.isIndefinite {
@@ -302,14 +316,18 @@ class AudioPlayerManager: NSObject, ObservableObject {
         // Notify other players that main player is starting
         NotificationCenter.default.post(name: Self.willStartPlayingNotification, object: self)
         
-        // Start intro music first (if available)
-        startIntroMusicIfAvailable()
+        // Start intro music first (if available and not already played for this track)
+        if !hasPlayedIntroForCurrentTrack {
+            startIntroMusicIfAvailable()
+            hasPlayedIntroForCurrentTrack = true
+        }
         
         logger.logAudioEvent("Playing audio", details: ["rate": playbackRate])
         player.rate = playbackRate
         player.play()
         didFinishPlaying = false
         startTimeObserver()
+        startAudioLevelMonitoring()
 
 		// Reflect play state on lock screen
 		updateNowPlayingPlaybackState()
@@ -320,6 +338,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
         logger.logAudioEvent("Pausing audio")
         audioPlayer?.pause()
         stopTimeObserver()
+        stopAudioLevelMonitoring()
         
         // Also pause intro music
         pauseIntroMusic()
@@ -740,6 +759,55 @@ class AudioPlayerManager: NSObject, ObservableObject {
         nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
         nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+    
+    // MARK: - Audio Level Monitoring
+    
+    private func startAudioLevelMonitoring() {
+        // For now, use a simple timer-based approach to simulate audio levels
+        // In a real implementation, you would use AVAudioEngine with audio taps
+        stopAudioLevelMonitoring() // Clean up any existing timer
+        
+        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.updateAudioLevels()
+        }
+    }
+    
+    private func stopAudioLevelMonitoring() {
+        levelTimer?.invalidate()
+        levelTimer = nil
+        
+        // Reset levels to zero when stopped
+        DispatchQueue.main.async { [weak self] in
+            self?.audioLevels = Array(repeating: 0.0, count: 20)
+        }
+    }
+    
+    private func updateAudioLevels() {
+        guard isPlaying else { return }
+        
+        // Generate simulated audio levels with some randomness and wave patterns
+        // This creates a more realistic-looking visualization
+        let time = Date().timeIntervalSince1970
+        var newLevels: [Float] = []
+        
+        for i in 0..<20 {
+            // Create wave patterns with different frequencies for each bar
+            let frequency1 = sin(time * 2.0 + Double(i) * 0.3) * 0.3
+            let frequency2 = sin(time * 3.5 + Double(i) * 0.2) * 0.2
+            let frequency3 = sin(time * 1.5 + Double(i) * 0.4) * 0.1
+            
+            // Add some randomness
+            let randomness = Float.random(in: -0.1...0.1)
+            
+            // Combine frequencies and ensure positive values
+            let level = max(0.0, Float(frequency1 + frequency2 + frequency3) + 0.4 + randomness)
+            newLevels.append(min(1.0, level))
+        }
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.audioLevels = newLevels
+        }
     }
 }
 

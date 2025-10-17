@@ -52,37 +52,88 @@ class SnapshotBuilder {
         }
         
         // Weather (requires iOS 16 + location)
-        if #available(iOS 16.0, *), let _ = locData {
-            if let weather = await LocationManager.shared.getCurrentWeather() {
-                let tempF = Int(weather.currentWeather.temperature.converted(to: .fahrenheit).value)
-                let conditionDesc = weather.currentWeather.condition.description
-                let symbolName = weather.currentWeather.symbolName
-                
-                // Get today's forecast data
-                var highTempF: Int? = nil
-                var lowTempF: Int? = nil
-                var precipChance: Int? = nil
-                
-                // Find today's daily forecast
-                let calendar = Calendar.current
-                let today = calendar.startOfDay(for: date)
-                if let todayForecast = weather.dailyForecast.forecast.first(where: { dayWeather in
-                    calendar.isDate(dayWeather.date, inSameDayAs: today)
-                }) {
-                    highTempF = Int(todayForecast.highTemperature.converted(to: .fahrenheit).value)
-                    lowTempF = Int(todayForecast.lowTemperature.converted(to: .fahrenheit).value)
-                    precipChance = Int((todayForecast.precipitationChance * 100).rounded())
+        if #available(iOS 16.0, *), let loc = await LocationManager.shared.getCurrentLocation() {
+            do {
+                // Try to get forecast for the specific date first
+                if let dayForecast = try await WeatherService.shared.getForecast(for: loc, date: date) {
+                    let highTempF = Int(dayForecast.highTemperature.converted(to: .fahrenheit).value)
+                    let lowTempF = Int(dayForecast.lowTemperature.converted(to: .fahrenheit).value)
+                    let conditionDesc = dayForecast.condition.description
+                    let symbolName = dayForecast.symbolName
+                    let precipChance = Int((dayForecast.precipitationChance * 100).rounded())
+                    
+                    // Format the forecast date as YYYY-MM-DD
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd"
+                    dateFormatter.timeZone = TimeZone.current
+                    let forecastDateString = dateFormatter.string(from: date)
+                    
+                    // Include current temp for today, nil for future dates
+                    let calendar = Calendar.current
+                    var currentTempF: Int? = nil
+                    if calendar.isDateInToday(date) {
+                        if let weather = await LocationManager.shared.getCurrentWeather() {
+                            currentTempF = Int(weather.currentWeather.temperature.converted(to: .fahrenheit).value)
+                        }
+                    }
+                    
+                    weatherData = WeatherData(
+                        temperatureF: currentTempF,
+                        condition: conditionDesc,
+                        symbol: symbolName,
+                        updated_at: ISO8601DateFormatter().string(from: Date()),
+                        highTemperatureF: highTempF,
+                        lowTemperatureF: lowTempF,
+                        precipitationChance: precipChance,
+                        forecastDate: forecastDateString
+                    )
+                    
+                    logger.log("Weather forecast for \(forecastDateString): High \(highTempF)°, Low \(lowTempF)°, \(conditionDesc)", level: .info)
                 }
+            } catch {
+                logger.logError(error, context: "Failed to get weather forecast for date \(date)")
                 
-                weatherData = WeatherData(
-                    temperatureF: tempF,
-                    condition: conditionDesc,
-                    symbol: symbolName,
-                    updated_at: ISO8601DateFormatter().string(from: Date()),
-                    highTemperatureF: highTempF,
-                    lowTemperatureF: lowTempF,
-                    precipitationChance: precipChance
-                )
+                // Fallback: If it's today and forecast failed, try current weather
+                let calendar = Calendar.current
+                if calendar.isDateInToday(date) {
+                    if let weather = await LocationManager.shared.getCurrentWeather() {
+                        let tempF = Int(weather.currentWeather.temperature.converted(to: .fahrenheit).value)
+                        let conditionDesc = weather.currentWeather.condition.description
+                        let symbolName = weather.currentWeather.symbolName
+                        
+                        // Try to get today's forecast data as backup
+                        var highTempF: Int? = nil
+                        var lowTempF: Int? = nil
+                        var precipChance: Int? = nil
+                        
+                        if let todayForecast = weather.dailyForecast.forecast.first(where: { dayWeather in
+                            calendar.isDate(dayWeather.date, inSameDayAs: date)
+                        }) {
+                            highTempF = Int(todayForecast.highTemperature.converted(to: .fahrenheit).value)
+                            lowTempF = Int(todayForecast.lowTemperature.converted(to: .fahrenheit).value)
+                            precipChance = Int((todayForecast.precipitationChance * 100).rounded())
+                        }
+                        
+                        let dateFormatter = DateFormatter()
+                        dateFormatter.dateFormat = "yyyy-MM-dd"
+                        dateFormatter.timeZone = TimeZone.current
+                        let forecastDateString = dateFormatter.string(from: date)
+                        
+                        weatherData = WeatherData(
+                            temperatureF: tempF,
+                            condition: conditionDesc,
+                            symbol: symbolName,
+                            updated_at: ISO8601DateFormatter().string(from: Date()),
+                            highTemperatureF: highTempF,
+                            lowTemperatureF: lowTempF,
+                            precipitationChance: precipChance,
+                            forecastDate: forecastDateString
+                        )
+                        
+                        logger.log("Weather fallback for today: Current \(tempF)°, High \(highTempF ?? 0)°, \(conditionDesc)", level: .info)
+                    }
+                }
+                // For future dates, if forecast fails, we just continue with no weather data
             }
         }
         

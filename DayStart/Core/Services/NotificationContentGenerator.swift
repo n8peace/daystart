@@ -161,11 +161,15 @@ class NotificationContentGenerator {
         // Priority rules
         
         // 1. Extreme weather always gets priority
-        if let weather = weather, let temp = weather.temperatureF {
-            if temp < 32 || temp > 90 || 
-               weather.condition?.lowercased().contains("storm") ?? false ||
-               weather.condition?.lowercased().contains("snow") ?? false {
-                return .weather
+        if let weather = weather {
+            // Prefer forecast high temp, fallback to current temp
+            let temp = weather.highTemperatureF ?? weather.temperatureF
+            if let temp = temp {
+                if temp < 32 || temp > 90 || 
+                   weather.condition?.lowercased().contains("storm") ?? false ||
+                   weather.condition?.lowercased().contains("snow") ?? false {
+                    return .weather
+                }
             }
         }
         
@@ -249,23 +253,38 @@ class NotificationContentGenerator {
     
     private func generateWeatherNotification(weather: WeatherData?) -> (String, String) {
         guard let weather = weather, 
-              let temp = weather.temperatureF,
               let condition = weather.condition?.lowercased() else {
             return ("🌅 Time for Your DayStart!", "Your personalized morning briefing is ready.")
         }
         
-        if temp < 32 {
-            return ("🌅 Brrr! It's \(temp)°F", "Bundle up! Your DayStart includes cold weather tips.")
-        } else if temp > 90 {
-            return ("🌅 Hot day ahead! \(temp)°F", "Stay cool - your briefing is ready.")
-        } else if condition.contains("rain") {
-            return ("🌅 It's \(temp)°F and rainy", "Your DayStart has umbrella weather updates.")
-        } else if condition.contains("snow") {
-            return ("❄️ Snow day! \(temp)°F", "Your briefing includes weather safety tips.")
-        } else if condition.contains("sunny") || condition.contains("clear") {
-            return ("🌅 Beautiful \(temp)°F morning", "Perfect day ahead - get briefed!")
+        // Prefer forecast high temp, fallback to current temp
+        let temp = weather.highTemperatureF ?? weather.temperatureF
+        
+        if let temp = temp {
+            if temp < 32 {
+                return ("🌅 Brrr! High of \(temp)°F", "Bundle up! Your DayStart includes cold weather tips.")
+            } else if temp > 90 {
+                return ("🌅 Hot day ahead! High of \(temp)°F", "Stay cool - your briefing is ready.")
+            } else if condition.contains("rain") {
+                return ("🌅 High of \(temp)°F and rainy", "Your DayStart has umbrella weather updates.")
+            } else if condition.contains("snow") {
+                return ("❄️ Snow day! High of \(temp)°F", "Your briefing includes weather safety tips.")
+            } else if condition.contains("sunny") || condition.contains("clear") {
+                return ("🌅 Beautiful \(temp)°F high", "Perfect day ahead - get briefed!")
+            } else {
+                return ("🌅 High of \(temp)°F and \(weather.condition ?? "")", "Your morning briefing is ready.")
+            }
         } else {
-            return ("🌅 It's \(temp)°F and \(weather.condition ?? "")", "Your morning briefing is ready.")
+            // No temperature available, use condition only
+            if condition.contains("rain") {
+                return ("🌧️ Rainy day vibes", "Your DayStart has umbrella weather updates.")
+            } else if condition.contains("snow") {
+                return ("❄️ Snow day energy!", "Your briefing includes weather safety tips.")
+            } else if condition.contains("sunny") || condition.contains("clear") {
+                return ("☀️ Beautiful day ahead!", "Perfect weather - get briefed!")
+            } else {
+                return ("🌅 \(weather.condition ?? "Weather") update", "Your morning briefing is ready.")
+            }
         }
     }
     
@@ -352,10 +371,18 @@ class NotificationContentGenerator {
         formatter.dateFormat = "EEEE"
         let dayName = formatter.string(from: date)
         
-        if let weather = weather, let temp = weather.temperatureF {
+        if let weather = weather {
+            // Prefer forecast high temp, fallback to current temp
+            let temp = weather.highTemperatureF ?? weather.temperatureF
             let condition = weather.condition?.lowercased() ?? "expected"
-            return ("🌙 \(dayName): \(temp)°F and \(condition)", 
-                    "Your morning briefing is scheduled.")
+            
+            if let temp = temp {
+                return ("🌙 \(dayName): High of \(temp)°F and \(condition)", 
+                        "Your morning briefing is scheduled.")
+            } else {
+                return ("🌙 \(dayName): \(condition) weather expected", 
+                        "Your morning briefing is scheduled.")
+            }
         }
         return ("🌙 Your \(dayName) DayStart is set", "Tomorrow's briefing awaits at dawn.")
     }

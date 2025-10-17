@@ -10,6 +10,7 @@ interface SubmitFeedbackRequest {
   build?: string;
   device_model?: string;
   os_version?: string;
+  email?: string;
 }
 
 interface SubmitFeedbackResponse {
@@ -92,7 +93,8 @@ serve(async (req: Request): Promise<Response> => {
         app_version: body.app_version || null,
         build: body.build || null,
         device_model: body.device_model || null,
-        os_version: body.os_version || null
+        os_version: body.os_version || null,
+        email: body.email || null
       });
 
     if (error) {

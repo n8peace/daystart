@@ -932,6 +932,7 @@ extension SupabaseClient {
         let build: String?
         let device_model: String?
         let os_version: String?
+        let email: String?
     }
     
     func submitAppFeedback(_ payload: AppFeedbackPayload) async throws -> Bool {

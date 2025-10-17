@@ -58,14 +58,14 @@ class SnapshotUpdateManager: NSObject {
             
             logger.log("📋 Found \(jobs.count) jobs to update in next 48 hours", level: .info)
             
-            // Get current location/weather once (shared across all updates)
-            let currentSnapshot = await SnapshotBuilder.shared.buildSnapshot()
+            // Get current location once (shared across all updates)
+            let currentLocation = await LocationManager.shared.getCurrentLocation()
             
-            // Group jobs by local date to minimize redundant calendar fetches
+            // Group jobs by local date to minimize redundant fetches
             let jobsByDate = Dictionary(grouping: jobs, by: { $0.localDate })
             logger.log("📅 Grouped into \(jobsByDate.count) unique dates", level: .info)
             
-            // Update each group with date-appropriate calendar events
+            // Update each group with date-appropriate weather and calendar events
             var allUpdatesSuccessful = true
             for (localDateString, jobsForDate) in jobsByDate {
                 // Parse the local date string (YYYY-MM-DD) to Date
@@ -78,16 +78,14 @@ class SnapshotUpdateManager: NSObject {
                     continue
                 }
                 
-                // Build snapshot for this specific date (will fetch correct calendar events)
+                // Build snapshot for this specific date (will fetch correct weather forecast and calendar events)
                 let dateSnapshot = await SnapshotBuilder.shared.buildSnapshot(for: date)
                 
-                // Update jobs for this date with:
-                // - Current location/weather from currentSnapshot
-                // - Date-specific calendar events from dateSnapshot
+                // Update jobs for this date with date-specific data
                 let success = try await SupabaseClient.shared.updateJobSnapshots(
                     jobIds: jobsForDate.map { $0.jobId },
-                    locationData: currentSnapshot.location,
-                    weatherData: currentSnapshot.weather,
+                    locationData: dateSnapshot.location,
+                    weatherData: dateSnapshot.weather,
                     calendarEvents: dateSnapshot.calendar
                 )
                 
