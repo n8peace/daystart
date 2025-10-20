@@ -46,6 +46,30 @@ interface CreateJobResponse {
   is_welcome?: boolean;
 }
 
+function sanitizeName(name: string | undefined): string | undefined {
+  if (!name || name.trim() === '') return undefined;
+  
+  // Remove all non-pronounceable unicode, emojis, and special symbols
+  // Keep: Basic Latin, common Latin extended, spaces, hyphens, apostrophes
+  const sanitized = name
+    // Remove emoji and special Unicode blocks while preserving common accented characters
+    .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1F02F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1F100}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F900}-\u{1F9FF}]/gu, '')
+    // Remove other special Unicode ranges (various symbols, shapes, etc)
+    .replace(/[\u{10000}-\u{10FFFF}]/gu, '')
+    // Remove special characters but keep basic punctuation and accented Latin
+    .replace(/[^\u0020-\u007E\u00A0-\u00FF\u0100-\u017F\u0180-\u024F]/g, '')
+    // Remove multiple spaces
+    .replace(/\s+/g, ' ')
+    // Trim first, then limit length
+    .trim();
+  
+  // If nothing remains after sanitization, return undefined
+  if (sanitized.length === 0) return undefined;
+  
+  // Apply length limit after all cleaning
+  return sanitized.slice(0, 50);
+}
+
 serve(async (req: Request): Promise<Response> => {
   const request_id = crypto.randomUUID();
   const start_time = Date.now();
@@ -211,7 +235,7 @@ serve(async (req: Request): Promise<Response> => {
           .update({
             scheduled_at: body.scheduled_at,
             process_not_before,
-            preferred_name: body.preferred_name,
+            preferred_name: sanitizeName(body.preferred_name),
             include_weather: body.include_weather,
             include_news: body.include_news,
             include_sports: body.include_sports,
@@ -324,7 +348,7 @@ serve(async (req: Request): Promise<Response> => {
         local_date: body.local_date,
         scheduled_at: body.scheduled_at,
         process_not_before,
-        preferred_name: body.preferred_name,
+        preferred_name: sanitizeName(body.preferred_name),
         include_weather: body.include_weather,
         include_news: body.include_news,
         include_sports: body.include_sports,

@@ -738,7 +738,14 @@ struct OnboardingView: View {
                 
                 // Name input
                 VStack(spacing: geometry.size.height * 0.03) {
-                    TextField("What should I call you?", text: $name)
+                    TextField("What should I call you?", text: Binding(
+                        get: { name },
+                        set: { newValue in
+                            // Apply character filtering and limit
+                            let filtered = UserSettings.sanitizeName(newValue)
+                            name = String(filtered.prefix(UserSettings.maxNameLength))
+                        }
+                    ))
                         .font(.system(size: min(24, geometry.size.width * 0.06), weight: .medium))
                         .foregroundColor(BananaTheme.ColorToken.text)
                         .multilineTextAlignment(.center)
@@ -760,6 +767,14 @@ struct OnboardingView: View {
                             }
                         }
                         .opacity(textOpacity)
+                    
+                    // Character count when approaching limit
+                    if name.count > 40 {
+                        Text("\(name.count)/\(UserSettings.maxNameLength)")
+                            .font(.caption)
+                            .foregroundColor(name.count >= UserSettings.maxNameLength ? .orange : BananaTheme.ColorToken.secondaryText)
+                            .opacity(textOpacity)
+                    }
                     
                     // Preview
                     if !name.isEmpty {

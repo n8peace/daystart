@@ -221,6 +221,24 @@ struct UserSettings: Codable, Equatable {
                trimmed.count <= 16 && // Increased to support longer symbols like BTC-USD, EUR=X
                trimmed.unicodeScalars.allSatisfy { allowedCharacters.contains($0) }
     }
+    
+    static func isValidNameCharacter(_ character: Character) -> Bool {
+        // Match backend logic: Basic Latin, common accented Latin, spaces, hyphens, apostrophes
+        guard let scalar = character.unicodeScalars.first else { return false }
+        return (scalar.value >= 0x0020 && scalar.value <= 0x007E) ||   // Basic Latin (includes spaces, punctuation)
+               (scalar.value >= 0x00A0 && scalar.value <= 0x00FF) ||   // Latin-1 Supplement (accented chars)
+               (scalar.value >= 0x0100 && scalar.value <= 0x017F) ||   // Latin Extended-A
+               (scalar.value >= 0x0180 && scalar.value <= 0x024F)      // Latin Extended-B
+    }
+    
+    static func sanitizeName(_ name: String) -> String {
+        return name
+            .filter { isValidNameCharacter($0) }
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    static let maxNameLength = 50
 }
 
 struct StockSymbol: Identifiable, Codable, Hashable {

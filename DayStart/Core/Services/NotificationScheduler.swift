@@ -272,9 +272,27 @@ class NotificationScheduler {
     }
     
     private func scheduleMainNotification(for date: Date, dayOffset: Int) async {
+        // Build snapshot to get weather, location, and calendar data
+        let localDate = Calendar.current.startOfDay(for: date)
+        let snapshot = await SnapshotBuilder.shared.buildSnapshot(for: localDate)
+        
+        // Get current streak and duration
+        let streak = await MainActor.run { StreakManager.shared.currentStreak }
+        let duration = await MainActor.run { TimeInterval(UserPreferences.shared.settings.dayStartLength * 60) }
+        
+        // Generate personalized notification content
+        let (title, body) = NotificationContentGenerator.shared.generateMorningNotification(
+            date: date,
+            weather: snapshot.weather,
+            calendarCount: snapshot.calendar?.count ?? 0,
+            streak: streak,
+            location: snapshot.location,
+            duration: duration
+        )
+        
         let content = UNMutableNotificationContent()
-        content.title = "🌅 Time for Your DayStart!"
-        content.body = "Your personalized morning briefing is ready."
+        content.title = title
+        content.body = body
         content.sound = .default
         content.categoryIdentifier = "DAYSTART_CATEGORY"
         
@@ -287,20 +305,38 @@ class NotificationScheduler {
         
         do {
             try await notificationCenter.add(request)
-            DebugLogger.shared.log("Scheduled main notification for \(date)", level: .info)
+            DebugLogger.shared.log("Scheduled personalized main notification for \(date): \(title)", level: .info)
         } catch {
             DebugLogger.shared.log("Failed to schedule main notification: \(error)", level: .error)
         }
     }
     
     private func scheduleReminderNotification(for date: Date, dayOffset: Int) async {
+        // Calculate tomorrow's date for the preview
+        let calendar = Calendar.current
+        guard let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: date) else { return }
+        
+        // Build snapshot for tomorrow's data
+        let localTomorrowDate = calendar.startOfDay(for: tomorrowDate)
+        let tomorrowSnapshot = await SnapshotBuilder.shared.buildSnapshot(for: localTomorrowDate)
+        
+        // Get scheduled time for tomorrow
+        let scheduledTime = await MainActor.run { UserPreferences.shared.schedule.time }
+        
+        // Generate personalized night-before notification
+        let (title, body) = NotificationContentGenerator.shared.generateNightBeforeNotification(
+            tomorrowDate: tomorrowDate,
+            tomorrowWeather: tomorrowSnapshot.weather,
+            tomorrowCalendarCount: tomorrowSnapshot.calendar?.count ?? 0,
+            scheduledTime: scheduledTime
+        )
+        
         let content = UNMutableNotificationContent()
-        content.title = "🌙 Your DayStart is Scheduled"
-        content.body = "Tomorrow's morning briefing is set. Click to edit."
+        content.title = title
+        content.body = body
         content.sound = .default
         content.categoryIdentifier = "DAYSTART_REMINDER_CATEGORY"
         
-        let calendar = Calendar.current
         let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
         
@@ -309,7 +345,7 @@ class NotificationScheduler {
         
         do {
             try await notificationCenter.add(request)
-            DebugLogger.shared.log("Scheduled reminder notification for \(date)", level: .info)
+            DebugLogger.shared.log("Scheduled personalized reminder notification for \(date): \(title)", level: .info)
         } catch {
             DebugLogger.shared.log("Failed to schedule reminder notification: \(error)", level: .error)
         }
@@ -319,9 +355,25 @@ class NotificationScheduler {
     // If background processing is needed in future, use BGTaskScheduler or remote silent pushes
     
     private func scheduleMissedNotification(for date: Date, dayOffset: Int) async {
+        // Use a motivational reminder style for missed notifications
+        let streak = await MainActor.run { StreakManager.shared.currentStreak }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        let dayOfWeek = formatter.string(from: date)
+        
+        // Generate personalized missed notification using streak reminder
+        let (title, body) = NotificationContentGenerator.shared.generateStreakReminder(
+            streak: streak,
+            dayOfWeek: dayOfWeek
+        )
+        
+        // Override with missed-specific messaging if generic
+        let finalTitle = title.contains("Streak") ? title : "⏰ Your DayStart is Waiting"
+        let finalBody = body.contains("streak") || body.contains("Streak") ? body : "Don't miss your personalized morning briefing!"
+        
         let content = UNMutableNotificationContent()
-        content.title = "⏰ Your DayStart is Waiting"
-        content.body = "Don't miss your personalized morning briefing!"
+        content.title = finalTitle
+        content.body = finalBody
         content.sound = .default
         content.categoryIdentifier = "DAYSTART_MISSED_CATEGORY"
         
@@ -334,16 +386,28 @@ class NotificationScheduler {
         
         do {
             try await notificationCenter.add(request)
-            DebugLogger.shared.log("Scheduled missed notification for \(date)", level: .info)
+            DebugLogger.shared.log("Scheduled personalized missed notification for \(date): \(finalTitle)", level: .info)
         } catch {
             DebugLogger.shared.log("Failed to schedule missed notification: \(error)", level: .error)
         }
     }
 
     private func scheduleStreakEveningReminder(for date: Date, dayOffset: Int) async {
+        // Get current streak and day of week
+        let streak = await MainActor.run { StreakManager.shared.currentStreak }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        let dayOfWeek = formatter.string(from: date)
+        
+        // Generate personalized streak reminder
+        let (title, body) = NotificationContentGenerator.shared.generateStreakReminder(
+            streak: streak,
+            dayOfWeek: dayOfWeek
+        )
+        
         let content = UNMutableNotificationContent()
-        content.title = "🔥 Keep Your Streak Alive"
-        content.body = "You’ve got time today. Listen to keep the streak going."
+        content.title = title
+        content.body = body
         content.sound = .default
         content.categoryIdentifier = "DAYSTART_MISSED_CATEGORY" // Reuse listen action
 
@@ -356,7 +420,7 @@ class NotificationScheduler {
 
         do {
             try await notificationCenter.add(request)
-            DebugLogger.shared.log("Scheduled streak evening reminder for \(date)", level: .info)
+            DebugLogger.shared.log("Scheduled personalized streak reminder for \(date): \(title)", level: .info)
         } catch {
             DebugLogger.shared.log("Failed to schedule streak evening reminder: \(error)", level: .error)
         }

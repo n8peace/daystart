@@ -504,7 +504,7 @@ async function checkContentCache(supabase: SupabaseClient): Promise<CheckResult>
     // Get all sources for this content type
     const { data } = await supabase
       .from('content_cache')
-      .select('api_source, updated_at, expires_at')
+      .select('source, updated_at, expires_at')
       .eq('content_type', type)
       .order('updated_at', { ascending: false })
     
@@ -520,12 +520,12 @@ async function checkContentCache(supabase: SupabaseClient): Promise<CheckResult>
     const processedSources = new Set<string>()
     
     for (const item of data) {
-      if (!processedSources.has(item.api_source)) {
-        processedSources.add(item.api_source)
+      if (!processedSources.has(item.source)) {
+        processedSources.add(item.source)
         const updatedAgeH = (now - new Date(item.updated_at).getTime()) / (1000 * 60 * 60)
         const expired = item.expires_at && new Date(item.expires_at).getTime() < now
         
-        sourceMap[item.api_source] = {
+        sourceMap[item.source] = {
           updated_at: item.updated_at,
           expires_at: item.expires_at,
           updated_age_hours: Number(updatedAgeH.toFixed(2)),

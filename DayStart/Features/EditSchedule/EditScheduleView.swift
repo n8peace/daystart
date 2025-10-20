@@ -335,18 +335,31 @@ struct EditScheduleView: View {
     
     private var generalSettingsSection: some View {
         Section(header: Text("General Settings")) {
-            HStack {
-                Text("Your Name")
-                TextField("Your name", text: Binding(
-                    get: { preferredName },
-                    set: { newValue in
-                        textInputTask?.cancel()
-                        let sanitized = String(newValue.prefix(50)).trimmingCharacters(in: .whitespacesAndNewlines)
-                        preferredName = sanitized
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Your Name")
+                    TextField("Your name", text: Binding(
+                        get: { preferredName },
+                        set: { newValue in
+                            textInputTask?.cancel()
+                            // Apply character filtering and limit
+                            let filtered = UserSettings.sanitizeName(newValue)
+                            preferredName = String(filtered.prefix(UserSettings.maxNameLength))
+                        }
+                    ))
+                        .multilineTextAlignment(.trailing)
+                        .disabled(isLocked)
+                }
+                
+                // Show character count when approaching limit
+                if preferredName.count > 40 {
+                    HStack {
+                        Spacer()
+                        Text("\(preferredName.count)/\(UserSettings.maxNameLength)")
+                            .font(.caption)
+                            .foregroundColor(preferredName.count >= UserSettings.maxNameLength ? .orange : BananaTheme.ColorToken.secondaryText)
                     }
-                ))
-                    .multilineTextAlignment(.trailing)
-                    .disabled(isLocked)
+                }
             }
             
             Button(action: { showVoicePicker = true }) {
@@ -455,24 +468,6 @@ struct EditScheduleView: View {
                         }
                     }
                 }
-            Toggle("News", isOn: $includeNews)
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked)
-            Toggle("Sports", isOn: $includeSports)
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked)
-            Toggle("Stocks", isOn: $includeStocks)
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked)
-            
-            if includeStocks {
-                StockSymbolsEditor(
-                    stockSymbolItems: $stockSymbolItems,
-                    isDisabled: isLocked
-                )
-                .padding(.leading)
-            }
-            
             Toggle("Calendar", isOn: $includeCalendar)
                 .tint(BananaTheme.ColorToken.primary)
                 .disabled(isLocked)
@@ -496,6 +491,23 @@ struct EditScheduleView: View {
                 .pickerStyle(MenuPickerStyle())
                 .accentColor(BananaTheme.ColorToken.secondaryText)
                 .disabled(isLocked)
+                .padding(.leading)
+            }
+            Toggle("News", isOn: $includeNews)
+                .tint(BananaTheme.ColorToken.primary)
+                .disabled(isLocked)
+            Toggle("Sports", isOn: $includeSports)
+                .tint(BananaTheme.ColorToken.primary)
+                .disabled(isLocked)
+            Toggle("Stocks", isOn: $includeStocks)
+                .tint(BananaTheme.ColorToken.primary)
+                .disabled(isLocked)
+            
+            if includeStocks {
+                StockSymbolsEditor(
+                    stockSymbolItems: $stockSymbolItems,
+                    isDisabled: isLocked
+                )
                 .padding(.leading)
             }
         }
@@ -633,7 +645,17 @@ struct EditScheduleView: View {
                             UIApplication.shared.open(url)
                         }
                     }
-                }                
+                }
+                Button(action: {
+                    if let url = URL(string: "https://bananaintelligence.ai/") {
+                        UIApplication.shared.open(url)
+                    }
+                }) {
+                    Text("Powered by 🍌🧠 Banana Intelligence")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(PlainButtonStyle())
                 if let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
                    let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String {
                     Text("Version \(appVersion) (\(buildNumber))")

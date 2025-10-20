@@ -4,6 +4,7 @@ import CoreMedia
 import SwiftUI
 import Combine
 import MediaPlayer
+import Accelerate
 
 class AudioPlayerManager: NSObject, ObservableObject {
     static let shared = AudioPlayerManager()
@@ -29,6 +30,10 @@ class AudioPlayerManager: NSObject, ObservableObject {
     private var audioPlayerNode: AVAudioPlayerNode?
     private var audioFile: AVAudioFile?
     private var levelTimer: Timer?
+    
+    // MTAudioProcessingTap for real audio visualization
+    private var audioProcessingTap: MTAudioProcessingTap?
+    private let audioLevelQueue = DispatchQueue(label: "ai.bananaintelligence.audioLevels", qos: .userInteractive)
     
     // Intro music dual player system
     private var introPlayer: AVPlayer?
@@ -142,6 +147,7 @@ class AudioPlayerManager: NSObject, ObservableObject {
                     self?.duration = item.duration.seconds
                     self?.logger.logAudioEvent("Audio loaded successfully with completion", details: ["duration": item.duration.seconds])
 				self?.updateNowPlayingInfo(title: "DayStart", artwork: UIImage(named: "SplashIcon"))
+                    self?.setupAudioTap()
                     completion(true, nil)
                 case .failed:
                     let error = item.error ?? NSError(domain: "AudioLoadError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Player item failed"])
@@ -176,6 +182,9 @@ class AudioPlayerManager: NSObject, ObservableObject {
         statusObserver?.invalidate()
         timeControlStatusObserver?.invalidate()
         durationObserver?.invalidate()
+        
+        // Clean up audio tap
+        cleanupAudioTap()
         
         statusObserver = nil
         timeControlStatusObserver = nil
@@ -761,52 +770,195 @@ class AudioPlayerManager: NSObject, ObservableObject {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
     
-    // MARK: - Audio Level Monitoring
+    // MARK: - Audio Level Monitoring with MTAudioProcessingTap
+    
+    private func setupAudioTap() {
+        guard let playerItem = playerItem,
+              let audioTrack = playerItem.asset.tracks(withMediaType: .audio).first else {
+            logger.log("No audio track found for visualization", level: .warning)
+            return
+        }
+        
+        // Clean up any existing tap
+        cleanupAudioTap()
+        
+        // Create tap callbacks
+        var callbacks = MTAudioProcessingTapCallbacks(
+            version: kMTAudioProcessingTapCallbacksVersion_0,
+            clientInfo: unsafeBitCast(self, to: UnsafeMutableRawPointer.self),
+            init: tapInit,
+            finalize: tapFinalize,
+            prepare: tapPrepare,
+            unprepare: tapUnprepare,
+            process: tapProcess
+        )
+        
+        var tap: MTAudioProcessingTap?
+        let status = MTAudioProcessingTapCreate(
+            kCFAllocatorDefault,
+            &callbacks,
+            kMTAudioProcessingTapCreationFlag_PostEffects,
+            &tap
+        )
+        
+        if status == noErr, let tap = tap {
+            audioProcessingTap = tap
+            
+            // Create audio mix and apply tap
+            let audioMix = AVMutableAudioMix()
+            let inputParameters = AVMutableAudioMixInputParameters(track: audioTrack)
+            inputParameters.audioTapProcessor = audioProcessingTap
+            audioMix.inputParameters = [inputParameters]
+            
+            playerItem.audioMix = audioMix
+            logger.log("Audio tap setup successfully for visualization", level: .debug)
+        } else {
+            logger.log("Failed to create audio tap: \(status)", level: .error)
+        }
+    }
+    
+    private func cleanupAudioTap() {
+        if let tap = audioProcessingTap {
+            audioProcessingTap = nil
+            playerItem?.audioMix = nil
+        }
+    }
     
     private func startAudioLevelMonitoring() {
-        // For now, use a simple timer-based approach to simulate audio levels
-        // In a real implementation, you would use AVAudioEngine with audio taps
-        stopAudioLevelMonitoring() // Clean up any existing timer
-        
-        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            self?.updateAudioLevels()
+        // Audio tap handles monitoring when playing
+        // Just ensure clean state
+        if audioProcessingTap == nil {
+            setupAudioTap()
         }
     }
     
     private func stopAudioLevelMonitoring() {
-        levelTimer?.invalidate()
-        levelTimer = nil
-        
         // Reset levels to zero when stopped
         DispatchQueue.main.async { [weak self] in
             self?.audioLevels = Array(repeating: 0.0, count: 20)
         }
     }
     
-    private func updateAudioLevels() {
-        guard isPlaying else { return }
+    // MARK: - MTAudioProcessingTap Callbacks
+    
+    private let tapInit: MTAudioProcessingTapInitCallback = { tap, clientInfo, tapStorageOut in
+        // Allocate storage for tap processing
+        tapStorageOut.pointee = clientInfo
+    }
+    
+    private let tapFinalize: MTAudioProcessingTapFinalizeCallback = { tap in
+        // Clean up when tap is finalized
+    }
+    
+    private let tapPrepare: MTAudioProcessingTapPrepareCallback = { tap, maxFrames, processingFormat in
+        // Called when tap is preparing to process
+    }
+    
+    private let tapUnprepare: MTAudioProcessingTapUnprepareCallback = { tap in
+        // Called when tap stops processing
+    }
+    
+    private let tapProcess: MTAudioProcessingTapProcessCallback = { tap, numberFrames, flags, bufferListInOut, numberFramesOut, flagsOut in
+        let status = MTAudioProcessingTapGetSourceAudio(
+            tap,
+            numberFrames,
+            bufferListInOut,
+            flagsOut,
+            nil,
+            numberFramesOut
+        )
         
-        // Generate simulated audio levels with some randomness and wave patterns
-        // This creates a more realistic-looking visualization
-        let time = Date().timeIntervalSince1970
-        var newLevels: [Float] = []
+        guard status == noErr else { return }
         
-        for i in 0..<20 {
-            // Create wave patterns with different frequencies for each bar
-            let frequency1 = sin(time * 2.0 + Double(i) * 0.3) * 0.3
-            let frequency2 = sin(time * 3.5 + Double(i) * 0.2) * 0.2
-            let frequency3 = sin(time * 1.5 + Double(i) * 0.4) * 0.1
+        // Get the audio manager instance from client info
+        let clientInfo = MTAudioProcessingTapGetStorage(tap)
+        let audioManager = unsafeBitCast(clientInfo, to: AudioPlayerManager.self)
+        
+        // Process audio buffer to extract levels
+        audioManager.processAudioBuffer(bufferListInOut, frameCount: Int(numberFrames))
+    }
+    
+    private func processAudioBuffer(_ bufferList: UnsafeMutablePointer<AudioBufferList>, frameCount: Int) {
+        let bufferList = bufferList.pointee
+        
+        guard bufferList.mNumberBuffers > 0 else { return }
+        
+        // Process first buffer (mono or left channel)
+        let audioBuffer = bufferList.mBuffers
+        guard let audioData = audioBuffer.mData else { return }
+        
+        let channelCount = Int(audioBuffer.mNumberChannels)
+        let sampleCount = frameCount * channelCount
+        
+        // Convert different audio formats to Float for processing
+        var floatSamples: [Float] = []
+        floatSamples.reserveCapacity(sampleCount)
+        
+        // Determine format based on bytes per frame
+        let bytesPerSample = Int(audioBuffer.mDataByteSize) / sampleCount
+        
+        switch bytesPerSample {
+        case 4: // Assume Float32 for 4-byte samples (most common with AVPlayer)
+            let samples = audioData.assumingMemoryBound(to: Float.self)
+            floatSamples = Array(UnsafeBufferPointer(start: samples, count: sampleCount))
             
-            // Add some randomness
-            let randomness = Float.random(in: -0.1...0.1)
+        case 2: // Int16
+            let samples = audioData.assumingMemoryBound(to: Int16.self)
+            floatSamples = (0..<sampleCount).map { Float(samples[$0]) / Float(Int16.max) }
             
-            // Combine frequencies and ensure positive values
-            let level = max(0.0, Float(frequency1 + frequency2 + frequency3) + 0.4 + randomness)
-            newLevels.append(min(1.0, level))
+        default:
+            // Try to handle as Float32 anyway, log warning
+            logger.log("Unknown audio format: \(bytesPerSample) bytes per sample, attempting Float32", level: .warning)
+            let samples = audioData.assumingMemoryBound(to: Float.self)
+            floatSamples = Array(UnsafeBufferPointer(start: samples, count: min(sampleCount, Int(audioBuffer.mDataByteSize) / 4)))
         }
         
-        DispatchQueue.main.async { [weak self] in
-            self?.audioLevels = newLevels
+        audioLevelQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Calculate RMS levels for 20 audio segments (not frequency bands)
+            var levels: [Float] = []
+            let segmentCount = 20
+            let samplesPerSegment = max(1, floatSamples.count / segmentCount)
+            
+            for segment in 0..<segmentCount {
+                let startIdx = segment * samplesPerSegment
+                let endIdx = min(startIdx + samplesPerSegment, floatSamples.count)
+                
+                if startIdx < endIdx {
+                    // Calculate RMS for this segment
+                    var rms: Float = 0
+                    floatSamples.withUnsafeBufferPointer { buffer in
+                        vDSP_rmsqv(
+                            buffer.baseAddress!.advanced(by: startIdx),
+                            1,
+                            &rms,
+                            vDSP_Length(endIdx - startIdx)
+                        )
+                    }
+                    
+                    // Convert to normalized level (0-1) with logarithmic scaling
+                    let db = 20 * log10(max(0.00001, rms))
+                    let normalizedLevel = max(0, min(1, (db + 60) / 60)) // -60dB to 0dB range
+                    levels.append(normalizedLevel)
+                } else {
+                    levels.append(0)
+                }
+            }
+            
+            // Smooth the levels for better visual effect
+            let smoothingFactor: Float = 0.7
+            let smoothedLevels = zip(self.audioLevels, levels).map { old, new in
+                old * smoothingFactor + new * (1 - smoothingFactor)
+            }
+            
+            // Add safety bounds to prevent extreme values
+            let boundedLevels = smoothedLevels.map { max(0.0, min(1.0, $0)) }
+            
+            // Update on main thread
+            DispatchQueue.main.async {
+                self.audioLevels = boundedLevels
+            }
         }
     }
 }

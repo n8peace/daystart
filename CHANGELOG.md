@@ -10,7 +10,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.19] - In Development
 
-**Build:** 1 | **Commit:** TBD | **Status:** In Development
+**Build:** 1 | **Commit:** d7a3949 | **Status:** In Development, Supabase Deployed
+
+### Changed
+- **Audio Visualization** - Implemented real-time audio level monitoring with MTAudioProcessingTap
+  - Replaced simulated sine wave visualization with actual audio analysis
+  - Uses vDSP (Accelerate framework) for efficient RMS calculation across 20 audio segments
+  - Supports multiple audio formats (Float32, Int16) with robust format detection
+  - Added smoothing (70% factor) and safety bounds for stable visualization
+  - Removed conflicting animations for smoother real-time response
+  - Removed "Playing your DayStart" text for cleaner playback UI
+- **Edit Page Content Order** - Reorganized content toggles to match DayStart flow sequence
+  - Content section now follows DayStart order: Weather → Calendar → Motivational Quotes → News → Sports → Stocks
+  - Previously: Weather → News → Sports → Stocks → Calendar → Motivational Quotes  
+  - Improves user experience by aligning edit interface with actual content delivery order
+  - All functionality preserved: permission handlers, stock editor, quote style picker unchanged
+
+### Fixed
+- **Content Cache Healthcheck** - Fixed incorrect column name causing false "missing" reports
+  - Healthcheck was querying `api_source` column but table uses `source`
+  - All content types now correctly show as available when fresh data exists
+  - Resolves issue where healthcheck showed "❌ Missing" despite valid cached content
+- **Preferred Name Sanitization** - Added comprehensive name validation to prevent job failures
+  - Backend: Sanitizes complex Unicode characters, emojis, and special symbols server-side
+  - iOS: Real-time character filtering prevents invalid input before submission
+  - Preserves common accented characters (José, François, Björk) for international names
+  - Enforces 50-character limit with visual counter when approaching limit
+  - Prevents job failures like the one with exotic Unicode name: ᗴᗰIᒪYஐꨄღఌᰔದᜊᱬ𖢇☙❧❦❣︎❥❤︎︎♡︎♥︎
+  - Gracefully handles edge cases: emoji-only names filtered to empty string
+  - Fully backwards compatible: older app versions continue working with server-side sanitization
 
 ### Added
 - **External Service Health Monitoring** - Healthcheck now monitors critical external dependencies
@@ -20,6 +48,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Early warning system for external service issues affecting audio generation
 - **Interactive Audio Visualization** - Added dynamic yellow audio bars to playing state
   - Animated 20-bar visualization matching onboarding design
+- **Hyper-Personalized Notifications** - Replaced generic notification text with dynamic, context-aware content
+  - Morning notifications now include specific weather details: "🌅 Brrr! High of 32°F" 
+  - Calendar-aware messages: "🌅 Busy day! 4 events - Essential briefing before the rush"
+  - Streak milestone celebrations: "🎉 One week streak! Your briefing celebrates 7 days strong"
+  - Day-specific energy: "🌅 TGIF! Friday briefing - End your week on a high note"
+  - Location-based greetings: "🌅 Good morning from San Francisco! Your local briefing is ready"
+  - Night-before previews with tomorrow's weather and calendar data
+  - Intelligent style rotation prevents notification fatigue
+  - On-brand fallbacks ensure quality messaging even when data is unavailable
   - Real-time audio reactivity - static when silent, dynamic when speaking
   - Smooth transitions between playing and loading states
   - Performance-optimized with 10Hz update rate
@@ -28,6 +65,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Fully backwards compatible - existing users unaffected
   - Secure storage with proper privacy handling
 - **Recent Feedback Monitoring in Healthcheck** - Integration of user feedback tracking
+- **Banana Intelligence Branding** - Added "Powered by 🍌🧠 Banana Intelligence" link to Edit Schedule page
+  - Matches branding from onboarding flow
+  - Positioned above version number in page footer
+  - Links to https://bananaintelligence.ai/
 - **News Story Transitions** - Added subtle transitions between news stories for better audio flow
   - 10 transition options: one-word ("Also,", "Meanwhile,") and short phrases ("In other news,")
   - Smart randomization - transitions used ~60% of the time to prevent overuse

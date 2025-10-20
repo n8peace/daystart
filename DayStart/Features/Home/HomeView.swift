@@ -887,12 +887,6 @@ struct HomeView: View {
                 // Audio visualization - yellow bars from onboarding
                 AudioVisualizationView()
                 
-                // Show different text based on playing state
-                Text(AudioPlayerManager.shared.isPlaying ? "Playing your DayStart" : "Getting ready...")
-                    .adaptiveFont(BananaTheme.Typography.title2)
-                    .foregroundColor(BananaTheme.ColorToken.text)
-                    .multilineTextAlignment(.center)
-                
                 // Show loading messages when not playing
                 if !AudioPlayerManager.shared.isPlaying {
                     Text(LoadingMessagesService.shared.currentMessage)
