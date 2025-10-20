@@ -258,14 +258,23 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
 
 async function checkDbConnectivity(supabase: SupabaseClient): Promise<CheckResult> {
   const start = Date.now()
-  const { error } = await supabase
+  const { error, count } = await supabase
     .from('jobs')
     .select('job_id', { head: true, count: 'exact' })
     .limit(1)
   if (error) {
     return { name: 'db_connectivity', status: 'fail', error: error.message, duration_ms: Date.now() - start }
   }
-  return { name: 'db_connectivity', status: 'pass', duration_ms: Date.now() - start }
+  return { 
+    name: 'db_connectivity', 
+    status: 'pass', 
+    details: { 
+      message: 'Database connection healthy',
+      jobs_table_accessible: true,
+      total_jobs: count ?? 0
+    },
+    duration_ms: Date.now() - start 
+  }
 }
 
 async function checkJobsHealth(supabase: SupabaseClient): Promise<CheckResult> {
@@ -500,6 +509,13 @@ async function checkContentCache(supabase: SupabaseClient): Promise<CheckResult>
   let missingTypes = 0
   let missingSources = 0
 
+  // Define expected sources for each type
+  const expectedSources = {
+    news: ['newsapi_general', 'newsapi_business', 'newsapi_targeted', 'gnews_comprehensive'],
+    stocks: ['yahoo_finance'],
+    sports: ['espn', 'thesportdb']
+  }
+
   for (const type of types) {
     // Get all sources for this content type
     const { data } = await supabase
@@ -509,7 +525,7 @@ async function checkContentCache(supabase: SupabaseClient): Promise<CheckResult>
       .order('updated_at', { ascending: false })
     
     if (!data || data.length === 0) {
-      details[type] = { status: 'missing', sources: {} }
+      details[type] = { status: 'missing', sources: {}, expected_sources: expectedSources[type] }
       missingTypes++
       status = 'fail' // Missing entire type = FAIL
       continue
@@ -538,16 +554,28 @@ async function checkContentCache(supabase: SupabaseClient): Promise<CheckResult>
     const freshSources = Object.values(sourceMap).filter(s => !s.expired)
     const hasFreshContent = freshSources.length > 0
     
+    // Check for missing expected sources
+    const expectedForType = expectedSources[type]
+    const actualSources = Object.keys(sourceMap)
+    const missingSourcesList = expectedForType.filter(expected => !actualSources.includes(expected))
+    
     details[type] = {
       status: hasFreshContent ? 'available' : 'all_expired',
       total_sources: Object.keys(sourceMap).length,
+      expected_sources: expectedForType.length,
       fresh_sources: freshSources.length,
+      missing_sources: missingSourcesList,
       sources: sourceMap
     }
 
     // If all sources for a type are expired, it's concerning but not critical
     if (!hasFreshContent && status !== 'fail') {
       missingSources++
+      status = 'warn'
+    }
+    
+    // Warn if missing expected sources (but don't fail - system can work with fewer sources)
+    if (missingSourcesList.length > 0 && status === 'pass') {
       status = 'warn'
     }
   }
@@ -1030,11 +1058,19 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
           cacheTableHtml += `<tr><td style="padding:4px 0;font-weight:600;text-transform:capitalize">${type}:</td><td style="padding:4px 0">`
           
           if (typeInfo.status === 'missing') {
-            cacheTableHtml += '<span style="color:#dc2626">❌ Missing</span>'
+            cacheTableHtml += `<span style="color:#dc2626">❌ Missing</span>`
+            if (typeInfo.expected_sources) {
+              cacheTableHtml += `<br><span style="font-size:11px;color:#6b7280">Expected: ${typeInfo.expected_sources.join(', ')}</span>`
+            }
           } else if (typeInfo.status === 'all_expired') {
-            cacheTableHtml += `<span style="color:#f59e0b">⚠️ All sources expired (${typeInfo.total_sources} sources)</span>`
+            cacheTableHtml += `<span style="color:#f59e0b">⚠️ All sources expired (${typeInfo.total_sources}/${typeInfo.expected_sources || typeInfo.total_sources} sources)</span>`
           } else {
-            cacheTableHtml += `<span style="color:#16a34a">✅ ${typeInfo.fresh_sources}/${typeInfo.total_sources} sources fresh</span>`
+            cacheTableHtml += `<span style="color:#16a34a">✅ ${typeInfo.fresh_sources}/${typeInfo.expected_sources || typeInfo.total_sources} sources fresh</span>`
+            
+            // Show missing expected sources
+            if (typeInfo.missing_sources && typeInfo.missing_sources.length > 0) {
+              cacheTableHtml += `<br><span style="font-size:11px;color:#f59e0b">Missing: ${typeInfo.missing_sources.join(', ')}</span>`
+            }
             
             // Show individual sources if any are expired
             const expiredSources = Object.entries(typeInfo.sources || {}).filter(([_, s]: [string, any]) => s.expired)
@@ -1096,6 +1132,43 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
                 </div>
               `).join('')}` : ''}
             ${dashboardBase ? `<br><a href="${dashboardBase}/editor/app_feedback" style="color:#3b82f6;text-decoration:underline;font-size:12px">View All Feedback →</a>` : ''}
+          </div>`
+      } else if (c.name === 'storage_access' && c.details) {
+        const d = c.details as any
+        detailsHtml = `
+          <div style="font-size:13px;line-height:1.5">
+            <span style="color:#16a34a">✅ Storage accessible</span>
+            ${d.path ? `<br><span style="color:#6b7280">📁 Test file: ${d.path}</span>` : ''}
+            ${d.message ? `<br><em style="color:#6b7280">${d.message}</em>` : ''}
+          </div>`
+      } else if (c.name === 'internal_urls' && c.details) {
+        const d = c.details as any
+        detailsHtml = `
+          <div style="font-size:13px;line-height:1.5">
+            <strong>Edge Functions Status:</strong>
+            ${d.results?.map((result: any) => {
+              const statusEmoji = result.status === 200 || result.status === 204 ? '✅' : '❌'
+              const statusColor = result.status === 200 || result.status === 204 ? '#16a34a' : '#dc2626'
+              const endpoint = result.path.split('/').pop() || result.path
+              return `<br><span style="color:${statusColor}">${statusEmoji}</span> <strong>${endpoint}:</strong> ${result.status === 0 ? 'timeout' : `HTTP ${result.status}`}`
+            }).join('') || '<br><span style="color:#6b7280">No endpoints tested</span>'}
+          </div>`
+      } else if (c.name === 'audio_cleanup_heartbeat' && c.details) {
+        const d = c.details as any
+        detailsHtml = `
+          <div style="font-size:13px;line-height:1.5">
+            <span style="color:#16a34a">🧹 Cleanup running normally</span>
+            ${d.last_started_at ? `<br><span style="color:#6b7280">📅 Last run: ${new Date(d.last_started_at).toLocaleDateString()} ${new Date(d.last_started_at).toLocaleTimeString()}</span>` : ''}
+            ${d.hours_since !== undefined ? `<br><span style="color:#6b7280">⏰ ${d.hours_since} hours ago</span>` : ''}
+            ${d.message ? `<br><em style="color:#6b7280">${d.message}</em>` : ''}
+          </div>`
+      } else if (c.name === 'db_connectivity' && c.details) {
+        const d = c.details as any
+        detailsHtml = `
+          <div style="font-size:13px;line-height:1.5">
+            <span style="color:#16a34a">✅ Database connected</span>
+            ${d.jobs_table_accessible ? `<br><span style="color:#6b7280">📊 Jobs table accessible</span>` : ''}
+            ${d.total_jobs !== undefined ? `<br><span style="color:#6b7280">📝 ${d.total_jobs} total jobs in system</span>` : ''}
           </div>`
       } else {
         detailsHtml = `<pre style="margin:0;font-family:ui-monospace,monospace;font-size:11px;color:#666">${escapeHtml(JSON.stringify(c.details ?? c.error ?? {}, null, 2))}</pre>`

@@ -19,17 +19,30 @@
 - ✅ **Security headers** (`netlify.toml`) configured
 - ✅ **Google Analytics** (G-RN79S5YCEN) integrated
 - ✅ **Apple Smart Banner** (app-id=6751055528) added
-- ✅ **Ready for deployment** to Netlify
+- ✅ **Deployed to Netlify** - Site is LIVE
 
-**Current URLs:**
+**Live URLs:**
 - `https://daystartai.app/shared/test123` → Shows branded audio player (mock mode)
 - `https://daystartai.app` → Redirects to App Store
 
-### 🔄 **TODO - Backend Integration**
-- 🔄 **Database schema** for `public_daystart_shares` table
-- 🔄 **Supabase edge functions** (`get_shared_daystart`, `create_share`)
-- 🔄 **iOS app integration** for share link generation
-- 🔄 **Real audio playback** connection
+### ✅ **COMPLETED - Database Schema (2025-10-20)**
+- ✅ **Migration created** (`032_add_share_functionality.sql`)
+- ✅ **Database deployed** to Supabase with enhanced schema
+- ✅ **Analytics tracking** fields ready
+- ✅ **Rate limiting** support built in
+- ✅ **RLS policies** configured for security
+
+### 🔄 **TODO - Edge Functions**
+- 🔄 **Create `get_shared_daystart`** edge function
+- 🔄 **Create `create_share`** edge function  
+- 🔄 **Deploy functions** to Supabase
+- 🔄 **Test with real data** end-to-end
+
+### 🔄 **TODO - iOS Integration** 
+- 🔄 **ShareResponse model** creation
+- 🔄 **SupabaseClient methods** for share API
+- 🔄 **Connect share buttons** in HomeView/AudioPlayerView
+- 🔄 **Update frontend JavaScript** with real API endpoint
 
 ## 📁 Step-by-Step Implementation
 
@@ -51,6 +64,8 @@ netlify-site/
 ```
 
 ### ✅ Step 2: Netlify Routing Configuration (COMPLETED)
+
+### ✅ Step 3: Database Schema (COMPLETED)
 
 **`_redirects` file:** ✅
 ```
@@ -81,11 +96,14 @@ netlify-site/
     Cache-Control = "public, max-age=31536000"
 ```
 
-### 🔄 Step 3: Supabase Backend (TODO - Database + Edge Functions)
+### 🔄 Step 4: Supabase Edge Functions (TODO)
 
-**A. Database Schema:**
+**A. Database Schema (Enhanced with Recommendations):**
 ```sql
--- Add to new migration file
+-- Migration: 032_add_share_functionality.sql
+-- Add share functionality for public DayStart links
+-- This is a completely new feature that doesn't modify existing tables
+
 CREATE TABLE public_daystart_shares (
   share_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   job_id UUID REFERENCES jobs(job_id) ON DELETE CASCADE,
@@ -94,85 +112,189 @@ CREATE TABLE public_daystart_shares (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   expires_at TIMESTAMPTZ NOT NULL,
   view_count INTEGER DEFAULT 0,
-  last_accessed_at TIMESTAMPTZ
+  last_accessed_at TIMESTAMPTZ,
+  
+  -- Analytics fields
+  share_source TEXT, -- 'completion_screen', 'audio_player', 'manual'
+  share_metadata JSONB DEFAULT '{}'::jsonb,
+  clicked_cta BOOLEAN DEFAULT FALSE,
+  converted_to_user BOOLEAN DEFAULT FALSE,
+  
+  -- Rate limiting
+  shares_per_job INTEGER DEFAULT 1 -- Track multiple shares of same job
 );
 
+-- Indexes for performance
 CREATE UNIQUE INDEX shares_token_idx ON public_daystart_shares(share_token);
 CREATE INDEX shares_expiry_idx ON public_daystart_shares(expires_at);
+CREATE INDEX shares_user_idx ON public_daystart_shares(user_id);
+CREATE INDEX shares_job_idx ON public_daystart_shares(job_id);
 
--- RLS policies
+-- Enable RLS
 ALTER TABLE public_daystart_shares ENABLE ROW LEVEL SECURITY;
 
+-- RLS Policies
+-- Public read for valid shares (anonymous access)
 CREATE POLICY "Public read for valid shares" ON public_daystart_shares
   FOR SELECT TO anon, authenticated
   USING (expires_at > NOW());
+
+-- Users can see their own shares
+CREATE POLICY "Users can view own shares" ON public_daystart_shares
+  FOR SELECT TO anon, authenticated
+  USING (user_id = current_setting('request.headers', true)::json->>'x-client-info');
+
+-- Service role full access
+CREATE POLICY "Service role full access shares" ON public_daystart_shares
+  FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+-- Add helpful comments
+COMMENT ON TABLE public_daystart_shares IS 'Stores shareable links for DayStart audio briefings with expiration and analytics';
+COMMENT ON COLUMN public_daystart_shares.share_token IS 'URL-safe unique token used in share URLs';
+COMMENT ON COLUMN public_daystart_shares.expires_at IS 'When the share link expires (typically 48 hours)';
+COMMENT ON COLUMN public_daystart_shares.share_source IS 'Where the share was initiated from in the app';
+COMMENT ON COLUMN public_daystart_shares.shares_per_job IS 'Number of shares created for this job (rate limiting)';
 ```
 
-**B. Edge Function: `get_shared_daystart`**
+**B. Edge Function: `get_shared_daystart` (Enhanced)**
 ```typescript
 // supabase/functions/get_shared_daystart/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://daystartai.app',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type'
+}
+
 serve(async (req) => {
-  const { token } = await req.json()
-  
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  )
-  
-  // 1. Validate token and get job data
-  const { data: share } = await supabase
-    .from('public_daystart_shares')
-    .select(`
-      job_id,
-      view_count,
-      jobs (
-        audio_file_path,
-        audio_duration,
-        local_date,
-        script_content,
-        daystart_length
-      )
-    `)
-    .eq('share_token', token)
-    .gt('expires_at', new Date().toISOString())
-    .single()
-  
-  if (!share) {
-    return new Response(JSON.stringify({ error: 'Invalid or expired share' }), { 
-      status: 404,
-      headers: { 'Content-Type': 'application/json' }
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders })
+  }
+
+  try {
+    const { token } = await req.json()
+    
+    if (!token || typeof token !== 'string' || token.length < 8) {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid share link',
+        code: 'INVALID_TOKEN' 
+      }), { 
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+    
+    // 1. Validate token and get job data
+    const { data: share } = await supabase
+      .from('public_daystart_shares')
+      .select(`
+        share_id,
+        job_id,
+        view_count,
+        jobs (
+          audio_file_path,
+          audio_duration,
+          local_date,
+          script_content,
+          daystart_length,
+          preferred_name
+        )
+      `)
+      .eq('share_token', token)
+      .gt('expires_at', new Date().toISOString())
+      .single()
+    
+    if (!share || !share.jobs) {
+      return new Response(JSON.stringify({ 
+        error: 'This briefing has expired or is no longer available',
+        code: 'SHARE_EXPIRED' 
+      }), { 
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // 2. Verify audio file exists
+    const audioFileName = share.jobs.audio_file_path.split('/').pop()
+    const audioPath = share.jobs.audio_file_path.split('/').slice(0, -1).join('/')
+    
+    const { data: files } = await supabase.storage
+      .from('daystart-audio')
+      .list(audioPath)
+    
+    if (!files?.find(f => f.name === audioFileName)) {
+      console.error(`Audio file not found: ${share.jobs.audio_file_path}`)
+      return new Response(JSON.stringify({ 
+        error: 'Audio file no longer available',
+        code: 'AUDIO_NOT_FOUND' 
+      }), { 
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // 3. Generate signed URL for audio
+    const { data: audioUrl, error: urlError } = await supabase.storage
+      .from('daystart-audio')
+      .createSignedUrl(share.jobs.audio_file_path, 3600) // 1 hour
+    
+    if (urlError || !audioUrl?.signedUrl) {
+      console.error('Failed to create signed URL:', urlError)
+      return new Response(JSON.stringify({ 
+        error: 'Failed to load audio',
+        code: 'URL_GENERATION_FAILED' 
+      }), { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // 4. Update view count and analytics
+    await supabase
+      .from('public_daystart_shares')
+      .update({ 
+        view_count: share.view_count + 1,
+        last_accessed_at: new Date().toISOString()
+      })
+      .eq('share_id', share.share_id)
+    
+    // 5. Return sanitized data
+    return new Response(JSON.stringify({
+      audio_url: audioUrl.signedUrl,
+      duration: share.jobs.audio_duration,
+      date: share.jobs.local_date,
+      length_minutes: Math.round(share.jobs.daystart_length / 60),
+      // Optional: Include name for personalized greeting
+      user_name: share.jobs.preferred_name || null
+    }), {
+      status: 200,
+      headers: { 
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+        'Cache-Control': 'private, max-age=300' // 5 min cache
+      }
+    })
+    
+  } catch (error) {
+    console.error('Share retrieval error:', error)
+    return new Response(JSON.stringify({ 
+      error: 'Something went wrong',
+      code: 'INTERNAL_ERROR' 
+    }), { 
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
-  
-  // 2. Generate signed URL for audio
-  const { data: audioUrl } = await supabase.storage
-    .from('daystart-audio')
-    .createSignedUrl(share.jobs.audio_file_path, 3600) // 1 hour
-  
-  // 3. Update view count
-  await supabase
-    .from('public_daystart_shares')
-    .update({ 
-      view_count: share.view_count + 1,
-      last_accessed_at: new Date().toISOString()
-    })
-    .eq('share_token', token)
-  
-  // 4. Return sanitized data
-  return new Response(JSON.stringify({
-    audio_url: audioUrl.signedUrl,
-    duration: share.jobs.audio_duration,
-    date: share.jobs.local_date,
-    length_minutes: Math.round(share.jobs.daystart_length / 60)
-  }), {
-    headers: { 
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': 'https://daystartai.app'
-    }
-  })
 })
 ```
 
@@ -636,105 +758,399 @@ body {
 
 ## Additional Implementation Notes
 
-### Edge Function for Creating Shares
-
-You'll also need a `create_share` edge function to generate share tokens from the iOS app:
+### Edge Function for Creating Shares (Enhanced with Rate Limiting)
 
 **`supabase/functions/create_share/index.ts`:**
 ```typescript
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// URL-safe token generation
+const generateShareToken = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '')
+    .substring(0, 12) // Short, URL-safe token
+}
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*', // iOS app needs this
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, x-client-info'
+}
+
 serve(async (req) => {
-  const { job_id, duration_hours = 48 } = await req.json()
-  
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  )
-  
-  // Generate secure random token
-  const share_token = crypto.randomUUID().replace(/-/g, '')
-  
-  // Set expiry
-  const expires_at = new Date()
-  expires_at.setHours(expires_at.getHours() + duration_hours)
-  
-  // Get user_id from job
-  const { data: job } = await supabase
-    .from('jobs')
-    .select('user_id')
-    .eq('job_id', job_id)
-    .single()
-  
-  if (!job) {
-    return new Response(JSON.stringify({ error: 'Job not found' }), { 
-      status: 404 
+  // Handle CORS
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders })
+  }
+
+  try {
+    const { 
+      job_id, 
+      duration_hours = 48,
+      share_source = 'unknown' // 'completion_screen', 'audio_player', 'manual'
+    } = await req.json()
+    
+    // Extract user ID from header
+    const userId = req.headers.get('x-client-info')
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+    
+    // Verify job belongs to user and has audio
+    const { data: job } = await supabase
+      .from('jobs')
+      .select('user_id, audio_file_path, status')
+      .eq('job_id', job_id)
+      .eq('user_id', userId)
+      .single()
+    
+    if (!job) {
+      return new Response(JSON.stringify({ error: 'Job not found' }), { 
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    if (job.status !== 'ready' || !job.audio_file_path) {
+      return new Response(JSON.stringify({ error: 'Audio not ready' }), { 
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // Check rate limiting - max 5 shares per job
+    const { count } = await supabase
+      .from('public_daystart_shares')
+      .select('*', { count: 'exact', head: true })
+      .eq('job_id', job_id)
+    
+    if (count && count >= 5) {
+      return new Response(JSON.stringify({ 
+        error: 'Share limit reached for this briefing',
+        code: 'RATE_LIMIT_EXCEEDED' 
+      }), { 
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // Check daily user limit (optional)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const { count: dailyCount } = await supabase
+      .from('public_daystart_shares')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', today.toISOString())
+    
+    if (dailyCount && dailyCount >= 10) {
+      return new Response(JSON.stringify({ 
+        error: 'Daily share limit reached',
+        code: 'DAILY_LIMIT_EXCEEDED' 
+      }), { 
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // Generate token and expiry
+    const share_token = generateShareToken()
+    const expires_at = new Date()
+    expires_at.setHours(expires_at.getHours() + duration_hours)
+    
+    // Create share record
+    const { data: share, error } = await supabase
+      .from('public_daystart_shares')
+      .insert({
+        job_id,
+        user_id: userId,
+        share_token,
+        expires_at: expires_at.toISOString(),
+        share_source,
+        shares_per_job: (count || 0) + 1,
+        share_metadata: {
+          app_version: req.headers.get('x-app-version') || 'unknown',
+          created_from: 'ios_app'
+        }
+      })
+      .select()
+      .single()
+    
+    if (error) {
+      console.error('Share creation error:', error)
+      return new Response(JSON.stringify({ error: 'Failed to create share' }), { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    return new Response(JSON.stringify({
+      share_url: `https://daystartai.app/shared/${share_token}`,
+      token: share_token,
+      expires_at: expires_at.toISOString(),
+      share_id: share.share_id
+    }), {
+      status: 201,
+      headers: { 
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      }
+    })
+    
+  } catch (error) {
+    console.error('Share creation error:', error)
+    return new Response(JSON.stringify({ error: 'Internal server error' }), { 
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
-  
-  // Create share record
-  const { error } = await supabase
-    .from('public_daystart_shares')
-    .insert({
-      job_id,
-      user_id: job.user_id,
-      share_token,
-      expires_at: expires_at.toISOString()
-    })
-  
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 500 
-    })
-  }
-  
-  return new Response(JSON.stringify({
-    share_url: `https://daystartai.app/shared/${share_token}`,
-    token: share_token,
-    expires_at: expires_at.toISOString()
-  }), {
-    headers: { 'Content-Type': 'application/json' }
-  })
 })
 ```
 
-### iOS Integration
+### iOS Integration (Enhanced)
 
-Update the commented-out share functions in HomeView and AudioPlayerView to call the new create_share endpoint:
-
+**1. Add ShareResponse Model:**
 ```swift
-private func shareDayStart(_ dayStart: DayStartData) async {
-    do {
-        // 1. Create share via API
-        let shareResponse = try await SupabaseClient.shared.createShare(jobId: dayStart.id)
-        
-        // 2. Create branded message
-        let duration = Int(dayStart.duration / 60)
-        let shareText = """
-        🌅 Check out my DayStart! 
-        
-        \(duration) minutes of personalized morning intelligence:
-        • News & market insights  
-        • Weather & calendar
-        • Daily motivation
-        
-        Listen: \(shareResponse.shareUrl)
-        
-        Get DayStart: https://daystartai.app
-        
-        #DayStart #MorningRoutine
-        """
-        
-        // 3. Present share sheet
-        let activityVC = UIActivityViewController(activityItems: [shareText], applicationActivities: nil)
-        // ... existing share sheet presentation code
-        
-    } catch {
-        // Handle error
-        print("Failed to create share: \(error)")
+// Models/ShareResponse.swift
+struct ShareResponse: Codable {
+    let shareUrl: String
+    let token: String
+    let expiresAt: Date
+    let shareId: UUID
+    
+    enum CodingKeys: String, CodingKey {
+        case shareUrl = "share_url"
+        case token
+        case expiresAt = "expires_at"
+        case shareId = "share_id"
     }
 }
 ```
 
-This gives you a complete branded, mobile-responsive audio player that maintains DayStart's visual identity while driving app downloads!
+**2. Add to SupabaseClient:**
+```swift
+// Services/SupabaseClient.swift
+extension SupabaseClient {
+    func createShare(
+        jobId: UUID, 
+        source: String = "unknown",
+        durationHours: Int = 48
+    ) async throws -> ShareResponse {
+        let url = URL(string: "\(supabaseUrl)/functions/v1/create_share")!
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(receiptId, forHTTPHeaderField: "x-client-info")
+        request.setValue(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown", 
+                        forHTTPHeaderField: "x-app-version")
+        
+        let body = [
+            "job_id": jobId.uuidString,
+            "share_source": source,
+            "duration_hours": durationHours
+        ]
+        
+        request.httpBody = try JSONEncoder().encode(body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 201 else {
+            if let errorData = try? JSONDecoder().decode([String: String].self, from: data),
+               let errorMessage = errorData["error"] {
+                throw SupabaseError.apiError(errorMessage)
+            }
+            throw SupabaseError.requestFailed
+        }
+        
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(ShareResponse.self, from: data)
+    }
+}
+```
+
+**3. Update Share Functions in Views:**
+```swift
+// HomeView.swift & AudioPlayerView.swift
+private func shareDayStart(_ dayStart: DayStartData) {
+    Task {
+        do {
+            // Show loading indicator
+            isShareLoading = true
+            
+            // 1. Create share via API
+            let shareResponse = try await SupabaseClient.shared.createShare(
+                jobId: dayStart.id,
+                source: "completion_screen" // or "audio_player"
+            )
+            
+            // 2. Create leadership-focused share message
+            let duration = Int(dayStart.duration / 60)
+            let shareText = """
+            🎯 Just got my Morning Intelligence Brief
+            
+            \(duration) minutes of curated insights delivered like my own Chief of Staff prepared it.
+            
+            Stop reacting. Start leading.
+            
+            Listen: \(shareResponse.shareUrl)
+            
+            Join the leaders who start ahead: https://daystartai.app
+            
+            #MorningIntelligence #Leadership #DayStart
+            """
+            
+            // 3. Present share sheet
+            await MainActor.run {
+                let activityVC = UIActivityViewController(
+                    activityItems: [shareText],
+                    applicationActivities: nil
+                )
+                
+                // Configure for iPad
+                if let popover = activityVC.popoverPresentationController {
+                    // ... existing popover config
+                }
+                
+                // Present
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let window = windowScene.windows.first,
+                   let rootVC = window.rootViewController {
+                    rootVC.present(activityVC, animated: true)
+                }
+                
+                isShareLoading = false
+            }
+            
+            // 4. Track share analytics
+            AnalyticsService.shared.track(.sharedDayStart, properties: [
+                "source": "completion_screen",
+                "share_id": shareResponse.shareId.uuidString
+            ])
+            
+        } catch {
+            // Handle error gracefully
+            await MainActor.run {
+                isShareLoading = false
+                // Show error alert or toast
+                showShareError = true
+            }
+            print("Failed to create share: \(error)")
+        }
+    }
+}
+```
+
+### JavaScript Player Enhancement
+
+**Update `assets/js/audio-player.js` for Dynamic Content:**
+```javascript
+// Add to loadDayStart() method
+updateUI(data) {
+    // Format date nicely
+    const dateObj = new Date(data.date)
+    document.getElementById('daystartDate').textContent = 
+        dateObj.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        })
+    
+    // Duration with personalized touch
+    const userName = data.user_name ? `${data.user_name}'s ` : ''
+    document.getElementById('durationInfo').textContent = 
+        `${userName}${data.length_minutes} minute intelligence brief`
+    
+    // Update page title and OG tags dynamically
+    document.title = `${userName}Morning Intelligence Brief - DayStart`
+    
+    // Update Open Graph tags for better sharing
+    const ogTitle = document.querySelector('meta[property="og:title"]')
+    if (ogTitle) {
+        ogTitle.content = `Listen to ${userName}${data.length_minutes} minute Morning Intelligence Brief`
+    }
+}
+```
+
+### Share Cleanup Addition
+
+**Add to cleanup-audio function:**
+```typescript
+// In cleanup-audio/index.ts, add after audio cleanup:
+
+// Clean up expired shares
+const { error: shareCleanupError } = await supabase
+  .from('public_daystart_shares')
+  .delete()
+  .lt('expires_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+
+if (shareCleanupError) {
+  console.error('Share cleanup error:', shareCleanupError)
+} else {
+  console.log('Cleaned up expired share links')
+}
+```
+
+## 📊 Analytics & Monitoring
+
+### Track Share Metrics:
+```sql
+-- Useful queries for monitoring
+-- Daily share creation
+SELECT 
+  DATE(created_at) as date,
+  COUNT(*) as shares_created,
+  COUNT(DISTINCT user_id) as unique_users,
+  COUNT(DISTINCT job_id) as unique_briefings
+FROM public_daystart_shares
+GROUP BY DATE(created_at)
+ORDER BY date DESC;
+
+-- Conversion tracking
+SELECT 
+  COUNT(*) FILTER (WHERE clicked_cta = true) as cta_clicks,
+  COUNT(*) FILTER (WHERE converted_to_user = true) as conversions,
+  AVG(view_count) as avg_views_per_share
+FROM public_daystart_shares
+WHERE created_at > NOW() - INTERVAL '30 days';
+```
+
+## 🚀 Phased Implementation Plan
+
+### Phase 1: Basic Functionality (MVP)
+- ✅ Frontend complete with branded player
+- Deploy basic database schema
+- Deploy edge functions without rate limiting
+- Test end-to-end flow
+- Feature flag in iOS app
+
+### Phase 2: Rate Limiting & Analytics
+- Add rate limiting to create_share
+- Implement view tracking
+- Add CTA click tracking
+- Deploy analytics dashboard
+
+### Phase 3: Advanced Features
+- Dynamic OG image generation
+- Share expiration notifications
+- Conversion tracking
+- A/B testing different share messages
+
+This comprehensive plan provides a production-ready share feature that's backwards compatible, secure, and optimized for viral growth!

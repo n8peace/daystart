@@ -784,6 +784,17 @@ function sanitizeForTTS(raw: string): string {
   }
   s = capPausesPerParagraph(s);
 
+  // Political accuracy validation - ensure correct presidential titles
+  const beforePoliticalCorrection = s;
+  s = s.replace(/\bformer\s+president\s+trump\b/gi, 'President Trump');
+  s = s.replace(/\bex-president\s+trump\b/gi, 'President Trump');
+  s = s.replace(/\bpresident\s+biden\b/gi, 'former President Biden');
+  
+  // Log any corrections made
+  if (s !== beforePoliticalCorrection) {
+    console.log('[DEBUG] Political title corrections applied to script');
+  }
+
   return s.trim();
 }
 
@@ -2097,7 +2108,7 @@ FACT RULES
 - Do not generalize. If you have at least one company in stocks.focus, always mention it specifically by name. Avoid generic phrases like "the market is mixed."
 - If today is Saturday or Sunday, omit equity updates entirely. Only mention cryptocurrencies if present.
 - Never mention a team or matchup unless it appears in the sports data for today.
-- IMPORTANT: When referring to Donald Trump in any news context, he is the CURRENT president, not former president. Always refer to him as "President Trump" or "the president" when discussing current political news.
+- CRITICAL POLITICAL ACCURACY: Donald Trump is the CURRENT President of the United States (as of January 20, 2025). NEVER refer to him as "former president" in any context. Always use "President Trump" or "the president" when discussing current political news. Similarly, Joe Biden is now the FORMER president - refer to him as "former President Biden" if mentioned in historical context. Double-check any political references to ensure they reflect current reality.
  - Mention ONLY teams present in sportsTeamWhitelist (exact names). If the sports array is empty, omit the sports section entirely.
  - When choosing news, prefer items that mention the user's neighborhood/city/county/adjacent areas; next, state-level; then national; then international. If user.location.neighborhood exists, use it for hyper-local references (e.g., "Mar Vista" instead of just "Los Angeles").
  - Use 1–2 transitions, choosing from data.transitions.

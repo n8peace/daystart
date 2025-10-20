@@ -62,10 +62,11 @@ class DayStartPlayer {
     }
 
     updateUI(data) {
-        // Update date display
+        // Format date nicely
+        const dateObj = new Date(data.date);
         const dateElement = document.getElementById('daystartDate');
         if (dateElement) {
-            dateElement.textContent = new Date(data.date).toLocaleDateString('en-US', { 
+            dateElement.textContent = dateObj.toLocaleDateString('en-US', { 
                 weekday: 'long', 
                 year: 'numeric', 
                 month: 'long', 
@@ -73,14 +74,39 @@ class DayStartPlayer {
             });
         }
         
-        // Update duration info
+        // Duration with personalized touch
+        const userName = data.user_name ? `${data.user_name}'s ` : '';
         const durationElement = document.getElementById('durationInfo');
         if (durationElement) {
-            durationElement.textContent = `${data.length_minutes} minute briefing`;
+            durationElement.textContent = `${userName}${data.length_minutes} minute intelligence brief`;
         }
+        
+        // Update page title and social meta tags dynamically
+        const shareTitle = `Listen to ${userName}Morning Intelligence Brief`;
+        const shareDescription = `${data.length_minutes} minutes of curated insights delivered like a Chief of Staff prepared it. Stop reacting. Start leading.`;
+        
+        // Update page title
+        document.title = shareTitle;
+        
+        // Update Open Graph tags for better social sharing
+        this.updateMetaTag('property', 'og:title', shareTitle);
+        this.updateMetaTag('property', 'og:description', shareDescription);
+        this.updateMetaTag('property', 'og:url', window.location.href);
+        
+        // Update Twitter Card
+        this.updateMetaTag('name', 'twitter:title', shareTitle);
+        this.updateMetaTag('name', 'twitter:description', shareDescription);
 
         // Set audio source (commented out for testing)
         // this.audio.src = data.audio_url;
+    }
+    
+    updateMetaTag(attribute, attributeValue, content) {
+        const selector = `meta[${attribute}="${attributeValue}"]`;
+        const tag = document.querySelector(selector);
+        if (tag) {
+            tag.content = content;
+        }
     }
 
     setupControls() {

@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.19] - In Development
 
-**Build:** 1 | **Commit:** aba35ee | **Status:** In Development, Supabase Deployed
+**Build:** 1 | **Commit:** fb352ad | **Status:** In Development, Supabase Deployed
 
 ### Changed
 - **Audio Visualization** - Implemented real-time audio level monitoring with MTAudioProcessingTap
@@ -26,6 +26,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Improves user experience by aligning edit interface with actual content delivery order
   - All functionality preserved: permission handlers, stock editor, quote style picker unchanged
 
+### Added
+- **Share Feature** - Added shareable DayStart links with branded web player
+  - Database schema for public share links with 48-hour expiration
+  - Analytics tracking for share metrics and conversion
+  - Rate limiting to prevent abuse (5 shares per briefing, 10 per day)
+  - Branded web player at daystartai.app/shared/{token} with leadership messaging
+  - Foundation for iOS app integration with share button functionality
+
 ### Fixed
 - **Content Cache Healthcheck** - Fixed incorrect column name causing false "missing" reports
   - Healthcheck was querying `api_source` column but table uses `source`
@@ -39,6 +47,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Prevents job failures like the one with exotic Unicode name: ᗴᗰIᒪYஐꨄღఌᰔದᜊᱬ𖢇☙❧❦❣︎❥❤︎︎♡︎♥︎
   - Gracefully handles edge cases: emoji-only names filtered to empty string
   - Fully backwards compatible: older app versions continue working with server-side sanitization
+- **Presidential Title Accuracy** - Enhanced script generation to prevent incorrect political references
+  - Added critical prompt instructions emphasizing Trump as CURRENT president (as of Jan 20, 2025)
+  - Implemented automatic validation in script sanitization to catch and correct title errors
+  - Auto-corrects "former president Trump" → "President Trump" and "president Biden" → "former President Biden"
+  - Includes debugging logs when political corrections are applied for monitoring accuracy
 
 ### Added
 - **External Service Health Monitoring** - Healthcheck now monitors critical external dependencies
