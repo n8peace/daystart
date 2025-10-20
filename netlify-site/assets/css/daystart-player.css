@@ -1,0 +1,491 @@
+/* DayStart branded styling with banana theme - Light App Store optimized */
+:root {
+    --primary-yellow: #FFD23F;      /* Correct DayStart primary yellow */
+    --accent-yellow: #FFC857;       /* Correct DayStart accent yellow */
+    --banana-brown: #8B4513;        /* DayStart secondary brown */
+    --background: #ffffff;          /* Light background like App Store */
+    --surface: #f8f9fa;             /* Light card surface */
+    --text: #1d1d1f;                /* Dark text like Apple */
+    --text-secondary: #6e6e73;      /* Apple gray text */
+    --text-tertiary: #8e8e93;       /* Lighter gray text */
+    --border: #d2d2d7;              /* Light border like App Store */
+    --shadow: rgba(0, 0, 0, 0.08);  /* Subtle shadow */
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--background);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.47;
+}
+
+.download-banner {
+    background: linear-gradient(90deg, var(--primary-yellow), var(--accent-yellow));
+    color: var(--text);
+    padding: 12px 0;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 0 var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.banner-content {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    font-weight: 500;
+}
+
+.download-btn {
+    background: var(--text);
+    color: var(--background);
+    padding: 8px 16px;
+    border-radius: 20px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+.download-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--shadow);
+}
+
+.player-container {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+.player-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.logo {
+    height: 80px;
+    width: 80px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+    object-fit: cover;
+    box-shadow: 0 4px 16px var(--shadow);
+    border: 1px solid var(--border);
+}
+
+.player-header h1 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(45deg, var(--primary-yellow), var(--accent-yellow));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.player-header .subtitle {
+    margin: 8px 0 0 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-style: italic;
+    font-weight: 400;
+}
+
+.audio-player {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 40px;
+    box-shadow: 0 4px 16px var(--shadow);
+    border: 1px solid var(--border);
+}
+
+.loading, .error {
+    text-align: center;
+    padding: 40px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--border);
+    border-top: 4px solid var(--primary-yellow);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.error-subtext {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin: 10px 0;
+}
+
+.error-cta {
+    display: inline-block;
+    background: var(--primary-yellow);
+    color: var(--text);
+    padding: 12px 24px;
+    border-radius: 25px;
+    text-decoration: none;
+    font-weight: 600;
+    margin-top: 20px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+.error-cta:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--shadow);
+}
+
+.progress-container {
+    margin-bottom: 30px;
+}
+
+.progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    margin-bottom: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-yellow), var(--accent-yellow));
+    border-radius: 3px;
+    transition: width 0.1s ease;
+    width: 0%;
+}
+
+.time-display {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+.controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+    margin-bottom: 30px;
+}
+
+.play-pause-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-yellow), var(--accent-yellow));
+    border: none;
+    font-size: 32px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px var(--shadow);
+    color: var(--text);
+}
+
+.play-pause-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px var(--shadow);
+}
+
+.play-pause-btn:active {
+    transform: scale(0.95);
+}
+
+.control-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 12px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px var(--shadow);
+}
+
+.control-btn:hover {
+    background: var(--background);
+    color: var(--text);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px var(--shadow);
+}
+
+.control-btn:active {
+    transform: translateY(0);
+}
+
+.daystart-info {
+    text-align: center;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+}
+
+.date {
+    font-size: 18px;
+    margin: 0 0 8px 0;
+    font-weight: 600;
+}
+
+.duration-info {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin: 0;
+}
+
+.app-promotion {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
+    margin-top: 40px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+.app-promotion h2 {
+    margin: 0 0 16px 0;
+    font-size: 1.5rem;
+    background: linear-gradient(45deg, var(--primary-yellow), var(--accent-yellow));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.app-promotion p {
+    color: var(--text-secondary);
+    margin: 0 0 24px 0;
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.feature-highlights {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 24px 0;
+}
+
+.feature {
+    background: var(--background);
+    padding: 12px 16px;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text);
+    border: 1px solid var(--border);
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px var(--shadow);
+}
+
+.feature:hover {
+    background: var(--primary-yellow);
+    color: var(--text);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px var(--shadow);
+}
+
+.cta-button {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--primary-yellow), var(--accent-yellow));
+    color: var(--text);
+    padding: 16px 32px;
+    border-radius: 25px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 16px var(--shadow);
+}
+
+.cta-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px var(--shadow);
+}
+
+.cta-button:active {
+    transform: translateY(0);
+}
+
+/* Footer Styles */
+.site-footer {
+    margin-top: 60px;
+    padding: 40px 0;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.footer-content {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 0 20px;
+    text-align: center;
+}
+
+.footer-links {
+    margin-bottom: 16px;
+}
+
+.footer-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.footer-links a:hover {
+    color: var(--primary-yellow);
+}
+
+.footer-links .separator {
+    color: var(--text-tertiary);
+    margin: 0 12px;
+    font-size: 14px;
+}
+
+.footer-company {
+    margin-bottom: 12px;
+}
+
+.footer-company a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: inline-block;
+}
+
+.footer-company a:hover {
+    color: var(--primary-yellow);
+    transform: translateY(-1px);
+}
+
+.footer-copyright {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 400;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .banner-content {
+        flex-direction: column;
+        gap: 12px;
+        font-size: 14px;
+    }
+    
+    .download-btn {
+        font-size: 14px;
+        padding: 6px 12px;
+    }
+    
+    .player-container {
+        margin: 20px auto;
+        padding: 0 16px;
+    }
+    
+    .audio-player {
+        padding: 30px 20px;
+    }
+    
+    .controls {
+        gap: 20px;
+    }
+    
+    .play-pause-btn {
+        width: 70px;
+        height: 70px;
+        font-size: 28px;
+    }
+    
+    .control-btn {
+        padding: 10px 12px;
+        font-size: 12px;
+    }
+    
+    .app-promotion {
+        padding: 30px 20px;
+        margin-top: 30px;
+    }
+    
+    .player-header h1 {
+        font-size: 1.5rem;
+    }
+    
+    .player-header .subtitle {
+        font-size: 0.8rem;
+    }
+    
+    .feature-highlights {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin: 20px 0;
+    }
+    
+    .feature {
+        padding: 10px 12px;
+        font-size: 0.8rem;
+    }
+    
+    .site-footer {
+        margin-top: 40px;
+        padding: 30px 0;
+    }
+    
+    .footer-links .separator {
+        margin: 0 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .logo {
+        height: 60px;
+        width: 60px;
+    }
+    
+    .controls {
+        gap: 15px;
+    }
+    
+    .play-pause-btn {
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+    }
+    
+    .control-btn {
+        padding: 8px 10px;
+        font-size: 11px;
+    }
+}

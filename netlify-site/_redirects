@@ -1,0 +1,6 @@
+# Shared DayStart player - capture token parameter
+/shared/:token /shared/index.html 200
+
+# Root and other paths -> App Store (keep existing behavior)
+/ https://apps.apple.com/app/apple-store/id6751055528?pt=128010523&ct=daystartai.app&mt=8 302
+/* https://apps.apple.com/app/apple-store/id6751055528?pt=128010523&ct=daystartai.app&mt=8 302
