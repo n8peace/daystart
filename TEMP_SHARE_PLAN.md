@@ -1153,4 +1153,80 @@ WHERE created_at > NOW() - INTERVAL '30 days';
 - Conversion tracking
 - A/B testing different share messages
 
+## 🔍 Monitoring & Maintenance
+
+### Update Healthcheck Function
+After deploying the share feature, update the healthcheck function to monitor share system health:
+
+```typescript
+// Add to healthcheck/index.ts
+async function checkShareSystem(supabase: any) {
+  const start = Date.now()
+  
+  try {
+    // Check recent share creation
+    const { count: recentShares } = await supabase
+      .from('public_daystart_shares')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+    
+    // Check for expired shares cleanup
+    const { count: expiredShares } = await supabase
+      .from('public_daystart_shares')
+      .select('*', { count: 'exact', head: true })
+      .lt('expires_at', new Date().toISOString())
+    
+    // Check edge functions are accessible
+    const testResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/get_shared_daystart`, {
+      method: 'OPTIONS'
+    })
+    
+    const functionsHealthy = testResponse.status === 204
+    const duration_ms = Date.now() - start
+    
+    return {
+      name: 'share_system',
+      status: functionsHealthy ? 'pass' : 'fail',
+      duration_ms,
+      details: {
+        recent_shares_24h: recentShares || 0,
+        expired_shares_pending_cleanup: expiredShares || 0,
+        edge_functions_responsive: functionsHealthy
+      }
+    }
+  } catch (error) {
+    return {
+      name: 'share_system',
+      status: 'fail',
+      duration_ms: Date.now() - start,
+      error: error.message
+    }
+  }
+}
+```
+
+### Share Cleanup Queries
+Add these to your monitoring dashboard:
+
+```sql
+-- Daily share metrics
+SELECT 
+  DATE(created_at) as date,
+  COUNT(*) as shares_created,
+  COUNT(DISTINCT user_id) as unique_users,
+  AVG(view_count) as avg_views_per_share
+FROM public_daystart_shares
+WHERE created_at > NOW() - INTERVAL '7 days'
+GROUP BY DATE(created_at)
+ORDER BY date DESC;
+
+-- Share system health
+SELECT 
+  COUNT(*) FILTER (WHERE expires_at > NOW()) as active_shares,
+  COUNT(*) FILTER (WHERE expires_at <= NOW()) as expired_shares,
+  COUNT(*) FILTER (WHERE view_count > 0) as viewed_shares,
+  MAX(view_count) as most_viewed_share
+FROM public_daystart_shares;
+```
+
 This comprehensive plan provides a production-ready share feature that's backwards compatible, secure, and optimized for viral growth!
