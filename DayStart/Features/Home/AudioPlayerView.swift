@@ -272,25 +272,87 @@ struct AudioPlayerView: View {
             return
         }
         
-        // Validate audioStoragePath is available for sharing
-        guard let audioStoragePath = dayStart.audioStoragePath, !audioStoragePath.isEmpty else {
-            DebugLogger.shared.log("❌ Cannot share DayStart: missing audioStoragePath (jobId: \(jobId))", level: .error)
-            
-            // Show user-friendly error message
-            Task { @MainActor in
-                let alert = UIAlertController(
-                    title: "Share Unavailable",
-                    message: "This DayStart cannot be shared at the moment. Please try sharing a newer DayStart.",
-                    preferredStyle: .alert
-                )
-                alert.addAction(UIAlertAction(title: "OK", style: .default))
+        // Check if audioStoragePath is available, if not try to fetch it
+        if let audioStoragePath = dayStart.audioStoragePath, !audioStoragePath.isEmpty {
+            // AudioStoragePath is available, proceed with share
+            createShareWithPath(dayStart, audioStoragePath: audioStoragePath)
+        } else {
+            // AudioStoragePath is missing, attempt to fetch from API
+            DebugLogger.shared.log("⚠️ AudioStoragePath missing for jobId: \(jobId), attempting to fetch from API", level: .warning)
+            fetchMissingAudioStoragePath(for: dayStart)
+        }
+    }
+    
+    private func fetchMissingAudioStoragePath(for dayStart: DayStartData) {
+        Task {
+            do {
+                // Show loading indicator
+                await MainActor.run {
+                    isShareLoading = true
+                }
                 
-                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                   let window = windowScene.windows.first,
-                   let rootViewController = window.rootViewController {
-                    rootViewController.present(alert, animated: true)
+                DebugLogger.shared.log("🔍 Fetching audio status for missing audioStoragePath", level: .info)
+                
+                // Fetch audio status to get audioStoragePath
+                let audioStatus = try await SupabaseClient.shared.getAudioStatus(for: dayStart.date)
+                
+                guard audioStatus.success && audioStatus.status == "ready" else {
+                    throw NSError(domain: "ShareError", code: 1, userInfo: [
+                        NSLocalizedDescriptionKey: "Audio not ready for sharing"
+                    ])
+                }
+                
+                guard let audioStoragePath = audioStatus.audioFilePath, !audioStoragePath.isEmpty else {
+                    throw NSError(domain: "ShareError", code: 2, userInfo: [
+                        NSLocalizedDescriptionKey: "Could not retrieve audio storage path"
+                    ])
+                }
+                
+                DebugLogger.shared.log("✅ Fetched audioStoragePath: \(audioStoragePath)", level: .info)
+                
+                // Update the DayStart in user history with the fetched audioStoragePath
+                await MainActor.run {
+                    UserPreferences.shared.updateHistory(
+                        with: dayStart.id,
+                        audioStoragePath: audioStoragePath
+                    )
+                }
+                
+                // Now proceed with share using the fetched audioStoragePath
+                var updatedDayStart = dayStart
+                updatedDayStart.audioStoragePath = audioStoragePath
+                createShareWithPath(updatedDayStart, audioStoragePath: audioStoragePath)
+                
+            } catch {
+                // Handle error gracefully
+                await MainActor.run {
+                    isShareLoading = false
+                }
+                
+                DebugLogger.shared.log("❌ Failed to fetch audioStoragePath: \(error)", level: .error)
+                
+                // Show user-friendly error message
+                await MainActor.run {
+                    let alert = UIAlertController(
+                        title: "Share Unavailable",
+                        message: "This DayStart cannot be shared at the moment. Please try sharing a newer DayStart.",
+                        preferredStyle: .alert
+                    )
+                    alert.addAction(UIAlertAction(title: "OK", style: .default))
+                    
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let window = windowScene.windows.first,
+                       let rootViewController = window.rootViewController {
+                        rootViewController.present(alert, animated: true)
+                    }
                 }
             }
+        }
+    }
+    
+    private func createShareWithPath(_ dayStart: DayStartData, audioStoragePath: String) {
+        guard let jobId = dayStart.jobId else {
+            DebugLogger.shared.log("❌ Cannot share DayStart: missing jobId", level: .error)
             return
         }
         

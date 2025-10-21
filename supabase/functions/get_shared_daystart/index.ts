@@ -90,46 +90,9 @@ serve(async (req) => {
       })
     }
     
-    // 2. Verify audio file exists
-    const audioFileName = share.audio_file_path.split('/').pop()
-    const audioPath = share.audio_file_path.split('/').slice(0, -1).join('/')
-    console.log(`[SHARE] Checking audio file - Path: ${audioPath}, File: ${audioFileName}`)
-    
-    const { data: files, error: listError } = await supabase.storage
-      .from('daystart-audio')
-      .list(audioPath)
-    
-    console.log(`[SHARE] Storage list result - Error: ${listError?.message}, Files found: ${files?.length || 0}`)
-    if (files && files.length > 0) {
-      console.log(`[SHARE] Files in directory: ${files.map(f => f.name).join(', ')}`)
-    }
-    
-    if (listError) {
-      console.log(`[SHARE] Storage list error: ${listError.message}`)
-      return new Response(JSON.stringify({ 
-        error: 'Failed to verify audio file',
-        code: 'STORAGE_ERROR',
-        details: listError.message
-      }), { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-    
-    const audioFile = files?.find(f => f.name === audioFileName)
-    if (!audioFile) {
-      console.log(`[SHARE] Audio file not found: ${share.audio_file_path}`)
-      console.log(`[SHARE] Available files: ${files?.map(f => f.name).join(', ') || 'none'}`)
-      return new Response(JSON.stringify({ 
-        error: 'Audio file no longer available',
-        code: 'AUDIO_NOT_FOUND' 
-      }), { 
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-    
-    console.log(`[SHARE] Audio file found: ${audioFile.name} (${audioFile.metadata?.size || 'unknown size'})`)
+    // 2. Skip file existence check and try to generate URL directly
+    // The list() operation might fail with certain path formats or permissions
+    console.log(`[SHARE] Attempting to generate signed URL directly for: ${share.audio_file_path}`)
     
     // 3. Generate signed URL for audio
     console.log(`[SHARE] Generating signed URL for: ${share.audio_file_path}`)
