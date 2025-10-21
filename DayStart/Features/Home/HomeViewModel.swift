@@ -1620,7 +1620,15 @@ class HomeViewModel: ObservableObject {
     // MARK: - Audio Playback (Services Loaded On-Demand)
     
     private func startDayStartWithAudio(scheduledTime: Date? = nil) async {
-        let dayStart = generateBasicDayStart(for: userPreferences.settings)
+        // Check if we already have a DayStart for today in history (which would have jobId)
+        let today = Date()
+        let existingDayStart = userPreferences.history.first { dayStart in
+            Calendar.current.isDate(dayStart.date, inSameDayAs: today) && !dayStart.isDeleted
+        }
+        
+        // Use existing DayStart if found (preserves jobId), otherwise generate basic one
+        let dayStart = existingDayStart ?? generateBasicDayStart(for: userPreferences.settings)
+        print("🔍 HomeViewModel - Using \(existingDayStart != nil ? "existing" : "new") DayStart, jobId: \(dayStart.jobId ?? "nil")")
         
         var dayStartWithScheduledTime = dayStart
         // Use the passed scheduledTime or fall back to nextDayStartTime
@@ -1655,6 +1663,9 @@ class HomeViewModel: ObservableObject {
                     if let jobId = audioStatus.jobId {
                         dayStartWithScheduledTime.jobId = jobId
                         currentDayStart?.jobId = jobId
+                        print("🔍 HomeViewModel - Set jobId for currentDayStart: \(jobId)")
+                    } else {
+                        print("🔍 HomeViewModel - No jobId in audioStatus response")
                     }
                     
                     // Update backend storage path for share functionality

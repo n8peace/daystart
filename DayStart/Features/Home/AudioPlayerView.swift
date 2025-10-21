@@ -86,6 +86,18 @@ struct AudioPlayerView: View {
             Text("Unable to share this DayStart. Please try again later.")
         }
         .onAppear {
+            print("🔍 AudioPlayerView.onAppear - Called!")
+            print("🔍 AudioPlayerView - DayStart parameter: \(dayStart == nil ? "nil" : "exists")")
+            
+            // Debug logging for share button visibility
+            if let dayStart = dayStart {
+                print("🔍 AudioPlayerView - DayStart exists: id=\(dayStart.id)")
+                print("🔍 AudioPlayerView - JobId: \(dayStart.jobId ?? "nil")")
+                print("🔍 AudioPlayerView - Share button will show: \(dayStart.jobId != nil)")
+            } else {
+                print("🔍 AudioPlayerView - DayStart is nil - no share button will show")
+            }
+            
             // Listen for share trigger from prompt
             NotificationCenter.default.addObserver(
                 forName: NSNotification.Name("TriggerShareFromPrompt"),

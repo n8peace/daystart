@@ -197,6 +197,13 @@ struct HomeView: View {
                             AudioPlayerView(dayStart: viewModel.currentDayStart)
                                 .onAppear {
                                     DebugLogger.shared.log("🎵 HomeView: AudioPlayerView appeared", level: .info)
+                                    print("🔍 HomeView - State is .playing, showing AudioPlayerView")
+                                    print("🔍 HomeView - viewModel.currentDayStart: \(viewModel.currentDayStart == nil ? "nil" : "exists")")
+                                    if let dayStart = viewModel.currentDayStart {
+                                        print("🔍 HomeView - Passing DayStart to AudioPlayerView: id=\(dayStart.id), jobId=\(dayStart.jobId ?? "nil")")
+                                    } else {
+                                        print("🔍 HomeView - Passing nil DayStart to AudioPlayerView")
+                                    }
                                 }
                                 .onDisappear {
                                     DebugLogger.shared.log("🎵 HomeView: AudioPlayerView disappeared", level: .info)
