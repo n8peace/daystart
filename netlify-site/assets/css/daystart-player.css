@@ -204,7 +204,8 @@ body {
     justify-content: center;
     align-items: center;
     gap: 2rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2.5rem; /* Extra space for 10s labels */
+    position: relative;
 }
 
 .play-pause-btn {
@@ -220,6 +221,8 @@ body {
     box-shadow: 0 4px 10px var(--shadow-medium);
     transition: transform 0.15s ease-in-out;
     cursor: pointer;
+    padding: 0;
+    position: relative;
 }
 
 .play-pause-btn:hover {
@@ -230,24 +233,26 @@ body {
     transform: scale(0.95);
 }
 
+.play-pause-btn svg {
+    width: 28px;
+    height: 28px;
+}
+
 .control-btn {
     background: var(--surface);
     border: 1px solid var(--border);
     color: var(--text-secondary);
-    padding: 0.75rem;
+    padding: 0;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 0.875rem;
     width: 48px;
     height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-direction: column;
-    gap: 2px;
-    font-weight: 500;
     transition: all 0.2s ease;
     box-shadow: 0 1px 3px var(--shadow);
+    position: relative;
 }
 
 .control-btn:hover {
@@ -261,105 +266,24 @@ body {
     transform: scale(0.95);
 }
 
-/* Icon styles */
-.icon-play, .icon-pause {
-    width: 16px;
-    height: 16px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.control-btn svg {
+    width: 20px;
+    height: 20px;
 }
 
-.icon-play::before {
-    content: '';
-    width: 0;
-    height: 0;
-    border-left: 6px solid currentColor;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-    margin-left: 1px;
-}
-
-.icon-pause::before {
-    content: '';
-    width: 2px;
-    height: 10px;
-    background: currentColor;
-    border-radius: 1px;
-    box-shadow: 4px 0 0 currentColor;
-}
-
-.play-pause-btn .icon-play::before {
-    border-left: 8px solid currentColor;
-    border-top: 6px solid transparent;
-    border-bottom: 6px solid transparent;
-    margin-left: 2px;
-}
-
-.play-pause-btn .icon-pause::before {
-    width: 3px;
-    height: 14px;
-    box-shadow: 6px 0 0 currentColor;
-}
-
-.icon-backward, .icon-forward {
-    width: 12px;
-    height: 12px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.icon-backward::before {
-    content: '';
-    width: 0;
-    height: 0;
-    border-right: 4px solid currentColor;
-    border-top: 3px solid transparent;
-    border-bottom: 3px solid transparent;
-    position: relative;
-}
-
-.icon-backward::after {
-    content: '';
-    width: 0;
-    height: 0;
-    border-right: 4px solid currentColor;
-    border-top: 3px solid transparent;
-    border-bottom: 3px solid transparent;
+/* 10s labels outside buttons */
+.control-btn[data-label]::after {
+    content: attr(data-label) 's';
     position: absolute;
-    left: -2px;
-}
-
-.icon-forward::before {
-    content: '';
-    width: 0;
-    height: 0;
-    border-left: 4px solid currentColor;
-    border-top: 3px solid transparent;
-    border-bottom: 3px solid transparent;
-    position: relative;
-}
-
-.icon-forward::after {
-    content: '';
-    width: 0;
-    height: 0;
-    border-left: 4px solid currentColor;
-    border-top: 3px solid transparent;
-    border-bottom: 3px solid transparent;
-    position: absolute;
-    right: -2px;
-}
-
-.control-btn .label {
-    font-size: 0.75rem;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
     font-weight: 600;
-    opacity: 0.8;
-    margin-top: 1px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
 }
+
 
 /* DayStart Info */
 .daystart-info {
@@ -575,6 +499,7 @@ body {
 
     .controls {
         gap: 1.5rem;
+        margin-bottom: 2.5rem; /* Extra space for labels */
     }
 
     .play-pause-btn {
@@ -582,9 +507,19 @@ body {
         height: 56px;
     }
 
+    .play-pause-btn svg {
+        width: 24px;
+        height: 24px;
+    }
+
     .control-btn {
         width: 44px;
         height: 44px;
+    }
+
+    .control-btn svg {
+        width: 18px;
+        height: 18px;
     }
 
     .app-promotion {
@@ -621,12 +556,23 @@ body {
         height: 52px;
     }
 
+    .play-pause-btn svg {
+        width: 22px;
+        height: 22px;
+    }
+
     .control-btn {
         width: 40px;
         height: 40px;
     }
 
-    .control-btn .label {
-        font-size: 0.7rem;
+    .control-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .control-btn[data-label]::after {
+        font-size: 0.65rem;
+        bottom: -18px;
     }
 }

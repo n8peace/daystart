@@ -213,30 +213,30 @@ class DayStartPlayer {
     onPlay() {
         const button = document.getElementById('playPause');
         if (button) {
-            const icon = button.querySelector('span');
-            if (icon) {
-                icon.className = 'icon-pause';
-            }
+            const playIcon = button.querySelector('.icon-play');
+            const pauseIcon = button.querySelector('.icon-pause');
+            if (playIcon) playIcon.style.display = 'none';
+            if (pauseIcon) pauseIcon.style.display = 'block';
         }
     }
 
     onPause() {
         const button = document.getElementById('playPause');
         if (button) {
-            const icon = button.querySelector('span');
-            if (icon) {
-                icon.className = 'icon-play';
-            }
+            const playIcon = button.querySelector('.icon-play');
+            const pauseIcon = button.querySelector('.icon-pause');
+            if (playIcon) playIcon.style.display = 'block';
+            if (pauseIcon) pauseIcon.style.display = 'none';
         }
     }
 
     onEnded() {
         const button = document.getElementById('playPause');
         if (button) {
-            const icon = button.querySelector('span');
-            if (icon) {
-                icon.className = 'icon-play';
-            }
+            const playIcon = button.querySelector('.icon-play');
+            const pauseIcon = button.querySelector('.icon-pause');
+            if (playIcon) playIcon.style.display = 'block';
+            if (pauseIcon) pauseIcon.style.display = 'none';
         }
         
         // Reset progress

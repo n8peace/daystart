@@ -179,16 +179,25 @@
         </div>
 
         <div class="controls">
-          <button class="control-btn" id="skipBack">
-            <span class="icon-backward"></span>
-            <span class="label">10s</span>
+          <button class="control-btn" id="skipBack" data-label="10">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M11 17L6 12L11 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M18 17L13 12L18 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </button>
           <button class="play-pause-btn" id="playPause">
-            <span class="icon-play"></span>
+            <svg class="icon-play" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 5.14v13.72c0 1.04 1.16 1.67 2.02 1.1l10.4-6.86c.82-.54.82-1.66 0-2.2L10.02 4.04C9.16 3.47 8 4.1 8 5.14z" fill="currentColor"/>
+            </svg>
+            <svg class="icon-pause" style="display: none;" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 4h4v16H6V4zM14 4h4v16h-4V4z" fill="currentColor"/>
+            </svg>
           </button>
-          <button class="control-btn" id="skipForward">
-            <span class="label">10s</span>
-            <span class="icon-forward"></span>
+          <button class="control-btn" id="skipForward" data-label="10">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M13 17L18 12L13 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M6 17L11 12L6 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </button>
         </div>
 
