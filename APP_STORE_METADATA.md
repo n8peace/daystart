@@ -43,6 +43,7 @@ KEY FEATURES:
 • Professional Narration: Natural voices, no robotic tone
 • Offline Playback: Perfect for commutes or workouts
 • Full Customization: Choose the topics that matter most
+• DayStart Share: Briefings are private by design with the option to share
 
 Trusted by ambitious professionals worldwide.
 
@@ -65,33 +66,27 @@ Terms of Service: https://daystart.bananaintelligence.ai/terms
 
 ## What's New in Version 2025.10.19
 ```
-What's New in DayStart - We're Going ABSOLUTELY BANANAS!
+DayStart AI Share: Make Your Morning Intelligence Shareable!
 
-Alert: Your Morning Intelligence Just Got a MAJOR Potassium Boost
+NEW: DayStart AI Share
+Share your intelligent morning routine! Every DayStart now gets a shareable audio link with beautiful player page. Show your friends, family, and colleagues how successful leaders start their day. Perfect for social media or just spreading the intelligence advantage.
 
-Holy guacamole! Wait, that's avocados... we mean holy banana split! We've been peeling back the layers of mediocrity and going absolutely BANANAS in our development lab. Here's what's ripe and ready:
+Smart Audio Generation
+Never wait again! Our enhanced job system detects when you've been away and instantly starts generating your DayStart. Plus intelligent backfill ensures you always have fresh intelligence waiting, no matter your schedule.
 
-The "Oops I Forgot" Banana Saver
-Remember when you used to forget your morning briefing and feel like a wilted banana all day? NEVER AGAIN! Our new Job Backfill System is like having a super-intelligent monkey assistant who remembers EVERYTHING. Been away? We'll create your DayStart faster than you can say "banana split"!
+Time-Aware Greetings
+Finally, greetings that match reality! No more "Good morning" at 8 PM. Whether it's dawn or dusk, our AI now greets you appropriately for the actual time of day.
 
-Time-Smart Greetings Finally, We're Not Bananas!
-We FINALLY figured out how to tell time! No more "Good morning" at 8 PM like some confused fruit. Whether it's crack-of-dawn early or fashionably-late afternoon, we'll greet you with the respect your schedule deserves. Our AI went to time-telling school and GRADUATED!
+Enhanced Deal Alerts
+When savings opportunities arise, you'll know immediately with animated badges, clear pricing displays, and deals that make upgrading your intelligence advantage irresistible.
 
-Deals So Good, They're BANANAS
-When Apple throws you a bone or should we say... throws you a BANANA? we make sure you know about it! Animated savings badges, strikethrough pricing, and deals so good you'll slip on our digital banana peel from excitement!
+Next-Level Notifications
+16 intelligent notification types keep you informed without overwhelming you. Weather alerts, calendar reminders, streak celebrations, and more - all delivered with perfect timing.
 
-Notifications That Don't Drive You BANANAS
-16 flavors of notifications! Strawberry weather alerts! Chocolate calendar reminders! Vanilla streak celebrations! Okay, they're not actually flavored, but they're BANANA-LEVEL smart! We'll tell you about blizzards AND celebrate your streaks without being as annoying as a monkey in a banana factory!
+Professional Onboarding
+Completely redesigned welcome experience with smooth gradients and your personal "Chief of Staff" introduction. Because every leader deserves a world-class first impression.
 
-TikTok Fame, Banana-Style
-Want to go viral faster than a banana ripens in the sun? Our social DayStarts are optimized for maximum shareability! Your followers will be GREEN with envy like an unripe banana watching your sophisticated morning routine!
-
-Onboarding So Smooth, It's Like a Banana Smoothie
-We threw out our old clunky onboarding and replaced it with something smoother than a perfectly ripe banana! Professional gradients that would make even the fanciest fruit salad jealous, plus your very own "Chief of Staff" experience. Because you're not just ANY banana in the bunch - you're the TOP banana!
-
-P.S. - We promise this is the last time we'll use "bananas" this many times in one update... or is it?
-
-Going bananas never felt so intelligent!
+Share your intelligence. Lead your day.
 ```
 
 ## Categories
@@ -227,13 +222,13 @@ KEY FEATURES:
 - No login required, privacy-first approach
 
 WHAT'S NEW IN 2025.10.19:
-- Market indices support: S&P 500 (^GSPC) and Dow Jones (^DJI) now available
-- Enhanced stock pronunciation for professional narration
-- All user-selected stocks mentioned regardless of brief length
-- Default stock selections updated to market indices + Bitcoin
-- Improved schedule screen layout on all iPhone sizes
-- Backend optimizations for faster content processing
-- Automated cleanup keeps everything running smoothly
+- NEW: DayStart AI Share - Every briefing now has a shareable audio link with beautiful player page
+- Smart job backfill system detects when you've been away and generates your DayStart instantly
+- Time-aware greetings that match the actual time of day (no more "Good morning" at 8 PM)
+- Enhanced deal alerts with animated badges and clear pricing displays
+- 16 intelligent notification types for weather, calendar, streaks and more
+- Completely redesigned professional onboarding experience
+- Backend optimizations for faster content processing and sharing infrastructure
 
 WEATHERKIT:
 - Yes, app uses WeatherKit for weather data

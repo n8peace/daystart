@@ -7,6 +7,7 @@ interface GetAudioStatusResponse {
   status: 'ready' | 'processing' | 'not_found' | 'failed';
   job_id?: string;
   audio_url?: string;
+  audio_file_path?: string; // Backend storage path for share functionality
   estimated_ready_time?: string;
   duration?: number;
   transcript?: string;
@@ -171,6 +172,7 @@ serve(async (req: Request): Promise<Response> => {
       status: apiStatus,
       job_id: job.job_id,
       audio_url,
+      audio_file_path: job.audio_file_path, // Include backend storage path
       estimated_ready_time: job.estimated_ready_time,
       duration: job.audio_duration,
       transcript: job.transcript,

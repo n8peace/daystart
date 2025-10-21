@@ -85,9 +85,23 @@ struct AudioPlayerView: View {
         } message: {
             Text("Unable to share this DayStart. Please try again later.")
         }
-        // .onAppear {
-        //     audioPlayer.setPlaybackRate(Float(savedPlaybackSpeed))
-        // }
+        .onAppear {
+            // Listen for share trigger from prompt
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("TriggerShareFromPrompt"),
+                object: nil,
+                queue: .main
+            ) { [dayStart] notification in
+                if let shareDayStart = notification.object as? DayStartData,
+                   let currentDayStart = dayStart,
+                   shareDayStart.id == currentDayStart.id {
+                    self.shareDayStart(currentDayStart)
+                }
+            }
+        }
+        .onDisappear {
+            NotificationCenter.default.removeObserver(self)
+        }
     }
     
     private var progressView: some View {
@@ -246,6 +260,28 @@ struct AudioPlayerView: View {
             return
         }
         
+        // Validate audioStoragePath is available for sharing
+        guard let audioStoragePath = dayStart.audioStoragePath, !audioStoragePath.isEmpty else {
+            DebugLogger.shared.log("❌ Cannot share DayStart: missing audioStoragePath (jobId: \(jobId))", level: .error)
+            
+            // Show user-friendly error message
+            Task { @MainActor in
+                let alert = UIAlertController(
+                    title: "Share Unavailable",
+                    message: "This DayStart cannot be shared at the moment. Please try sharing a newer DayStart.",
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let window = windowScene.windows.first,
+                   let rootViewController = window.rootViewController {
+                    rootViewController.present(alert, animated: true)
+                }
+            }
+            return
+        }
+        
         Task {
             do {
                 // Show loading indicator
@@ -260,20 +296,10 @@ struct AudioPlayerView: View {
                     source: "audio_player"
                 )
                 
-                // 2. Create leadership-focused share message
-                let duration = Int(dayStart.duration / 60)
+                // 2. Create share message
                 let shareText = """
-🎯 Just got my Morning Intelligence Brief
-
-\(duration) minutes of curated insights delivered like my own Chief of Staff prepared it.
-
-Stop reacting. Start leading.
-
-Listen: \(shareResponse.shareUrl)
-
-Join the leaders who start ahead: https://daystartai.app
-
-#MorningIntelligence #Leadership #DayStart
+Had a great DayStart this morning. It's a short daily briefing that helps me get ahead of the day.
+Sharing mine: 🎧 \(shareResponse.shareUrl)
 """
                 
                 // 3. Present share sheet

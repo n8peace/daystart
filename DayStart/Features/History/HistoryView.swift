@@ -562,7 +562,8 @@ struct HistoryRow: View {
                     UserPreferences.shared.updateHistory(
                         with: dayStart.id,
                         transcript: transcript,
-                        duration: audioStatus.duration.map { TimeInterval($0) }
+                        duration: audioStatus.duration.map { TimeInterval($0) },
+                        jobId: audioStatus.jobId
                     )
                     stopTranscriptPolling()
                 } else if pollingAttempt < 6 {

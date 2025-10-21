@@ -465,9 +465,23 @@ class UserPreferences: ObservableObject {
                 updatedEntry.scheduledTime = existing.scheduledTime
             }
             
+            // Preserve jobId if it exists in either the old or new entry (for share functionality)
+            if existing.jobId != nil {
+                updatedEntry.jobId = existing.jobId
+            } else if dayStart.jobId != nil {
+                updatedEntry.jobId = dayStart.jobId
+            }
+            
             // Preserve audio file path if it exists
             if existing.audioFilePath != nil && dayStart.audioFilePath == nil {
                 updatedEntry.audioFilePath = existing.audioFilePath
+            }
+            
+            // Preserve audioStoragePath if it exists in either the old or new entry (for share functionality)
+            if existing.audioStoragePath != nil {
+                updatedEntry.audioStoragePath = existing.audioStoragePath
+            } else if dayStart.audioStoragePath != nil {
+                updatedEntry.audioStoragePath = dayStart.audioStoragePath
             }
             
             // Preserve transcript if existing has a real one and new is empty/fallback
@@ -501,7 +515,7 @@ class UserPreferences: ObservableObject {
         }
     }
     
-    func updateHistory(with id: UUID, transcript: String? = nil, duration: TimeInterval? = nil, audioFilePath: String? = nil) {
+    func updateHistory(with id: UUID, transcript: String? = nil, duration: TimeInterval? = nil, audioFilePath: String? = nil, jobId: String? = nil, audioStoragePath: String? = nil) {
         guard let index = history.firstIndex(where: { $0.id == id }) else {
             logger.log("⚠️ Could not find history item with id: \(id)", level: .warning)
             return
@@ -519,6 +533,14 @@ class UserPreferences: ObservableObject {
         
         if let audioFilePath = audioFilePath {
             updatedItem.audioFilePath = audioFilePath
+        }
+        
+        if let jobId = jobId {
+            updatedItem.jobId = jobId
+        }
+        
+        if let audioStoragePath = audioStoragePath {
+            updatedItem.audioStoragePath = audioStoragePath
         }
         
         history[index] = updatedItem

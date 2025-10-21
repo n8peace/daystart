@@ -138,6 +138,7 @@ class SupabaseClient {
                 status: audioResponse.status,
                 jobId: audioResponse.job_id,
                 audioUrl: audioResponse.audio_url.flatMap(URL.init),
+                audioFilePath: audioResponse.audio_file_path,
                 estimatedReadyTime: audioResponse.estimated_ready_time.flatMap { ISO8601DateFormatter().date(from: $0) },
                 duration: audioResponse.duration,
                 transcript: audioResponse.transcript,
@@ -830,6 +831,7 @@ private struct AudioStatusAPIResponse: Codable {
     let status: String // 'ready'|'processing'|'not_found'|'failed'
     let job_id: String?
     let audio_url: String?
+    let audio_file_path: String? // Backend storage path for share functionality
     let estimated_ready_time: String?
     let duration: Int?
     let transcript: String?
@@ -856,6 +858,7 @@ struct AudioStatusResponse {
     let status: String // 'ready'|'processing'|'not_found'|'failed'
     let jobId: String?
     let audioUrl: URL?
+    let audioFilePath: String? // Backend storage path for share functionality
     let estimatedReadyTime: Date?
     let duration: Int?
     let transcript: String?
@@ -986,11 +989,20 @@ extension SupabaseClient {
         
         let preferredName = await UserPreferences.shared.settings.preferredName
         
+        // Enhanced logging for audioStoragePath issues
+        let audioStoragePath = dayStartData.audioStoragePath ?? ""
+        if audioStoragePath.isEmpty {
+            logger.log("⚠️ createShare: audioStoragePath is empty for jobId=\(jobId), localDate=\(localDateString)", level: .warning)
+            logger.log("📊 DayStart debug info: hasAudioFilePath=\(dayStartData.audioFilePath != nil), hasJobId=\(dayStartData.jobId != nil), duration=\(dayStartData.duration)", level: .debug)
+        } else {
+            logger.log("✅ createShare: audioStoragePath available: \(audioStoragePath)", level: .debug)
+        }
+        
         let requestBody = CreateShareRequest(
             job_id: jobId,
             share_source: source,
             duration_hours: durationHours,
-            audio_file_path: dayStartData.audioFilePath ?? "",
+            audio_file_path: audioStoragePath,
             audio_duration: Int(dayStartData.duration),
             local_date: localDateString,
             daystart_length: Int(dayStartData.duration), // Use duration for length

@@ -1362,7 +1362,7 @@ function getRecentFeedbackHtml(report: HealthReport): string {
           <h3 style="margin:0 0 12px 0;font-size:14px;color:${textColor}">${alertEmoji} ${alertTitle}</h3>
           <p style="margin:0;font-size:13px;line-height:1.5;color:${textColor}">
             <strong>${details.total_24h} feedback items</strong> received in the last 24 hours
-            ${hasCritical ? `<br><strong>${details.critical_count} critical issues</strong> (audio or content quality problems)` : ''}
+            ${isCritical ? `<br><strong>${details.critical_count} critical issues</strong> (audio or content quality problems)` : ''}
             ${details.has_contact_info > 0 ? `<br><strong>${details.has_contact_info} users</strong> provided contact information for follow-up` : ''}
           </p>
           

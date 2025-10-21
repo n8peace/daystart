@@ -13,11 +13,12 @@ struct DayStartData: Identifiable, Codable {
     var customPrompt: String
     var transcript: String
     var duration: TimeInterval
-    var audioFilePath: String?
+    var audioFilePath: String? // Local cache path for offline playback
+    var audioStoragePath: String? // Backend storage path (e.g. "2025/10/21/job_abc.m4a") for sharing
     var isDeleted: Bool = false
     
     // Custom memberwise initializer to maintain backwards compatibility
-    init(jobId: String? = nil, date: Date, scheduledTime: Date? = nil, weather: String, news: [String], sports: [String], stocks: [String], quote: String, customPrompt: String, transcript: String, duration: TimeInterval, audioFilePath: String? = nil, isDeleted: Bool = false) {
+    init(jobId: String? = nil, date: Date, scheduledTime: Date? = nil, weather: String, news: [String], sports: [String], stocks: [String], quote: String, customPrompt: String, transcript: String, duration: TimeInterval, audioFilePath: String? = nil, audioStoragePath: String? = nil, isDeleted: Bool = false) {
         self.id = UUID()
         self.jobId = jobId
         self.date = date
@@ -31,6 +32,7 @@ struct DayStartData: Identifiable, Codable {
         self.transcript = transcript
         self.duration = duration
         self.audioFilePath = audioFilePath
+        self.audioStoragePath = audioStoragePath
         self.isDeleted = isDeleted
     }
     
@@ -48,6 +50,7 @@ struct DayStartData: Identifiable, Codable {
             transcript: "",
             duration: 0,
             audioFilePath: nil,
+            audioStoragePath: nil,
             isDeleted: false
         )
     }

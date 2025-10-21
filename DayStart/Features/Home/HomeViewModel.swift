@@ -151,6 +151,7 @@ class HomeViewModel: ObservableObject {
     @Published var toastMessage: String?
     @Published var showReviewGate = false
     @Published var showFeedbackSheet = false
+    @Published var showSharePrompt = false
     @Published var isManualRefreshing = false
     
     private var timer: Timer?
@@ -1650,10 +1651,24 @@ class HomeViewModel: ObservableObject {
                 let audioStatus = try await supabaseClient.getAudioStatus(for: effectiveScheduledTime)
                 
                 if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
-                    // Update jobId for share functionality
+                    // Update jobId and audioStoragePath for share functionality
                     if let jobId = audioStatus.jobId {
                         dayStartWithScheduledTime.jobId = jobId
                         currentDayStart?.jobId = jobId
+                    }
+                    
+                    // Update backend storage path for share functionality
+                    if let audioFilePath = audioStatus.audioFilePath {
+                        // Validate audioFilePath looks like a valid storage path
+                        if !audioFilePath.isEmpty && audioFilePath.contains("/") {
+                            dayStartWithScheduledTime.audioStoragePath = audioFilePath
+                            currentDayStart?.audioStoragePath = audioFilePath
+                            logger.log("✅ Set audioStoragePath from API: \(audioFilePath)", level: .debug)
+                        } else {
+                            logger.log("⚠️ Invalid audioFilePath from API: '\(audioFilePath)' (jobId: \(audioStatus.jobId ?? "unknown"))", level: .warning)
+                        }
+                    } else {
+                        logger.log("⚠️ No audioFilePath in API response (jobId: \(audioStatus.jobId ?? "unknown"))", level: .warning)
                     }
                     
                     // Update transcript from audio status if available
@@ -1668,11 +1683,13 @@ class HomeViewModel: ObservableObject {
                         currentDayStart?.duration = TimeInterval(duration)
                     }
                     
-                    // Update history with transcript and duration
+                    // Update history with transcript, duration, jobId, and audioStoragePath
                     userPreferences.updateHistory(
                         with: dayStartWithScheduledTime.id,
                         transcript: audioStatus.transcript,
-                        duration: audioStatus.duration.map { TimeInterval($0) }
+                        duration: audioStatus.duration.map { TimeInterval($0) },
+                        jobId: audioStatus.jobId,
+                        audioStoragePath: audioStatus.audioFilePath
                     )
                     
                     await streamAudio(from: audioUrl)
@@ -1734,10 +1751,24 @@ class HomeViewModel: ObservableObject {
             let audioStatus = try await serviceRegistry.supabaseClient.getAudioStatus(for: Date())
             
             if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
-                // Update jobId for share functionality
+                // Update jobId and audioStoragePath for share functionality
                 if let jobId = audioStatus.jobId {
                     welcomeDayStart.jobId = jobId
                     currentDayStart?.jobId = jobId
+                }
+                
+                // Update backend storage path for share functionality
+                if let audioFilePath = audioStatus.audioFilePath {
+                    // Validate audioFilePath looks like a valid storage path
+                    if !audioFilePath.isEmpty && audioFilePath.contains("/") {
+                        welcomeDayStart.audioStoragePath = audioFilePath
+                        currentDayStart?.audioStoragePath = audioFilePath
+                        logger.log("✅ Set welcome audioStoragePath from API: \(audioFilePath)", level: .debug)
+                    } else {
+                        logger.log("⚠️ Invalid welcome audioFilePath from API: '\(audioFilePath)' (jobId: \(audioStatus.jobId ?? "unknown"))", level: .warning)
+                    }
+                } else {
+                    logger.log("⚠️ No audioFilePath in welcome API response (jobId: \(audioStatus.jobId ?? "unknown"))", level: .warning)
                 }
                 
                 // Update transcript from audio status if available
@@ -1752,11 +1783,12 @@ class HomeViewModel: ObservableObject {
                     currentDayStart?.duration = TimeInterval(duration)
                 }
                 
-                // Update history with transcript and duration (like regular DayStart)
+                // Update history with transcript, duration, and jobId (like regular DayStart)
                 userPreferences.updateHistory(
                     with: welcomeDayStartId,
                     transcript: audioStatus.transcript,
-                    duration: audioStatus.duration.map { TimeInterval($0) }
+                    duration: audioStatus.duration.map { TimeInterval($0) },
+                    jobId: audioStatus.jobId
                 )
                 
                 await streamAudio(from: audioUrl)
@@ -1905,6 +1937,17 @@ class HomeViewModel: ObservableObject {
         
         state = .completed
         stopPauseTimeoutTimer()
+        
+        // Check if we should show share prompt after 3rd completion
+        if SharePromptManager.shared.shouldShowSharePrompt() {
+            // Delay showing the prompt briefly to let the completion state settle
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+                self?.showSharePrompt = true
+                SharePromptManager.shared.markSharePromptShown()
+                self?.logger.log("🎯 Showing share prompt after 3rd completion", level: .info)
+            }
+        }
         
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
