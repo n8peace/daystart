@@ -32,7 +32,10 @@ class DayStartPlayer {
         try {
             const response = await fetch('https://pklntrvznjhaxyxsjjgq.supabase.co/functions/v1/get_shared_daystart', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBrbG50cnZ6bmpoYXh5eHNqamdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2ODQzMzgsImV4cCI6MjA3MDI2MDMzOH0.Gmwa1snYdwYKPBbxsUY1qJ09Z8rynTwZEDoT7VPS1HU'
+                },
                 body: JSON.stringify({ token: this.token })
             });
 
