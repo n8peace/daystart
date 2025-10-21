@@ -33,11 +33,18 @@ serve(async (req) => {
       })
     }
     
+    // Use anon key for database queries
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!
     )
-    console.log(`[SHARE] Supabase client created`)
+    
+    // Use service role key for storage operations
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+    console.log(`[SHARE] Supabase clients created`)
     
     // 1. Validate token and get share data (no JOIN needed - all data is local)
     const currentTime = new Date().toISOString()
@@ -90,13 +97,45 @@ serve(async (req) => {
       })
     }
     
-    // 2. Skip file existence check and try to generate URL directly
-    // The list() operation might fail with certain path formats or permissions
-    console.log(`[SHARE] Attempting to generate signed URL directly for: ${share.audio_file_path}`)
+    // 2. Try to generate signed URL for audio
+    console.log(`[SHARE] Attempting to generate signed URL for: ${share.audio_file_path}`)
     
-    // 3. Generate signed URL for audio
-    console.log(`[SHARE] Generating signed URL for: ${share.audio_file_path}`)
-    const { data: audioUrl, error: urlError } = await supabase.storage
+    // First, try to download the file to verify it exists (using admin client)
+    const { data: downloadData, error: downloadError } = await supabaseAdmin.storage
+      .from('daystart-audio')
+      .download(share.audio_file_path)
+    
+    if (downloadError) {
+      console.log(`[SHARE] Download test failed: ${downloadError.message}`)
+      console.log(`[SHARE] Error details:`, downloadError)
+      
+      // Try alternative path format without leading slash
+      const altPath = share.audio_file_path.startsWith('/') ? share.audio_file_path.slice(1) : share.audio_file_path
+      console.log(`[SHARE] Trying alternative path: ${altPath}`)
+      
+      const { data: altDownload, error: altError } = await supabaseAdmin.storage
+        .from('daystart-audio')
+        .download(altPath)
+      
+      if (altError) {
+        console.log(`[SHARE] Alternative download also failed: ${altError.message}`)
+        return new Response(JSON.stringify({ 
+          error: 'Audio file no longer available',
+          code: 'AUDIO_NOT_FOUND',
+          details: `Path: ${share.audio_file_path}, Error: ${downloadError.message}`
+        }), { 
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      
+      console.log(`[SHARE] Alternative path worked! File size: ${altDownload.size} bytes`)
+    } else {
+      console.log(`[SHARE] Download test successful! File size: ${downloadData.size} bytes`)
+    }
+    
+    // 3. Generate signed URL for audio (using admin client)
+    const { data: audioUrl, error: urlError } = await supabaseAdmin.storage
       .from('daystart-audio')
       .createSignedUrl(share.audio_file_path, 3600) // 1 hour
     

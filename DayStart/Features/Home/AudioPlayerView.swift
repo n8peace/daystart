@@ -373,6 +373,7 @@ struct AudioPlayerView: View {
                 // 2. Create share message
                 let shareText = """
 Had a great DayStart this morning. It's a short daily briefing that helps me get ahead of the day.
+
 Sharing mine: 🎧 \(shareResponse.shareUrl)
 """
                 
