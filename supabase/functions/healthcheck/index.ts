@@ -867,11 +867,12 @@ async function checkRecentFeedback(supabase: SupabaseClient): Promise<CheckResul
     const criticalCount = categories.audio_issue + categories.content_quality
     
     // Determine status based on feedback volume and criticality
+    // Feedback is good - it means users are engaged. Only warn/fail for excessive critical issues
     let status: CheckStatus = 'pass'
-    if (total >= 6 || criticalCount >= 3) {
-      status = 'fail'  // High volume or multiple critical issues
-    } else if (total >= 3 || criticalCount >= 1) {
-      status = 'warn'  // Elevated feedback or some critical issues
+    if (criticalCount >= 5) {
+      status = 'fail'  // Many critical issues require immediate attention
+    } else if (criticalCount >= 3) {
+      status = 'warn'  // Some critical issues worth monitoring
     }
     
     return {
@@ -1336,20 +1337,23 @@ function getRecentFeedbackHtml(report: HealthReport): string {
   if (!feedbackCheck?.details) return ''
   
   const details = feedbackCheck.details as any
-  const hasHighFeedback = details.total_24h >= 3
-  const hasCritical = details.critical_count > 0
   
-  if (!hasHighFeedback && !hasCritical) return ''
+  // Always show feedback section if there's any feedback
+  if (details.total_24h === 0) return ''
   
   let sections = []
   
-  // High feedback volume or critical issues section
-  if (hasHighFeedback || hasCritical) {
-    const bgColor = hasCritical ? '#fee2e2' : '#fffbeb'
-    const borderColor = hasCritical ? '#dc2626' : '#f59e0b'
-    const textColor = hasCritical ? '#7f1d1d' : '#92400e'
-    const alertEmoji = hasCritical ? '🚨' : '📝'
-    const alertTitle = hasCritical ? 'CRITICAL USER FEEDBACK' : 'ELEVATED USER FEEDBACK'
+  // Show feedback section
+  if (details.total_24h > 0) {
+    // Only show as warning/critical if there are many critical issues
+    const isWarning = details.critical_count >= 3
+    const isCritical = details.critical_count >= 5
+    
+    const bgColor = isCritical ? '#fee2e2' : isWarning ? '#fffbeb' : '#f0fdf4'
+    const borderColor = isCritical ? '#dc2626' : isWarning ? '#f59e0b' : '#16a34a'
+    const textColor = isCritical ? '#7f1d1d' : isWarning ? '#92400e' : '#166534'
+    const alertEmoji = isCritical ? '🚨' : isWarning ? '⚠️' : '✅'
+    const alertTitle = isCritical ? 'CRITICAL USER FEEDBACK' : isWarning ? 'USER FEEDBACK - MONITORING REQUIRED' : 'USER FEEDBACK RECEIVED'
     
     sections.push(`
       <div style="margin-bottom:32px">
@@ -1386,7 +1390,8 @@ function getRecentFeedbackHtml(report: HealthReport): string {
           ` : ''}
           
           <p style="margin:12px 0 0 0;font-size:12px;color:${textColor}">
-            <strong>Action Recommended:</strong> Review feedback patterns for potential service improvements.
+            <strong>${isCritical ? 'Action Required:' : isWarning ? 'Action Recommended:' : 'Status:'}</strong> 
+            ${isCritical ? 'Address critical user issues immediately.' : isWarning ? 'Review feedback patterns for potential service improvements.' : 'Users are actively providing feedback. Monitor for patterns.'}
             ${dashboardBase ? `<br><a href="${dashboardBase}/editor/app_feedback?filter=created_at%3Egte%3D${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]}" style="color:#3b82f6;text-decoration:underline">View All Recent Feedback →</a>` : ''}
           </p>
         </div>

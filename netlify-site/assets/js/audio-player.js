@@ -29,36 +29,48 @@ class DayStartPlayer {
     }
 
     async loadDayStart() {
-        // For now, we'll create a mock response until the backend is set up
-        // This will be replaced with the actual Supabase function call
-        
-        // Mock data for testing
-        const mockData = {
-            audio_url: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav', // Placeholder
-            duration: 180, // 3 minutes
-            date: new Date().toISOString(),
-            length_minutes: 3
-        };
+        try {
+            const response = await fetch('https://pklntrvznjhaxyxsjjgq.supabase.co/functions/v1/get_shared_daystart', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: this.token })
+            });
 
-        // Uncomment this when backend is ready:
-        /*
-        const response = await fetch('https://your-supabase-project.supabase.co/functions/v1/get_shared_daystart', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: this.token })
-        });
-
-        if (!response.ok) throw new Error('Failed to load DayStart');
-        const data = await response.json();
-        */
-
-        const data = mockData;
-        
-        // For testing, we'll simulate loading without actual audio
-        // Remove this setTimeout when using real audio
-        setTimeout(() => {
+            const data = await response.json();
+            
+            if (!response.ok) {
+                // Handle specific error codes from the edge function
+                switch (data.code) {
+                    case 'SHARE_EXPIRED':
+                        throw new Error('expired');
+                    case 'AUDIO_NOT_FOUND':
+                        throw new Error('audio_missing');
+                    case 'INVALID_TOKEN':
+                        throw new Error('invalid');
+                    default:
+                        throw new Error(data.error || 'Failed to load DayStart');
+                }
+            }
+            
+            // Update UI with real data
             this.updateUI(data);
-        }, 1000);
+            
+            // Set real audio source
+            if (data.audio_url) {
+                this.audio.src = data.audio_url;
+                // Preload metadata to get duration
+                this.audio.load();
+            }
+            
+        } catch (error) {
+            console.error('Failed to load DayStart:', error);
+            // Enhanced error handling
+            if (error.message === 'expired') {
+                this.showExpiredError();
+            } else {
+                throw error; // Let the init() method handle other errors
+            }
+        }
     }
 
     updateUI(data) {
@@ -97,8 +109,7 @@ class DayStartPlayer {
         this.updateMetaTag('name', 'twitter:title', shareTitle);
         this.updateMetaTag('name', 'twitter:description', shareDescription);
 
-        // Set audio source (commented out for testing)
-        // this.audio.src = data.audio_url;
+        // Audio source is now set in loadDayStart()
     }
     
     updateMetaTag(attribute, attributeValue, content) {
@@ -140,76 +151,26 @@ class DayStartPlayer {
     }
 
     togglePlayPause() {
-        const button = document.getElementById('playPause');
-        
-        if (this.audio.src && this.audio.src !== window.location.href) {
-            // Real audio
-            if (this.audio.paused) {
-                this.audio.play();
-            } else {
-                this.audio.pause();
-            }
+        if (this.audio.paused) {
+            this.audio.play().catch(error => {
+                console.error('Playback failed:', error);
+                // Show user-friendly error if playback fails
+                const errorElement = document.getElementById('error');
+                if (errorElement) {
+                    errorElement.querySelector('p').textContent = 'Unable to play audio';
+                    errorElement.style.display = 'block';
+                    document.getElementById('playerControls').style.display = 'none';
+                }
+            });
         } else {
-            // Mock playback for testing
-            this.isPlaying = !this.isPlaying;
-            if (button) {
-                button.textContent = this.isPlaying ? '⏸️' : '▶️';
-            }
-            
-            if (this.isPlaying) {
-                this.startMockProgress();
-            } else {
-                this.stopMockProgress();
-            }
+            this.audio.pause();
         }
     }
 
-    startMockProgress() {
-        this.mockCurrentTime = this.mockCurrentTime || 0;
-        this.mockDuration = 180; // 3 minutes
-        
-        this.mockInterval = setInterval(() => {
-            if (this.isPlaying && this.mockCurrentTime < this.mockDuration) {
-                this.mockCurrentTime += 1;
-                this.updateMockProgress();
-            } else if (this.mockCurrentTime >= this.mockDuration) {
-                this.onEnded();
-            }
-        }, 1000);
-    }
-
-    stopMockProgress() {
-        if (this.mockInterval) {
-            clearInterval(this.mockInterval);
-        }
-    }
-
-    updateMockProgress() {
-        const percent = (this.mockCurrentTime / this.mockDuration) * 100;
-        const progressFill = document.getElementById('progressFill');
-        const currentTimeElement = document.getElementById('currentTime');
-        const durationElement = document.getElementById('duration');
-        
-        if (progressFill) {
-            progressFill.style.width = percent + '%';
-        }
-        
-        if (currentTimeElement) {
-            currentTimeElement.textContent = this.formatTime(this.mockCurrentTime);
-        }
-        
-        if (durationElement) {
-            durationElement.textContent = this.formatTime(this.mockDuration);
-        }
-    }
 
     skip(seconds) {
-        if (this.audio.src && this.audio.src !== window.location.href) {
+        if (this.audio.duration) {
             this.audio.currentTime = Math.max(0, Math.min(this.audio.duration, this.audio.currentTime + seconds));
-        } else {
-            // Mock skip
-            this.mockCurrentTime = Math.max(0, Math.min(this.mockDuration || 180, (this.mockCurrentTime || 0) + seconds));
-            this.updateMockProgress();
         }
     }
 
@@ -218,12 +179,8 @@ class DayStartPlayer {
         const rect = progressBar.getBoundingClientRect();
         const percent = (e.clientX - rect.left) / rect.width;
         
-        if (this.audio.src && this.audio.src !== window.location.href) {
+        if (this.audio.duration) {
             this.audio.currentTime = percent * this.audio.duration;
-        } else {
-            // Mock seek
-            this.mockCurrentTime = percent * (this.mockDuration || 180);
-            this.updateMockProgress();
         }
     }
 
@@ -270,16 +227,16 @@ class DayStartPlayer {
             button.textContent = '▶️';
         }
         
-        this.isPlaying = false;
-        this.stopMockProgress();
-        
         // Reset progress
         const progressFill = document.getElementById('progressFill');
         if (progressFill) {
             progressFill.style.width = '0%';
         }
         
-        this.mockCurrentTime = 0;
+        const currentTimeElement = document.getElementById('currentTime');
+        if (currentTimeElement) {
+            currentTimeElement.textContent = this.formatTime(0);
+        }
     }
 
     formatTime(seconds) {
@@ -312,6 +269,27 @@ class DayStartPlayer {
         }
         
         if (error) {
+            error.style.display = 'block';
+        }
+    }
+    
+    showExpiredError() {
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        
+        if (loading) {
+            loading.style.display = 'none';
+        }
+        
+        if (error) {
+            const errorText = error.querySelector('p');
+            if (errorText) {
+                errorText.textContent = 'This briefing has expired';
+            }
+            const errorSubtext = error.querySelector('.error-subtext');
+            if (errorSubtext) {
+                errorSubtext.textContent = 'Share links expire after 48 hours for security.';
+            }
             error.style.display = 'block';
         }
     }
