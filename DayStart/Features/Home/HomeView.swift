@@ -725,20 +725,20 @@ struct HomeView: View {
                     .opacity(viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday ? 1.0 : 0.7)
             }
             
-            // Tomorrow's lineup preview
-            if viewModel.isNextDayStartTomorrow && viewModel.isDayStartScheduled(for: Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()) {
-                Button(action: {
-                    hapticManager.impact(style: .light)
-                    showEditSchedule = true
-                }) {
-                    tomorrowsLineupPreview
-                }
-                .buttonStyle(PlainButtonStyle())
-                .task {
-                    await loadTomorrowForecast()
-                    await loadTomorrowFirstEvent()
-                }
-            }
+            // Tomorrow's lineup preview - Commented out to reduce visual clutter
+            // if viewModel.isNextDayStartTomorrow && viewModel.isDayStartScheduled(for: Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()) {
+            //     Button(action: {
+            //         hapticManager.impact(style: .light)
+            //         showEditSchedule = true
+            //     }) {
+            //         tomorrowsLineupPreview
+            //     }
+            //     .buttonStyle(PlainButtonStyle())
+            //     .task {
+            //         await loadTomorrowForecast()
+            //         await loadTomorrowFirstEvent()
+            //     }
+            // }
         }
     }
     

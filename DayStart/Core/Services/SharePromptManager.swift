@@ -14,7 +14,7 @@ final class SharePromptManager {
         defaults.bool(forKey: Key.hasPromptedAfterThird)
     }
     
-    func shouldShowSharePrompt() -> Bool {
+    @MainActor func shouldShowSharePrompt() -> Bool {
         // Don't show if already prompted
         guard !hasPromptedAfterThirdCompletion else { return false }
         
@@ -27,7 +27,7 @@ final class SharePromptManager {
         defaults.set(true, forKey: Key.hasPromptedAfterThird)
     }
     
-    private func getCompletedDayStartCount() -> Int {
+    @MainActor private func getCompletedDayStartCount() -> Int {
         let history = UserPreferences.shared.history
         
         // Count non-deleted, successful DayStart completions

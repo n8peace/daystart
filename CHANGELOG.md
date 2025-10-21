@@ -57,6 +57,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Auto-corrects "former president Trump" → "President Trump" and "president Biden" → "former President Biden"
   - Includes debugging logs when political corrections are applied for monitoring accuracy
 
+### Removed
+- **Tomorrow's Lineup Preview** - Commented out tomorrow's content preview to reduce visual clutter
+  - Simplified HomeView interface by removing detailed preview of tomorrow's DayStart content
+  - Keeps focus on the main DayStart functionality rather than anticipatory content
+  - Interface now cleaner and less busy for better user experience
+
 ### Added
 - **External Service Health Monitoring** - Healthcheck now monitors critical external dependencies
   - Real-time health status for OpenAI API (GPT-4 for content generation)

@@ -116,9 +116,14 @@ async function runHealthcheckAsync({ request_id, notify, started_at }: { request
   }
 
   // Email via Resend
+  console.log('Email notification check:', { notify, request_id })
   try {
     if (notify) {
+      console.log('Attempting to send email via Resend...')
       await sendResendEmail(report)
+      console.log('Email sent successfully')
+    } else {
+      console.log('Email notification disabled')
     }
   } catch (err) {
     console.error('Resend email error:', err)
@@ -896,17 +901,29 @@ async function checkRecentFeedback(supabase: SupabaseClient): Promise<CheckResul
 }
 
 async function sendResendEmail(report: HealthReport & { ai_diagnosis?: string }): Promise<void> {
+  console.log('sendResendEmail called for request:', report.request_id)
+  
   const apiKey = Deno.env.get('RESEND_API_KEY')
   const toEmail = Deno.env.get('RESEND_TO_EMAIL')
   const fromEmail = Deno.env.get('RESEND_FROM_EMAIL')
+  
+  console.log('Environment check:', { 
+    hasApiKey: !!apiKey, 
+    hasToEmail: !!toEmail, 
+    hasFromEmail: !!fromEmail 
+  })
+  
   if (!apiKey || !toEmail || !fromEmail) {
     throw new Error('Resend env vars not configured')
   }
 
+  console.log('Building email content...')
   const subject = buildEmailSubject(report)
   const html = buildEmailHtml(report)
   const text = buildEmailText(report)
 
+  console.log('Sending email:', { subject, to: toEmail, from: fromEmail })
+  
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -922,10 +939,14 @@ async function sendResendEmail(report: HealthReport & { ai_diagnosis?: string })
     }),
   })
 
+  console.log('Resend API response:', { status: res.status, statusText: res.statusText })
+
   if (!res.ok) {
     const errText = await res.text().catch(() => '')
     throw new Error(`Resend API error: ${res.status} ${errText}`)
   }
+  
+  console.log('Email sent successfully via Resend')
 }
 
 function buildEmailSubject(report: HealthReport & { ai_diagnosis?: string }): string {

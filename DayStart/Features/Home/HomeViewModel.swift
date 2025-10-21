@@ -1939,9 +1939,9 @@ class HomeViewModel: ObservableObject {
         stopPauseTimeoutTimer()
         
         // Check if we should show share prompt after 3rd completion
-        if SharePromptManager.shared.shouldShowSharePrompt() {
-            // Delay showing the prompt briefly to let the completion state settle
-            Task { @MainActor [weak self] in
+        Task { @MainActor [weak self] in
+            if SharePromptManager.shared.shouldShowSharePrompt() {
+                // Delay showing the prompt briefly to let the completion state settle
                 try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
                 self?.showSharePrompt = true
                 SharePromptManager.shared.markSharePromptShown()
