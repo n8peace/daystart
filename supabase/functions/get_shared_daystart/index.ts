@@ -9,15 +9,21 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  const startTime = Date.now()
+  console.log(`[SHARE] Request started at ${new Date().toISOString()}`)
+  
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
+    console.log('[SHARE] CORS preflight request')
     return new Response(null, { status: 204, headers: corsHeaders })
   }
 
   try {
     const { token } = await req.json()
+    console.log(`[SHARE] Received token request: ${token?.substring(0, 4)}...${token?.substring(-2)} (length: ${token?.length})`)
     
     if (!token || typeof token !== 'string' || token.length < 8) {
+      console.log(`[SHARE] Invalid token format - type: ${typeof token}, length: ${token?.length}`)
       return new Response(JSON.stringify({ 
         error: 'Invalid share link',
         code: 'INVALID_TOKEN' 
@@ -31,28 +37,50 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!
     )
+    console.log(`[SHARE] Supabase client created`)
     
-    // 1. Validate token and get job data
-    const { data: share } = await supabase
+    // 1. Validate token and get share data (no JOIN needed - all data is local)
+    const currentTime = new Date().toISOString()
+    console.log(`[SHARE] Querying for token: ${token}, expires_at > ${currentTime}`)
+    
+    const { data: share, error: shareError } = await supabase
       .from('public_daystart_shares')
       .select(`
         share_id,
         job_id,
         view_count,
-        jobs (
-          audio_file_path,
-          audio_duration,
-          local_date,
-          script_content,
-          daystart_length,
-          preferred_name
-        )
+        expires_at,
+        audio_file_path,
+        audio_duration,
+        local_date,
+        daystart_length,
+        preferred_name
       `)
       .eq('share_token', token)
-      .gt('expires_at', new Date().toISOString())
+      .gt('expires_at', currentTime)
       .single()
     
-    if (!share || !share.jobs) {
+    console.log(`[SHARE] Database query result - Error: ${shareError?.message}, Data: ${share ? 'found' : 'null'}`)
+    if (share) {
+      console.log(`[SHARE] Share details - ID: ${share.share_id}, Job ID: ${share.job_id}, Expires: ${share.expires_at}`)
+      console.log(`[SHARE] Audio path: ${share.audio_file_path}`)
+      console.log(`[SHARE] Duration: ${share.audio_duration}s, Length: ${share.daystart_length}s`)
+    }
+    
+    if (shareError) {
+      console.log(`[SHARE] Database error: ${shareError.message}`)
+      return new Response(JSON.stringify({ 
+        error: 'Database query failed',
+        code: 'DATABASE_ERROR',
+        details: shareError.message
+      }), { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    if (!share || !share.audio_file_path) {
+      console.log(`[SHARE] Share not found or expired - Share exists: ${!!share}, Audio path: ${share?.audio_file_path}`)
       return new Response(JSON.stringify({ 
         error: 'This briefing has expired or is no longer available',
         code: 'SHARE_EXPIRED' 
@@ -63,15 +91,35 @@ serve(async (req) => {
     }
     
     // 2. Verify audio file exists
-    const audioFileName = share.jobs.audio_file_path.split('/').pop()
-    const audioPath = share.jobs.audio_file_path.split('/').slice(0, -1).join('/')
+    const audioFileName = share.audio_file_path.split('/').pop()
+    const audioPath = share.audio_file_path.split('/').slice(0, -1).join('/')
+    console.log(`[SHARE] Checking audio file - Path: ${audioPath}, File: ${audioFileName}`)
     
-    const { data: files } = await supabase.storage
+    const { data: files, error: listError } = await supabase.storage
       .from('daystart-audio')
       .list(audioPath)
     
-    if (!files?.find(f => f.name === audioFileName)) {
-      console.error(`Audio file not found: ${share.jobs.audio_file_path}`)
+    console.log(`[SHARE] Storage list result - Error: ${listError?.message}, Files found: ${files?.length || 0}`)
+    if (files && files.length > 0) {
+      console.log(`[SHARE] Files in directory: ${files.map(f => f.name).join(', ')}`)
+    }
+    
+    if (listError) {
+      console.log(`[SHARE] Storage list error: ${listError.message}`)
+      return new Response(JSON.stringify({ 
+        error: 'Failed to verify audio file',
+        code: 'STORAGE_ERROR',
+        details: listError.message
+      }), { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    const audioFile = files?.find(f => f.name === audioFileName)
+    if (!audioFile) {
+      console.log(`[SHARE] Audio file not found: ${share.audio_file_path}`)
+      console.log(`[SHARE] Available files: ${files?.map(f => f.name).join(', ') || 'none'}`)
       return new Response(JSON.stringify({ 
         error: 'Audio file no longer available',
         code: 'AUDIO_NOT_FOUND' 
@@ -81,13 +129,18 @@ serve(async (req) => {
       })
     }
     
+    console.log(`[SHARE] Audio file found: ${audioFile.name} (${audioFile.metadata?.size || 'unknown size'})`)
+    
     // 3. Generate signed URL for audio
+    console.log(`[SHARE] Generating signed URL for: ${share.audio_file_path}`)
     const { data: audioUrl, error: urlError } = await supabase.storage
       .from('daystart-audio')
-      .createSignedUrl(share.jobs.audio_file_path, 3600) // 1 hour
+      .createSignedUrl(share.audio_file_path, 3600) // 1 hour
+    
+    console.log(`[SHARE] Signed URL result - Error: ${urlError?.message}, URL generated: ${!!audioUrl?.signedUrl}`)
     
     if (urlError || !audioUrl?.signedUrl) {
-      console.error('Failed to create signed URL:', urlError)
+      console.log(`[SHARE] Failed to create signed URL: ${urlError?.message}`)
       return new Response(JSON.stringify({ 
         error: 'Failed to load audio',
         code: 'URL_GENERATION_FAILED' 
@@ -98,7 +151,8 @@ serve(async (req) => {
     }
     
     // 4. Update view count and analytics
-    await supabase
+    console.log(`[SHARE] Updating view count from ${share.view_count} to ${share.view_count + 1}`)
+    const { error: updateError } = await supabase
       .from('public_daystart_shares')
       .update({ 
         view_count: share.view_count + 1,
@@ -106,15 +160,25 @@ serve(async (req) => {
       })
       .eq('share_id', share.share_id)
     
+    if (updateError) {
+      console.log(`[SHARE] Failed to update view count: ${updateError.message}`)
+      // Non-blocking error - continue with response
+    }
+    
     // 5. Return sanitized data
-    return new Response(JSON.stringify({
+    const responseData = {
       audio_url: audioUrl.signedUrl,
-      duration: share.jobs.audio_duration,
-      date: share.jobs.local_date,
-      length_minutes: Math.round(share.jobs.daystart_length / 60),
-      // Optional: Include name for personalized greeting
-      user_name: share.jobs.preferred_name || null
-    }), {
+      duration: share.audio_duration,
+      date: share.local_date,
+      length_minutes: Math.round(share.daystart_length / 60),
+      user_name: share.preferred_name || null
+    }
+    
+    const processingTime = Date.now() - startTime
+    console.log(`[SHARE] Success! Processing time: ${processingTime}ms`)
+    console.log(`[SHARE] Response data: duration=${responseData.duration}, date=${responseData.date}, length=${responseData.length_minutes}min`)
+    
+    return new Response(JSON.stringify(responseData), {
       status: 200,
       headers: { 
         ...corsHeaders,
@@ -124,10 +188,14 @@ serve(async (req) => {
     })
     
   } catch (error) {
-    console.error('Share retrieval error:', error)
+    const processingTime = Date.now() - startTime
+    console.log(`[SHARE] ERROR after ${processingTime}ms: ${error.message}`)
+    console.log(`[SHARE] Error stack: ${error.stack}`)
+    
     return new Response(JSON.stringify({ 
       error: 'Something went wrong',
-      code: 'INTERNAL_ERROR' 
+      code: 'INTERNAL_ERROR',
+      details: error.message
     }), { 
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

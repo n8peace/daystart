@@ -1,151 +1,245 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shared DayStart</title>
-    <link rel="stylesheet" href="../assets/css/daystart-player.css">
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="../favicon.ico">
-    <link rel="apple-touch-icon" href="../daystart-icon-large.jpeg">
-    
-    <!-- Open Graph for rich sharing (will be updated dynamically) -->
-    <meta property="og:title" content="DayStart AI: Morning Briefing App">
-    <meta property="og:description" content="Wake up. Get briefed. Lead the day. DayStart delivers your personalized 3-minute AI morning brief with weather, calendar, news, sports, and inspiration.">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="DayStart AI">
-    <meta property="og:image" content="https://daystartai.app/daystart-icon-large.jpeg">
-    <meta property="og:image:width" content="1024">
-    <meta property="og:image:height" content="1024">
-    <meta property="og:image:alt" content="DayStart AI - Morning Intelligence Platform">
-    <meta property="og:url" content="https://daystartai.app/shared/">
-    
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="DayStart AI: Morning Briefing App">
-    <meta name="twitter:description" content="Wake up. Get briefed. Lead the day. DayStart delivers your personalized 3-minute AI morning brief with weather, calendar, news, sports, and inspiration.">
-    <meta name="twitter:image" content="https://daystartai.app/daystart-icon-large.jpeg">
-    <meta name="twitter:image:alt" content="DayStart AI - Morning Intelligence Platform">
-    
-    <!-- Additional Social Meta -->
-    <meta property="fb:app_id" content="">
-    <meta name="application-name" content="DayStart AI">
-    <meta name="theme-color" content="#FFD23F">
-    
-    <!-- Apple Smart Banner -->
-    <meta name="apple-itunes-app" content="app-id=6751055528">
-    
-    <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-RN79S5YCEN"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DayStart AI – Morning Intelligence Brief</title>
+  <link rel="icon" href="../favicon.ico" />
+  <link rel="apple-touch-icon" href="../daystart-icon-large.jpeg" />
+  <meta name="apple-itunes-app" content="app-id=6751055528" />
+  
+  <!-- Open Graph for rich sharing (will be updated dynamically) -->
+  <meta property="og:title" content="DayStart AI: Morning Briefing App">
+  <meta property="og:description" content="Wake up. Get briefed. Lead the day. DayStart delivers your personalized 3-minute AI morning brief with weather, calendar, news, sports, and inspiration.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="DayStart AI">
+  <meta property="og:image" content="https://daystartai.app/daystart-icon-large.jpeg">
+  <meta property="og:image:width" content="1024">
+  <meta property="og:image:height" content="1024">
+  <meta property="og:image:alt" content="DayStart AI - Morning Intelligence Platform">
+  <meta property="og:url" content="https://daystartai.app/shared/">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="DayStart AI: Morning Briefing App">
+  <meta name="twitter:description" content="Wake up. Get briefed. Lead the day. DayStart delivers your personalized 3-minute AI morning brief with weather, calendar, news, sports, and inspiration.">
+  <meta name="twitter:image" content="https://daystartai.app/daystart-icon-large.jpeg">
+  <meta name="twitter:image:alt" content="DayStart AI - Morning Intelligence Platform">
+  
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-RN79S5YCEN"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-RN79S5YCEN');
+  </script>
+  
+  <link rel="stylesheet" href="../assets/css/daystart-player.css">
+  
+  <style>
+/* --- MOBILE OPTIMIZATION --- */
+@media (max-width: 768px) {
+  .appstore-header {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    padding: 1.25rem;
+    border-radius: 16px;
+    margin: 1.5rem 1rem;
+  }
 
-      gtag('config', 'G-RN79S5YCEN');
-    </script>
+  .app-info {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1rem;
+    width: 100%;
+  }
+
+  .app-icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .app-text h1 {
+    font-size: 1.1rem;
+  }
+
+  .app-text p {
+    font-size: 0.9rem;
+  }
+
+  .app-rating {
+    font-size: 0.85rem;
+  }
+
+  .cta-section {
+    margin-top: 1rem;
+    width: 100%;
+    text-align: center;
+  }
+
+  .cta-section .get-btn {
+    width: 100%;
+    padding: 0.75rem 0;
+    font-size: 1rem;
+  }
+
+  .cta-section .subtext {
+    text-align: center;
+    font-size: 0.75rem;
+    margin-top: 0.4rem;
+  }
+
+  .player-container {
+    padding: 0 1rem;
+    margin: 1.5rem auto;
+  }
+
+  .audio-player {
+    padding: 1rem;
+    border-radius: 16px;
+  }
+
+  .app-promotion h2 {
+    font-size: 1.3rem;
+  }
+
+  .feature-highlights {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  footer {
+    padding: 1.5rem 0.75rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .appstore-header {
+    padding: 1rem;
+    margin: 1rem;
+  }
+  .app-text h1 {
+    font-size: 1rem;
+  }
+  .get-btn {
+    font-size: 0.9rem;
+  }
+}
+</style>
 </head>
 <body>
-    <!-- App Download Banner -->
-    <div class="download-banner">
-        <div class="banner-content">
-            <span>⚡ Stop reacting. Start leading with your own Morning Intelligence</span>
-            <a href="https://apps.apple.com/app/apple-store/id6751055528?pt=128010523&ct=daystartai.app&mt=8" class="download-btn">
-                Get DayStart
-            </a>
+
+  <!-- 🧭 Apple App Store Style Header -->
+  <div class="appstore-header">
+    <div class="app-info">
+      <img src="../daystart-icon-large.jpeg" alt="DayStart" class="app-icon">
+      <div class="app-text">
+        <h1>DayStart AI: Morning Briefing</h1>
+        <p>Wake Up. Get Briefed. Succeed.</p>
+        <div class="app-rating">
+          <span>★★★★★</span> 5.0 • Productivity
         </div>
+      </div>
+    </div>
+    <div class="cta-section">
+      <a href="https://apps.apple.com/app/apple-store/id6751055528?pt=128010523&ct=daystartai.app&mt=8">
+        <button class="get-btn">GET</button>
+      </a>
+      <div class="subtext">In-App Purchases</div>
+    </div>
+  </div>
+
+  <!-- 🎧 Player -->
+  <div class="player-container">
+    <div class="player-header">
+      <h2>Morning Intelligence Brief</h2>
+      <p>Shared by a leader who stays ahead of the curve</p>
     </div>
 
-    <!-- Main Player -->
-    <div class="player-container">
-        <div class="player-header">
-            <img src="../daystart-icon-large.jpeg" alt="DayStart" class="logo">
-            <h1>Morning Intelligence Brief</h1>
-            <p class="subtitle">Shared by a leader who stays ahead of the curve</p>
+    <div class="audio-player" id="audioPlayer">
+      <!-- Loading state -->
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Loading Morning Intelligence...</p>
+      </div>
+
+      <!-- Player controls (hidden until loaded) -->
+      <div class="player-controls" id="playerControls" style="display: none;">
+        <div class="progress-container">
+          <div class="progress-bar" id="progressBar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <div class="time-display">
+            <span id="currentTime">0:00</span>
+            <span id="duration">0:00</span>
+          </div>
         </div>
 
-        <div class="audio-player" id="audioPlayer">
-            <!-- Loading state -->
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p>Loading Morning Intelligence...</p>
-            </div>
-
-            <!-- Player controls (hidden until loaded) -->
-            <div class="player-controls" id="playerControls" style="display: none;">
-                <div class="progress-container">
-                    <div class="progress-bar" id="progressBar">
-                        <div class="progress-fill" id="progressFill"></div>
-                    </div>
-                    <div class="time-display">
-                        <span id="currentTime">0:00</span>
-                        <span id="duration">0:00</span>
-                    </div>
-                </div>
-
-                <div class="controls">
-                    <button class="control-btn" id="skipBack">
-                        ⏪ 10s
-                    </button>
-                    <button class="play-pause-btn" id="playPause">
-                        ▶️
-                    </button>
-                    <button class="control-btn" id="skipForward">
-                        10s ⏩
-                    </button>
-                </div>
-
-                <div class="daystart-info">
-                    <p class="date" id="daystartDate"></p>
-                    <p class="duration-info" id="durationInfo"></p>
-                </div>
-            </div>
-
-            <!-- Error state -->
-            <div class="error" id="error" style="display: none;">
-                <p>Intelligence Brief Unavailable</p>
-                <p class="error-subtext">This share link may have expired or is invalid.</p>
-                <a href="https://apps.apple.com/app/apple-store/id6751055528?pt=128010523&ct=daystartai.app&mt=8" class="error-cta">Get Your Morning Intelligence</a>
-            </div>
+        <div class="controls">
+          <button class="control-btn" id="skipBack">
+            <span class="icon-backward"></span>
+            <span class="label">10s</span>
+          </button>
+          <button class="play-pause-btn" id="playPause">
+            <span class="icon-play"></span>
+          </button>
+          <button class="control-btn" id="skipForward">
+            <span class="label">10s</span>
+            <span class="icon-forward"></span>
+          </button>
         </div>
 
-        <!-- App promotion footer -->
-        <div class="app-promotion">
-            <h2>Get Your Intelligence Advantage</h2>
-            <p>The most successful people don't start their day scrolling. They start with a brief—narrated like your Chief of Staff prepared it.</p>
-            <div class="feature-highlights">
-                <div class="feature">📊 Market Updates</div>
-                <div class="feature">📅 Calendar Intelligence</div>
-                <div class="feature">🌤️ Strategic Weather</div>
-                <div class="feature">📰 Curated News</div>
-            </div>
-            <a href="https://apps.apple.com/app/apple-store/id6751055528?pt=128010523&ct=daystartai.app&mt=8" class="cta-button">
-                Start Leading Your Mornings
-            </a>
+        <div class="daystart-info">
+          <p class="date" id="daystartDate"></p>
+          <p class="duration-info" id="durationInfo"></p>
         </div>
+      </div>
 
-        <!-- Footer -->
-        <footer class="site-footer">
-            <div class="footer-content">
-                <div class="footer-links">
-                    <a href="https://daystart.bananaintelligence.ai/terms" target="_blank" rel="noopener">Terms of Service</a>
-                    <span class="separator">•</span>
-                    <a href="https://daystart.bananaintelligence.ai/privacy" target="_blank" rel="noopener">Privacy Policy</a>
-                </div>
-                <div class="footer-company">
-                    <a href="https://bananaintelligence.ai/" target="_blank" rel="noopener">
-                        Powered by 🍌🧠 Banana Intelligence
-                    </a>
-                </div>
-                <div class="footer-copyright">
-                    © 2025 Banana Intelligence. All rights reserved.
-                </div>
-            </div>
-        </footer>
+      <!-- Error state -->
+      <div class="error" id="error" style="display: none;">
+        <p>Intelligence Brief Unavailable</p>
+        <p class="error-subtext">This share link may have expired or is invalid.</p>
+        <a href="https://apps.apple.com/app/apple-store/id6751055528?pt=128010523&ct=daystartai.app&mt=8" class="error-cta">Get Your Morning Intelligence</a>
+      </div>
     </div>
 
-    <audio id="audioElement" preload="metadata"></audio>
-    <script src="../assets/js/audio-player.js"></script>
+    <!-- 💡 App Promotion -->
+    <div class="app-promotion">
+      <h2>Get Your Intelligence Advantage</h2>
+      <p>The most successful people don't start their day scrolling. They start with a brief—narrated like your Chief of Staff prepared it.</p>
+      <div class="feature-highlights">
+        <div class="feature">📊 Market Updates</div>
+        <div class="feature">📅 Calendar Intelligence</div>
+        <div class="feature">🌤️ Strategic Weather</div>
+        <div class="feature">📰 Curated News</div>
+      </div>
+      <a href="https://apps.apple.com/app/apple-store/id6751055528?pt=128010523&ct=daystartai.app&mt=8" class="cta-button">Start Leading Your Mornings</a>
+    </div>
+  </div>
+
+  <!-- 🍌 Footer -->
+  <footer class="site-footer">
+    <div class="footer-content">
+      <div class="footer-links">
+        <a href="https://daystart.bananaintelligence.ai/terms" target="_blank" rel="noopener">Terms of Service</a>
+        <span class="separator">•</span>
+        <a href="https://daystart.bananaintelligence.ai/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+      </div>
+      <div class="footer-company">
+        <a href="https://bananaintelligence.ai/" target="_blank" rel="noopener">
+          Powered by 🍌🧠 Banana Intelligence
+        </a>
+      </div>
+      <div class="footer-copyright">
+        © 2025 Banana Intelligence. All rights reserved.
+      </div>
+    </div>
+  </footer>
+
+  <audio id="audioElement" preload="metadata"></audio>
+  <script src="../assets/js/audio-player.js"></script>
 </body>
 </html>

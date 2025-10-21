@@ -1650,6 +1650,12 @@ class HomeViewModel: ObservableObject {
                 let audioStatus = try await supabaseClient.getAudioStatus(for: effectiveScheduledTime)
                 
                 if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
+                    // Update jobId for share functionality
+                    if let jobId = audioStatus.jobId {
+                        dayStartWithScheduledTime.jobId = jobId
+                        currentDayStart?.jobId = jobId
+                    }
+                    
                     // Update transcript from audio status if available
                     if let transcript = audioStatus.transcript, !transcript.isEmpty {
                         dayStartWithScheduledTime.transcript = transcript
@@ -1728,6 +1734,12 @@ class HomeViewModel: ObservableObject {
             let audioStatus = try await serviceRegistry.supabaseClient.getAudioStatus(for: Date())
             
             if audioStatus.success && audioStatus.status == "ready", let audioUrl = audioStatus.audioUrl {
+                // Update jobId for share functionality
+                if let jobId = audioStatus.jobId {
+                    welcomeDayStart.jobId = jobId
+                    currentDayStart?.jobId = jobId
+                }
+                
                 // Update transcript from audio status if available
                 if let transcript = audioStatus.transcript, !transcript.isEmpty {
                     welcomeDayStart.transcript = transcript
@@ -1860,6 +1872,7 @@ class HomeViewModel: ObservableObject {
     
     private func generateBasicDayStart(for settings: UserSettings) -> DayStartData {
         return DayStartData(
+            jobId: nil, // No job ID for offline content
             date: Date(),
             scheduledTime: nil,
             weather: "Weather information will be available when connected",

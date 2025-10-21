@@ -953,3 +953,127 @@ extension SupabaseClient {
         return httpResponse.statusCode == 201 || httpResponse.statusCode == 200
     }
 }
+
+// MARK: - Share API
+
+extension SupabaseClient {
+    /// Creates a shareable link for a DayStart
+    func createShare(
+        jobId: String,
+        dayStartData: DayStartData,
+        source: String = "unknown",
+        durationHours: Int = 48
+    ) async throws -> ShareResponse {
+        let url = functionsURL.appendingPathComponent("create_share")
+        
+        logger.log("📤 Supabase API: POST create_share for job: \(jobId)", level: .info)
+        #if DEBUG
+        logger.log("📡 Request URL: \(url.absoluteString)", level: .debug)
+        #endif
+        
+        var request = await createRequest(for: url, method: "POST")
+        
+        // Add app version header for tracking
+        if let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
+            request.setValue(appVersion, forHTTPHeaderField: "x-app-version")
+        }
+        
+        // Format date for consistency with backend
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone.current
+        let localDateString = dateFormatter.string(from: dayStartData.date)
+        
+        let preferredName = await UserPreferences.shared.settings.preferredName
+        
+        let requestBody = CreateShareRequest(
+            job_id: jobId,
+            share_source: source,
+            duration_hours: durationHours,
+            audio_file_path: dayStartData.audioFilePath ?? "",
+            audio_duration: Int(dayStartData.duration),
+            local_date: localDateString,
+            daystart_length: Int(dayStartData.duration), // Use duration for length
+            preferred_name: preferredName
+        )
+        
+        let jsonData = try JSONEncoder().encode(requestBody)
+        request.httpBody = jsonData
+        
+        // Log request payload
+        if let requestString = String(data: jsonData, encoding: .utf8) {
+            logger.log("📝 create_share payload: \(requestString)", level: .debug)
+        }
+        
+        do {
+            #if DEBUG
+            logger.logNetworkRequest(request)
+            #endif
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                logger.log("❌ Supabase API: Invalid response type", level: .error)
+                throw SupabaseError.invalidResponse
+            }
+            
+            logger.log("📥 Supabase API: Response status (create_share): \(httpResponse.statusCode)", level: .info)
+            #if DEBUG
+            logger.logNetworkResponse(httpResponse, data: data)
+            #endif
+            
+            // Log response body for debugging
+            if let responseString = String(data: data, encoding: .utf8) {
+                logger.log("📄 create_share response: \(responseString)", level: .debug)
+            }
+            
+            guard httpResponse.statusCode == 201 else {
+                // Handle specific error codes
+                if let errorData = try? JSONDecoder().decode(CreateShareErrorResponse.self, from: data) {
+                    switch errorData.code {
+                    case "RATE_LIMIT_EXCEEDED":
+                        throw SupabaseError.apiError("RATE_LIMIT", errorData.error)
+                    case "DAILY_LIMIT_EXCEEDED":
+                        throw SupabaseError.apiError("DAILY_LIMIT", errorData.error)
+                    default:
+                        throw SupabaseError.apiError(errorData.code, errorData.error)
+                    }
+                }
+                
+                logger.logError(NSError(domain: "SupabaseError", code: httpResponse.statusCode),
+                               context: "HTTP error in createShare: \(httpResponse.statusCode)")
+                throw SupabaseError.httpError(httpResponse.statusCode)
+            }
+            
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let shareResponse = try decoder.decode(ShareResponse.self, from: data)
+            
+            logger.log("✅ Supabase API: Share created with token: \(shareResponse.token)", level: .info)
+            
+            return shareResponse
+            
+        } catch {
+            logger.logError(error, context: "Failed to create share for job: \(jobId)")
+            throw error
+        }
+    }
+}
+
+// MARK: - Share API Models
+
+private struct CreateShareRequest: Codable {
+    let job_id: String
+    let share_source: String
+    let duration_hours: Int
+    // Public data fields to store in shares table
+    let audio_file_path: String
+    let audio_duration: Int
+    let local_date: String
+    let daystart_length: Int
+    let preferred_name: String
+}
+
+private struct CreateShareErrorResponse: Codable {
+    let error: String
+    let code: String?
+}

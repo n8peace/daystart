@@ -4,6 +4,8 @@ struct AudioPlayerView: View {
     let dayStart: DayStartData?
     @ObservedObject private var audioPlayer = AudioPlayerManager.shared
     @State private var isDragging = false
+    @State private var isShareLoading = false
+    @State private var showShareError = false
     // @AppStorage("playbackSpeed") private var savedPlaybackSpeed: Double = 1.0
     
     var body: some View {
@@ -30,23 +32,30 @@ struct AudioPlayerView: View {
                         
                         Spacer()
                         
-                        // Share button in audio player - Commented out for now
-                        /*
-                        Button(action: { 
-                            shareDayStart(dayStart) 
-                        }) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.title3)
-                                .foregroundColor(BananaTheme.ColorToken.primary)
-                                .frame(width: 32, height: 32)
-                                .background(
-                                    Circle()
-                                        .fill(BananaTheme.ColorToken.primary.opacity(0.15))
-                                )
+                        // Share button in audio player
+                        if dayStart.jobId != nil {
+                            Button(action: { 
+                                shareDayStart(dayStart) 
+                            }) {
+                                if isShareLoading {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                        .frame(width: 32, height: 32)
+                                } else {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.title3)
+                                        .foregroundColor(BananaTheme.ColorToken.primary)
+                                        .frame(width: 32, height: 32)
+                                        .background(
+                                            Circle()
+                                                .fill(BananaTheme.ColorToken.primary.opacity(0.15))
+                                        )
+                                }
+                            }
+                            .disabled(isShareLoading)
+                            .accessibilityLabel("Share current DayStart")
+                            .accessibilityHint("Tap to share this audio briefing")
                         }
-                        .accessibilityLabel("Share current DayStart")
-                        .accessibilityHint("Tap to share this audio briefing")
-                        */
                         
                         // X button to stop playback
                         Button(action: {
@@ -70,6 +79,11 @@ struct AudioPlayerView: View {
             }
             .padding(.horizontal)
             .padding(.bottom, 30)
+        }
+        .alert("Share Error", isPresented: $showShareError) {
+            Button("OK") { }
+        } message: {
+            Text("Unable to share this DayStart. Please try again later.")
         }
         // .onAppear {
         //     audioPlayer.setPlaybackRate(Float(savedPlaybackSpeed))
@@ -224,39 +238,88 @@ struct AudioPlayerView: View {
         return FormatterCache.shared.fullDateFormatter.string(from: date)
     }
     
-    // MARK: - Share Functionality - Commented out for now
-    /*
+    // MARK: - Share Functionality
+    
     private func shareDayStart(_ dayStart: DayStartData) {
-        let duration = Int(dayStart.duration / 60) // Convert to minutes
-        let shareText = "📈 Just got my personalized morning brief - market insights, weather, and productivity tips in \(duration) minutes! #DayStart"
-        
-        let items: [Any] = [shareText]
-        
-        let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        
-        // Configure for iPad
-        if let popover = activityVC.popoverPresentationController {
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let window = windowScene.windows.first {
-                popover.sourceView = window
-                popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
-                popover.permittedArrowDirections = []
-            }
+        guard let jobId = dayStart.jobId else {
+            DebugLogger.shared.log("❌ Cannot share DayStart: missing jobId", level: .error)
+            return
         }
         
-        // Present the share sheet
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first,
-           let rootViewController = window.rootViewController {
-            
-            // Find the topmost presented view controller
-            var topController = rootViewController
-            while let presented = topController.presentedViewController {
-                topController = presented
+        Task {
+            do {
+                // Show loading indicator
+                await MainActor.run {
+                    isShareLoading = true
+                }
+                
+                // 1. Create share via API
+                let shareResponse = try await SupabaseClient.shared.createShare(
+                    jobId: jobId,
+                    dayStartData: dayStart,
+                    source: "audio_player"
+                )
+                
+                // 2. Create leadership-focused share message
+                let duration = Int(dayStart.duration / 60)
+                let shareText = """
+🎯 Just got my Morning Intelligence Brief
+
+\(duration) minutes of curated insights delivered like my own Chief of Staff prepared it.
+
+Stop reacting. Start leading.
+
+Listen: \(shareResponse.shareUrl)
+
+Join the leaders who start ahead: https://daystartai.app
+
+#MorningIntelligence #Leadership #DayStart
+"""
+                
+                // 3. Present share sheet
+                await MainActor.run {
+                    let activityVC = UIActivityViewController(
+                        activityItems: [shareText],
+                        applicationActivities: nil
+                    )
+                    
+                    // Configure for iPad
+                    if let popover = activityVC.popoverPresentationController {
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                           let window = windowScene.windows.first {
+                            popover.sourceView = window
+                            popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                            popover.permittedArrowDirections = []
+                        }
+                    }
+                    
+                    // Present the share sheet
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let window = windowScene.windows.first,
+                       let rootViewController = window.rootViewController {
+                        
+                        // Find the topmost presented view controller
+                        var topController = rootViewController
+                        while let presented = topController.presentedViewController {
+                            topController = presented
+                        }
+                        
+                        topController.present(activityVC, animated: true)
+                    }
+                    
+                    isShareLoading = false
+                }
+                
+                DebugLogger.shared.log("✅ Share created successfully: \(shareResponse.shareUrl)", level: .info)
+                
+            } catch {
+                // Handle error gracefully
+                await MainActor.run {
+                    isShareLoading = false
+                    showShareError = true
+                }
+                DebugLogger.shared.log("❌ Failed to create share: \(error)", level: .error)
             }
-            
-            topController.present(activityVC, animated: true)
         }
     }
-    */
 }

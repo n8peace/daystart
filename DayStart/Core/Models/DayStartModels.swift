@@ -2,6 +2,7 @@ import Foundation
 
 struct DayStartData: Identifiable, Codable {
     var id = UUID()
+    var jobId: String? // Backend job ID for share functionality
     var date: Date
     var scheduledTime: Date? // Tracks which occurrence this DayStart was for
     var weather: String
@@ -15,8 +16,27 @@ struct DayStartData: Identifiable, Codable {
     var audioFilePath: String?
     var isDeleted: Bool = false
     
+    // Custom memberwise initializer to maintain backwards compatibility
+    init(jobId: String? = nil, date: Date, scheduledTime: Date? = nil, weather: String, news: [String], sports: [String], stocks: [String], quote: String, customPrompt: String, transcript: String, duration: TimeInterval, audioFilePath: String? = nil, isDeleted: Bool = false) {
+        self.id = UUID()
+        self.jobId = jobId
+        self.date = date
+        self.scheduledTime = scheduledTime
+        self.weather = weather
+        self.news = news
+        self.sports = sports
+        self.stocks = stocks
+        self.quote = quote
+        self.customPrompt = customPrompt
+        self.transcript = transcript
+        self.duration = duration
+        self.audioFilePath = audioFilePath
+        self.isDeleted = isDeleted
+    }
+    
     static var placeholder: DayStartData {
         DayStartData(
+            jobId: nil,
             date: Date(),
             scheduledTime: nil,
             weather: "Loading...",
@@ -266,5 +286,21 @@ extension UserSettings {
             dayStartLength: 3, // Default 3 minutes
             themePreference: .system
         )
+    }
+}
+
+// MARK: - Share Functionality
+
+struct ShareResponse: Codable {
+    let shareUrl: String
+    let token: String
+    let expiresAt: Date
+    let shareId: UUID
+    
+    private enum CodingKeys: String, CodingKey {
+        case shareUrl = "share_url"
+        case token
+        case expiresAt = "expires_at"
+        case shareId = "share_id"
     }
 }

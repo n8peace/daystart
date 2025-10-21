@@ -28,7 +28,13 @@ serve(async (req) => {
     const { 
       job_id, 
       duration_hours = 48,
-      share_source = 'unknown' // 'completion_screen', 'audio_player', 'manual'
+      share_source = 'unknown', // 'completion_screen', 'audio_player', 'manual'
+      // Public data fields from iOS
+      audio_file_path,
+      audio_duration,
+      local_date,
+      daystart_length,
+      preferred_name
     } = await req.json()
     
     // Extract user ID from header
@@ -62,6 +68,14 @@ serve(async (req) => {
     
     if (job.status !== 'ready' || !job.audio_file_path) {
       return new Response(JSON.stringify({ error: 'Audio not ready' }), { 
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // Validate that iOS provided the required public data
+    if (!audio_file_path || !audio_duration || !local_date || !daystart_length) {
+      return new Response(JSON.stringify({ error: 'Missing required share data' }), { 
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -108,7 +122,7 @@ serve(async (req) => {
     const expires_at = new Date()
     expires_at.setHours(expires_at.getHours() + duration_hours)
     
-    // Create share record
+    // Create share record with public data
     const { data: share, error } = await supabase
       .from('public_daystart_shares')
       .insert({
@@ -121,7 +135,13 @@ serve(async (req) => {
         share_metadata: {
           app_version: req.headers.get('x-app-version') || 'unknown',
           created_from: 'ios_app'
-        }
+        },
+        // Store public data locally to avoid JOIN on jobs table
+        audio_file_path,
+        audio_duration,
+        local_date,
+        daystart_length,
+        preferred_name
       })
       .select()
       .single()

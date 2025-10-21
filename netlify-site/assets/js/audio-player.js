@@ -213,21 +213,30 @@ class DayStartPlayer {
     onPlay() {
         const button = document.getElementById('playPause');
         if (button) {
-            button.textContent = '⏸️';
+            const icon = button.querySelector('span');
+            if (icon) {
+                icon.className = 'icon-pause';
+            }
         }
     }
 
     onPause() {
         const button = document.getElementById('playPause');
         if (button) {
-            button.textContent = '▶️';
+            const icon = button.querySelector('span');
+            if (icon) {
+                icon.className = 'icon-play';
+            }
         }
     }
 
     onEnded() {
         const button = document.getElementById('playPause');
         if (button) {
-            button.textContent = '▶️';
+            const icon = button.querySelector('span');
+            if (icon) {
+                icon.className = 'icon-play';
+            }
         }
         
         // Reset progress
