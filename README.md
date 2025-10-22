@@ -8,7 +8,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini, and ElevenLabs text-to
 
 ## 🚀 App Store Status
 
-**Current Status**: Live on App Store (v2025.10.16 Build 2) | Waiting for App Store Review: v2025.10.19 Build 1
+**Current Status**: Live on App Store (v2025.10.19 Build 2) as of October 22, 2025
 - ✅ Backend deployed and tested in production with receipt-based authentication
 - ✅ App Store Connect configured with subscription products ($4.99/month, $39.99/year)
 - ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete
@@ -16,7 +16,9 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini, and ElevenLabs text-to
 - ✅ New positioning as "Your Personal Morning Brief" targeting ambitious professionals
 - ✅ 3-minute intelligence briefings with dynamic content scaling
 - ✅ Welcome Brief for new users (60-second personalized introduction)
-- 🟢 **Live**: v2025.10.16 Build 2 available for download on the App Store as of Oct 16, 2025
+- 🟢 **Live**: v2025.10.19 Build 2 available for download on the App Store as of October 22, 2025
+  - Includes state update loop fix, real-time audio visualization, enhanced news/sports curation
+  - AI-powered content prioritization, shareable DayStarts, and improved user experience
 - 🔨 **In Development**: Next version with additional features
 
 ## Table of Contents

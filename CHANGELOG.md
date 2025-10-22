@@ -8,9 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2025.10.19] - Waiting for App Store Review
+## [2025.10.19] - 2025-10-22
 
-**Build:** 2 | **Commit:** a9060b7 | **Status:** Waiting for App Store Review, Supabase Deployed
+**Build:** 2 | **Commit:** a9060b7 | **Status:** **LIVE** on App Store as of 2025-10-22
 
 ### Fixed
 - **State Update Loop** - Eliminated infinite recursive state updates in HomeViewModel
