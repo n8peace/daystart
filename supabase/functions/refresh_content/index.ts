@@ -156,6 +156,12 @@ async function refreshContentAsync(request_id: string): Promise<void> {
       contentSources.push({ type: 'news', source: 'newsapi_general', ttlHours: 168, fetchFunction: () => fetchNewsAPIGeneral() })
       contentSources.push({ type: 'news', source: 'newsapi_business', ttlHours: 168, fetchFunction: () => fetchNewsAPIBusiness() })
       contentSources.push({ type: 'news', source: 'newsapi_targeted', ttlHours: 168, fetchFunction: () => fetchNewsAPITargeted() })
+      contentSources.push({ type: 'news', source: 'newsapi_local_us_major', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSMajor() })
+      contentSources.push({ type: 'news', source: 'newsapi_local_us_west', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSWest() })
+      contentSources.push({ type: 'news', source: 'newsapi_local_us_east', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSEast() })
+      contentSources.push({ type: 'news', source: 'newsapi_local_us_south', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSSouth() })
+      contentSources.push({ type: 'news', source: 'newsapi_local_us_midwest', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSMidwest() })
+      contentSources.push({ type: 'news', source: 'newsapi_state_issues', ttlHours: 168, fetchFunction: () => fetchNewsAPIStateIssues() })
     } else { missingEnvs.push('NEWSAPI_KEY') }
     if (Deno.env.get('GNEWS_API_KEY')) {
       contentSources.push({ type: 'news', source: 'gnews_comprehensive', ttlHours: 168, fetchFunction: () => fetchGNewsComprehensive() })
@@ -204,9 +210,25 @@ async function refreshContentAsync(request_id: string): Promise<void> {
                 }
               }
             } else if (source.type === 'sports') {
-              const compactSports = compactSportsLocal(data)
-              if (Array.isArray(compactSports) && compactSports.length > 0) {
-                ;(data as any).compact = { ...((data as any).compact || {}), sports: compactSports.slice(0, 24) }
+              // Enhanced sports processing with intelligence
+              const games = Array.isArray((data as any)?.games) ? (data as any).games : Array.isArray((data as any)?.events) ? (data as any).events : []
+              
+              if (games.length > 0) {
+                // Apply sports intelligence enhancement
+                const enhancedGames = games.map(game => enhanceGameWithIntelligence(game, source.source))
+                
+                // Store enhanced games in data
+                if ((data as any).games) {
+                  ;(data as any).games = enhancedGames
+                } else if ((data as any).events) {
+                  ;(data as any).events = enhancedGames
+                }
+                
+                // Create compact sports for backwards compatibility
+                const compactSports = compactSportsLocal(data)
+                if (Array.isArray(compactSports) && compactSports.length > 0) {
+                  ;(data as any).compact = { ...((data as any).compact || {}), sports: compactSports.slice(0, 24) }
+                }
               }
             } else if (source.type === 'stocks') {
               const compactStocks = compactStocksLocal(data)
@@ -388,6 +410,204 @@ async function fetchNewsAPITargeted(): Promise<any> {
     fetched_at: new Date().toISOString(),
     source: 'newsapi_targeted',
     endpoint: 'everything/targeted',
+    search_terms: searchTerms
+  }
+}
+
+// Major US Cities and Metro Areas
+async function fetchNewsAPILocalUSMajor(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSAPI_KEY')
+  if (!apiKey) throw new Error('NEWSAPI_KEY not configured')
+
+  // Major cities across all regions - broad appeal
+  const searchTerms = '"New York" OR "Los Angeles" OR "Chicago" OR "Houston" OR "Phoenix" OR "Philadelphia" OR "San Antonio" OR "San Diego" OR "Dallas" OR "Austin" OR "Jacksonville" OR "Fort Worth" OR "Columbus" OR "Charlotte" OR "San Francisco" OR "Indianapolis" OR "Seattle" OR "Denver" OR "Boston" OR "Nashville"'
+  const from = new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString() // Last 18 hours
+
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&language=en&sortBy=publishedAt&from=${from}&pageSize=40&apiKey=${apiKey}`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'ok') {
+    throw new Error(`NewsAPI Local US Major error: ${data.message || 'Unknown error'}`)
+  }
+
+  return {
+    articles: (data.articles || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.url || '',
+      publishedAt: a.publishedAt || '',
+      source: a.source?.name || 'NewsAPI',
+      category: 'local_us_major'
+    })),
+    total_results: data.totalResults,
+    fetched_at: new Date().toISOString(),
+    source: 'newsapi_local_us_major',
+    endpoint: 'everything/local_us_major',
+    search_terms: searchTerms
+  }
+}
+
+// West Coast Regional News
+async function fetchNewsAPILocalUSWest(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSAPI_KEY')
+  if (!apiKey) throw new Error('NEWSAPI_KEY not configured')
+
+  // West Coast cities, counties, and regional terms
+  const searchTerms = '"California" OR "Oregon" OR "Washington" OR "Nevada" OR "San Francisco" OR "Bay Area" OR "Los Angeles" OR "Orange County" OR "San Diego" OR "Sacramento" OR "Fresno" OR "Long Beach" OR "Oakland" OR "Bakersfield" OR "Anaheim" OR "Santa Ana" OR "Riverside" OR "Stockton" OR "Irvine" OR "Fremont" OR "Portland" OR "Seattle" OR "Spokane" OR "Tacoma" OR "Vancouver" OR "Bellevue" OR "Las Vegas" OR "Henderson" OR "Reno"'
+  const from = new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString()
+
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&language=en&sortBy=publishedAt&from=${from}&pageSize=35&apiKey=${apiKey}`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'ok') {
+    throw new Error(`NewsAPI Local US West error: ${data.message || 'Unknown error'}`)
+  }
+
+  return {
+    articles: (data.articles || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.url || '',
+      publishedAt: a.publishedAt || '',
+      source: a.source?.name || 'NewsAPI',
+      category: 'local_us_west'
+    })),
+    total_results: data.totalResults,
+    fetched_at: new Date().toISOString(),
+    source: 'newsapi_local_us_west',
+    endpoint: 'everything/local_us_west',
+    search_terms: searchTerms
+  }
+}
+
+// East Coast Regional News
+async function fetchNewsAPILocalUSEast(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSAPI_KEY')
+  if (!apiKey) throw new Error('NEWSAPI_KEY not configured')
+
+  // East Coast cities, counties, and regional terms
+  const searchTerms = '"New York" OR "New Jersey" OR "Pennsylvania" OR "Connecticut" OR "Massachusetts" OR "Rhode Island" OR "Vermont" OR "New Hampshire" OR "Maine" OR "Maryland" OR "Delaware" OR "Virginia" OR "North Carolina" OR "South Carolina" OR "Georgia" OR "Florida" OR "Manhattan" OR "Brooklyn" OR "Queens" OR "Bronx" OR "Staten Island" OR "Long Island" OR "Philadelphia" OR "Pittsburgh" OR "Boston" OR "Cambridge" OR "Worcester" OR "Providence" OR "Hartford" OR "Bridgeport" OR "New Haven" OR "Baltimore" OR "Virginia Beach" OR "Norfolk" OR "Richmond" OR "Newport News" OR "Alexandria" OR "Portsmouth" OR "Chesapeake" OR "Atlanta" OR "Columbus" OR "Augusta" OR "Savannah" OR "Miami" OR "Tampa" OR "Orlando" OR "Jacksonville" OR "St. Petersburg" OR "Hialeah" OR "Tallahassee" OR "Fort Lauderdale" OR "Port St. Lucie" OR "Pembroke Pines" OR "Cape Coral" OR "Hollywood" OR "Gainesville" OR "Miramar" OR "Coral Springs"'
+  const from = new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString()
+
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&language=en&sortBy=publishedAt&from=${from}&pageSize=35&apiKey=${apiKey}`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'ok') {
+    throw new Error(`NewsAPI Local US East error: ${data.message || 'Unknown error'}`)
+  }
+
+  return {
+    articles: (data.articles || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.url || '',
+      publishedAt: a.publishedAt || '',
+      source: a.source?.name || 'NewsAPI',
+      category: 'local_us_east'
+    })),
+    total_results: data.totalResults,
+    fetched_at: new Date().toISOString(),
+    source: 'newsapi_local_us_east',
+    endpoint: 'everything/local_us_east',
+    search_terms: searchTerms
+  }
+}
+
+// Southern Regional News
+async function fetchNewsAPILocalUSSouth(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSAPI_KEY')
+  if (!apiKey) throw new Error('NEWSAPI_KEY not configured')
+
+  // Southern states, cities, and regional terms
+  const searchTerms = '"Texas" OR "Florida" OR "Georgia" OR "North Carolina" OR "Virginia" OR "Tennessee" OR "Louisiana" OR "South Carolina" OR "Alabama" OR "Kentucky" OR "Oklahoma" OR "Arkansas" OR "Mississippi" OR "West Virginia" OR "Houston" OR "San Antonio" OR "Dallas" OR "Austin" OR "Fort Worth" OR "El Paso" OR "Charlotte" OR "Jacksonville" OR "Memphis" OR "Nashville" OR "Louisville" OR "New Orleans" OR "Baton Rouge" OR "Birmingham" OR "Huntsville" OR "Mobile" OR "Montgomery" OR "Little Rock" OR "Fayetteville" OR "Jackson" OR "Gulfport" OR "Tulsa" OR "Oklahoma City" OR "Charleston" OR "Columbia" OR "Greenville" OR "Myrtle Beach" OR "Knoxville" OR "Chattanooga" OR "Clarksville" OR "Murfreesboro"'
+  const from = new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString()
+
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&language=en&sortBy=publishedAt&from=${from}&pageSize=35&apiKey=${apiKey}`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'ok') {
+    throw new Error(`NewsAPI Local US South error: ${data.message || 'Unknown error'}`)
+  }
+
+  return {
+    articles: (data.articles || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.url || '',
+      publishedAt: a.publishedAt || '',
+      source: a.source?.name || 'NewsAPI',
+      category: 'local_us_south'
+    })),
+    total_results: data.totalResults,
+    fetched_at: new Date().toISOString(),
+    source: 'newsapi_local_us_south',
+    endpoint: 'everything/local_us_south',
+    search_terms: searchTerms
+  }
+}
+
+// Midwest Regional News
+async function fetchNewsAPILocalUSMidwest(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSAPI_KEY')
+  if (!apiKey) throw new Error('NEWSAPI_KEY not configured')
+
+  // Midwest states, cities, and regional terms
+  const searchTerms = '"Illinois" OR "Ohio" OR "Michigan" OR "Indiana" OR "Wisconsin" OR "Minnesota" OR "Iowa" OR "Missouri" OR "Kansas" OR "Nebraska" OR "North Dakota" OR "South Dakota" OR "Chicago" OR "Columbus" OR "Indianapolis" OR "Detroit" OR "Milwaukee" OR "Kansas City" OR "Omaha" OR "Minneapolis" OR "St. Paul" OR "Wichita" OR "Cleveland" OR "Cincinnati" OR "Toledo" OR "Akron" OR "Dayton" OR "Grand Rapids" OR "Warren" OR "Sterling Heights" OR "Lansing" OR "Ann Arbor" OR "Flint" OR "Dearborn" OR "Madison" OR "Green Bay" OR "Kenosha" OR "Racine" OR "Appleton" OR "St. Louis" OR "Springfield" OR "Independence" OR "Columbia" OR "Lee\'s Summit" OR "O\'Fallon" OR "St. Joseph" OR "Des Moines" OR "Cedar Rapids" OR "Davenport" OR "Sioux City" OR "Waterloo"'
+  const from = new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString()
+
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&language=en&sortBy=publishedAt&from=${from}&pageSize=35&apiKey=${apiKey}`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'ok') {
+    throw new Error(`NewsAPI Local US Midwest error: ${data.message || 'Unknown error'}`)
+  }
+
+  return {
+    articles: (data.articles || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.url || '',
+      publishedAt: a.publishedAt || '',
+      source: a.source?.name || 'NewsAPI',
+      category: 'local_us_midwest'
+    })),
+    total_results: data.totalResults,
+    fetched_at: new Date().toISOString(),
+    source: 'newsapi_local_us_midwest',
+    endpoint: 'everything/local_us_midwest',
+    search_terms: searchTerms
+  }
+}
+
+// State-Level Policy and Government Issues
+async function fetchNewsAPIStateIssues(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSAPI_KEY')
+  if (!apiKey) throw new Error('NEWSAPI_KEY not configured')
+
+  // State-level government, policy, and regional issues
+  const searchTerms = '("governor" OR "state legislature" OR "state senate" OR "state house" OR "state budget" OR "state tax" OR "state law" OR "ballot measure" OR "proposition" OR "referendum") AND ("California" OR "Texas" OR "Florida" OR "New York" OR "Pennsylvania" OR "Illinois" OR "Ohio" OR "Georgia" OR "North Carolina" OR "Michigan" OR "New Jersey" OR "Virginia" OR "Washington" OR "Arizona" OR "Massachusetts" OR "Tennessee" OR "Indiana" OR "Missouri" OR "Maryland" OR "Wisconsin" OR "Colorado" OR "Minnesota" OR "South Carolina" OR "Alabama" OR "Louisiana" OR "Kentucky" OR "Oregon" OR "Oklahoma" OR "Connecticut" OR "Utah" OR "Iowa" OR "Nevada" OR "Arkansas" OR "Mississippi" OR "Kansas" OR "New Mexico" OR "Nebraska" OR "West Virginia" OR "Idaho" OR "Hawaii" OR "New Hampshire" OR "Maine" OR "Montana" OR "Rhode Island" OR "Delaware" OR "South Dakota" OR "North Dakota" OR "Alaska" OR "Vermont" OR "Wyoming")'
+  const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() // Last 24 hours
+
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&language=en&sortBy=publishedAt&from=${from}&pageSize=30&apiKey=${apiKey}`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'ok') {
+    throw new Error(`NewsAPI State Issues error: ${data.message || 'Unknown error'}`)
+  }
+
+  return {
+    articles: (data.articles || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.url || '',
+      publishedAt: a.publishedAt || '',
+      source: a.source?.name || 'NewsAPI',
+      category: 'local_us_state'
+    })),
+    total_results: data.totalResults,
+    fetched_at: new Date().toISOString(),
+    source: 'newsapi_state_issues',
+    endpoint: 'everything/state_issues',
     search_terms: searchTerms
   }
 }
@@ -626,11 +846,21 @@ async function fetchTheSportDB(): Promise<any> {
 
 // Intelligence enhancement for individual articles
 function enhanceArticleWithIntelligence(article: any, sourceName: string): any {
+  const importanceScore = calculateImportanceScore(article)
+  const topicCategory = categorizeStory(article)
+  const geographicScope = determineGeographicScope(article)
+  const editorialWeight = calculateEditorialWeight(article, importanceScore)
+  const breakingNewsSpots = calculateBreakingNewsSpots(article, importanceScore, editorialWeight)
+  const userGeographicRelevance = calculateUserGeographicRelevance(article)
+
   return {
     ...article,
-    importance_score: calculateImportanceScore(article),
-    topic_category: categorizeStory(article),
-    geographic_scope: determineGeographicScope(article),
+    importance_score: importanceScore,
+    topic_category: topicCategory,
+    geographic_scope: geographicScope,
+    editorial_weight: editorialWeight, // front_page, page_3, buried
+    breaking_news_spots: breakingNewsSpots, // 1, 2, or 3 spots needed
+    user_geographic_relevance: userGeographicRelevance, // Per major metro area
     enhanced_at: new Date().toISOString(),
     source_name: sourceName
   }
@@ -723,6 +953,126 @@ function determineGeographicScope(article: any): string {
       text.includes('supreme court') || text.includes('president')) return 'national'
   
   return 'national' // Default assumption
+}
+
+// Calculate editorial weight - "NYT font size" concept
+function calculateEditorialWeight(article: any, importanceScore: number): string {
+  const text = `${article.title || ''} ${article.description || ''}`.toLowerCase()
+  
+  // Front page criteria (major breaking news)
+  if (importanceScore >= 70) return 'front_page'
+  
+  // Additional front page triggers regardless of score
+  if (text.includes('breaking') || text.includes('urgent') || text.includes('live update')) return 'front_page'
+  if (text.includes('declares war') || text.includes('nuclear') || text.includes('assassination')) return 'front_page'
+  if (text.includes('9/11') || text.includes('terror attack') || text.includes('mass shooting')) return 'front_page'
+  if (text.includes('election results') || text.includes('winner declared') || text.includes('victory speech')) return 'front_page'
+  if (text.includes('stock market crash') || text.includes('market plunge') || text.includes('dow jones falls')) return 'front_page'
+  if (text.includes('natural disaster') || text.includes('hurricane makes landfall') || text.includes('earthquake')) return 'front_page'
+  if (text.includes('supreme court rules') || text.includes('landmark decision') || text.includes('constitutional')) return 'front_page'
+  
+  // Page 3 criteria (significant but not breaking)
+  if (importanceScore >= 40) return 'page_3'
+  if (text.includes('congress passes') || text.includes('senate votes') || text.includes('house approves')) return 'page_3'
+  if (text.includes('federal reserve') || text.includes('interest rates') || text.includes('inflation report')) return 'page_3'
+  if (text.includes('earnings report') && (text.includes('billion') || text.includes('beats expectations'))) return 'page_3'
+  if (text.includes('investigation launched') || text.includes('charges filed') || text.includes('lawsuit')) return 'page_3'
+  
+  // Everything else is buried
+  return 'buried'
+}
+
+// Calculate how many news spots this story deserves
+function calculateBreakingNewsSpots(article: any, importanceScore: number, editorialWeight: string): number {
+  const text = `${article.title || ''} ${article.description || ''}`.toLowerCase()
+  
+  // 3 spots for massive breaking news (2-3 times per year events)
+  if (editorialWeight === 'front_page' && importanceScore >= 85) {
+    if (text.includes('declares war') || text.includes('president') && (text.includes('dies') || text.includes('resigns'))) return 3
+    if (text.includes('nuclear') || text.includes('9/11') || text.includes('assassination')) return 3
+    if (text.includes('election night') && text.includes('winner') || text.includes('victory speech')) return 3
+    if (text.includes('stock market crash') || text.includes('dow jones') && text.includes('plunge')) return 3
+  }
+  
+  // 2 spots for major breaking news
+  if (editorialWeight === 'front_page') {
+    if (text.includes('breaking') || text.includes('urgent') || text.includes('developing')) return 2
+    if (text.includes('supreme court') || text.includes('federal reserve') || text.includes('interest rates')) return 2
+    if (text.includes('hurricane') || text.includes('earthquake') || text.includes('natural disaster')) return 2
+    if (text.includes('election results') || text.includes('votes certified')) return 2
+  }
+  
+  // Default to 1 spot
+  return 1
+}
+
+// Calculate geographic relevance for major US metro areas
+function calculateUserGeographicRelevance(article: any): Record<string, number> {
+  const text = `${article.title || ''} ${article.description || ''}`.toLowerCase()
+  const relevance: Record<string, number> = {}
+  
+  // Major metro areas and their keywords
+  const metroAreas = {
+    'los_angeles': ['los angeles', 'la county', 'hollywood', 'beverly hills', 'santa monica', 'pasadena', 'glendale', 'burbank', 'culver city', 'west hollywood', 'venice', 'manhattan beach', 'redondo beach', 'el segundo', 'torrance', 'carson', 'compton', 'long beach', 'anaheim', 'santa ana', 'irvine', 'huntington beach', 'orange county', 'oc'],
+    'new_york': ['new york', 'nyc', 'manhattan', 'brooklyn', 'queens', 'bronx', 'staten island', 'long island', 'nassau county', 'suffolk county', 'westchester', 'new jersey', 'nj', 'jersey city', 'newark', 'hoboken'],
+    'chicago': ['chicago', 'cook county', 'illinois', 'aurora', 'rockford', 'joliet', 'naperville', 'schaumburg', 'evanston', 'des plaines', 'arlington heights', 'palatine'],
+    'houston': ['houston', 'harris county', 'texas', 'sugar land', 'baytown', 'conroe', 'galveston', 'pasadena', 'pearland', 'league city', 'missouri city'],
+    'phoenix': ['phoenix', 'arizona', 'scottsdale', 'tempe', 'mesa', 'glendale', 'peoria', 'surprise', 'avondale', 'goodyear', 'buckeye'],
+    'philadelphia': ['philadelphia', 'pennsylvania', 'camden', 'chester', 'wilmington', 'delaware', 'reading', 'allentown', 'bethlehem'],
+    'san_antonio': ['san antonio', 'texas', 'bexar county', 'new braunfels', 'seguin', 'universal city', 'converse', 'live oak'],
+    'san_diego': ['san diego', 'california', 'chula vista', 'oceanside', 'escondido', 'carlsbad', 'vista', 'san marcos', 'encinitas'],
+    'dallas': ['dallas', 'texas', 'fort worth', 'arlington', 'plano', 'garland', 'irving', 'grand prairie', 'mesquite', 'richardson', 'carrollton'],
+    'san_francisco': ['san francisco', 'bay area', 'california', 'oakland', 'san jose', 'fremont', 'hayward', 'sunnyvale', 'santa clara', 'mountain view', 'palo alto', 'redwood city', 'san mateo', 'daly city'],
+    'austin': ['austin', 'texas', 'travis county', 'round rock', 'cedar park', 'pflugerville', 'leander', 'georgetown'],
+    'jacksonville': ['jacksonville', 'florida', 'duval county', 'orange park', 'neptune beach', 'atlantic beach'],
+    'seattle': ['seattle', 'washington', 'bellevue', 'tacoma', 'spokane', 'vancouver', 'kent', 'everett', 'renton', 'federal way', 'redmond'],
+    'denver': ['denver', 'colorado', 'aurora', 'lakewood', 'thornton', 'arvada', 'westminster', 'centennial', 'boulder', 'fort collins'],
+    'boston': ['boston', 'massachusetts', 'cambridge', 'quincy', 'lynn', 'brockton', 'new bedford', 'fall river', 'newton', 'somerville', 'framingham', 'haverhill'],
+    'detroit': ['detroit', 'michigan', 'warren', 'sterling heights', 'ann arbor', 'lansing', 'flint', 'dearborn', 'livonia'],
+    'nashville': ['nashville', 'tennessee', 'davidson county', 'murfreesboro', 'franklin', 'hendersonville', 'smyrna', 'brentwood'],
+    'portland': ['portland', 'oregon', 'gresham', 'hillsboro', 'beaverton', 'bend', 'medford', 'springfield', 'corvallis'],
+    'las_vegas': ['las vegas', 'nevada', 'henderson', 'north las vegas', 'reno', 'sparks', 'carson city'],
+    'atlanta': ['atlanta', 'georgia', 'columbus', 'augusta', 'savannah', 'athens', 'sandy springs', 'roswell', 'johns creek', 'albany']
+  }
+  
+  // Calculate relevance scores
+  for (const [metro, keywords] of Object.entries(metroAreas)) {
+    let score = 0
+    
+    for (const keyword of keywords) {
+      if (text.includes(keyword)) {
+        // Boost for exact city name matches
+        if (keyword === metro.replace('_', ' ')) {
+          score += 10
+        } else {
+          score += 5
+        }
+      }
+    }
+    
+    // State-level relevance gets lower score
+    const state = getStateForMetro(metro)
+    if (state && text.includes(state)) {
+      score += 2
+    }
+    
+    relevance[metro] = Math.min(score, 20) // Cap at 20
+  }
+  
+  return relevance
+}
+
+// Helper to get state for metro area
+function getStateForMetro(metro: string): string {
+  const stateMap: Record<string, string> = {
+    'los_angeles': 'california', 'san_francisco': 'california', 'san_diego': 'california',
+    'new_york': 'new york', 'houston': 'texas', 'dallas': 'texas', 'san_antonio': 'texas', 'austin': 'texas',
+    'chicago': 'illinois', 'phoenix': 'arizona', 'philadelphia': 'pennsylvania',
+    'jacksonville': 'florida', 'seattle': 'washington', 'denver': 'colorado',
+    'boston': 'massachusetts', 'detroit': 'michigan', 'nashville': 'tennessee',
+    'portland': 'oregon', 'las_vegas': 'nevada', 'atlanta': 'georgia'
+  }
+  return stateMap[metro] || ''
 }
 
 // Article deduplication across sources
@@ -1128,4 +1478,238 @@ function compactStocksLocal(data: any): any[] {
       description: line
     }
   })
+}
+
+// ============================================================================
+// ENHANCED SPORTS INTELLIGENCE SYSTEM
+// ============================================================================
+
+// Sports intelligence enhancement for individual games
+function enhanceGameWithIntelligence(game: any, sourceName: string): any {
+  const significanceScore = calculateSportsSignificance(game)
+  const gameType = classifyGameType(game)
+  const seasonalContext = getSeasonalContext(game)
+  const sportsSpots = calculateSportsSpots(game, significanceScore, gameType)
+  const userLocationRelevance = calculateSportsLocationRelevance(game)
+
+  return {
+    ...game,
+    significance_score: significanceScore,
+    game_type: gameType, // championship, playoff, season_opener, rivalry, regular
+    seasonal_context: seasonalContext, // peak_season, playoff_season, off_season
+    sports_spots: sportsSpots, // 1, 2, or 3 spots needed
+    user_location_relevance: userLocationRelevance, // Per major metro area
+    enhanced_at: new Date().toISOString(),
+    source_name: sourceName
+  }
+}
+
+// Calculate sports significance score (0-100)
+function calculateSportsSignificance(game: any): number {
+  let score = 0
+  const gameTitle = `${game.name || ''} ${game.event || ''}`.toLowerCase()
+  const league = (game.league || '').toLowerCase()
+  const status = (game.status || '').toLowerCase()
+  
+  // Base league importance (adjusted for current season timing)
+  const currentMonth = new Date().getMonth() + 1 // 1-12
+  
+  // October seasonal adjustments
+  if (currentMonth === 10) {
+    if (league === 'mlb') score += 25 // Peak playoff season
+    else if (league === 'nba') score += 20 // Season opener period
+    else if (league === 'nfl') score += 18 // Mid-season
+    else if (league === 'nhl') score += 10 // Early regular season
+    else if (league === 'ncaaf') score += 15 // Mid-season
+  } else {
+    // Standard league scoring
+    if (league === 'nfl') score += 20
+    else if (league === 'nba') score += 18
+    else if (league === 'mlb') score += 16
+    else if (league === 'nhl') score += 14
+    else if (league === 'ncaaf') score += 12
+  }
+  
+  // Championship and playoff indicators
+  if (gameTitle.includes('world series')) score += 40
+  if (gameTitle.includes('finals')) score += 35
+  if (gameTitle.includes('championship')) score += 30
+  if (gameTitle.includes('playoff')) score += 25
+  if (gameTitle.includes('division series') || gameTitle.includes('alds') || gameTitle.includes('nlds')) score += 25
+  if (gameTitle.includes('wild card')) score += 20
+  if (gameTitle.includes('conference championship')) score += 30
+  if (gameTitle.includes('super bowl')) score += 50
+  
+  // Season context
+  if (gameTitle.includes('season opener') || gameTitle.includes('home opener')) score += 20
+  if (gameTitle.includes('season finale') || gameTitle.includes('regular season finale')) score += 15
+  
+  // Game status boost
+  if (status.includes('live') || status.includes('in progress')) score += 15
+  if (status.includes('final') || status.includes('ft')) score += 10
+  
+  // Rivalry and big matchup indicators
+  const rivalryPairs = [
+    ['yankees', 'red sox'], ['lakers', 'celtics'], ['cowboys', 'giants'],
+    ['packers', 'bears'], ['dodgers', 'giants'], ['warriors', 'lakers']
+  ]
+  
+  for (const [team1, team2] of rivalryPairs) {
+    if (gameTitle.includes(team1) && gameTitle.includes(team2)) {
+      score += 15
+      break
+    }
+  }
+  
+  // Major upset indicators (if score data available)
+  const homeScore = game.home_score || game.competitors?.[0]?.score
+  const awayScore = game.away_score || game.competitors?.[1]?.score
+  if (homeScore && awayScore) {
+    const scoreDiff = Math.abs(Number(homeScore) - Number(awayScore))
+    if (scoreDiff >= 20) score += 10 // Big margin
+  }
+  
+  return Math.max(0, Math.min(100, score)) // Clamp to 0-100
+}
+
+// Classify game type for prioritization
+function classifyGameType(game: any): string {
+  const gameTitle = `${game.name || ''} ${game.event || ''}`.toLowerCase()
+  
+  if (gameTitle.includes('world series') || gameTitle.includes('super bowl')) return 'championship'
+  if (gameTitle.includes('finals')) return 'championship'
+  if (gameTitle.includes('championship')) return 'championship'
+  if (gameTitle.includes('playoff') || gameTitle.includes('division series') || gameTitle.includes('wild card')) return 'playoff'
+  if (gameTitle.includes('season opener') || gameTitle.includes('home opener')) return 'season_opener'
+  
+  // Check for rivalry games
+  const rivalryPairs = [
+    ['yankees', 'red sox'], ['lakers', 'celtics'], ['cowboys', 'giants'],
+    ['packers', 'bears'], ['dodgers', 'giants'], ['warriors', 'lakers']
+  ]
+  
+  for (const [team1, team2] of rivalryPairs) {
+    if (gameTitle.includes(team1) && gameTitle.includes(team2)) {
+      return 'rivalry'
+    }
+  }
+  
+  return 'regular'
+}
+
+// Get seasonal context for sports
+function getSeasonalContext(game: any): string {
+  const currentMonth = new Date().getMonth() + 1 // 1-12
+  const league = (game.league || '').toLowerCase()
+  
+  // October context
+  if (currentMonth === 10) {
+    if (league === 'mlb') return 'playoff_season'
+    if (league === 'nba') return 'season_start'
+    if (league === 'nfl') return 'peak_season'
+    if (league === 'nhl') return 'early_season'
+    if (league === 'ncaaf') return 'peak_season'
+  }
+  
+  // General seasonal context
+  if (league === 'nfl') {
+    if (currentMonth >= 9 && currentMonth <= 12) return 'peak_season'
+    if (currentMonth === 1) return 'playoff_season'
+    return 'off_season'
+  }
+  
+  if (league === 'nba') {
+    if (currentMonth >= 10 && currentMonth <= 4) return 'peak_season'
+    if (currentMonth >= 4 && currentMonth <= 6) return 'playoff_season'
+    return 'off_season'
+  }
+  
+  if (league === 'mlb') {
+    if (currentMonth >= 4 && currentMonth <= 9) return 'peak_season'
+    if (currentMonth === 10) return 'playoff_season'
+    return 'off_season'
+  }
+  
+  if (league === 'nhl') {
+    if (currentMonth >= 10 || currentMonth <= 4) return 'peak_season'
+    if (currentMonth >= 4 && currentMonth <= 6) return 'playoff_season'
+    return 'off_season'
+  }
+  
+  return 'peak_season' // Default
+}
+
+// Calculate how many sports spots this game deserves
+function calculateSportsSpots(game: any, significanceScore: number, gameType: string): number {
+  // 3 spots for ultimate championship games
+  if (gameType === 'championship' && significanceScore >= 80) {
+    const gameTitle = `${game.name || ''} ${game.event || ''}`.toLowerCase()
+    if (gameTitle.includes('world series game 7') || gameTitle.includes('super bowl') || 
+        gameTitle.includes('nba finals game 7') || gameTitle.includes('stanley cup final game 7')) {
+      return 3
+    }
+  }
+  
+  // 2 spots for major events
+  if (gameType === 'championship' || significanceScore >= 70) return 2
+  if (gameType === 'playoff' || gameType === 'season_opener') return 2
+  
+  // 2 spots for major upsets or high-significance regular games
+  if (significanceScore >= 60) return 2
+  
+  // Default to 1 spot
+  return 1
+}
+
+// Calculate location relevance for major US metro areas
+function calculateSportsLocationRelevance(game: any): Record<string, number> {
+  const gameTitle = `${game.name || ''} ${game.event || ''}`.toLowerCase()
+  const homeTeam = `${game.home_team || game.competitors?.[0]?.team || ''}`.toLowerCase()
+  const awayTeam = `${game.away_team || game.competitors?.[1]?.team || ''}`.toLowerCase()
+  const relevance: Record<string, number> = {}
+  
+  // Major metro areas and their teams
+  const metroTeams = {
+    'los_angeles': ['lakers', 'clippers', 'dodgers', 'angels', 'rams', 'chargers', 'kings', 'ducks'],
+    'new_york': ['yankees', 'mets', 'knicks', 'nets', 'giants', 'jets', 'rangers', 'islanders'],
+    'chicago': ['bulls', 'blackhawks', 'cubs', 'white sox', 'bears'],
+    'boston': ['celtics', 'red sox', 'patriots', 'bruins'],
+    'philadelphia': ['76ers', 'phillies', 'eagles', 'flyers'],
+    'san_francisco': ['warriors', 'giants', '49ers', 'sharks'],
+    'dallas': ['mavericks', 'rangers', 'cowboys', 'stars'],
+    'houston': ['rockets', 'astros', 'texans'],
+    'miami': ['heat', 'marlins', 'dolphins', 'panthers'],
+    'atlanta': ['hawks', 'braves', 'falcons'],
+    'detroit': ['pistons', 'tigers', 'lions', 'red wings'],
+    'phoenix': ['suns', 'diamondbacks', 'cardinals', 'coyotes'],
+    'seattle': ['mariners', 'seahawks', 'kraken'],
+    'denver': ['nuggets', 'rockies', 'broncos', 'avalanche'],
+    'cleveland': ['cavaliers', 'guardians', 'browns'],
+    'milwaukee': ['bucks', 'brewers'],
+    'portland': ['trail blazers'],
+    'las_vegas': ['golden knights', 'raiders'],
+    'nashville': ['predators', 'titans'],
+    'tampa': ['lightning', 'rays', 'buccaneers']
+  }
+  
+  // Calculate relevance scores
+  for (const [metro, teams] of Object.entries(metroTeams)) {
+    let score = 0
+    
+    for (const team of teams) {
+      if (homeTeam.includes(team) || awayTeam.includes(team) || gameTitle.includes(team)) {
+        score += 20 // High score for local team involvement
+      }
+    }
+    
+    // Boost for local rivalries
+    const localTeams = teams.filter(team => homeTeam.includes(team) || awayTeam.includes(team))
+    if (localTeams.length === 2) {
+      score += 10 // Both teams from same metro (rare but happens)
+    }
+    
+    relevance[metro] = Math.min(score, 30) // Cap at 30
+  }
+  
+  return relevance
 }

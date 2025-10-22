@@ -27,6 +27,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - All functionality preserved: permission handlers, stock editor, quote style picker unchanged
 
 ### Added
+- **Enhanced Content Prioritization System** - Revolutionary news curation with geographic flow and editorial intelligence
+  - **6 New Regional News Sources**: Comprehensive NewsAPI coverage for West/East/South/Midwest US regions plus major cities and state-level policy
+  - **AI Editorial Intelligence**: "NYT font size" concept with front_page/page_3/buried classification based on story significance
+  - **Breaking News Spots System**: Dynamic allocation (1-3 spots) for massive stories like election nights, market crashes, declarations of war
+  - **Geographic News Flow**: US National → Local → International structure with AI-generated contextual transitions
+  - **Metro Area Relevance**: Intelligent scoring for 20+ major US cities (LA, NYC, Chicago, etc.) with hyperlocal keyword matching
+  - **Multi-Spot Breaking News**: Major stories can consume 2-3 news spots for comprehensive coverage of significant events
+  - **Safety Net AI Curation**: AI-curated top 10 stories as fallback to ensure no major stories are missed
+  - **Smart Transitions**: Contextual AI bridges like "From Washington to your backyard..." and "Meanwhile, closer to home in [neighborhood]..."
+- **Enhanced Sports Prioritization System** - Intelligent sports curation with seasonal awareness and championship detection
+  - **Sports Intelligence Engine**: AI scoring system (0-100) based on game significance, seasonal context, and championship status
+  - **Seasonal Awareness**: October prioritizes MLB playoffs > NBA season openers > NFL > NHL with dynamic monthly adjustments
+  - **Sports Spots Allocation**: Championships get 3 spots (World Series Game 7, Super Bowl), playoffs get 2 spots, regular games get 1 spot
+  - **Championship Detection**: Automatic identification of finals, playoffs, season openers, and major rivalries for proper coverage
+  - **Metro Team Mapping**: Location-based relevance scoring for 20+ major US cities with comprehensive team databases
+  - **Game Type Classification**: championship > playoff > season_opener > rivalry > regular priority hierarchy
+  - **Multi-Spot Championships**: Major championship games can consume 2-3 sports spots for comprehensive coverage
 - **DayStart AI Share** - Complete shareable audio briefing system with secure, production-ready implementation
   - **iOS Integration**: Share button in audio player with leadership-focused messaging and social media optimization
   - **Secure Architecture**: Public data stored locally in shares table to prevent sensitive data exposure to anonymous users

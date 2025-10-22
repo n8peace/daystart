@@ -63,6 +63,7 @@ serve(async (req) => {
     }
 
     if (!shouldRun) {
+      console.log(`⏰ Cleanup skipped for request ${request_id} - cooldown active (last run within 20 hours)`)
       return new Response(
         JSON.stringify({
           success: true,
