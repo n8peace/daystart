@@ -405,6 +405,23 @@ SPORTS_API_KEY=your-sports-api-key (optional)
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Download DayStart AI
+
+**Ready to start your mornings with intelligence?**
+
+🌅 **[Download DayStart AI now at daystartai.app](https://daystartai.app)**
+
+Join thousands of ambitious professionals who start each day informed, not overwhelmed. Get your personalized 3-minute morning brief delivered with AI-powered voice synthesis.
+
+- ✅ **Free 7-day trial** - No commitment required
+- ⚡ **3-minute promise** - Complete intelligence briefing in under 3 minutes
+- 🎯 **Personalized content** - News, weather, calendar, and motivation tailored to you
+- 🔊 **Professional voices** - Broadcast-quality AI narration via ElevenLabs
+
+Available now on the App Store for iPhone.
+
+---
+
 ## Support
 
 For questions or support, please open an issue in the GitHub repository.
