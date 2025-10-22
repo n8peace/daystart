@@ -10,7 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.19] - Waiting for App Store Review
 
-**Build:** 1 | **Commit:** 3ebfd87 | **Status:** Waiting for App Store Review, Supabase Deployed
+**Build:** 2 | **Commit:** a9060b7 | **Status:** Waiting for App Store Review, Supabase Deployed
+
+### Fixed
+- **State Update Loop** - Eliminated infinite recursive state updates in HomeViewModel
+  - Removed broken debouncing Task that was creating cascading API calls
+  - State changes now properly skip during rapid transitions instead of rescheduling indefinitely
+  - Fixes excessive `getAudioStatus` API calls and rapid state change warnings in logs
+  - Improves app performance and reduces unnecessary network traffic
 
 ### Changed
 - **Audio Visualization** - Implemented real-time audio level monitoring with MTAudioProcessingTap

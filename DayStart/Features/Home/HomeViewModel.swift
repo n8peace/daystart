@@ -688,11 +688,7 @@ class HomeViewModel: ObservableObject {
         
         // Minimum 100ms between state changes to prevent flicker
         guard timeSinceLastChange > 0.1 else {
-            logger.log("⚠️ State change too rapid, debouncing", level: .debug)
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                self?.performStateUpdate()
-            }
+            logger.log("⚠️ State change too rapid, skipping", level: .debug)
             return
         }
         
