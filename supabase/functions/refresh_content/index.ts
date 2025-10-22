@@ -1526,15 +1526,81 @@ function calculateSportsSignificance(game: any): number {
   // Base league importance (adjusted for current season timing)
   const currentMonth = new Date().getMonth() + 1 // 1-12
   
-  // October seasonal adjustments
-  if (currentMonth === 10) {
-    if (league === 'mlb') score += 25 // Peak playoff season
-    else if (league === 'nba') score += 20 // Season opener period
-    else if (league === 'nfl') score += 18 // Mid-season
-    else if (league === 'nhl') score += 10 // Early regular season
-    else if (league === 'ncaaf') score += 15 // Mid-season
+  // Comprehensive seasonal adjustments by month
+  if (currentMonth === 1) { // January - NFL playoffs, College championship
+    if (league === 'nfl') score += 30 // Playoff season (highest priority)
+    else if (league === 'ncaaf') score += 25 // Championship game
+    else if (league === 'nba') score += 18 // Mid-season
+    else if (league === 'nhl') score += 16 // Mid-season
+    else if (league === 'mlb') score += 5 // Off-season
+  } else if (currentMonth === 2) { // February - Super Bowl
+    if (league === 'nfl') score += 35 // Super Bowl (maximum priority)
+    else if (league === 'nba') score += 20 // All-Star period
+    else if (league === 'nhl') score += 18 // All-Star period
+    else if (league === 'mlb') score += 8 // Spring training
+    else if (league === 'ncaaf') score += 5 // Off-season
+  } else if (currentMonth === 3) { // March - Basketball playoff push
+    if (league === 'nba') score += 22 // Playoff push
+    else if (league === 'nhl') score += 20 // Playoff push
+    else if (league === 'mlb') score += 10 // Spring training
+    else if (league === 'nfl') score += 5 // Off-season
+    else if (league === 'ncaaf') score += 5 // Off-season
+  } else if (currentMonth === 4) { // April - NBA/NHL playoffs, MLB starts
+    if (league === 'nba') score += 28 // Playoff season
+    else if (league === 'nhl') score += 26 // Playoff season
+    else if (league === 'mlb') score += 22 // Opening Day excitement
+    else if (league === 'nfl') score += 5 // Off-season
+    else if (league === 'ncaaf') score += 5 // Off-season
+  } else if (currentMonth === 5) { // May - Championship rounds
+    if (league === 'nba') score += 26 // Conference Finals
+    else if (league === 'nhl') score += 24 // Conference Finals
+    else if (league === 'mlb') score += 16 // Early season
+    else if (league === 'nfl') score += 5 // Off-season
+    else if (league === 'ncaaf') score += 5 // Off-season
+  } else if (currentMonth === 6) { // June - Championships
+    if (league === 'nba') score += 30 // NBA Finals
+    else if (league === 'nhl') score += 28 // Stanley Cup Finals
+    else if (league === 'mlb') score += 18 // Peak season
+    else if (league === 'nfl') score += 5 // Off-season
+    else if (league === 'ncaaf') score += 5 // Off-season
+  } else if (currentMonth === 7) { // July - Baseball only
+    if (league === 'mlb') score += 20 // All-Star break, peak season
+    else if (league === 'nfl') score += 5 // Off-season
+    else if (league === 'nba') score += 5 // Off-season
+    else if (league === 'nhl') score += 5 // Off-season
+    else if (league === 'ncaaf') score += 5 // Off-season
+  } else if (currentMonth === 8) { // August - Football returns
+    if (league === 'mlb') score += 18 // Peak season
+    else if (league === 'ncaaf') score += 20 // Season starts
+    else if (league === 'nfl') score += 12 // Preseason
+    else if (league === 'nba') score += 5 // Off-season
+    else if (league === 'nhl') score += 5 // Off-season
+  } else if (currentMonth === 9) { // September - Football peak, baseball playoffs
+    if (league === 'nfl') score += 22 // Season starts
+    else if (league === 'ncaaf') score += 20 // Peak season
+    else if (league === 'mlb') score += 24 // Playoff push
+    else if (league === 'nhl') score += 8 // Preseason
+    else if (league === 'nba') score += 5 // Off-season
+  } else if (currentMonth === 10) { // October - MLB playoffs, seasons start
+    if (league === 'mlb') score += 28 // Playoff season (highest priority)
+    else if (league === 'nfl') score += 20 // Peak season
+    else if (league === 'ncaaf') score += 18 // Peak season
+    else if (league === 'nba') score += 20 // Season opener excitement
+    else if (league === 'nhl') score += 15 // Season starts
+  } else if (currentMonth === 11) { // November - Football peak, World Series
+    if (league === 'mlb') score += 30 // World Series
+    else if (league === 'nfl') score += 22 // Peak season
+    else if (league === 'ncaaf') score += 24 // Conference championships
+    else if (league === 'nba') score += 16 // Early season
+    else if (league === 'nhl') score += 14 // Early season
+  } else if (currentMonth === 12) { // December - Football playoffs, basketball/hockey peak
+    if (league === 'nfl') score += 26 // Playoff push
+    else if (league === 'ncaaf') score += 25 // CFP Semifinals
+    else if (league === 'nba') score += 18 // Peak season
+    else if (league === 'nhl') score += 16 // Peak season
+    else if (league === 'mlb') score += 5 // Off-season
   } else {
-    // Standard league scoring
+    // Fallback scoring if month logic fails
     if (league === 'nfl') score += 20
     else if (league === 'nba') score += 18
     else if (league === 'mlb') score += 16
@@ -1609,46 +1675,109 @@ function classifyGameType(game: any): string {
   return 'regular'
 }
 
-// Get seasonal context for sports
+// Get seasonal context for sports with comprehensive monthly logic
 function getSeasonalContext(game: any): string {
   const currentMonth = new Date().getMonth() + 1 // 1-12
   const league = (game.league || '').toLowerCase()
   
-  // October context
-  if (currentMonth === 10) {
-    if (league === 'mlb') return 'playoff_season'
-    if (league === 'nba') return 'season_start'
-    if (league === 'nfl') return 'peak_season'
-    if (league === 'nhl') return 'early_season'
+  // Month-by-month seasonal intelligence
+  if (currentMonth === 1) { // January
+    if (league === 'nfl') return 'playoff_season' // Wild Card, Divisional, Conference Championships
+    if (league === 'nba') return 'peak_season' // Mid-season
+    if (league === 'nhl') return 'peak_season' // Mid-season
+    if (league === 'ncaaf') return 'championship_season' // CFP National Championship
+    if (league === 'mlb') return 'off_season'
+  }
+  
+  if (currentMonth === 2) { // February
+    if (league === 'nfl') return 'championship_season' // Super Bowl
+    if (league === 'nba') return 'peak_season' // All-Star break
+    if (league === 'nhl') return 'peak_season' // All-Star break
+    if (league === 'ncaaf') return 'off_season'
+    if (league === 'mlb') return 'spring_training'
+  }
+  
+  if (currentMonth === 3) { // March
+    if (league === 'nfl') return 'off_season'
+    if (league === 'nba') return 'peak_season' // Playoff push
+    if (league === 'nhl') return 'peak_season' // Playoff push
+    if (league === 'ncaaf') return 'off_season'
+    if (league === 'mlb') return 'spring_training'
+  }
+  
+  if (currentMonth === 4) { // April
+    if (league === 'nfl') return 'off_season'
+    if (league === 'nba') return 'playoff_season' // NBA Playoffs start
+    if (league === 'nhl') return 'playoff_season' // Stanley Cup Playoffs start
+    if (league === 'ncaaf') return 'off_season'
+    if (league === 'mlb') return 'season_start' // Opening Day
+  }
+  
+  if (currentMonth === 5) { // May
+    if (league === 'nfl') return 'off_season'
+    if (league === 'nba') return 'playoff_season' // Conference Semifinals/Finals
+    if (league === 'nhl') return 'playoff_season' // Conference Semifinals/Finals
+    if (league === 'ncaaf') return 'off_season'
+    if (league === 'mlb') return 'early_season'
+  }
+  
+  if (currentMonth === 6) { // June
+    if (league === 'nfl') return 'off_season'
+    if (league === 'nba') return 'championship_season' // NBA Finals
+    if (league === 'nhl') return 'championship_season' // Stanley Cup Finals
+    if (league === 'ncaaf') return 'off_season'
+    if (league === 'mlb') return 'peak_season'
+  }
+  
+  if (currentMonth === 7) { // July
+    if (league === 'nfl') return 'off_season'
+    if (league === 'nba') return 'off_season'
+    if (league === 'nhl') return 'off_season'
+    if (league === 'ncaaf') return 'off_season'
+    if (league === 'mlb') return 'peak_season' // All-Star break
+  }
+  
+  if (currentMonth === 8) { // August
+    if (league === 'nfl') return 'preseason'
+    if (league === 'nba') return 'off_season'
+    if (league === 'nhl') return 'off_season'
+    if (league === 'ncaaf') return 'season_start' // College football starts
+    if (league === 'mlb') return 'peak_season'
+  }
+  
+  if (currentMonth === 9) { // September
+    if (league === 'nfl') return 'season_start' // NFL season starts
+    if (league === 'nba') return 'off_season'
+    if (league === 'nhl') return 'preseason'
     if (league === 'ncaaf') return 'peak_season'
+    if (league === 'mlb') return 'playoff_push' // September playoff race
   }
   
-  // General seasonal context
-  if (league === 'nfl') {
-    if (currentMonth >= 9 && currentMonth <= 12) return 'peak_season'
-    if (currentMonth === 1) return 'playoff_season'
-    return 'off_season'
+  if (currentMonth === 10) { // October
+    if (league === 'nfl') return 'peak_season'
+    if (league === 'nba') return 'season_start' // NBA season starts
+    if (league === 'nhl') return 'season_start' // NHL season starts
+    if (league === 'ncaaf') return 'peak_season'
+    if (league === 'mlb') return 'playoff_season' // Wild Card, Division Series
   }
   
-  if (league === 'nba') {
-    if (currentMonth >= 10 && currentMonth <= 4) return 'peak_season'
-    if (currentMonth >= 4 && currentMonth <= 6) return 'playoff_season'
-    return 'off_season'
+  if (currentMonth === 11) { // November
+    if (league === 'nfl') return 'peak_season'
+    if (league === 'nba') return 'early_season'
+    if (league === 'nhl') return 'early_season'
+    if (league === 'ncaaf') return 'peak_season' // Conference championships
+    if (league === 'mlb') return 'championship_season' // World Series
   }
   
-  if (league === 'mlb') {
-    if (currentMonth >= 4 && currentMonth <= 9) return 'peak_season'
-    if (currentMonth === 10) return 'playoff_season'
-    return 'off_season'
+  if (currentMonth === 12) { // December
+    if (league === 'nfl') return 'playoff_push' // Final weeks, playoff race
+    if (league === 'nba') return 'peak_season'
+    if (league === 'nhl') return 'peak_season'
+    if (league === 'ncaaf') return 'playoff_season' // CFP Semifinals
+    if (league === 'mlb') return 'off_season'
   }
   
-  if (league === 'nhl') {
-    if (currentMonth >= 10 || currentMonth <= 4) return 'peak_season'
-    if (currentMonth >= 4 && currentMonth <= 6) return 'playoff_season'
-    return 'off_season'
-  }
-  
-  return 'peak_season' // Default
+  return 'peak_season' // Default fallback
 }
 
 // Calculate how many sports spots this game deserves
