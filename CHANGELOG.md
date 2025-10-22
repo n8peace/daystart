@@ -8,9 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2025.10.19] - In Development
+## [2025.10.19] - Waiting for App Store Review
 
-**Build:** 1 | **Commit:** 048fa76 | **Status:** In Development, Supabase Deployed
+**Build:** 1 | **Commit:** d952f5d | **Status:** Waiting for App Store Review, Supabase Deployed
 
 ### Changed
 - **Audio Visualization** - Implemented real-time audio level monitoring with MTAudioProcessingTap
