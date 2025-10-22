@@ -48,12 +48,13 @@ RETURNS TABLE(
 BEGIN
     RETURN QUERY
     SELECT 
-        unnest(file_paths) as file_path,
+        path as file_path,
         EXISTS(
             SELECT 1 
             FROM jobs j
-            WHERE j.audio_file_path = unnest(file_paths)
-        ) as has_job;
+            WHERE j.audio_file_path = path
+        ) as has_job
+    FROM unnest(file_paths) as path;
 END;
 $$ LANGUAGE plpgsql;
 

@@ -201,9 +201,11 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
       .order('completed_at', { ascending: false })
       .limit(10)
     
-    // Calculate average and median generation time for recent jobs
+    // Calculate average, median, min, and max generation time for recent jobs
     let avgGenerationMinutes = 0
     let medianGenerationMinutes = 0
+    let minGenerationMinutes = 0
+    let maxGenerationMinutes = 0
     const generationTimes: number[] = []
     
     if (recentCompleted && recentCompleted.length > 0) {
@@ -230,6 +232,10 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
         medianGenerationMinutes = sorted.length % 2 === 0 
           ? (sorted[mid - 1] + sorted[mid]) / 2 
           : sorted[mid]
+        
+        // Calculate min and max
+        minGenerationMinutes = Math.min(...generationTimes)
+        maxGenerationMinutes = Math.max(...generationTimes)
       }
     }
     
@@ -252,6 +258,8 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
         unique_users: uniqueUsers,
         avg_generation_minutes: avgGenerationMinutes > 0 ? Number(avgGenerationMinutes.toFixed(1)) : null,
         median_generation_minutes: medianGenerationMinutes > 0 ? Number(medianGenerationMinutes.toFixed(1)) : null,
+        shortest_generation_minutes: minGenerationMinutes > 0 ? Number(minGenerationMinutes.toFixed(1)) : null,
+        longest_generation_minutes: maxGenerationMinutes > 0 ? Number(maxGenerationMinutes.toFixed(1)) : null,
         message: count === 0 ? 'No DayStarts completed in last 24 hours!' : `${count} DayStarts delivered to ${uniqueUsers} happy users`
       },
       duration_ms: Date.now() - start
@@ -1067,6 +1075,8 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
             <br><span style="color:#3b82f6">📱 ${d.unique_users} unique users served</span>
             ${d.avg_generation_minutes ? `<br><span style="color:#6b7280">⏱️ Average generation: ${d.avg_generation_minutes} minutes</span>` : ''}
             ${d.median_generation_minutes ? `<br><span style="color:#6b7280">📊 Median generation: ${d.median_generation_minutes} minutes</span>` : ''}
+            ${d.shortest_generation_minutes ? `<br><span style="color:#6b7280">⚡ Shortest generation: ${d.shortest_generation_minutes} minutes</span>` : ''}
+            ${d.longest_generation_minutes ? `<br><span style="color:#6b7280">🐌 Longest generation: ${d.longest_generation_minutes} minutes</span>` : ''}
             ${d.message ? `<br><em style="color:#16a34a">${d.message}</em>` : ''}
           </div>`
       } else if (c.name === 'content_cache_freshness' && c.details) {
@@ -1455,6 +1465,15 @@ function buildEmailText(report: HealthReport & { ai_diagnosis?: string }): strin
       lines.push(`   - ${d.completed_24h} DayStarts completed (${d.unique_users} users)`)
       if (d.avg_generation_minutes) {
         lines.push(`   - Average generation: ${d.avg_generation_minutes} minutes`)
+      }
+      if (d.median_generation_minutes) {
+        lines.push(`   - Median generation: ${d.median_generation_minutes} minutes`)
+      }
+      if (d.shortest_generation_minutes) {
+        lines.push(`   - Shortest generation: ${d.shortest_generation_minutes} minutes`)
+      }
+      if (d.longest_generation_minutes) {
+        lines.push(`   - Longest generation: ${d.longest_generation_minutes} minutes`)
       }
     } else if (c.name === 'request_error_rate' && errorDetails.errors_24h > 0) {
       lines.push(`   - ${errorDetails.errors_24h} errors (${errorDetails.error_rate_percent}%)`)
