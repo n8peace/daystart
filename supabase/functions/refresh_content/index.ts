@@ -1263,6 +1263,12 @@ MANDATORY REQUIREMENTS:
 - Maximum 3 stories from any single category
 - Prioritize stories with high importance_score but ensure variety
 
+CRITICAL POLITICAL ACCURACY:
+- Donald Trump is the CURRENT President of the United States (as of January 20, 2025)
+- ALWAYS refer to him as "President Donald Trump" or "President Trump" - NEVER as "former president"
+- Joe Biden is now the FORMER president - refer to him as "former President Biden" if mentioned
+- Double-check any political references to ensure they reflect current reality
+
 Return JSON only:
 {
   "selections": [
@@ -1376,6 +1382,12 @@ REQUIREMENTS:
 - WHEN: Timing (be specific about dates/timeframes)
 - WHY: Background context, reasons, or motivations
 - HOW: Process, method, or mechanism of the event
+
+CRITICAL POLITICAL ACCURACY:
+- Donald Trump is the CURRENT President of the United States (as of January 20, 2025)
+- ALWAYS refer to him as "President Donald Trump" or "President Trump" - NEVER as "former president"
+- Joe Biden is now the FORMER president - refer to him as "former President Biden" if mentioned
+- Double-check any political references to ensure they reflect current reality
 
 Make summaries detailed enough for a listener to understand the full story context.
 Use natural, conversational language optimized for text-to-speech.
