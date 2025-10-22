@@ -23,10 +23,23 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    outputs:
+      previous_commit: ${{ steps.pre_deploy.outputs.previous_commit }}
+      current_commit: ${{ steps.save_state.outputs.current_commit }}
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for rollback capability
+      
+    - name: Record pre-deployment state
+      id: pre_deploy
+      run: |
+        # Get the last successful deployment commit (before this one)
+        PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
+        echo "📌 Pre-deployment commit: ${PREVIOUS_COMMIT}"
+        echo "previous_commit=${PREVIOUS_COMMIT}" >> $GITHUB_OUTPUT
       
     - name: Make scripts executable
       run: chmod +x scripts/*.sh
@@ -238,40 +251,6 @@ jobs:
             }
         fi
         
-    - name: Rollback on failure
-      if: failure() && steps.deploy.outcome == 'success'
-      run: |
-        echo "🔄 Checking if rollback is possible..."
-        
-        # Check if there are previous function changes to rollback to
-        CURRENT_COMMIT=$(git rev-parse HEAD)
-        PREVIOUS_COMMIT=$(git log -n 2 --pretty=format:"%H" -- supabase/functions/ | tail -n 1)
-        
-        if [[ "${CURRENT_COMMIT}" == "${PREVIOUS_COMMIT}" ]]; then
-          echo "ℹ️ No previous function changes found - nothing to rollback to"
-          echo "💡 This is the first deployment or no function changes in recent commits"
-          exit 0
-        fi
-        
-        echo "🔄 Rolling back deployment from ${CURRENT_COMMIT} to ${PREVIOUS_COMMIT}..."
-        
-        if [[ -f "scripts/rollback-functions.sh" ]]; then
-          bash scripts/rollback-functions.sh || {
-            echo "⚠️ Rollback failed, manual intervention may be required"
-            echo "📋 To manually rollback:"
-            echo "  git checkout ${PREVIOUS_COMMIT} -- supabase/functions/"
-            echo "  supabase functions deploy"
-          }
-        else
-          echo "⚠️ Rollback script not found"
-          echo "📋 Manual rollback required:"
-          echo "  git checkout ${PREVIOUS_COMMIT} -- supabase/functions/"
-          echo "  supabase functions deploy"
-        fi
-      env:
-        SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        
     - name: Upload debug reports
       if: failure()
       uses: actions/upload-artifact@v4
@@ -280,6 +259,13 @@ jobs:
         path: |
           debug-job-*.log
         retention-days: 30
+        
+    - name: Save deployment state
+      if: failure() && steps.deploy.outcome == 'success'
+      id: save_state
+      run: |
+        echo "previous_commit=${{ steps.pre_deploy.outputs.previous_commit }}" >> $GITHUB_OUTPUT
+        echo "current_commit=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
         
     - name: Deployment summary
       if: always()
@@ -292,9 +278,179 @@ jobs:
         if [[ "${{ job.status }}" == "success" ]]; then
           echo "✅ Deployment validated successfully!"
         else
-          echo "❌ Deployment failed or was rolled back"
+          echo "❌ Deployment failed - awaiting rollback decision"
         fi
         echo "===================="
+
+  rollback-approval:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+    outputs:
+      approved: ${{ steps.wait_approval.outputs.approved }}
+      
+    steps:
+    - name: Create rollback approval issue
+      id: create_issue
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const issue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `🚨 Deployment Failed - Rollback Decision Required`,
+            body: `## Deployment Validation Failed!
+            
+            **Failed Commit:** ${{ github.sha }}
+            **Rollback Target:** ${{ needs.deploy.outputs.previous_commit }}
+            
+            The deployment validation tests have failed. You have **10 minutes** to decide:
+            
+            ### 🔄 To ROLLBACK to the previous version:
+            Comment \`/rollback\` on this issue
+            
+            ### ✅ To KEEP the current deployment:
+            Comment \`/keep\` on this issue
+            
+            ### ⏰ Auto-Rollback
+            If no decision is made within 10 minutes, the system will **automatically rollback** to the previous version.
+            
+            ### 📋 Deployment Logs
+            [View full deployment logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            ---
+            ⚠️ **Note:** The production environment is currently running the newly deployed (but failed validation) code.`
+          });
+          return issue.data.number;
+          
+    - name: Wait for approval
+      id: wait_approval
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const issueNumber = ${{ steps.create_issue.outputs.result }};
+          const startTime = Date.now();
+          const timeout = 10 * 60 * 1000; // 10 minutes
+          
+          console.log(`Waiting for rollback decision on issue #${issueNumber}...`);
+          console.log('Valid commands: /rollback or /keep');
+          
+          while (Date.now() - startTime < timeout) {
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            
+            for (const comment of comments.data) {
+              const body = comment.body.trim().toLowerCase();
+              
+              if (body === '/keep') {
+                console.log('✅ User chose to KEEP the deployment');
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: '✅ Deployment kept. No rollback will be performed.'
+                });
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  state: 'closed'
+                });
+                return 'keep';
+              }
+              
+              if (body === '/rollback') {
+                console.log('🔄 User chose to ROLLBACK');
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: '🔄 Initiating rollback to previous version...'
+                });
+                return 'rollback';
+              }
+            }
+            
+            // Wait 10 seconds before checking again
+            await new Promise(resolve => setTimeout(resolve, 10000));
+          }
+          
+          // Timeout reached
+          console.log('⏰ Timeout reached - proceeding with automatic rollback');
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: issueNumber,
+            body: '⏰ No decision received within 10 minutes. Proceeding with automatic rollback...'
+          });
+          return 'rollback';
+          
+    - name: Close issue
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const issueNumber = ${{ steps.create_issue.outputs.result }};
+          await github.rest.issues.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: issueNumber,
+            state: 'closed'
+          });
+
+  execute-rollback:
+    runs-on: ubuntu-latest
+    needs: [deploy, rollback-approval]
+    if: needs.rollback-approval.outputs.approved == 'rollback'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Make scripts executable
+      run: chmod +x scripts/*.sh
+        
+    - name: Setup Supabase CLI
+      uses: supabase/setup-cli@v1
+      with:
+        version: latest
+        
+    - name: Execute rollback
+      run: |
+        echo "🔄 Executing rollback to previous version..."
+        
+        CURRENT_COMMIT="${{ needs.deploy.outputs.current_commit }}"
+        PREVIOUS_COMMIT="${{ needs.deploy.outputs.previous_commit }}"
+        
+        echo "📌 Current failed commit: ${CURRENT_COMMIT}"
+        echo "📌 Rolling back to: ${PREVIOUS_COMMIT}"
+        
+        # Set CI environment variable for the rollback script
+        export CI=true
+        export ROLLBACK_TARGET_COMMIT="${PREVIOUS_COMMIT}"
+        
+        # Run the rollback script
+        if [[ -f "scripts/rollback-functions.sh" ]]; then
+          echo "🔧 Running rollback script..."
+          bash scripts/rollback-functions.sh || {
+            echo "❌ Rollback failed!"
+            echo "📋 Manual intervention required - check Supabase dashboard"
+            exit 1
+          }
+          echo "✅ Rollback completed successfully!"
+        else
+          echo "❌ Rollback script not found!"
+          exit 1
+        fi
+      env:
+        SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
   test:
     runs-on: ubuntu-latest

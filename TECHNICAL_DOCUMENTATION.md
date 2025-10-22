@@ -243,6 +243,7 @@ This section outlines all scheduled tasks (cron jobs) used by the DayStart appli
 | Process Jobs | `*/1 * * * *` | Every 1 minute | Process audio generation queue |
 | Refresh Content | `0 * * * *` | Every hour | Refresh news, stocks, sports cache |
 | Cleanup Audio | `5 1 * * *` | Daily at 1:05 AM UTC | Delete old audio files |
+| Weekly Orphan Audio Cleanup | `5 2 * * 0` | Weekly at 2:05 AM UTC (Sunday) | Deep scan for orphaned audio files |
 | Healthcheck | `5 2 * * *` | Daily at 2:05 AM UTC | Run system health checks and email report |
 | Daily Generic DayStart | `45 4 * * *` | Daily at 4:45 AM ET | Generate generic audio briefing |
 
@@ -322,8 +323,44 @@ Deletes audio files from storage that are older than 10 days to manage storage c
 - Deletes files older than 10 days by default
 - Prevents running more than once per 20 hours
 - Logs all operations for audit trail
+- Cleans up test-deploy- and test-manual- folders
 
-## 4. Healthcheck
+## 4. Weekly Orphan Audio Cleanup
+
+### Purpose
+Performs a deep storage scan to identify and remove orphaned audio files that have no corresponding job records in the database. This catches files that may have been missed by the regular cleanup process.
+
+### Configuration
+- **URL**: `https://[PROJECT_REF].supabase.co/functions/v1/cleanup-audio`
+- **Method**: POST
+- **Schedule**: `5 2 * * 0` (weekly on Sunday at 2:05 AM UTC)
+- **Headers**:
+  ```
+  Authorization: Bearer [SERVICE_ROLE_KEY]
+  Content-Type: application/json
+  ```
+- **Body**:
+  ```json
+  {
+    "mode": "hybrid",
+    "days_to_keep": 10
+  }
+  ```
+
+### Monitoring
+- Check `audio_cleanup_log` table for execution history with orphan statistics
+- Look for `orphans_deleted` and `orphans_failed` in the `error_details` JSON
+- Monitor Edge Function logs for orphan detection details
+- Alert if orphan count exceeds expected threshold
+
+### Notes
+- Uses hybrid mode to run both database-based and storage-based cleanup
+- Scans only date folders older than retention period for performance
+- Processes files in batches to avoid timeouts
+- Requires SERVICE_ROLE_KEY for full storage access
+- Complements daily cleanup by catching edge cases
+
+## 5. Healthcheck
 
 ### Purpose
 Runs a comprehensive application healthcheck across DB, cache freshness, job queue, storage, internal endpoints, and error logs, then emails a summary via Resend.
@@ -346,7 +383,7 @@ Runs a comprehensive application healthcheck across DB, cache freshness, job que
 - The function returns 200 immediately and executes asynchronously
 - Ensure Resend env vars are configured in Supabase secrets
 
-## 5. Daily Generic DayStart
+## 6. Daily Generic DayStart
 
 ### Purpose
 Creates a generic, non-personalized DayStart audio briefing for general distribution or testing purposes.
@@ -439,8 +476,11 @@ SELECT * FROM get_audio_cleanup_stats();
 - **Process Jobs**: ~43,200 invocations/month
 - **Refresh Content**: ~720 invocations/month  
 - **Cleanup Audio**: ~30 invocations/month
+- **Weekly Orphan Audio Cleanup**: ~4 invocations/month
+- **Healthcheck**: ~30 invocations/month
+- **Daily Generic DayStart**: ~30 invocations/month
 
-Total: ~44,000 Edge Function invocations/month
+Total: ~44,014 Edge Function invocations/month
 
 ## Future Improvements
 
@@ -448,6 +488,383 @@ Total: ~44,000 Edge Function invocations/month
 2. Add webhook notifications for failures
 3. Implement more granular scheduling based on usage patterns
 4. Add automated backup before cleanup operations
+
+---
+
+# Share System Documentation
+
+This section provides comprehensive documentation for the DayStart share functionality, which allows users to create and share public links to their audio briefings via a branded web player hosted at `daystartai.app/shared/{token}`.
+
+## Table of Contents
+- [System Overview](#system-overview)
+- [Share API Endpoints](#share-api-endpoints)
+- [Database Schema](#database-schema)
+- [Web Player Infrastructure](#web-player-infrastructure)
+- [iOS Integration](#ios-integration)
+- [Security & Rate Limiting](#security--rate-limiting)
+- [Analytics & Monitoring](#analytics--monitoring)
+
+## System Overview
+
+The share system enables users to:
+- Create time-limited shareable links for completed DayStart briefings
+- Share their audio content via a branded web player
+- Track views and engagement analytics
+- Provide a conversion funnel to drive app downloads
+
+### Architecture Components
+
+1. **iOS App**: Initiates share creation via API calls
+2. **Supabase Edge Functions**: Handle share creation and retrieval
+3. **PostgreSQL Database**: Stores share metadata and analytics
+4. **Netlify Web Player**: Serves branded audio player at `daystartai.app`
+5. **Supabase Storage**: Hosts audio files with signed URL access
+
+### User Flow
+
+1. User completes a DayStart briefing in iOS app
+2. User taps share button in completion screen or audio player
+3. iOS app calls `create_share` API with job data
+4. Backend creates share record with URL-safe token
+5. iOS app presents system share sheet with branded message
+6. Recipients visit `daystartai.app/shared/{token}`
+7. Web player calls `get_shared_daystart` API to load audio
+8. Analytics track views and conversion events
+
+## Share API Endpoints
+
+### 1. Create Share (`create_share`)
+
+Creates a shareable link for a completed DayStart briefing.
+
+**Endpoint**: `/functions/v1/create_share`
+**Method**: POST
+**Authentication**: Receipt-based via `x-client-info` header
+
+#### Request Headers
+```
+Content-Type: application/json
+x-client-info: [receipt_id]
+x-app-version: [app_version] (optional)
+```
+
+#### Request Body
+```json
+{
+  "job_id": "uuid",
+  "share_source": "completion_screen|audio_player|manual",
+  "duration_hours": 48,
+  "audio_file_path": "/path/to/audio.m4a",
+  "audio_duration": 180,
+  "local_date": "2025-01-20",
+  "daystart_length": 180,
+  "preferred_name": "John"
+}
+```
+
+#### Response (201 Created)
+```json
+{
+  "share_url": "https://daystartai.app/shared/abc123def456",
+  "token": "abc123def456",
+  "expires_at": "2025-01-22T14:30:00Z",
+  "share_id": "uuid"
+}
+```
+
+#### Rate Limits
+- **Per Job**: Maximum 5 shares per DayStart briefing
+- **Per User**: Maximum 10 shares per day
+- **Error Codes**: `RATE_LIMIT_EXCEEDED`, `DAILY_LIMIT_EXCEEDED`
+
+### 2. Get Shared DayStart (`get_shared_daystart`)
+
+Retrieves shared DayStart data for web player consumption.
+
+**Endpoint**: `/functions/v1/get_shared_daystart`
+**Method**: POST
+**Authentication**: None (public endpoint)
+
+#### Request Headers
+```
+Content-Type: application/json
+Origin: https://daystartai.app
+```
+
+#### Request Body
+```json
+{
+  "token": "abc123def456"
+}
+```
+
+#### Response (200 OK)
+```json
+{
+  "audio_url": "https://[project].supabase.co/storage/v1/s3/[signed_url]",
+  "duration": 180,
+  "date": "2025-01-20",
+  "length_minutes": 3,
+  "user_name": "John"
+}
+```
+
+#### Error Responses
+- **400**: `INVALID_TOKEN` - Token format invalid
+- **404**: `SHARE_EXPIRED` - Share link expired or not found
+- **404**: `AUDIO_NOT_FOUND` - Audio file no longer available
+- **500**: `URL_GENERATION_FAILED` - Cannot create signed URL
+
+## Database Schema
+
+### `public_daystart_shares` Table
+
+The share system uses a dedicated table that stores all necessary data locally to avoid expensive JOINs with the jobs table during public access.
+
+```sql
+CREATE TABLE public_daystart_shares (
+  share_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id UUID REFERENCES jobs(job_id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  share_token TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  view_count INTEGER DEFAULT 0,
+  last_accessed_at TIMESTAMPTZ,
+  
+  -- Analytics fields
+  share_source TEXT, -- 'completion_screen', 'audio_player', 'manual'
+  share_metadata JSONB DEFAULT '{}'::jsonb,
+  clicked_cta BOOLEAN DEFAULT FALSE,
+  converted_to_user BOOLEAN DEFAULT FALSE,
+  shares_per_job INTEGER DEFAULT 1,
+  
+  -- Denormalized job data for performance
+  audio_file_path TEXT NOT NULL,
+  audio_duration INTEGER NOT NULL,
+  local_date TEXT NOT NULL,
+  daystart_length INTEGER NOT NULL,
+  preferred_name TEXT
+);
+```
+
+#### Indexes
+```sql
+CREATE UNIQUE INDEX shares_token_idx ON public_daystart_shares(share_token);
+CREATE INDEX shares_expiry_idx ON public_daystart_shares(expires_at);
+CREATE INDEX shares_user_idx ON public_daystart_shares(user_id);
+CREATE INDEX shares_job_idx ON public_daystart_shares(job_id);
+```
+
+#### Row Level Security (RLS)
+
+```sql
+-- Public read for valid shares (anonymous access)
+CREATE POLICY "Public read for valid shares" ON public_daystart_shares
+  FOR SELECT TO anon, authenticated
+  USING (expires_at > NOW());
+
+-- Users can see their own shares
+CREATE POLICY "Users can view own shares" ON public_daystart_shares
+  FOR SELECT TO anon, authenticated
+  USING (user_id = current_setting('request.headers', true)::json->>'x-client-info');
+
+-- Service role full access
+CREATE POLICY "Service role full access shares" ON public_daystart_shares
+  FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+```
+
+## Web Player Infrastructure
+
+### Netlify Site Structure
+
+The web player is hosted on Netlify at the existing `daystartai.app` domain and is currently deployed manually.
+
+```
+netlify-site/
+├── index.html              # Root redirect to App Store
+├── shared/
+│   └── index.html          # Branded audio player page
+├── _redirects              # Netlify routing rules
+├── netlify.toml            # Build and security config
+├── assets/
+│   ├── css/
+│   │   └── daystart-player.css  # DayStart themed styles
+│   ├── js/
+│   │   └── audio-player.js      # JavaScript player logic
+│   └── images/
+│       └── daystart-icon-large.jpeg
+```
+
+### Routing Configuration
+
+**`_redirects` file:**
+```
+# Shared DayStart player - capture token parameter
+/shared/:token /shared/index.html 200
+
+# Root and other paths -> App Store
+/ https://apps.apple.com/app/apple-store/id6751055528?pt=128010523&ct=daystartai.app&mt=8 302
+/* https://apps.apple.com/app/apple-store/id6751055528?pt=128010523&ct=daystartai.app&mt=8 302
+```
+
+### Security Headers
+
+**`netlify.toml`:**
+```toml
+[[headers]]
+  for = "/shared/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Cache-Control = "public, max-age=300"
+```
+
+### Player Features
+
+- **Progressive Loading**: Shows spinner while fetching share data
+- **Audio Controls**: Play/pause, skip forward/back (10s), progress scrubbing
+- **Responsive Design**: Works on mobile and desktop
+- **Error Handling**: Graceful fallback for expired/invalid shares
+- **App Promotion**: Download banner and CTA section
+- **Analytics**: Google Analytics (G-RN79S5YCEN) tracking
+- **App Store Integration**: Smart banner for iOS users
+
+## iOS Integration
+
+### Share Creation Flow
+
+1. **Data Validation**: Ensures `jobId` and `audioStoragePath` are available
+2. **API Request**: Calls `SupabaseClient.createShare()` with full DayStart data
+3. **Share Message**: Generates leadership-focused marketing copy
+4. **System Share**: Presents `UIActivityViewController` with share URL
+5. **Analytics**: Tracks share events and conversion metrics
+
+### Share Message Template
+
+```swift
+let shareText = """
+🎯 Just got my Morning Intelligence Brief
+
+\(duration) minutes of curated insights delivered like my own Chief of Staff prepared it.
+
+Stop reacting. Start leading.
+
+Listen: \(shareResponse.shareUrl)
+
+Join the leaders who start ahead: https://daystartai.app
+
+#MorningIntelligence #Leadership #DayStart
+"""
+```
+
+### Error Handling
+
+- **Missing Data**: Attempts to fetch `audioStoragePath` from API if missing
+- **API Errors**: Shows user-friendly error messages
+- **Rate Limiting**: Handles `RATE_LIMIT_EXCEEDED` and `DAILY_LIMIT_EXCEEDED`
+- **Loading States**: Visual feedback during share creation
+
+## Security & Rate Limiting
+
+### Token Generation
+
+```typescript
+const generateShareToken = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '')
+    .substring(0, 12) // 12-character URL-safe token
+}
+```
+
+### Rate Limiting Strategy
+
+1. **Per-Job Limits**: Maximum 5 shares per DayStart briefing
+2. **Daily User Limits**: Maximum 10 shares per user per day
+3. **Expiration**: Default 48-hour share lifetime
+4. **Cleanup**: Automatic deletion of expired shares
+
+### Storage Security
+
+- **Signed URLs**: 1-hour expiration for audio access
+- **File Verification**: Downloads file to verify existence before sharing
+- **Service Role**: Uses elevated permissions for storage operations
+- **CORS**: Restricts access to `daystartai.app` domain
+
+## Analytics & Monitoring
+
+### Tracked Metrics
+
+1. **Share Creation**: Source, timestamp, user demographics
+2. **View Tracking**: Unique views, repeat visits, geographic data
+3. **Engagement**: Audio play duration, completion rates
+4. **Conversion**: CTA clicks, app downloads, user registrations
+
+### Monitoring Queries
+
+```sql
+-- Daily share creation stats
+SELECT 
+  DATE(created_at) as date,
+  COUNT(*) as shares_created,
+  COUNT(DISTINCT user_id) as unique_users,
+  COUNT(DISTINCT job_id) as unique_briefings
+FROM public_daystart_shares
+WHERE created_at >= NOW() - INTERVAL '7 days'
+GROUP BY DATE(created_at)
+ORDER BY date DESC;
+
+-- Conversion funnel analysis
+SELECT 
+  COUNT(*) as total_shares,
+  COUNT(*) FILTER (WHERE view_count > 0) as viewed_shares,
+  COUNT(*) FILTER (WHERE clicked_cta = true) as cta_clicks,
+  COUNT(*) FILTER (WHERE converted_to_user = true) as conversions,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE view_count > 0) / COUNT(*), 2) as view_rate,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE clicked_cta = true) / COUNT(*), 2) as cta_rate,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE converted_to_user = true) / COUNT(*), 2) as conversion_rate
+FROM public_daystart_shares
+WHERE created_at >= NOW() - INTERVAL '30 days';
+
+-- Share system health check
+SELECT 
+  COUNT(*) FILTER (WHERE expires_at > NOW()) as active_shares,
+  COUNT(*) FILTER (WHERE expires_at <= NOW()) as expired_shares,
+  MAX(view_count) as most_viewed_share,
+  AVG(view_count) as avg_views_per_share
+FROM public_daystart_shares;
+```
+
+### Cleanup Operations
+
+Automated cleanup runs as part of the existing `cleanup-audio` scheduled job:
+
+```typescript
+// Clean up expired shares (7+ days old)
+const { error: shareCleanupError } = await supabase
+  .from('public_daystart_shares')
+  .delete()
+  .lt('expires_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+```
+
+### Cost Considerations
+
+- **Edge Function Calls**: ~2 calls per share (create + view)
+- **Storage**: Signed URL generation per audio access
+- **Bandwidth**: Audio file delivery via CDN
+- **Database**: Minimal storage impact with automatic cleanup
+
+---
+
+**Share System Status**: ✅ **PRODUCTION READY**
+**Last Updated**: January 2025  
+**Current Version**: v1.0 (Basic functionality with rate limiting)
 
 ---
 

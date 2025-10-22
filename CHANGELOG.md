@@ -48,6 +48,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - iOS: Real-time character filtering prevents invalid input before submission
   - Preserves common accented characters (José, François, Björk) for international names
   - Enforces 50-character limit with visual counter when approaching limit
+- **Audio Cleanup Enhancement** - Enhanced cleanup function to detect and remove orphaned files
+  - Added support for cleaning up `test-manual-` folders in addition to `test-deploy-`
+  - Implemented hybrid cleanup approach: database-driven (fast, default) and storage-based orphan detection (thorough, optional)
+  - Configurable retention period (default 10 days)
+  - Added SQL functions for orphan file detection
+  - Improved cleanup logging with orphan statistics
   - Prevents job failures like the one with exotic Unicode name: ᗴᗰIᒪYஐꨄღఌᰔದᜊᱬ𖢇☙❧❦❣︎❥❤︎︎♡︎♥︎
   - Gracefully handles edge cases: emoji-only names filtered to empty string
   - Fully backwards compatible: older app versions continue working with server-side sanitization

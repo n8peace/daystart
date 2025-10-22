@@ -26,6 +26,17 @@ serve(async (req) => {
   const request_id = crypto.randomUUID()
 
   try {
+    // Parse request body for optional parameters
+    let cleanupMode = 'database' // default mode
+    let daysToKeep = 10 // default retention
+    
+    try {
+      const body = await req.json()
+      cleanupMode = body.mode || 'database' // 'database', 'storage', or 'hybrid'
+      daysToKeep = body.days_to_keep || 10
+    } catch {
+      // If no body or invalid JSON, use defaults
+    }
     // Verify authorization - service role key only
     const authHeader = req.headers.get('authorization')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -66,10 +77,10 @@ serve(async (req) => {
       )
     }
 
-    console.log(`🧹 Audio cleanup accepted with request_id: ${request_id}`)
+    console.log(`🧹 Audio cleanup accepted with request_id: ${request_id}, mode: ${cleanupMode}, days: ${daysToKeep}`)
     
     // Start async processing without waiting
-    cleanupAudioAsync(request_id).catch(error => {
+    cleanupAudioAsync(request_id, cleanupMode, daysToKeep).catch(error => {
       console.error('Async audio cleanup error:', error)
     })
 
@@ -105,7 +116,7 @@ serve(async (req) => {
   }
 })
 
-async function cleanupAudioAsync(request_id: string): Promise<void> {
+async function cleanupAudioAsync(request_id: string, cleanupMode: string = 'database', daysToKeep: number = 10): Promise<void> {
   const startTime = Date.now()
   const result: CleanupResult = {
     success: false,
@@ -148,8 +159,7 @@ async function cleanupAudioAsync(request_id: string): Promise<void> {
 
     logId = logEntry.id
 
-    // Get list of files to cleanup (default 10 days)
-    const daysToKeep = 10
+    // Get list of files to cleanup
     const { data: filesToDelete, error: filesError } = await supabase
       .rpc('get_audio_files_to_cleanup', { days_to_keep: daysToKeep })
 
@@ -243,6 +253,143 @@ async function cleanupAudioAsync(request_id: string): Promise<void> {
 
     console.log(`✅ Audio cleanup completed for request ${request_id}: ${result.files_deleted} deleted, ${result.files_failed} failed`)
 
+    // Storage-based orphan cleanup (if requested)
+    if (cleanupMode === 'storage' || cleanupMode === 'hybrid') {
+      try {
+        console.log(`🔍 Starting orphan file detection...`)
+        
+        let orphansDeleted = 0
+        let orphansFailed = 0
+        const orphanErrors: string[] = []
+        
+        // Calculate cutoff date for folders to scan
+        const cutoffDate = new Date()
+        cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
+        const cutoffDateStr = cutoffDate.toISOString().split('T')[0]
+        
+        // List all user folders (excluding test folders)
+        const { data: userFolders, error: listUsersError } = await supabase.storage
+          .from('daystart-audio')
+          .list('', { limit: 1000 })
+        
+        if (listUsersError) {
+          console.error('Failed to list user folders:', listUsersError)
+          orphanErrors.push(`Failed to list user folders: ${listUsersError.message}`)
+        } else {
+          // Filter out test folders and process regular user folders
+          const regularUserFolders = userFolders?.filter(folder => 
+            !folder.name.startsWith('test-deploy-') && 
+            !folder.name.startsWith('test-manual-') &&
+            folder.name !== '.emptyFolderPlaceholder'
+          ) || []
+          
+          console.log(`Found ${regularUserFolders.length} user folders to check for orphans`)
+          
+          // Process each user folder
+          for (const userFolder of regularUserFolders) {
+            try {
+              // List date folders for this user
+              const { data: dateFolders, error: listDatesError } = await supabase.storage
+                .from('daystart-audio')
+                .list(userFolder.name, { limit: 1000 })
+              
+              if (listDatesError) {
+                console.error(`Failed to list date folders for ${userFolder.name}:`, listDatesError)
+                orphanErrors.push(`User ${userFolder.name}: ${listDatesError.message}`)
+                continue
+              }
+              
+              // Filter date folders older than retention period
+              const oldDateFolders = dateFolders?.filter(folder => {
+                // Date folders are in YYYY-MM-DD format
+                return folder.name <= cutoffDateStr
+              }) || []
+              
+              // Process old date folders
+              for (const dateFolder of oldDateFolders) {
+                const datePath = `${userFolder.name}/${dateFolder.name}`
+                
+                // List files in this date folder
+                const { data: files, error: listFilesError } = await supabase.storage
+                  .from('daystart-audio')
+                  .list(datePath, { limit: 100 })
+                
+                if (listFilesError) {
+                  console.error(`Failed to list files in ${datePath}:`, listFilesError)
+                  orphanErrors.push(`Path ${datePath}: ${listFilesError.message}`)
+                  continue
+                }
+                
+                if (files && files.length > 0) {
+                  // Check which files are orphaned
+                  const filePaths = files.map(f => `${datePath}/${f.name}`)
+                  const { data: checkResults, error: checkError } = await supabase
+                    .rpc('check_audio_files_have_jobs', { file_paths: filePaths })
+                  
+                  if (checkError) {
+                    console.error(`Failed to check orphan status for ${datePath}:`, checkError)
+                    orphanErrors.push(`Orphan check ${datePath}: ${checkError.message}`)
+                    continue
+                  }
+                  
+                  // Delete orphaned files
+                  const orphanedPaths = checkResults
+                    ?.filter(r => !r.has_job)
+                    ?.map(r => r.file_path) || []
+                  
+                  if (orphanedPaths.length > 0) {
+                    console.log(`Found ${orphanedPaths.length} orphaned files in ${datePath}`)
+                    
+                    // Delete in batches
+                    for (let i = 0; i < orphanedPaths.length; i += 10) {
+                      const batch = orphanedPaths.slice(i, i + 10)
+                      const { error: deleteError } = await supabase.storage
+                        .from('daystart-audio')
+                        .remove(batch)
+                      
+                      if (deleteError) {
+                        console.error(`Failed to delete orphan batch:`, deleteError)
+                        orphansFailed += batch.length
+                        orphanErrors.push(`Delete batch error: ${deleteError.message}`)
+                      } else {
+                        orphansDeleted += batch.length
+                        console.log(`Deleted ${batch.length} orphaned files`)
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (userError) {
+              console.error(`Error processing user folder ${userFolder.name}:`, userError)
+              orphanErrors.push(`User ${userFolder.name}: ${userError.message}`)
+            }
+          }
+        }
+        
+        console.log(`✅ Orphan cleanup completed: ${orphansDeleted} deleted, ${orphansFailed} failed`)
+        
+        // Update log with orphan stats
+        if (logId) {
+          const existingDetails = result.errors.length > 0 ? { errors: result.errors } : {}
+          await supabase
+            .from('audio_cleanup_log')
+            .update({
+              error_details: {
+                ...existingDetails,
+                orphans_deleted: orphansDeleted,
+                orphans_failed: orphansFailed,
+                orphan_errors: orphanErrors.length > 0 ? orphanErrors : undefined
+              }
+            })
+            .eq('id', logId)
+        }
+        
+      } catch (orphanError) {
+        console.error('Orphan cleanup failed:', orphanError)
+        result.errors.push(`Orphan cleanup error: ${orphanError.message}`)
+      }
+    }
+
     // Clean up test-deploy files and folders
     try {
       console.log(`🧪 Starting test-deploy cleanup...`)
@@ -259,12 +406,12 @@ async function cleanupAudioAsync(request_id: string): Promise<void> {
         console.error('Failed to list storage folders:', listError)
         result.errors.push(`Test-deploy cleanup failed: ${listError.message}`)
       } else {
-        // Filter for test-deploy folders
+        // Filter for test-deploy and test-manual folders
         const testDeployFolders = folders?.filter(item => 
-          item.name.startsWith('test-deploy-')
+          item.name.startsWith('test-deploy-') || item.name.startsWith('test-manual-')
         ) || []
 
-        console.log(`Found ${testDeployFolders.length} test-deploy folders to clean up`)
+        console.log(`Found ${testDeployFolders.length} test folders to clean up`)
 
         let testDeployFilesDeleted = 0
         let testDeployFoldersDeleted = 0
@@ -314,21 +461,27 @@ async function cleanupAudioAsync(request_id: string): Promise<void> {
           }
         }
 
-        // Clean up test-deploy job records from database
-        const { data: deletedJobs, error: dbError } = await supabase
+        // Clean up test-deploy and test-manual job records from database
+        const { data: deletedDeployJobs, error: deployDbError } = await supabase
           .from('jobs')
           .delete()
           .like('user_id', 'test-deploy-%')
           .select('job_id')
 
-        const testDeployJobsDeleted = deletedJobs?.length || 0
+        const { data: deletedManualJobs, error: manualDbError } = await supabase
+          .from('jobs')
+          .delete()
+          .like('user_id', 'test-manual-%')
+          .select('job_id')
 
-        if (dbError) {
-          console.error('Failed to delete test-deploy job records:', dbError)
-          result.errors.push(`Test-deploy DB cleanup failed: ${dbError.message}`)
+        const testDeployJobsDeleted = (deletedDeployJobs?.length || 0) + (deletedManualJobs?.length || 0)
+
+        if (deployDbError || manualDbError) {
+          console.error('Failed to delete test job records:', deployDbError || manualDbError)
+          result.errors.push(`Test DB cleanup failed: ${(deployDbError || manualDbError)?.message}`)
         }
 
-        console.log(`✅ Test-deploy cleanup completed: ${testDeployFoldersDeleted} folders, ${testDeployFilesDeleted} files, ${testDeployJobsDeleted} job records`)
+        console.log(`✅ Test cleanup completed: ${testDeployFoldersDeleted} folders, ${testDeployFilesDeleted} files, ${testDeployJobsDeleted} job records`)
         
         // Update log entry with test-deploy cleanup stats
         if (logId) {
