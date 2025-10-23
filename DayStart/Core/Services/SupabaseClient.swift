@@ -381,6 +381,18 @@ class SupabaseClient {
         )
         
         logger.log("✅ Today job created: \(jobResponse.jobId ?? "unknown") with status: \(jobResponse.status ?? "unknown")", level: .info)
+        
+        // Immediately trigger processing (same as welcome jobs)
+        if let jobId = jobResponse.jobId {
+            do {
+                try await invokeProcessJob(jobId: jobId)
+                logger.log("🚀 Successfully triggered immediate processing for today job: \(jobId)", level: .info)
+            } catch {
+                logger.logError(error, context: "Failed to trigger processing for today job: \(jobId)")
+                // Continue normally if trigger fails - job will be picked up by cron
+            }
+        }
+        
         return true
     }
     

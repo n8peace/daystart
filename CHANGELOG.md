@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.24] - In Development
 
-**Build:** 1 | **Status:** 🚧 In Development
+**Build:** 1 | **Commit:** 9151558 | **Status:** 🚧 In Development
 
 ### Added
 - Initial development build for 2025.10.24

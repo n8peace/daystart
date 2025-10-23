@@ -549,6 +549,101 @@ if (tokenAge > 7 * 24 * 60 * 60 * 1000) { // 7 days
 - **Content Quality**: Social section engagement metrics
 - **Error Rates**: Failed API calls, token refresh failures
 
+#### Health Check Integration
+Extend existing health check endpoint to monitor X API status and rate limits:
+
+```typescript
+// Add to existing health check function
+async function checkSocialAPIs() {
+  const checks = {
+    twitter_api: false,
+    twitter_rate_limit: { remaining: 0, reset_time: null },
+    active_connections: 0,
+    cache_health: false
+  }
+  
+  try {
+    // Test Twitter API connectivity
+    const testResponse = await fetch('https://api.twitter.com/2/tweets/search/recent?query=test&max_results=10', {
+      headers: { 'Authorization': `Bearer ${process.env.TWITTER_BEARER_TOKEN}` }
+    })
+    
+    checks.twitter_api = testResponse.ok
+    
+    // Check rate limit headers
+    if (testResponse.headers.get('x-rate-limit-remaining')) {
+      checks.twitter_rate_limit = {
+        remaining: parseInt(testResponse.headers.get('x-rate-limit-remaining')),
+        reset_time: new Date(parseInt(testResponse.headers.get('x-rate-limit-reset')) * 1000)
+      }
+    }
+    
+    // Count active social connections
+    const { count } = await supabase
+      .from('social_connections')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', true)
+    
+    checks.active_connections = count || 0
+    
+    // Check cache health (recent entries)
+    const { data: recentCache } = await supabase
+      .from('social_content_cache')
+      .select('id')
+      .gt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .limit(1)
+    
+    checks.cache_health = recentCache && recentCache.length > 0
+    
+    return checks
+  } catch (error) {
+    console.error('Social API health check failed:', error)
+    return checks
+  }
+}
+
+// Integrate into main health check response
+const healthResponse = {
+  // ... existing health checks
+  social_apis: await checkSocialAPIs(),
+  alerts: {
+    // ... existing alerts
+    low_twitter_rate_limit: socialChecks.twitter_rate_limit.remaining < 100,
+    twitter_api_down: !socialChecks.twitter_api,
+    no_social_cache: !socialChecks.cache_health
+  }
+}
+```
+
+#### Rate Limit Monitoring
+```typescript
+// Add rate limit tracking table
+CREATE TABLE api_rate_limits (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  api_name varchar(50) NOT NULL, -- 'twitter_timeline', 'twitter_trending'
+  requests_made integer DEFAULT 0,
+  requests_remaining integer,
+  reset_time timestamp with time zone,
+  created_at timestamp with time zone DEFAULT NOW()
+);
+
+// Track usage in API calls
+async function trackRateLimit(apiName: string, response: Response) {
+  const remaining = response.headers.get('x-rate-limit-remaining')
+  const resetTime = response.headers.get('x-rate-limit-reset')
+  
+  if (remaining && resetTime) {
+    await supabase
+      .from('api_rate_limits')
+      .upsert({
+        api_name: apiName,
+        requests_remaining: parseInt(remaining),
+        reset_time: new Date(parseInt(resetTime) * 1000)
+      })
+  }
+}
+```
+
 ### 11. Rollout Timeline
 
 #### Week 1-2: Foundation

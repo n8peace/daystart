@@ -96,8 +96,8 @@ class StateTransitionManager {
         case .welcomeReady:
             // Start polling for audio status when entering welcome ready state
             WelcomeDayStartScheduler.shared.startAudioPollingImmediately()
-        case .idle, .completed:
-            // Stop polling when going back to idle or completed
+        case .idle:
+            // Stop polling when going back to idle
             if viewModel.state == .welcomeReady || viewModel.state == .preparing {
                 WelcomeDayStartScheduler.shared.stopAudioPolling()
             }
@@ -134,7 +134,6 @@ class HomeViewModel: ObservableObject {
         case preparing      // Waiting for audio to be ready
         case buffering      // Loading/buffering audio (show loading icon)
         case playing        // Currently playing
-        case completed      // Completed (replay available)
     }
     
     @Published var state: AppState = .idle
@@ -233,7 +232,7 @@ class HomeViewModel: ObservableObject {
             if let stateString = notification.userInfo?["state"] as? String {
                 switch stateString {
                 case "completed":
-                    self?.state = .completed
+                    self?.exitPlayingState()
                 case "idle":
                     self?.exitPlayingState()
                 default:
@@ -292,12 +291,8 @@ class HomeViewModel: ObservableObject {
                 let audioPlayer = serviceRegistry.audioPlayerManager
                 if !audioPlayer.isPlaying {
                     logger.log("⚠️ Invalid state: playing but audio not playing", level: .warning)
-                    // Try to recover by restarting audio or go to completed
-                    if currentDayStart != nil {
-                        state = .completed
-                    } else {
-                        state = .idle
-                    }
+                    // Try to recover by restarting audio or go to idle
+                    state = .idle
                     return
                 }
             }
@@ -306,14 +301,6 @@ class HomeViewModel: ObservableObject {
             // If in preparing state but no polling is active, that's invalid
             if pollingTimer == nil || pollingStartTime == nil {
                 logger.log("⚠️ Invalid state: preparing but no active polling", level: .warning)
-                state = .idle
-                return
-            }
-            
-        case .completed:
-            // If in completed state but no current DayStart, that's invalid
-            if currentDayStart == nil {
-                logger.log("⚠️ Invalid state: completed with no currentDayStart", level: .warning)
                 state = .idle
                 return
             }
@@ -477,7 +464,7 @@ class HomeViewModel: ObservableObject {
             if serviceRegistry.loadedServices.contains("AudioPlayerManager") {
                 let audioPlayer = serviceRegistry.audioPlayerManager
                 if !audioPlayer.isPlaying {
-                    // Audio stopped while in background, transition to completed
+                    // Audio stopped while in background, transition to idle
                     transitionToRecentlyPlayed()
                 }
             }
@@ -779,7 +766,7 @@ class HomeViewModel: ObservableObject {
         
         // Simplified state logic - idle handles countdown display
         if hasCompletedThisOccurrence && timeUntil >= -sixHoursInSeconds {
-            stateTransitionManager.transitionTo(.completed)
+            stateTransitionManager.transitionTo(.idle)
         } else if (timeUntil > 0 && timeUntil <= 300) || (timeUntil <= 0 && timeUntil >= -sixHoursInSeconds) {
             // Within 5 minutes of start time or past scheduled time - check if audio is ready
             if !hasCompletedThisOccurrence {
@@ -1942,7 +1929,7 @@ class HomeViewModel: ObservableObject {
             hasCompletedCurrentOccurrence = hasCompletedOccurrence(scheduledTime)
         }
         
-        state = .completed
+        state = .idle
         stopPauseTimeoutTimer()
         
         // Check if we should show share prompt after 3rd completion
@@ -1956,12 +1943,6 @@ class HomeViewModel: ObservableObject {
             }
         }
         
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
-            if self?.state == .completed {
-                self?.updateState()
-            }
-        }
     }
     
     // MARK: - Notification Management (Lazy Loading)
@@ -2032,7 +2013,7 @@ class HomeViewModel: ObservableObject {
     
     func manualRefresh() async {
         // Only allow refresh in appropriate states
-        guard state == .idle || state == .completed else {
+        guard state == .idle else {
             logger.log("🔄 Manual refresh blocked - inappropriate state: \(state)", level: .info)
             return
         }

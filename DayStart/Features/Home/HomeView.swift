@@ -63,20 +63,6 @@ struct PrimaryActionView: View {
                     )
                     .padding(.horizontal, 40)
                 }
-            // case .completed:
-            //     Button(action: onReplayTapped) {
-            //         Label("Replay", systemImage: "arrow.clockwise")
-            //             .adaptiveFont(BananaTheme.Typography.headline)
-            //             .foregroundColor(BananaTheme.ColorToken.background)
-            //             .frame(maxWidth: .infinity)
-            //             .frame(height: 60)
-            //     }
-            //     .buttonStyle(InstantResponseStyle())
-            //     .background(
-            //         RoundedRectangle(cornerRadius: 20)
-            //             .fill(BananaTheme.ColorToken.primary)
-            //     )
-            //     .padding(.horizontal, 40)
             case .welcomeReady:
                 Button(action: onStartTapped) {
                     Text("DayStart")
@@ -401,8 +387,6 @@ struct HomeView: View {
             hapticManager.impact(style: .light)
         case (_, .playing):
             hapticManager.impact(style: .heavy)
-        // case (_, .completed):
-        //     hapticManager.notification(type: .success)
         default:
             break
         }
@@ -544,9 +528,6 @@ struct HomeView: View {
             bufferingView
         case .playing:
             playingView  // Playing state includes loading
-        case .completed:
-            // Transition directly to idle view instead of showing completed state
-            idleViewContent
         }
     }
     
@@ -910,39 +891,6 @@ struct HomeView: View {
         }
     }
     
-    /*
-    private var completedViewContent: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.green)
-                
-                Text("DayStart Complete!")
-                    .adaptiveFont(BananaTheme.Typography.title2)
-                    .foregroundColor(BananaTheme.ColorToken.text)
-            }
-            
-            if let nextTime = viewModel.nextDayStartTime {
-                VStack(spacing: 8) {
-                    Text("Next DayStart")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                    
-                    VStack(spacing: 2) {
-                        Text(nextTime, style: .time)
-                            .font(.system(size: 24, weight: .semibold, design: .rounded))
-                            .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
-                        
-                        Text(formattedDate(for: nextTime))
-                            .font(.system(size: 14, weight: .regular))
-                            .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                    }
-                }
-            }
-        }
-    }
-    */
     
     private var recentlyPlayedViewAction: some View {
         VStack(spacing: 16) {
