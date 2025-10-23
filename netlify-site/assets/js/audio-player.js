@@ -3,6 +3,8 @@ class DayStartPlayer {
         this.audio = document.getElementById('audioElement');
         this.token = this.getTokenFromUrl();
         this.isPlaying = false;
+        this.isBackupAudio = false;
+        this.backupAudioPath = '../assets/audio/backup_daystart_audio.aac';
         this.init();
     }
 
@@ -67,9 +69,9 @@ class DayStartPlayer {
             
         } catch (error) {
             console.error('Failed to load DayStart:', error);
-            // Enhanced error handling
-            if (error.message === 'expired') {
-                this.showExpiredError();
+            // Enhanced error handling - try backup audio instead of showing error
+            if (error.message === 'expired' || error.message === 'audio_missing' || error.message === 'invalid') {
+                await this.loadBackupAudio();
             } else {
                 throw error; // Let the init() method handle other errors
             }
@@ -283,6 +285,41 @@ class DayStartPlayer {
         if (error) {
             error.style.display = 'block';
         }
+    }
+    
+    async loadBackupAudio() {
+        console.log('Loading backup audio...');
+        this.isBackupAudio = true;
+        
+        // Set backup audio source
+        this.audio.src = this.backupAudioPath;
+        this.audio.load();
+        
+        // Update UI with backup content info
+        this.updateBackupUI();
+        this.setupControls();
+        this.showPlayer();
+    }
+    
+    updateBackupUI() {
+        // Update date to show it's a sample
+        const dateElement = document.getElementById('daystartDate');
+        if (dateElement) {
+            dateElement.textContent = 'Sample Morning Intelligence Brief';
+        }
+        
+        // Update duration info
+        const durationElement = document.getElementById('durationInfo');
+        if (durationElement) {
+            durationElement.textContent = 'Demo brief - Experience DayStart AI';
+        }
+        
+        // Update page title
+        document.title = 'DayStart AI - Sample Morning Brief';
+        
+        // Update social meta tags
+        this.updateMetaTag('property', 'og:title', 'DayStart AI - Sample Morning Brief');
+        this.updateMetaTag('property', 'og:description', 'Experience how DayStart AI delivers personalized morning intelligence. This is a demo of our AI-powered briefing system.');
     }
     
     showExpiredError() {

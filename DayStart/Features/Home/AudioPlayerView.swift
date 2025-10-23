@@ -267,10 +267,19 @@ struct AudioPlayerView: View {
     // MARK: - Share Functionality
     
     private func shareDayStart(_ dayStart: DayStartData) {
+        // Prevent multiple simultaneous share attempts
+        guard !isShareLoading else {
+            DebugLogger.shared.log("⚠️ Share already in progress, ignoring duplicate tap", level: .warning)
+            return
+        }
+        
         guard let jobId = dayStart.jobId else {
             DebugLogger.shared.log("❌ Cannot share DayStart: missing jobId", level: .error)
             return
         }
+        
+        // Set loading state immediately to prevent race conditions
+        isShareLoading = true
         
         // Check if audioStoragePath is available, if not try to fetch it
         if let audioStoragePath = dayStart.audioStoragePath, !audioStoragePath.isEmpty {
@@ -286,10 +295,7 @@ struct AudioPlayerView: View {
     private func fetchMissingAudioStoragePath(for dayStart: DayStartData) {
         Task {
             do {
-                // Show loading indicator
-                await MainActor.run {
-                    isShareLoading = true
-                }
+                // Loading state already set in shareDayStart
                 
                 DebugLogger.shared.log("🔍 Fetching audio status for missing audioStoragePath", level: .info)
                 
@@ -353,15 +359,13 @@ struct AudioPlayerView: View {
     private func createShareWithPath(_ dayStart: DayStartData, audioStoragePath: String) {
         guard let jobId = dayStart.jobId else {
             DebugLogger.shared.log("❌ Cannot share DayStart: missing jobId", level: .error)
+            isShareLoading = false
             return
         }
         
         Task {
             do {
-                // Show loading indicator
-                await MainActor.run {
-                    isShareLoading = true
-                }
+                // Loading state already set in shareDayStart
                 
                 // 1. Create share via API
                 let shareResponse = try await SupabaseClient.shared.createShare(
@@ -370,56 +374,80 @@ struct AudioPlayerView: View {
                     source: "audio_player"
                 )
                 
+                DebugLogger.shared.log("✅ Share created successfully: \(shareResponse.shareUrl)", level: .info)
+                
                 // 2. Create share message
                 let shareText = """
 Had a great DayStart this morning. It's a short daily briefing that helps me get ahead of the day.
 
-Sharing mine: 🎧 \(shareResponse.shareUrl)
+*Shared DayStart expires in 48 hours for privacy.
+
+🎧 \(shareResponse.shareUrl)
 """
                 
-                // 3. Present share sheet
+                // 3. Present share sheet (wrap in separate try-catch for UI errors)
                 await MainActor.run {
-                    let activityVC = UIActivityViewController(
-                        activityItems: [shareText],
-                        applicationActivities: nil
-                    )
-                    
-                    // Configure for iPad
-                    if let popover = activityVC.popoverPresentationController {
+                    do {
+                        let activityVC = UIActivityViewController(
+                            activityItems: [shareText],
+                            applicationActivities: nil
+                        )
+                        
+                        // Configure for iPad
+                        if let popover = activityVC.popoverPresentationController {
+                            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                               let window = windowScene.windows.first {
+                                popover.sourceView = window
+                                popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                                popover.permittedArrowDirections = []
+                            }
+                        }
+                        
+                        // Present the share sheet
                         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                           let window = windowScene.windows.first {
-                            popover.sourceView = window
-                            popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
-                            popover.permittedArrowDirections = []
-                        }
-                    }
-                    
-                    // Present the share sheet
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let window = windowScene.windows.first,
-                       let rootViewController = window.rootViewController {
-                        
-                        // Find the topmost presented view controller
-                        var topController = rootViewController
-                        while let presented = topController.presentedViewController {
-                            topController = presented
+                           let window = windowScene.windows.first,
+                           let rootViewController = window.rootViewController {
+                            
+                            // Find the topmost presented view controller
+                            var topController = rootViewController
+                            while let presented = topController.presentedViewController {
+                                topController = presented
+                            }
+                            
+                            topController.present(activityVC, animated: true)
+                        } else {
+                            throw NSError(domain: "ShareError", code: 3, userInfo: [
+                                NSLocalizedDescriptionKey: "Could not find window to present share sheet"
+                            ])
                         }
                         
-                        topController.present(activityVC, animated: true)
+                    } catch {
+                        DebugLogger.shared.log("⚠️ Share created successfully but failed to present share sheet: \(error)", level: .warning)
+                        // Show a different message - share was created but UI failed
+                        let alert = UIAlertController(
+                            title: "Share Created",
+                            message: "Your share link was created but the share sheet couldn't be displayed. You can find the link in your share history.",
+                            preferredStyle: .alert
+                        )
+                        alert.addAction(UIAlertAction(title: "OK", style: .default))
+                        
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                           let window = windowScene.windows.first,
+                           let rootViewController = window.rootViewController {
+                            rootViewController.present(alert, animated: true)
+                        }
                     }
                     
                     isShareLoading = false
                 }
                 
-                DebugLogger.shared.log("✅ Share created successfully: \(shareResponse.shareUrl)", level: .info)
-                
             } catch {
-                // Handle error gracefully
+                // Handle API errors (UI errors are handled separately above)
                 await MainActor.run {
                     isShareLoading = false
                     showShareError = true
                 }
-                DebugLogger.shared.log("❌ Failed to create share: \(error)", level: .error)
+                DebugLogger.shared.log("❌ Failed to create share (API error): \(error)", level: .error)
             }
         }
     }

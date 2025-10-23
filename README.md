@@ -4,7 +4,7 @@ Your Personal Morning Brief. The intelligence advantage that successful leaders 
 
 DayStart AI delivers personalized 3-minute audio briefings with news, markets, weather, and calendar events. Built for ambitious professionals who value their time and want to start each day informed, not overwhelmed.
 
-Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini, and ElevenLabs text-to-speech.
+Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation, OpenAI TTS (primary) and ElevenLabs (fallback) for voice synthesis.
 
 ## 🚀 App Store Status
 
@@ -19,7 +19,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini, and ElevenLabs text-to
 - 🟢 **Live**: v2025.10.19 Build 2 available for download on the App Store as of October 22, 2025
   - Includes state update loop fix, real-time audio visualization, enhanced news/sports curation
   - AI-powered content prioritization, shareable DayStarts, and improved user experience
-- 🔨 **In Development**: Next version with additional features
+- 🔨 **In Development**: v2025.10.24 Build 1 - New development version with upcoming features
 
 ## Table of Contents
 - [Features](#features)
@@ -51,7 +51,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini, and ElevenLabs text-to
 - **Market Updates**: Track your portfolio and key indices (S&P 500, Dow Jones)
 - **Sports Results**: Updates from teams you actually follow
 - **Daily Motivation**: Thoughtful quotes to start strong
-- **Professional Voices**: 3 natural AI voices via ElevenLabs
+- **Professional Voices**: 3 natural AI voices (Grace, Rachel, Matthew) via OpenAI TTS and ElevenLabs
 - **3-Minute Promise**: Precisely crafted briefs that respect your time
 
 ### ✅ Intelligent Brief Generation
@@ -79,7 +79,8 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini, and ElevenLabs text-to
 - **Intelligent Content Caching**: Hourly content refresh with deduplication and source trust scoring
 - **Professional Brief Generation**: 
   - OpenAI GPT-4o-mini for intelligent script creation
-  - ElevenLabs eleven_flash_v2_5 for broadcast-quality voice
+  - OpenAI TTS (alloy voice) as primary TTS provider
+  - ElevenLabs eleven_turbo_v2_5 as fallback TTS
   - 3-minute briefs with optimal content mix
   - Smart summarization that captures what matters
 - **Automated Cleanup**: Scheduled cleanup of old audio files and data with RLS policies
@@ -97,8 +98,8 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini, and ElevenLabs text-to
 
 ### Backend
 - **Supabase**: PostgreSQL database and edge functions with receipt-based authentication
-- **OpenAI API**: GPT-4o-mini for cost-effective script generation with dynamic scaling
-- **ElevenLabs API**: Text-to-speech conversion using eleven_flash_v2_5 model
+- **OpenAI API**: GPT-4o-mini for script generation + TTS-1 model for voice synthesis
+- **ElevenLabs API**: Fallback text-to-speech using eleven_turbo_v2_5 model
 - **Deno**: For Supabase edge functions with TypeScript support
 
 ## Architecture
@@ -276,7 +277,7 @@ SPORTS_API_KEY=your-sports-api-key (optional)
 
 1. **OpenAI API Key**: 
    - Go to [platform.openai.com](https://platform.openai.com)
-   - Create API key with GPT-4 access
+   - Create API key with GPT-4o-mini and TTS access
 
 2. **ElevenLabs API Key**:
    - Go to [elevenlabs.io](https://elevenlabs.io)
@@ -356,7 +357,7 @@ SPORTS_API_KEY=your-sports-api-key (optional)
    - Test with TestFlight
    - Submit for App Store review
 
-📋 **Complete submission checklist**: [App Readiness Plan](claude_app_readiness_plan.md)
+📋 **Complete submission checklist**: See TECHNICAL_DOCUMENTATION.md for full deployment details
 
 ## Usage
 
@@ -390,10 +391,12 @@ SPORTS_API_KEY=your-sports-api-key (optional)
 - **Consistent design**: Banana-themed design system throughout
 
 ### Backend Reliability
-- **Job queue system**: Scalable processing with PostgreSQL locking
-- **Automatic retries**: Failed jobs are retried with exponential backoff
-- **Content freshness**: Hourly updates ensure current information
-- **Cost monitoring**: Track and optimize AI service usage
+- **Job queue system**: FOR UPDATE SKIP LOCKED with 15-minute leases
+- **Priority system**: Welcome (100), urgent (75), regular (50), background (25)
+- **Automatic retries**: 3 attempts before marking failed
+- **Content caching**: 7-day cache with hourly refresh
+- **Cost tracking**: OpenAI and ElevenLabs usage monitoring
+- **Storage management**: 10-day retention with orphan cleanup
 
 ## Contributing
 
@@ -411,14 +414,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Ready to start your mornings with intelligence?**
 
-🌅 **[Download DayStart AI now at daystartai.app](https://daystartai.app)**
+🌅 **[Download DayStart AI from the App Store](https://apps.apple.com/app/apple-store/id6751055528)**
 
 Join thousands of ambitious professionals who start each day informed, not overwhelmed. Get your personalized 3-minute morning brief delivered with AI-powered voice synthesis.
 
 - ✅ **Free 7-day trial** - No commitment required
 - ⚡ **3-minute promise** - Complete intelligence briefing in under 3 minutes
 - 🎯 **Personalized content** - News, weather, calendar, and motivation tailored to you
-- 🔊 **Professional voices** - Broadcast-quality AI narration via ElevenLabs
+- 🔊 **Professional voices** - Broadcast-quality AI narration via OpenAI TTS and ElevenLabs
 
 Available now on the App Store for iPhone.
 

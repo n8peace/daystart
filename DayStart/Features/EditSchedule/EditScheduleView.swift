@@ -380,10 +380,13 @@ struct EditScheduleView: View {
     
     private var scheduleSection: some View {
         Section(header: Text("Schedule")) {
-            VStack(alignment: .leading) {
-                Text("Repeat Days")
-                    .font(.subheadline)
-                    .adaptiveFontWeight(light: .medium, dark: .semibold)
+            VStack(spacing: 12) {
+                HStack {
+                    Text("Repeat Days")
+                        .font(.subheadline)
+                        .adaptiveFontWeight(light: .medium, dark: .semibold)
+                    Spacer()
+                }
                 
                 HStack(spacing: 8) {
                     Spacer()
@@ -406,13 +409,14 @@ struct EditScheduleView: View {
                     }
                     Spacer()
                 }
-                .padding(.vertical, 4)
                 
                 if selectedDays.isEmpty {
-                    Text("Select at least one day to enable DayStart")
-                        .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                        .padding(.top, 4)
+                    HStack {
+                        Text("Select at least one day to enable DayStart")
+                            .font(.caption)
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        Spacer()
+                    }
                 }
             }
             

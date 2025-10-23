@@ -40,7 +40,7 @@ WHAT'S INCLUDED:
 
 KEY FEATURES:
 • AI-Powered Personalization: A briefing unique to you
-• Professional Narration: Natural voices, no robotic tone
+• Professional Narration: 3 natural AI voices (Grace, Rachel, Matthew)
 • Offline Playback: Perfect for commutes or workouts
 • Full Customization: Choose the topics that matter most
 • DayStart Share: Briefings are private by design with the option to share
@@ -191,7 +191,7 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 ## Pre-Submission Checklist
 
 ### Critical Items (Will Cause Rejection) - UPDATED
-- [x] Remove `simulatePurchase` function from PurchaseManager.swift ✓
+- [x] No `simulatePurchase` function found in PurchaseManager.swift ✓
 - [x] Privacy Policy live at https://daystart.bananaintelligence.ai/privacy ✓ 
 - [x] Terms of Service live at https://daystart.bananaintelligence.ai/terms ✓
 - [x] Wire up paywall buttons (Restore, Terms, Privacy) ✓
@@ -218,17 +218,17 @@ DayStart AI delivers a Personal Morning Brief, the same type of intelligence bri
 KEY FEATURES:
 - 3 minute audio intelligence briefs
 - Personalized to each user's priorities
-- Professional voice synthesis
+- Professional voice synthesis via OpenAI TTS and ElevenLabs
 - No login required, privacy-first approach
 
 WHAT'S NEW IN 2025.10.19:
 - NEW: DayStart AI Share - Every briefing now has a shareable audio link with beautiful player page
-- Smart job backfill system detects when you've been away and generates your DayStart instantly
+- Smart job backfill system detects when you've been away and generates your DayStart with priority processing
 - Time-aware greetings that match the actual time of day (no more "Good morning" at 8 PM)
 - Enhanced deal alerts with animated badges and clear pricing displays
 - 16 intelligent notification types for weather, calendar, streaks and more
 - Completely redesigned professional onboarding experience
-- Backend optimizations for faster content processing and sharing infrastructure
+- Backend optimizations including FOR UPDATE SKIP LOCKED job processing and share functionality
 
 WEATHERKIT:
 - Yes, app uses WeatherKit for weather data
@@ -242,12 +242,12 @@ SUBSCRIPTIONS:
 - No login required, uses StoreKit receipt IDs
 
 BACKGROUND PROCESSING:
-Essential for prefetching audio 2 hours before scheduled wake time. Prevents playback delays.
+Essential for prefetching audio before scheduled wake time using BGTaskScheduler. Prevents playback delays and enables offline functionality.
 
 PERMISSIONS (BOTH OPTIONAL):
 - Location: Weather updates only
 - Calendar: Event summaries only
-- App works without permissions
+- App works fully without any permissions (graceful degradation)
 
 CONTACT: nate@bananaintelligence.ai
 ```

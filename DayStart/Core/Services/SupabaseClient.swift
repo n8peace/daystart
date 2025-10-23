@@ -976,6 +976,9 @@ extension SupabaseClient {
         
         var request = await createRequest(for: url, method: "POST")
         
+        // Increase timeout for share operations (involves multiple DB queries)
+        request.timeoutInterval = 60
+        
         // Add app version header for tracking
         if let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
             request.setValue(appVersion, forHTTPHeaderField: "x-app-version")
@@ -1021,7 +1024,10 @@ extension SupabaseClient {
             #if DEBUG
             logger.logNetworkRequest(request)
             #endif
+            
+            logger.log("🌐 Starting share creation network request...", level: .info)
             let (data, response) = try await URLSession.shared.data(for: request)
+            logger.log("🌐 Share creation network request completed", level: .info)
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 logger.log("❌ Supabase API: Invalid response type", level: .error)
@@ -1046,6 +1052,8 @@ extension SupabaseClient {
                         throw SupabaseError.apiError("RATE_LIMIT", errorData.error)
                     case "DAILY_LIMIT_EXCEEDED":
                         throw SupabaseError.apiError("DAILY_LIMIT", errorData.error)
+                    case "RAPID_RETRY_DETECTED":
+                        throw SupabaseError.apiError("RAPID_RETRY", errorData.error)
                     default:
                         throw SupabaseError.apiError(errorData.code, errorData.error)
                     }
@@ -1056,15 +1064,29 @@ extension SupabaseClient {
                 throw SupabaseError.httpError(httpResponse.statusCode)
             }
             
+            logger.log("🔍 Parsing share response JSON...", level: .debug)
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             let shareResponse = try decoder.decode(ShareResponse.self, from: data)
+            logger.log("✅ Share response parsed successfully", level: .debug)
             
             logger.log("✅ Supabase API: Share created with token: \(shareResponse.token)", level: .info)
             
             return shareResponse
             
         } catch {
+            // Log specific error types for better debugging
+            if let urlError = error as? URLError {
+                logger.log("❌ Network error in createShare: \(urlError.localizedDescription) (code: \(urlError.code.rawValue))", level: .error)
+                if urlError.code == .timedOut {
+                    logger.log("⏰ Share creation timed out - consider backend performance", level: .error)
+                }
+            } else if error is DecodingError {
+                logger.log("❌ JSON decoding error in createShare: \(error)", level: .error)
+            } else {
+                logger.log("❌ Unknown error in createShare: \(error)", level: .error)
+            }
+            
             logger.logError(error, context: "Failed to create share for job: \(jobId)")
             throw error
         }

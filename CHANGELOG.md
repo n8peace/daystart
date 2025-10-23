@@ -8,9 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2025.10.24] - In Development
+
+**Build:** 1 | **Status:** 🚧 In Development
+
+### Added
+- Initial development build for 2025.10.24
+
+### Changed
+- **Share Message Enhancement** - Added expiration notice to shared DayStart messages
+  - Share messages now include "*Shared DayStart expires in 48 hours for privacy."
+  - Helps recipients understand the temporary nature of shared links
+  - Maintains transparency about privacy-focused link expiration
+
+### Fixed
+- **Edit Schedule UI Alignment** - Fixed "Repeat Days" text alignment to match other form elements
+  - "Repeat Days" label now properly aligns with other section labels like "Scheduled DayStart"
+  - Consistent horizontal positioning throughout the Schedule section
+  - Improved visual hierarchy and form layout consistency
+
+### Removed
+
+---
+
 ## [2025.10.19] - 2025-10-22
 
-**Build:** 2 | **Commit:** a9060b7 | **Status:** **LIVE** on App Store as of 2025-10-22
+**Build:** 2 | **Commit:** 0dda2d2 | **Status:** **LIVE** on App Store as of 2025-10-22
 
 ### Fixed
 - **State Update Loop** - Eliminated infinite recursive state updates in HomeViewModel

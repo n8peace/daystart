@@ -81,11 +81,12 @@ serve(async (req) => {
       })
     }
     
-    // Check rate limiting - max 5 shares per job
-    const { count } = await supabase
+    // Combined query: check rate limiting and rapid duplicates in one query
+    const { data: existingShares, count } = await supabase
       .from('public_daystart_shares')
-      .select('*', { count: 'exact', head: true })
+      .select('created_at, user_id', { count: 'exact' })
       .eq('job_id', job_id)
+      .order('created_at', { ascending: false })
     
     if (count && count >= 5) {
       return new Response(JSON.stringify({ 
@@ -95,6 +96,21 @@ serve(async (req) => {
         status: 429,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
+    }
+    
+    // Check for rapid duplicates from same user
+    const userRecentShare = existingShares?.find(share => share.user_id === userId)
+    if (userRecentShare) {
+      const timeSinceLastShare = Date.now() - new Date(userRecentShare.created_at).getTime()
+      if (timeSinceLastShare < 5000) { // 5 seconds cooldown
+        return new Response(JSON.stringify({ 
+          error: 'Please wait a moment before sharing again',
+          code: 'RAPID_RETRY_DETECTED' 
+        }), { 
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
     }
     
     // Check daily user limit (optional)

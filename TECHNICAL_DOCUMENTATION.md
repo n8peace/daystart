@@ -3,6 +3,11 @@
 This document provides comprehensive technical documentation for the DayStart application, including API usage, rate limits, scheduled jobs, and infrastructure details.
 
 ## Table of Contents
+- [System Architecture](#system-architecture)
+  - [iOS Frontend](#ios-frontend)
+  - [Backend Services](#backend-services)
+  - [Database Schema](#database-schema)
+  - [Authentication](#authentication)
 - [API Documentation & Rate Limits](#api-documentation--rate-limits)
   - [AI & Text-to-Speech APIs](#ai--text-to-speech-apis)
   - [News APIs](#news-apis)
@@ -22,6 +27,94 @@ This document provides comprehensive technical documentation for the DayStart ap
 
 ---
 
+# System Architecture
+
+## iOS Frontend
+
+### Architecture Patterns
+- **Language**: Swift 5.9+ with SwiftUI
+- **Minimum iOS Version**: iOS 17.0+
+- **Architecture**: MVVM + Combine with lazy service loading
+- **Service Pattern**: 5-tier lazy loading system inspired by Spotify
+  - Tier 1: Essential services (UserPreferences, ThemeManager)
+  - Tier 2: Core UI services (AudioPlayerManager, HapticManager)
+  - Tier 3: User feature services (NotificationScheduler, StreakManager)
+  - Tier 4: Content generation services (SupabaseClient, AudioDownloader)
+  - Tier 5: Platform integration services (LocationManager, WeatherService)
+
+### Key Components
+- **ServiceRegistry**: Centralized lazy loading system for all services
+- **PurchaseManager**: StoreKit 2 integration for subscriptions ($4.99/month, $39.99/year)
+- **AudioPlayerManager**: AVFoundation-based audio playback with background support
+- **HomeViewModel**: Main app state management with 1,858 lines of complex logic
+- **OnboardingView**: 2,350-line comprehensive welcome flow
+
+### Performance Optimizations
+- **Startup Time**: Sub-100ms app launch with minimal service loading
+- **Background Tasks**: BGTaskScheduler for audio prefetching and snapshot updates
+- **Memory Management**: Aggressive service unloading when not needed
+- **Caching**: Three-tier caching (memory → local file → background downloads)
+
+## Backend Services
+
+### Supabase Edge Functions
+- **create_job**: Job creation with receipt-based auth, priority handling
+- **process_jobs**: Core AI script generation + TTS synthesis pipeline
+- **get_audio_status**: Audio status checking with completion tracking
+- **refresh_content**: Hourly content cache updates from multiple APIs
+- **cleanup-audio**: Daily/weekly storage cleanup with orphan detection
+- **create_share**: Public share link generation with rate limiting
+- **get_shared_daystart**: Public endpoint for web player access
+- **submit_feedback**: User feedback collection
+- **update_jobs**: Bulk job updates for schedule changes
+- **update_job_snapshots**: Location/weather/calendar data updates
+
+### Content Generation Pipeline
+1. **Job Creation**: User preferences captured, job queued with priority
+2. **Content Aggregation**: News, sports, stocks fetched from cache
+3. **AI Script Generation**: GPT-4o-mini creates personalized script
+4. **TTS Synthesis**: OpenAI TTS (primary) or ElevenLabs (fallback)
+5. **Audio Storage**: M4A files stored in Supabase with 10-day retention
+
+## Database Schema
+
+### Core Tables
+- **jobs**: Main job queue with user preferences and generation status
+  - Unique constraint on (user_id, local_date)
+  - Priority system: 100 (welcome), 75 (urgent), 50 (regular), 25 (background)
+  - Lease-based processing with FOR UPDATE SKIP LOCKED
+- **content_cache**: 12-hour cached content from external APIs
+- **daystart_history**: Completed DayStarts for replay (deprecated)
+- **purchase_users**: Receipt ID tracking for analytics
+- **public_daystart_shares**: Shareable links with analytics
+- **app_feedback**: User feedback with optional email
+- **request_logs**: API request logging for debugging
+- **audio_cleanup_log**: Cleanup operation history
+
+### Recent Schema Evolution
+- Migration 022: Transitioned from JWT to receipt-based auth
+- Migration 028: Added is_welcome flag for onboarding DayStarts  
+- Migration 029: Added social_daystart flag for non-app content
+- Migration 032: Introduced share functionality
+- Migration 034-035: Added orphan audio cleanup functions
+
+## Authentication
+
+### Receipt-Based System
+- **User Identifier**: StoreKit transaction receipt ID
+- **Headers**:
+  - `x-client-info`: Receipt ID (user identifier)
+  - `x-auth-type`: "purchase" or "anonymous"
+- **Test Support**: Test receipts prefixed with "tx_" accepted
+- **No User Accounts**: Privacy-first design with no email/password
+
+### RLS Policies
+- Users can only access their own data based on receipt ID
+- Service role has full access for background jobs
+- Public access allowed for share functionality
+
+---
+
 # API Documentation & Rate Limits
 
 This section provides a comprehensive overview of all external APIs used in the DayStart application, including rate limits, pricing, and usage patterns.
@@ -29,35 +122,37 @@ This section provides a comprehensive overview of all external APIs used in the 
 ## AI & Text-to-Speech APIs
 
 ### OpenAI API
-- **Purpose**: GPT-4o-mini script generation, TTS audio synthesis
+- **Purpose**: GPT-4o-mini script generation, TTS audio synthesis (primary provider)
 - **Endpoints Used**:
   - `/v1/chat/completions` (GPT-4o-mini script generation)
-  - `/v1/audio/speech` (GPT-4o-mini-tts)
+  - `/v1/audio/speech` (TTS-1 model with alloy voice)
 - **Models Used**:
-  - **gpt-4o-mini**: Script generation and content adjustment
-  - **gpt-4o-mini-tts**: Text-to-speech audio synthesis
+  - **gpt-4o-mini**: Script generation with dynamic token allocation
+  - **tts-1**: High-quality text-to-speech (alloy voice)
 - **Rate Limits** (Current Account):
   - **gpt-4o-mini**: 4,000,000 TPM, 5,000 RPM, 40,000,000 TPD
-  - **gpt-4o-mini-tts**: 600,000 TPM, 5,000 RPM
+  - **tts-1**: Standard OpenAI TTS limits
 - **Pricing**: Pay-per-use
   - gpt-4o-mini: ~$0.15/1M input tokens, ~$0.60/1M output tokens
-  - gpt-4o-mini-tts: $15/1M characters
-- **Usage Pattern**: 1-2 script generations + 1-2 TTS calls per job
+  - tts-1: $15/1M characters
+- **Usage Pattern**: 
+  - 1 script generation per job (800-2000 tokens based on duration)
+  - 1 TTS call per job (500-1500 characters)
 - **Configuration**: `OPENAI_API_KEY` environment variable
 
 ### ElevenLabs API
-- **Purpose**: Primary TTS provider using `eleven_flash_v2_5` model
-- **Endpoint**: `/v1/text-to-speech/{voice_id}`
+- **Purpose**: Fallback TTS provider with voice variety
+- **Endpoint**: `/v1/text-to-speech/{voice_id}/stream`
 - **Voice IDs Used**:
-  - `pNInz6obpgDQGcFmaJgB` (Adam)
-  - `21m00Tcm4TlvDq8ikWAM` (Rachel)  
-  - `AZnzlk1XvdvUeBnXmlld` (Domi)
-- **Current Plan**: Creator Plan
-- **Rate Limits**:
-  - **Concurrency**: 5 concurrent requests
-  - **Characters**: 100,000 characters/month
-- **Pricing**: $0.30/1,000 characters (Creator Plan)
-- **Usage Pattern**: ~500-1500 characters per job (fallback when OpenAI TTS fails)
+  - `cgSgspJ2msm6clMCkdW9` (Jessica - voice1/Grace)
+  - `21m00Tcm4TlvDq8ikWAM` (Rachel - voice2)  
+  - `TxGEqnHWrfWFTfGW9XjX` (Josh - voice3/Matthew)
+- **Model**: `eleven_turbo_v2_5` (fastest model)
+- **Current Plan**: Unknown (needs clarification)
+- **Rate Limits**: Depends on plan
+- **Usage Pattern**: 
+  - Fallback when OpenAI TTS fails
+  - Voice variety for user preference
 - **Configuration**: `ELEVENLABS_API_KEY` environment variable
 
 ## News APIs
@@ -93,7 +188,7 @@ This section provides a comprehensive overview of all external APIs used in the 
   - CORS enabled for all origins
   - No truncated content
   - Email support
-- **Usage Pattern**: 1 call per refresh cycle (25 articles)
+- **Usage Pattern**: 1 call per refresh cycle (10 articles max)
 - **Configuration**: `GNEWS_API_KEY` environment variable (optional)
 
 ## Financial Data APIs
@@ -115,11 +210,15 @@ This section provides a comprehensive overview of all external APIs used in the 
 ## Sports APIs
 
 ### ESPN API
-- **Purpose**: NBA scores and sports data
-- **Endpoint**: `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard`
+- **Purpose**: Sports scores and data (multiple leagues)
+- **Endpoints**: 
+  - `/apis/site/v2/sports/football/nfl/scoreboard`
+  - `/apis/site/v2/sports/basketball/nba/scoreboard`
+  - `/apis/site/v2/sports/baseball/mlb/scoreboard`
+  - `/apis/site/v2/sports/hockey/nhl/scoreboard`
 - **Rate Limits**: ✅ **Public API** - No authentication required
 - **Pricing**: Free
-- **Usage Pattern**: 1 call per refresh cycle
+- **Usage Pattern**: 4 calls per refresh cycle (one per major sport)
 - **Configuration**: None required
 
 ### TheSportDB API
@@ -130,7 +229,12 @@ This section provides a comprehensive overview of all external APIs used in the 
   - Generally allows reasonable usage for small applications
   - May implement throttling during high traffic periods
 - **Pricing**: Free (no cost)
-- **Usage Pattern**: 1 call per refresh cycle
+- **Usage Pattern**: Multiple endpoints called per refresh cycle
+- **Endpoints Used**:
+  - `/eventsbyleague.php?id=4387` (NBA)
+  - `/eventsbyleague.php?id=4391` (NFL)  
+  - `/eventsbyleague.php?id=4424` (MLB)
+  - `/eventsbyleague.php?id=4380` (NHL)
 - **Risk Assessment**: Low priority API - graceful degradation if limits hit
 - **Configuration**: None required for free tier
 
@@ -138,12 +242,15 @@ This section provides a comprehensive overview of all external APIs used in the 
 
 ### Apple WeatherKit
 - **Purpose**: Local weather data and forecasts
-- **Integration**: Native iOS CoreLocation + WeatherKit
+- **Integration**: Native iOS WeatherKit framework
 - **Rate Limits**: ✅ **500,000 calls/month free**, then $0.50/1K calls
 - **Pricing**: 
   - Free: 500,000 calls/month
   - Paid: $0.50 per 1,000 calls above free tier
-- **Usage Pattern**: 1-2 calls per job (current + forecast)
+- **Usage Pattern**: 
+  - 1 call per job for current conditions
+  - Data included in job snapshot for backend use
+- **Privacy**: Location permission required ("When In Use")
 - **Configuration**: Apple Developer Program membership required
 
 ## Backend & Infrastructure
@@ -215,20 +322,21 @@ if (Deno.env.get('NEWSAPI_KEY')) {
 3. **Track cost per user** for scaling projections
 4. **Implement circuit breakers** for expensive APIs
 
-## Action Items
+## Current Service Status
 
-⚠️ **MISSING INFORMATION NEEDED**:
+### Confirmed Active Services
+- **OpenAI**: Active (usage tracked in database)
+- **Supabase**: Pro Plan ($25/month base)
+- **Apple WeatherKit**: Active (via iOS app)
+- **ESPN API**: Active (free public API)
+- **Cron-job.org**: Active (free tier)
 
-Please provide the following plan details to complete this documentation:
-
-1. **ElevenLabs Plan**: Free/Starter/Creator/Pro?
-2. **NewsAPI Plan**: Developer (Free)/Business?
-3. **GNews Plan**: Free/Basic/Professional?
-4. **RapidAPI Plan**: Free/Basic/Pro?
-5. **TheSportDB Plan**: Free/Patreon?
-6. **Supabase Plan**: Free/Pro?
-
-Once provided, this document will be updated with exact rate limits and monthly costs.
+### Services Requiring Confirmation
+- **ElevenLabs**: API key exists, plan unknown
+- **NewsAPI**: Business plan likely ($500/month)
+- **GNews**: Essential plan likely ($60/month)
+- **Yahoo Finance**: Basic plan likely ($10/month)
+- **TheSportDB**: Free tier assumed
 
 ---
 
@@ -243,9 +351,8 @@ This section outlines all scheduled tasks (cron jobs) used by the DayStart appli
 | Process Jobs | `*/1 * * * *` | Every 1 minute | Process audio generation queue |
 | Refresh Content | `0 * * * *` | Every hour | Refresh news, stocks, sports cache |
 | Cleanup Audio | `5 1 * * *` | Daily at 1:05 AM UTC | Delete old audio files |
-| Weekly Orphan Audio Cleanup | `5 2 * * 0` | Weekly at 2:05 AM UTC (Sunday) | Deep scan for orphaned audio files |
-| Healthcheck | `5 2 * * *` | Daily at 2:05 AM UTC | Run system health checks and email report |
-| Daily Generic DayStart | `45 4 * * *` | Daily at 4:45 AM ET | Generate generic audio briefing |
+| Weekly Orphan Cleanup | `5 2 * * 0` | Weekly at 2:05 AM UTC (Sunday) | Deep scan for orphaned audio files |
+| Healthcheck | `5 2 * * *` | Daily at 2:05 AM UTC | Run system health checks |
 
 ## 1. Process Jobs
 
@@ -266,10 +373,17 @@ Processes the job queue for audio generation. Picks up queued jobs, generates au
 - Monitor Edge Function logs in Supabase Dashboard
 - Alert if queue depth exceeds 100 jobs
 
-### Notes
-- Processes up to 5 jobs per execution
-- Implements lease-based locking to prevent duplicate processing
-- Welcome DayStarts are prioritized
+### Implementation Details
+- **Worker Pattern**: Leases jobs with 15-minute timeout
+- **Priority System**: 
+  - 100: Welcome/immediate jobs
+  - 75: Same-day urgent (<4 hours)
+  - 50: Regular (4-24 hours)
+  - 25: Background (>24 hours)
+- **Retry Logic**: 3 attempts before marking failed
+- **Content Sources**: Uses cached data from content_cache table
+- **Script Generation**: GPT-4o-mini with dynamic token limits
+- **TTS Providers**: OpenAI (primary), ElevenLabs (fallback)
 
 ## 2. Refresh Content
 
@@ -290,10 +404,15 @@ Refreshes cached content from external APIs (news, stocks, sports) to ensure fre
 - Monitor API rate limits in Edge Function logs
 - Verify content freshness (should be <2 hours old)
 
-### Notes
-- Caches content for 12 hours with graceful fallback
-- Automatically cleans up expired cache entries
-- Respects API rate limits for external services
+### Implementation Details
+- **Cache Duration**: 168 hours (7 days) with stale content fallback
+- **Refresh Lock**: Prevents concurrent refreshes (5-minute timeout)
+- **Content Sources**:
+  - News: NewsAPI (3 categories) + GNews
+  - Sports: ESPN (4 leagues) + TheSportDB (4 leagues)
+  - Stocks: Yahoo Finance (batch requests)
+- **Deduplication**: Removes duplicate news articles across sources
+- **Error Handling**: Continues if individual APIs fail
 
 ## 3. Cleanup Audio
 
@@ -319,11 +438,15 @@ Deletes audio files from storage that are older than 10 days to manage storage c
 - Store the key securely in cron service
 - Consider IP whitelisting if supported
 
-### Notes
-- Deletes files older than 10 days by default
-- Prevents running more than once per 20 hours
-- Logs all operations for audit trail
-- Cleans up test-deploy- and test-manual- folders
+### Implementation Details
+- **Retention Period**: 10 days for all audio files
+- **Cleanup Modes**:
+  - `database`: Delete files based on job records
+  - `storage`: Scan storage for old files
+  - `hybrid`: Both database and storage cleanup
+- **Rate Limiting**: 20-hour cooldown between runs
+- **Batch Processing**: 100 files per batch
+- **Special Handling**: Cleans test-* folders immediately
 
 ## 4. Weekly Orphan Audio Cleanup
 
@@ -360,7 +483,7 @@ Performs a deep storage scan to identify and remove orphaned audio files that ha
 - Requires SERVICE_ROLE_KEY for full storage access
 - Complements daily cleanup by catching edge cases
 
-## 5. Healthcheck
+## 4. Healthcheck
 
 ### Purpose
 Runs a comprehensive application healthcheck across DB, cache freshness, job queue, storage, internal endpoints, and error logs, then emails a summary via Resend.
@@ -379,11 +502,16 @@ Runs a comprehensive application healthcheck across DB, cache freshness, job que
 - Check `request_logs` for `/healthcheck` entries
 - Verify healthcheck email is received daily
 
-### Notes
-- The function returns 200 immediately and executes asynchronously
-- Ensure Resend env vars are configured in Supabase secrets
+### Implementation Details
+- **Health Checks**:
+  - Database connectivity and job queue status
+  - Content cache freshness (warns if >3 hours old)
+  - Storage bucket accessibility
+  - Recent error patterns in logs
+  - Audio file integrity
+- **Email Report**: Sends summary via Resend API
+- **Async Execution**: Returns immediately, processes in background
 
-## 6. Daily Generic DayStart
 
 ### Purpose
 Creates a generic, non-personalized DayStart audio briefing for general distribution or testing purposes.
@@ -478,9 +606,8 @@ SELECT * FROM get_audio_cleanup_stats();
 - **Cleanup Audio**: ~30 invocations/month
 - **Weekly Orphan Audio Cleanup**: ~4 invocations/month
 - **Healthcheck**: ~30 invocations/month
-- **Daily Generic DayStart**: ~30 invocations/month
 
-Total: ~44,014 Edge Function invocations/month
+Total: ~44,000 Edge Function invocations/month
 
 ## Future Improvements
 
@@ -519,6 +646,12 @@ The share system enables users to:
 3. **PostgreSQL Database**: Stores share metadata and analytics
 4. **Netlify Web Player**: Serves branded audio player at `daystartai.app`
 5. **Supabase Storage**: Hosts audio files with signed URL access
+
+### Key Features
+- **Time-limited shares**: 48-hour default expiration
+- **Rate limiting**: Max 5 shares per DayStart, 10 per user per day
+- **Analytics tracking**: Views, engagement, conversion metrics
+- **Privacy-preserving**: No user data exposed in public shares
 
 ### User Flow
 
@@ -862,12 +995,93 @@ const { error: shareCleanupError } = await supabase
 
 ---
 
-**Share System Status**: ✅ **PRODUCTION READY**
-**Last Updated**: January 2025  
-**Current Version**: v1.0 (Basic functionality with rate limiting)
+---
+
+# Development & Deployment
+
+## iOS App
+
+### Build Configuration
+- **Bundle ID**: `ai.bananaintelligence.DayStart`
+- **Team ID**: `ZH33WS872M`
+- **Deployment Target**: iOS 17.0+
+- **Xcode Version**: 15.0+
+- **Swift Version**: 5.9+
+
+### Environment Configuration
+Stored in Info.plist:
+- `SupabaseBaseURL`
+- `SupabaseRestURL`
+- `SupabaseFunctionsURL`
+- `SupabaseAnonKey`
+
+### Background Modes
+- Audio playback
+- Background fetch
+- Background processing
+
+## Supabase Backend
+
+### Environment Variables
+```
+OPENAI_API_KEY
+ELEVENLABS_API_KEY
+NEWSAPI_KEY
+GNEWS_API_KEY
+RAPIDAPI_KEY
+WORKER_AUTH_TOKEN
+RESEND_API_KEY
+RESEND_FROM_EMAIL
+RESEND_TO_EMAIL
+```
+
+### Database Migrations
+- **Current Version**: 035 (fix_orphan_cleanup_function)
+- **Migration Strategy**: Forward-only, no breaking changes
+- **RLS**: Enabled on all user-facing tables
+
+### Edge Function Deployment
+```bash
+supabase functions deploy [function-name]
+```
+
+## Monitoring & Debugging
+
+### Key Metrics
+- **Job Success Rate**: Target >95%
+- **Audio Generation Time**: Target <2 minutes
+- **API Error Rate**: Target <1%
+- **Storage Usage**: Monitor growth rate
+
+### Debug Queries
+```sql
+-- Check job processing status
+SELECT status, COUNT(*), MAX(updated_at)
+FROM jobs
+WHERE created_at > NOW() - INTERVAL '1 day'
+GROUP BY status;
+
+-- Monitor API costs
+SELECT DATE(created_at), 
+       SUM(script_cost) as ai_cost,
+       SUM(tts_cost) as tts_cost,
+       COUNT(*) as jobs
+FROM jobs
+WHERE created_at > NOW() - INTERVAL '7 days'
+GROUP BY DATE(created_at)
+ORDER BY DATE(created_at) DESC;
+
+-- Check share system health
+SELECT COUNT(*) as total_shares,
+       COUNT(*) FILTER (WHERE view_count > 0) as viewed,
+       AVG(view_count) as avg_views
+FROM public_daystart_shares
+WHERE created_at > NOW() - INTERVAL '30 days';
+```
 
 ---
 
-**Last Updated**: January 2025  
-**Maintained By**: Development Team  
-**Review Schedule**: Monthly or when API plans change
+**Technical Documentation Status**: ✅ **UPDATED**
+**Last Updated**: October 2025  
+**Version**: 2.0 (Complete rewrite with current architecture)
+**Review Schedule**: Monthly or when architecture changes

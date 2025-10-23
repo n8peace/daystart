@@ -1860,7 +1860,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
             .map(s => ({
               name: s.name,
               symbol: s.symbol,
-              price: s.price,
+              price: Math.round(s.price || 0),
               change: s.change,
               percentChange: s.percentChange,
               timestamp: s.timestamp,
@@ -1876,7 +1876,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
             .map(s => ({
               name: s.name,
               symbol: s.symbol,
-              price: s.price,
+              price: Math.round(s.price || 0),
               change: s.change,
               percentChange: s.percentChange,
               timestamp: s.timestamp,
@@ -1915,7 +1915,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
     .map(s => ({
       name: s.name,
       symbol: s.symbol,
-      price: s.price,
+      price: Math.round(s.price || 0),
       change: s.change,
       percentChange: s.percentChange,
       isCrypto: crypto.some(c => c.symbol === s.symbol)
