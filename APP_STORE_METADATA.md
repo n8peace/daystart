@@ -3,8 +3,8 @@
 ## Basic Information
 - **App Name:** DayStart AI: Morning Briefing
 - **Subtitle:** Wake Up. Get Briefed. Succeed.
-- **Current Version:** 2025.10.19 (Build 2) - **LIVE** on App Store as of Oct 22, 2025
-- **Previous Version:** 2025.10.16 (Build 2) - Superseded
+- **Current Version:** 2025.10.24 (Build 1) - **IN REVIEW** 
+- **Previous Version:** 2025.10.19 (Build 2) - **LIVE** on App Store as of Oct 22, 2025
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 
@@ -64,7 +64,29 @@ Privacy Policy: https://daystart.bananaintelligence.ai/privacy
 Terms of Service: https://daystart.bananaintelligence.ai/terms
 ```
 
-## What's New in Version 2025.10.19
+## What's New in Version 2025.10.24
+```
+Streamlined Morning Experience: Even Faster, Even Smoother
+
+Instant Access to Today's Intelligence
+Your DayStart button now appears whenever you have today's briefing scheduled - whether it's new or one you want to replay. No more hunting for controls. Your morning intelligence is always one tap away.
+
+Lightning-Fast Completion Flow
+After your briefing ends, you instantly see your next scheduled DayStart. No waiting, no delays - just immediate clarity on what's coming next. We eliminated the 30-second transition that was slowing down your flow.
+
+Simplified Behind-the-Scenes
+We streamlined our app's internal state management for smoother performance and fewer edge cases. You'll notice more responsive transitions and a cleaner overall experience.
+
+Enhanced Share Privacy
+When you share your DayStart with others, they now see a clear notice that shared links expire in 48 hours - maintaining your privacy while keeping transparency high.
+
+Always-Ready Generation
+Returning after time away? Your today briefings now start generating immediately instead of waiting for the next scheduled window. Less waiting, more leading.
+
+Perfect for leaders who demand efficiency at every step.
+```
+
+## What's New in Version 2025.10.19 (Previous Release)
 ```
 DayStart AI Share: Make Your Morning Intelligence Shareable!
 
@@ -205,7 +227,7 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 - [x] Complete subscription metadata in App Store Connect
 - [x] Ensure Supabase backend is running during review
 
-### App Store Review Notes - Version 2025.10.19
+### App Store Review Notes - Version 2025.10.24
 ```
 QUICK TEST:
 1. Experience how successful leaders start their day
@@ -221,14 +243,13 @@ KEY FEATURES:
 - Professional voice synthesis via OpenAI TTS and ElevenLabs
 - No login required, privacy-first approach
 
-WHAT'S NEW IN 2025.10.19:
-- NEW: DayStart AI Share - Every briefing now has a shareable audio link with beautiful player page
-- Smart job backfill system detects when you've been away and generates your DayStart with priority processing
-- Time-aware greetings that match the actual time of day (no more "Good morning" at 8 PM)
-- Enhanced deal alerts with animated badges and clear pricing displays
-- 16 intelligent notification types for weather, calendar, streaks and more
-- Completely redesigned professional onboarding experience
-- Backend optimizations including FOR UPDATE SKIP LOCKED job processing and share functionality
+WHAT'S NEW IN 2025.10.24:
+- Instant post-completion flow: Users now see next scheduled DayStart immediately after audio ends, eliminating 30-second delay that was interrupting user flow
+- Always-available today button: DayStart button appears for any scheduled briefing on current day, improving replay accessibility without hunting for controls
+- Enhanced share privacy: Share links now display clear 48-hour expiration notice for improved transparency
+- Improved state management: Smoother app transitions and more responsive UI performance
+- Share message enhancement: Added expiration notice to shared DayStart messages for privacy transparency
+- Core functionality unchanged: scheduling, audio generation, paywall flows work identically to previous version
 
 WEATHERKIT:
 - Yes, app uses WeatherKit for weather data

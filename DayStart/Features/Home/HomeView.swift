@@ -21,7 +21,6 @@ struct HomeHeaderView: View {
 struct PrimaryActionView: View {
     let state: HomeViewModel.AppState
     let nextTime: Date?
-    let hasCompleted: Bool
     let showNoSchedule: Bool
     let connectionError: ConnectionError?
     let viewModel: HomeViewModel
@@ -47,7 +46,7 @@ struct PrimaryActionView: View {
                             .fill(BananaTheme.ColorToken.text)
                     )
                     .padding(.horizontal, 40)
-                } else if let _ = nextTime, !hasCompleted, viewModel.isDayStartScheduled(for: Date()) {
+                } else if let _ = nextTime, viewModel.isDayStartScheduled(for: Date()) {
                     Button(action: onStartTapped) {
                         Text("DayStart")
                             .adaptiveFont(BananaTheme.Typography.title)
@@ -154,7 +153,6 @@ struct HomeView: View {
                         PrimaryActionView(
                             state: viewModel.state,
                             nextTime: viewModel.nextDayStartTime,
-                            hasCompleted: viewModel.hasCompletedCurrentOccurrence,
                             showNoSchedule: viewModel.showNoScheduleMessage,
                             connectionError: viewModel.connectionError,
                             viewModel: viewModel,
@@ -639,7 +637,7 @@ struct HomeView: View {
                 // Show countdown if within 10 hours
                 if timeUntil > 0 && timeUntil <= 36000 { // 10 hours
                     countdownContent(for: nextTime, timeUntil: timeUntil)
-                } else if viewModel.isNextDayStartToday && !viewModel.hasCompletedCurrentOccurrence {
+                } else if viewModel.isNextDayStartToday {
                     // Today's DayStart available now
                     availableNowContent(for: nextTime)
                 } else {
@@ -749,7 +747,7 @@ struct HomeView: View {
                         .fill(BananaTheme.ColorToken.text)
                 )
                 .padding(.horizontal, 40)
-            } else if let _ = viewModel.nextDayStartTime, viewModel.isNextDayStartToday && !viewModel.hasCompletedCurrentOccurrence {
+            } else if let _ = viewModel.nextDayStartTime, viewModel.isNextDayStartToday {
                 Button(action: { 
                     hapticManager.impact(style: .medium)
                     viewModel.startDayStart() 

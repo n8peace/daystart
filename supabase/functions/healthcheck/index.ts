@@ -1190,7 +1190,7 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
         detailsHtml = `
           <div style="font-size:13px;line-height:1.5">
             <span style="color:#16a34a">🧹 Cleanup running normally</span>
-            ${d.last_started_at ? `<br><span style="color:#6b7280">📅 Last run: ${new Date(d.last_started_at).toLocaleDateString()} ${new Date(d.last_started_at).toLocaleTimeString()}</span>` : ''}
+            ${d.last_started_at ? `<br><span style="color:#6b7280">📅 Last run: ${new Date(d.last_started_at).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles' })} ${new Date(d.last_started_at).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles' })}</span>` : ''}
             ${d.hours_since !== undefined ? `<br><span style="color:#6b7280">⏰ ${d.hours_since} hours ago</span>` : ''}
             ${d.message ? `<br><em style="color:#6b7280">${d.message}</em>` : ''}
           </div>`

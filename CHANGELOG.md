@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.24] - In Development
 
-**Build:** 1 | **Commit:** 9151558 | **Status:** 🚧 In Development
+**Build:** 1 | **Commit:** 1dc1545 | **Status:** 🚧 In Development
 
 ### Added
 - Initial development build for 2025.10.24
@@ -20,6 +20,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Share messages now include "*Shared DayStart expires in 48 hours for privacy."
   - Helps recipients understand the temporary nature of shared links
   - Maintains transparency about privacy-focused link expiration
+- **Immediate Job Processing** - Regular today jobs now trigger immediate processing
+  - When users return after being away, today's DayStart now starts generating immediately
+  - Previously only welcome jobs had immediate processing, regular jobs waited for cron
+  - Eliminates up to 1-minute delay for returning users who need today's content
+  - Provides consistent instant experience across all job types
+- **Simplified State Machine** - Eliminated `.completed` state for cleaner user experience
+  - Audio completion now transitions directly to `.idle` state instead of temporary `.completed` state
+  - Users immediately see next DayStart info after completion without 30-second delay
+  - Simplified state transitions: `.playing` → `.idle` (was: `.playing` → `.completed` → wait 30s → `.idle`)
+  - All completion features (replay, streaks, review gates) remain functional in idle state
+- **Always-Available DayStart Button** - Today's DayStart button now always shows when scheduled
+  - DayStart button appears for any scheduled DayStart on current day, regardless of completion status
+  - Eliminates completion-based hiding that made replay access inconsistent
+  - Users can easily re-listen to today's DayStart without hunting for controls
+  - Simplified logic removes complex completion state checks
 
 ### Fixed
 - **Edit Schedule UI Alignment** - Fixed "Repeat Days" text alignment to match other form elements
@@ -28,6 +43,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Improved visual hierarchy and form layout consistency
 
 ### Removed
+- **Completed State** - Removed `.completed` case from HomeViewModel.AppState enum
+  - Eliminated unnecessary intermediate state that delayed showing next DayStart info
+  - Removed associated state validation and transition logic
+  - Cleaned up commented completion UI code and haptic feedback references
 
 ---
 
