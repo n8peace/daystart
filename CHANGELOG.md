@@ -8,9 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2025.10.24] - In Development
+## [2025.10.24] - 2025-10-24
 
-**Build:** 1 | **Commit:** 1dc1545 | **Status:** 🚧 In Development
+**Build:** 1 | **Commit:** f1a6cc3 | **Status:** **LIVE** on App Store as of 2025-10-24
 
 ### Added
 - Initial development build for 2025.10.24
