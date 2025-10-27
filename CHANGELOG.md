@@ -8,6 +8,79 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2025.10.28] - In Development
+
+**Build:** 1 | **Commit:** TBD | **Status:** 🚧 In Development
+
+### Added
+- **Always-Available DayStart Button** - DayStart button now appears 100% of the time in idle state
+  - Eliminates empty greeting-only screens that users were experiencing
+  - Works for both scheduled and unscheduled days
+  - Provides consistent user experience regardless of schedule state
+- **Always-Visible Schedule Information** - Schedule display now appears 100% of the time with intelligent fallbacks
+  - Eliminates missing schedule information that users were experiencing
+  - Smart detection of no schedule vs temporary state issues
+  - Direct schedule calculation fallback when ViewModel state is incomplete
+  - Helpful messaging for every possible schedule state
+- **Enhanced World Series Data Collection** - Comprehensive MLB playoff coverage during October
+  - Multi-date ESPN fetching: Past 2 days + today + tomorrow for MLB during October
+  - Smart World Series detection: All late October (25-31) MLB games treated as championships
+  - Enhanced sports intelligence with date-based inference for playoff context
+  - Dodgers priority boost for LA users during playoffs (+25 significance points)
+
+### Changed
+- **Unified DayStart Tap Handler** - Simplified button behavior for better UX
+  - If audio exists for today: Play immediately (any scheduled time or on-demand)
+  - If no audio exists: Create high-priority on-demand job for today
+  - Single code path eliminates complex conditional logic
+  - No more different behaviors for scheduled vs unscheduled days
+- **Enhanced Schedule Display** - Comprehensive improvements to schedule information visibility
+  - "Tap DayStart to get your briefing" replaces "No DayStarts scheduled"
+  - Added schedule setup encouragement for users with no schedule
+  - Direct schedule summary fallback (e.g., "Scheduled for 7:00 AM on weekdays")
+  - Extended schedule calculation (14-day window) for reliable next occurrence display
+  - Smart day formatting: "daily", "weekdays", "weekends", or specific days
+- **Sports Content Prioritization** - World Series gets maximum coverage
+  - Late October MLB games automatically get 3 sports spots (vs normal 1)
+  - World Series detection: +40 significance points for explicit mentions
+  - October MLB playoff boost: +20 points for any October MLB game
+  - Championship override: World Series bypasses normal sports spot limits
+- **AI Prompt Enhancement** - Updated script generation priorities for championships
+  - Added "World Series Priority" section for late October (Oct 25-31)
+  - Championship urgency messaging: "These games happen once per year"
+  - Enhanced seasonal context awareness for playoff periods
+
+### Fixed
+- **State Management Issues** - Resolved empty greeting screens and missing schedule info
+  - Users no longer see just greeting with no button or schedule info
+  - Button always appears when in idle state
+  - Schedule information displays properly with helpful fallbacks
+  - Fixed race conditions where showNoScheduleMessage=false but nextDayStartTime=nil
+  - Handles edge cases: schedule gaps, >7 day intervals, state calculation timing
+- **Audio Existence Check** - Enhanced logic to find any existing audio for today
+  - Checks scheduled time audio, welcome audio, and history
+  - Returns specific time for which audio exists for better playback
+  - More robust detection prevents unnecessary job creation
+- **Missing World Series Coverage** - Resolved ESPN API data gaps during playoffs
+  - ESPN scoreboard endpoint was only showing today's games (missing off-days)
+  - Enhanced fetching now captures recent games across 4-day window
+  - Deduplication logic prevents duplicate games across date ranges
+  - Comprehensive playoff coverage ensures no major games are missed
+- **Stock Market Weekend Logic Bug** - Fixed timezone conversion error in weekend detection
+  - Stocks were incorrectly included on Saturdays (when markets are closed) but excluded on Mondays (when markets are open)
+  - Root cause: Double timezone conversion in `isWeekend()` function corrupted date calculations
+  - Fixed using proper `Intl.DateTimeFormat` with noon time to avoid edge cases around midnight
+  - Weekend filtering now works correctly: weekends show crypto + major ETFs only, weekdays show all equities + crypto
+  - Tested across multiple timezones (LA, NY, London, Tokyo, Sydney) to ensure accuracy
+
+### Removed
+- **Complex Button Conditional Logic** - Simplified always-available approach
+  - Removed dependency on nextTime and isDayStartScheduled conditions
+  - Eliminated showNoSchedule conditional in button display
+  - Cleaner, more maintainable code with fewer edge cases
+
+---
+
 ## [2025.10.24] - 2025-10-24
 
 **Build:** 1 | **Commit:** f1a6cc3 | **Status:** **LIVE** on App Store as of 2025-10-24

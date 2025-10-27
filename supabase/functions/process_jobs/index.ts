@@ -316,11 +316,17 @@ function sectionBudget(seconds: number, include: { weather: boolean; calendar: b
 
 // Check if date falls on weekend (Saturday or Sunday)
 function isWeekend(dateISO: string, tz?: string): boolean {
-  const targetDate = tz 
-    ? new Date(new Date(dateISO + 'T00:00:00').toLocaleString('en-US', { timeZone: tz }))
-    : new Date(dateISO + 'T00:00:00');
-  const day = targetDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
-  return day === 0 || day === 6;
+  // Create date at noon to avoid timezone edge cases around midnight
+  const date = new Date(dateISO + 'T12:00:00.000Z');
+  
+  // Use Intl.DateTimeFormat to get weekday in user's timezone
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    timeZone: tz || 'UTC'
+  });
+  
+  const weekday = formatter.format(date);
+  return weekday === 'Sat' || weekday === 'Sun';
 }
 
 // Get time-aware greeting based on scheduled time in user's timezone
@@ -2076,10 +2082,17 @@ You are an executive assistant delivering a personalized morning briefing. Creat
    (Use significance_score + seasonal_context for prioritization)
 4. SPOT ALLOCATION: Breaking news/championships can consume 2-3 spots, adjust others accordingly
 
+🏆 WORLD SERIES PRIORITY (October 25-31):
+• ALL late October MLB games = World Series treatment
+• Dodgers games get maximum LA user priority during playoffs
+• World Series games override normal sports spot limits (use 3 spots if needed)
+• Championship urgency: These games happen once per year
+
 ⚡ EXECUTION RULES
 CONTENT SELECTION:
 • News (${storyLimits.news} spots): US National → Local → International flow with contextual transitions
-• Sports (${storyLimits.sports} spots): Use game_type priority: championship > playoff > season_opener > rivalry > regular  
+• Sports (${storyLimits.sports} spots): Use game_type priority: championship > playoff > season_opener > rivalry > regular
+• CHAMPIONSHIP OVERRIDE: World Series/Finals games get priority regardless of spot limits  
 • Stocks: ALWAYS mention ALL stocks.focus companies by name (user's personal picks)
 • Weather: Include temps/conditions with neighborhood specificity when available
 • Calendar: Prioritize personal/social events over routine meetings

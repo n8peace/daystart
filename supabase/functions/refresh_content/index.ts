@@ -731,42 +731,108 @@ async function fetchESPN(): Promise<any> {
   const successfulFetches: string[] = [];
   const failedFetches: string[] = [];
 
+  // Check if we're in October (World Series season) for enhanced MLB fetching
+  const currentMonth = new Date().getMonth() + 1; // 1-12
+  const isOctoberPlayoffs = currentMonth === 10;
+
   // Fetch all sports in parallel
   const fetchPromises = sports.map(async (sport) => {
     try {
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${sport.path}/scoreboard`;
-      console.log(`[ESPN] Fetching ${sport.league} from ${url}`);
-      
-      const data = await getJSON<any>(url);
-      
-      const games = data.events?.slice(0, sport.limit).map((event: any) => ({
-        id: event.id,
-        date: event.date,
-        name: event.name,
-        status: event.status?.type?.name || 'UNKNOWN',
-        league: sport.league,
-        competitors: event.competitions?.[0]?.competitors?.map((comp: any) => ({
-          team: comp.team?.displayName || 'Unknown',
-          score: comp.score || '0',
-          record: comp.records?.[0]?.summary || ''
-        })) || []
-      })) || [];
+      let allSportGames: any[] = [];
+
+      // Enhanced MLB fetching during October (World Series season)
+      if (sport.league === 'MLB' && isOctoberPlayoffs) {
+        console.log(`[ESPN] Enhanced October MLB fetching - checking multiple date ranges`);
+        
+        // Get dates for the past 2 days + today + tomorrow  
+        const dates = [];
+        for (let i = -2; i <= 1; i++) {
+          const date = new Date();
+          date.setDate(date.getDate() + i);
+          dates.push(date.toISOString().split('T')[0].replace(/-/g, ''));
+        }
+
+        // Fetch multiple date ranges for comprehensive World Series coverage
+        const mlbFetchPromises = dates.map(async (dateStr) => {
+          try {
+            const dateUrl = `https://site.api.espn.com/apis/site/v2/sports/${sport.path}/scoreboard?dates=${dateStr}`;
+            console.log(`[ESPN] Fetching MLB for date ${dateStr} from ${dateUrl}`);
+            const dateData = await getJSON<any>(dateUrl);
+            
+            const dateGames = dateData.events?.map((event: any) => ({
+              id: event.id,
+              date: event.date,
+              name: event.name,
+              status: event.status?.type?.name || 'UNKNOWN',
+              league: sport.league,
+              competitors: event.competitions?.[0]?.competitors?.map((comp: any) => ({
+                team: comp.team?.displayName || 'Unknown',
+                score: comp.score || '0',
+                record: comp.records?.[0]?.summary || ''
+              })) || []
+            })) || [];
+            
+            console.log(`[ESPN] Found ${dateGames.length} MLB games for ${dateStr}`);
+            return dateGames;
+          } catch (error) {
+            console.warn(`[ESPN] Failed to fetch MLB for date ${dateStr}:`, error);
+            return [];
+          }
+        });
+
+        const mlbResults = await Promise.all(mlbFetchPromises);
+        allSportGames = mlbResults.flat();
+        
+        // Remove duplicates by game ID
+        const uniqueGames = new Map();
+        allSportGames.forEach(game => {
+          if (!uniqueGames.has(game.id)) {
+            uniqueGames.set(game.id, game);
+          }
+        });
+        allSportGames = Array.from(uniqueGames.values());
+        
+        // Sort by date (most recent first) and limit
+        allSportGames.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        allSportGames = allSportGames.slice(0, sport.limit);
+        
+        console.log(`[ESPN] Enhanced MLB fetch complete: ${allSportGames.length} unique games across ${dates.length} days`);
+      } else {
+        // Standard single-day fetch for other sports and non-October MLB
+        const url = `https://site.api.espn.com/apis/site/v2/sports/${sport.path}/scoreboard`;
+        console.log(`[ESPN] Standard fetching ${sport.league} from ${url}`);
+        
+        const data = await getJSON<any>(url);
+        
+        allSportGames = data.events?.slice(0, sport.limit).map((event: any) => ({
+          id: event.id,
+          date: event.date,
+          name: event.name,
+          status: event.status?.type?.name || 'UNKNOWN',
+          league: sport.league,
+          competitors: event.competitions?.[0]?.competitors?.map((comp: any) => ({
+            team: comp.team?.displayName || 'Unknown',
+            score: comp.score || '0',
+            record: comp.records?.[0]?.summary || ''
+          })) || []
+        })) || [];
+      }
 
       // Add to combined games array
-      allGames.push(...games);
+      allGames.push(...allSportGames);
       
       // Store breakdown by sport
       sportsBreakdown[sport.league.toLowerCase()] = {
-        games,
-        season: data.season,
-        total_events: data.events?.length || 0,
-        fetched_games: games.length
+        games: allSportGames,
+        total_events: allSportGames.length,
+        fetched_games: allSportGames.length,
+        enhanced_fetch: sport.league === 'MLB' && isOctoberPlayoffs
       };
       
       successfulFetches.push(sport.league);
-      console.log(`[ESPN] Successfully fetched ${games.length} ${sport.league} games`);
+      console.log(`[ESPN] Successfully fetched ${allSportGames.length} ${sport.league} games`);
       
-      return { sport: sport.league, success: true, count: games.length };
+      return { sport: sport.league, success: true, count: allSportGames.length };
     } catch (error) {
       console.warn(`[ESPN] Failed to fetch ${sport.league}:`, error);
       failedFetches.push(sport.league);
@@ -1617,6 +1683,28 @@ function calculateSportsSignificance(game: any): number {
   if (gameTitle.includes('wild card')) score += 20
   if (gameTitle.includes('conference championship')) score += 30
   if (gameTitle.includes('super bowl')) score += 50
+
+  // Enhanced World Series detection for October
+  if (league === 'mlb' && currentMonth === 10) {
+    const currentDate = new Date()
+    const dayOfMonth = currentDate.getDate()
+    
+    // Late October (25-31) - likely World Series games
+    if (dayOfMonth >= 25) {
+      score += 35 // Treat all late October MLB games as World Series level
+      console.log(`[Sports Intelligence] Late October MLB boost applied: +35 for ${gameTitle}`)
+    }
+    
+    // Any October MLB game gets playoff treatment
+    score += 20
+    console.log(`[Sports Intelligence] October MLB playoff boost applied: +20 for ${gameTitle}`)
+  }
+
+  // Dodgers boost for LA users during October playoffs
+  if (league === 'mlb' && currentMonth === 10 && gameTitle.includes('dodgers')) {
+    score += 25 // Extra boost for Dodgers during playoffs
+    console.log(`[Sports Intelligence] Dodgers playoff boost applied: +25 for ${gameTitle}`)
+  }
   
   // Season context
   if (gameTitle.includes('season opener') || gameTitle.includes('home opener')) score += 20
@@ -1782,13 +1870,36 @@ function getSeasonalContext(game: any): string {
 
 // Calculate how many sports spots this game deserves
 function calculateSportsSpots(game: any, significanceScore: number, gameType: string): number {
+  const gameTitle = `${game.name || ''} ${game.event || ''}`.toLowerCase()
+  const league = (game.league || '').toLowerCase()
+  const currentMonth = new Date().getMonth() + 1
+  const dayOfMonth = new Date().getDate()
+  
   // 3 spots for ultimate championship games
   if (gameType === 'championship' && significanceScore >= 80) {
-    const gameTitle = `${game.name || ''} ${game.event || ''}`.toLowerCase()
     if (gameTitle.includes('world series game 7') || gameTitle.includes('super bowl') || 
         gameTitle.includes('nba finals game 7') || gameTitle.includes('stanley cup final game 7')) {
       return 3
     }
+  }
+
+  // 3 spots for World Series games during late October
+  if (league === 'mlb' && currentMonth === 10 && dayOfMonth >= 25) {
+    // All late October MLB games likely World Series - get maximum coverage
+    console.log(`[Sports Spots] 3 spots allocated for late October MLB: ${gameTitle}`)
+    return 3
+  }
+
+  // 3 spots for explicit World Series games anytime
+  if (gameTitle.includes('world series')) {
+    console.log(`[Sports Spots] 3 spots allocated for World Series: ${gameTitle}`)
+    return 3
+  }
+
+  // 2 spots for Dodgers during October playoffs (LA team priority)
+  if (league === 'mlb' && currentMonth === 10 && gameTitle.includes('dodgers')) {
+    console.log(`[Sports Spots] 2 spots allocated for Dodgers playoff game: ${gameTitle}`)
+    return 2
   }
   
   // 2 spots for major events

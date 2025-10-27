@@ -1354,51 +1354,57 @@ class HomeViewModel: ObservableObject {
     }
     
     private func checkIfAudioExistsForToday() -> Bool {
-        // Check for regular DayStart audio
+        return getExistingAudioTimeForToday() != nil
+    }
+    
+    /// Returns the time for which audio exists today, or nil if no audio exists
+    private func getExistingAudioTimeForToday() -> Date? {
+        // Check for regular DayStart audio first
         if let todayScheduledTime = getTodayScheduledTime(),
            serviceRegistry.audioCache.hasAudio(for: todayScheduledTime) {
-            return true
+            return todayScheduledTime
         }
         
         // Check for welcome DayStart audio (uses Date() for today)
         if serviceRegistry.audioCache.hasAudio(for: Date()) {
-            return true
+            return Date()
         }
         
-        // Also check history as a backup
+        // Check history for any DayStart completed today
         let calendar = Calendar.current
-        let hasHistoryToday = userPreferences.history.contains { dayStart in
+        if let todayDayStart = userPreferences.history.first(where: { dayStart in
             if let scheduledTime = dayStart.scheduledTime {
                 return calendar.isDateInToday(scheduledTime)
             }
             return calendar.isDateInToday(dayStart.date)
+        }) {
+            return todayDayStart.scheduledTime ?? todayDayStart.date
         }
         
-        return hasHistoryToday
+        return nil
     }
     
     func startDayStart() {
         logger.logUserAction("Start DayStart", details: ["time": Date().description])
         
-        // Use today's scheduled time instead of nextDayStartTime
-        guard let scheduledTime = getTodayScheduledTime() else {
-            logger.log("❌ No scheduled time for DayStart today", level: .error)
-            return
-        }
-        
         // Trigger snapshot update for remaining scheduled jobs
         triggerSnapshotUpdateAfterDayStart()
         
-        // Check if audio is already cached
-        if serviceRegistry.audioCache.hasAudio(for: scheduledTime) {
+        // Check if audio exists for today (any scheduled time or on-demand)
+        if let existingAudioTime = getExistingAudioTimeForToday() {
+            logger.log("✅ Found existing audio for today at \(existingAudioTime)", level: .info)
+            
             // IMMEDIATE: State change for responsiveness
             state = .playing
             
             // LAZY: Load audio services only when needed
             Task {
-                await loadAudioServicesAndStart(scheduledTime: scheduledTime)
+                await loadAudioServicesAndStart(scheduledTime: existingAudioTime)
             }
         } else {
+            // No existing audio - create on-demand job for today
+            logger.log("🔄 No existing audio found, creating on-demand DayStart for today", level: .info)
+            
             // Check network connectivity
             guard NetworkMonitor.shared.isConnected else {
                 connectionError = .noInternet
@@ -1408,8 +1414,10 @@ class HomeViewModel: ObservableObject {
             // Start preparing state
             startPreparingState(isWelcome: false)
             
-            // Start polling for audio status
-            startPollingForAudio(scheduledTime: scheduledTime)
+            // Create on-demand job and start polling
+            Task {
+                await createOnDemandDayStartAndPoll()
+            }
         }
     }
     
@@ -1574,6 +1582,42 @@ class HomeViewModel: ObservableObject {
         // Trigger update in background for remaining scheduled jobs
         Task {
             await ServiceRegistry.shared.snapshotUpdateManager.updateSnapshotsForUpcomingJobs(trigger: .dayStartPlayed)
+        }
+    }
+    
+    /// Create on-demand DayStart job for today and start polling for completion
+    private func createOnDemandDayStartAndPoll() async {
+        do {
+            let currentTime = Date()
+            let supabaseClient = serviceRegistry.supabaseClient
+            
+            // Build snapshot for current context
+            let snapshot = await serviceRegistry.snapshotBuilder.buildSnapshot(for: currentTime)
+            
+            // Create high-priority on-demand job using current time
+            let jobResponse = try await supabaseClient.createJob(
+                for: currentTime, // Use current time for immediate processing
+                targetDate: Calendar.current.startOfDay(for: currentTime), // Target today's date
+                with: userPreferences.settings,
+                schedule: userPreferences.schedule,
+                locationData: snapshot.location,
+                weatherData: snapshot.weather,
+                calendarEvents: snapshot.calendar
+            )
+            
+            logger.log("✅ On-demand job created: \(jobResponse.jobId ?? "unknown") with status: \(jobResponse.status ?? "unknown")", level: .info)
+            
+            // Start polling for this job using current time as the scheduled time
+            await MainActor.run {
+                startPollingForAudio(scheduledTime: currentTime)
+            }
+            
+        } catch {
+            logger.logError(error, context: "Failed to create on-demand DayStart")
+            await MainActor.run {
+                connectionError = .supabaseError
+                state = .idle
+            }
         }
     }
     

@@ -20,8 +20,6 @@ struct HomeHeaderView: View {
 
 struct PrimaryActionView: View {
     let state: HomeViewModel.AppState
-    let nextTime: Date?
-    let showNoSchedule: Bool
     let connectionError: ConnectionError?
     let viewModel: HomeViewModel
     let onStartTapped: () -> Void
@@ -32,36 +30,22 @@ struct PrimaryActionView: View {
         VStack {
             switch state {
             case .idle:
-                if showNoSchedule {
-                    Button(action: onEditTapped) {
-                        Label("Schedule DayStart", systemImage: "calendar.badge.plus")
-                            .adaptiveFont(BananaTheme.Typography.headline)
-                            .foregroundColor(BananaTheme.ColorToken.background)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 80)
-                    }
-                    .buttonStyle(InstantResponseStyle())
-                    .background(
-                        RoundedRectangle(cornerRadius: 25)
-                            .fill(BananaTheme.ColorToken.text)
-                    )
-                    .padding(.horizontal, 40)
-                } else if let _ = nextTime, viewModel.isDayStartScheduled(for: Date()) {
-                    Button(action: onStartTapped) {
-                        Text("DayStart")
-                            .adaptiveFont(BananaTheme.Typography.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(BananaTheme.ColorToken.background)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 80)
-                    }
-                    .buttonStyle(InstantResponseStyle())
-                    .background(
-                        RoundedRectangle(cornerRadius: 25)
-                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                    )
-                    .padding(.horizontal, 40)
+                // Always show DayStart button - handles both scheduled and on-demand cases
+                Button(action: onStartTapped) {
+                    Text("DayStart")
+                        .adaptiveFont(BananaTheme.Typography.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(BananaTheme.ColorToken.background)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 80)
                 }
+                .buttonStyle(InstantResponseStyle())
+                .background(
+                    RoundedRectangle(cornerRadius: 25)
+                        .fill(BananaTheme.ColorToken.text)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
+                )
+                .padding(.horizontal, 40)
             case .welcomeReady:
                 Button(action: onStartTapped) {
                     Text("DayStart")
@@ -152,8 +136,6 @@ struct HomeView: View {
                     VStack(spacing: 20) {
                         PrimaryActionView(
                             state: viewModel.state,
-                            nextTime: viewModel.nextDayStartTime,
-                            showNoSchedule: viewModel.showNoScheduleMessage,
                             connectionError: viewModel.connectionError,
                             viewModel: viewModel,
                             onStartTapped: { 
@@ -627,24 +609,121 @@ struct HomeView: View {
     
     private var regularIdleContent: some View {
         VStack(spacing: 20) {
-            if viewModel.showNoScheduleMessage {
-                Text("No DayStarts scheduled")
+            scheduleDisplayContent
+        }
+    }
+    
+    /// Always-visible schedule information with intelligent fallbacks
+    @ViewBuilder
+    private var scheduleDisplayContent: some View {
+        // Check if user has any schedule at all
+        if userPreferences.schedule.repeatDays.isEmpty {
+            // No schedule set - encourage them to set one
+            VStack(spacing: 12) {
+                Text("Set your schedule to get daily briefings")
                     .adaptiveFont(BananaTheme.Typography.title2)
                     .foregroundColor(BananaTheme.ColorToken.text)
-            } else if let nextTime = viewModel.nextDayStartTime {
-                let timeUntil = nextTime.timeIntervalSinceNow
+                    .multilineTextAlignment(.center)
                 
-                // Show countdown if within 10 hours
-                if timeUntil > 0 && timeUntil <= 36000 { // 10 hours
-                    countdownContent(for: nextTime, timeUntil: timeUntil)
-                } else if viewModel.isNextDayStartToday {
-                    // Today's DayStart available now
-                    availableNowContent(for: nextTime)
-                } else {
-                    // Next DayStart info
-                    nextDayStartContent(for: nextTime)
+                Button(action: {
+                    hapticManager.impact(style: .light)
+                    showEditSchedule = true
+                }) {
+                    Text("Schedule DayStart")
+                        .font(.headline)
+                        .foregroundColor(BananaTheme.ColorToken.primary)
                 }
             }
+        } else if viewModel.showNoScheduleMessage {
+            // Temporary state - show encouraging message
+            Text("Tap DayStart to get your briefing")
+                .adaptiveFont(BananaTheme.Typography.title2)
+                .foregroundColor(BananaTheme.ColorToken.text)
+                .multilineTextAlignment(.center)
+        } else if let nextTime = viewModel.nextDayStartTime {
+            // Normal case - show next scheduled time
+            let timeUntil = nextTime.timeIntervalSinceNow
+            
+            // Show countdown if within 10 hours
+            if timeUntil > 0 && timeUntil <= 36000 { // 10 hours
+                countdownContent(for: nextTime, timeUntil: timeUntil)
+            } else if viewModel.isNextDayStartToday {
+                // Today's DayStart available now
+                availableNowContent(for: nextTime)
+            } else {
+                // Next DayStart info
+                nextDayStartContent(for: nextTime)
+            }
+        } else {
+            // Fallback: Calculate next occurrence directly from schedule
+            if let nextOccurrence = getNextScheduleOccurrence() {
+                nextDayStartContent(for: nextOccurrence)
+            } else {
+                // Last resort: Show schedule summary
+                scheduleStatusSummary
+            }
+        }
+    }
+    
+    /// Intelligent fallback that shows current schedule status
+    private var scheduleStatusSummary: some View {
+        VStack(spacing: 12) {
+            Text("DayStart ready")
+                .adaptiveFont(BananaTheme.Typography.title2)
+                .foregroundColor(BananaTheme.ColorToken.text)
+            
+            let timeText = userPreferences.schedule.time.formatted(date: .omitted, time: .shortened)
+            let daysText = formatScheduleDays(userPreferences.schedule.repeatDays)
+            
+            Text("Scheduled for \(timeText) on \(daysText)")
+                .font(.subheadline)
+                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                .multilineTextAlignment(.center)
+        }
+    }
+    
+    /// Calculate next occurrence directly from schedule (more reliable fallback)
+    private func getNextScheduleOccurrence() -> Date? {
+        // Try normal next occurrence first
+        if let next = userPreferences.schedule.nextOccurrence {
+            return next
+        }
+        
+        // If that fails, look further ahead (extended window)
+        let calendar = Calendar.current
+        let now = Date()
+        let todayComponents = calendar.dateComponents([.hour, .minute], from: userPreferences.schedule.time)
+        
+        // Look up to 14 days ahead
+        for dayOffset in 0..<14 {
+            guard let candidateDate = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
+            
+            let weekday = calendar.component(.weekday, from: candidateDate)
+            if let weekDay = WeekDay(weekday: weekday), userPreferences.schedule.repeatDays.contains(weekDay) {
+                var components = calendar.dateComponents([.year, .month, .day], from: candidateDate)
+                components.hour = todayComponents.hour
+                components.minute = todayComponents.minute
+                
+                if let scheduledTime = calendar.date(from: components), scheduledTime > now {
+                    return scheduledTime
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Format schedule days for display
+    private func formatScheduleDays(_ days: Set<WeekDay>) -> String {
+        if days.count == 7 {
+            return "daily"
+        } else if days.count == 5 && !days.contains(.saturday) && !days.contains(.sunday) {
+            return "weekdays"
+        } else if days.count == 2 && days.contains(.saturday) && days.contains(.sunday) {
+            return "weekends"
+        } else {
+            let sortedDays = days.sorted { $0.rawValue < $1.rawValue }
+            return sortedDays.map { $0.shortName }.joined(separator: ", ")
         }
     }
     

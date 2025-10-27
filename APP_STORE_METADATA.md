@@ -3,8 +3,8 @@
 ## Basic Information
 - **App Name:** DayStart AI: Morning Briefing
 - **Subtitle:** Wake Up. Get Briefed. Succeed.
-- **Current Version:** 2025.10.24 (Build 1) - **IN REVIEW** 
-- **Previous Version:** 2025.10.19 (Build 2) - **LIVE** on App Store as of Oct 22, 2025
+- **Current Version:** 2025.10.28 (Build 1) - **IN DEVELOPMENT** 
+- **Previous Version:** 2025.10.24 (Build 1) - **LIVE** on App Store as of Oct 24, 2025
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 
@@ -64,7 +64,12 @@ Privacy Policy: https://daystart.bananaintelligence.ai/privacy
 Terms of Service: https://daystart.bananaintelligence.ai/terms
 ```
 
-## What's New in Version 2025.10.24
+## What's New in Version 2025.10.28
+```
+[This section will be updated when features are implemented for the new version]
+```
+
+## What's New in Version 2025.10.24 (Previous Release)
 ```
 Streamlined Morning Experience: Even Faster, Even Smoother
 
@@ -227,7 +232,12 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 - [x] Complete subscription metadata in App Store Connect
 - [x] Ensure Supabase backend is running during review
 
-### App Store Review Notes - Version 2025.10.24
+### App Store Review Notes - Version 2025.10.28
+```
+[This section will be updated when the version is ready for submission]
+```
+
+### App Store Review Notes - Version 2025.10.24 (Previous Release)
 ```
 QUICK TEST:
 1. Experience how successful leaders start their day
@@ -293,7 +303,9 @@ CONTACT: nate@bananaintelligence.ai
 - [x] Archive successfully uploaded to App Store Connect
 - [x] Build 2 (2025.09.22) submitted to App Store
 - [x] Build 2 (2025.10.16) submitted to App Store
-- [x] Build 2 (2025.10.19) submitted to App Store - Currently LIVE as of Oct 22, 2025
+- [x] Build 2 (2025.10.19) submitted to App Store - Previous LIVE version (Oct 22, 2025)
+- [x] Build 1 (2025.10.24) submitted to App Store - Currently LIVE as of Oct 24, 2025
+- [ ] Build 1 (2025.10.28) - In development
 
 ### Remaining Tasks
 - [x] App Store Connect setup
