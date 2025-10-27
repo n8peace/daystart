@@ -166,6 +166,15 @@ async function refreshContentAsync(request_id: string): Promise<void> {
     if (Deno.env.get('GNEWS_API_KEY')) {
       contentSources.push({ type: 'news', source: 'gnews_comprehensive', ttlHours: 168, fetchFunction: () => fetchGNewsComprehensive() })
     } else { missingEnvs.push('GNEWS_API_KEY') }
+    if (Deno.env.get('THENEWSAPI_KEY')) {
+      contentSources.push({ type: 'news', source: 'thenewsapi_general', ttlHours: 168, fetchFunction: () => fetchTheNewsAPI() })
+    } else { missingEnvs.push('THENEWSAPI_KEY') }
+    if (Deno.env.get('NEWSDATA_IO_KEY')) {
+      contentSources.push({ type: 'news', source: 'newsdata_io_latest', ttlHours: 168, fetchFunction: () => fetchNewsDataIO() })
+    } else { missingEnvs.push('NEWSDATA_IO_KEY') }
+    if (Deno.env.get('NEWSAPI_AI_KEY')) {
+      contentSources.push({ type: 'news', source: 'newsapi_ai_general', ttlHours: 168, fetchFunction: () => fetchNewsAPIAI() })
+    } else { missingEnvs.push('NEWSAPI_AI_KEY') }
     if (Deno.env.get('RAPIDAPI_KEY')) {
       contentSources.push({ type: 'stocks', source: 'yahoo_finance', ttlHours: 168, fetchFunction: () => fetchYahooFinance(supabase) })
     } else { missingEnvs.push('RAPIDAPI_KEY') }
@@ -637,6 +646,99 @@ async function fetchGNewsComprehensive(): Promise<any> {
     fetched_at: new Date().toISOString(),
     source: 'gnews_comprehensive',
     endpoint: 'top-headlines'
+  }
+}
+
+// TheNewsAPI.com fetch function
+async function fetchTheNewsAPI(): Promise<any> {
+  const apiKey = Deno.env.get('THENEWSAPI_KEY')
+  if (!apiKey) throw new Error('THENEWSAPI_KEY not configured')
+
+  const url = `https://api.thenewsapi.com/v1/news/all?api_token=${apiKey}&language=en&limit=25&sort=published_on`
+  const data = await getJSON<any>(url)
+  
+  if (!data.data) {
+    throw new Error(`TheNewsAPI error: ${data.message || 'No articles returned'}`)
+  }
+
+  return {
+    articles: (data.data || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.url || '',
+      publishedAt: a.published_on || '',
+      source: a.source || 'TheNewsAPI',
+      category: (a.categories && a.categories.length > 0) ? a.categories[0] : 'general'
+    })),
+    total_results: data.meta?.found || data.data.length,
+    fetched_at: new Date().toISOString(),
+    source: 'thenewsapi_general',
+    endpoint: 'news/all'
+  }
+}
+
+// NewsData.io fetch function
+async function fetchNewsDataIO(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSDATA_IO_KEY')
+  if (!apiKey) throw new Error('NEWSDATA_IO_KEY not configured')
+
+  const url = `https://newsdata.io/api/1/latest?apikey=${apiKey}&country=us&language=en&size=25`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'success') {
+    throw new Error(`NewsData.io error: ${data.message || 'API request failed'}`)
+  }
+
+  return {
+    articles: (data.results || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.link || '',
+      publishedAt: a.pubDate || '',
+      source: a.source_id || 'NewsData.io',
+      category: (a.category && a.category.length > 0) ? a.category[0] : 'general'
+    })),
+    total_results: data.totalResults || data.results?.length || 0,
+    fetched_at: new Date().toISOString(),
+    source: 'newsdata_io_latest',
+    endpoint: 'latest'
+  }
+}
+
+// NewsAPI.ai fetch function (placeholder - will need specific endpoint research)
+async function fetchNewsAPIAI(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSAPI_AI_KEY')
+  if (!apiKey) throw new Error('NEWSAPI_AI_KEY not configured')
+
+  // Note: This is a placeholder URL - actual endpoint needs to be researched
+  // Based on research, NewsAPI.ai may require different authentication method
+  const url = `https://eventregistry.org/api/v1/article/getArticles?apiKey=${apiKey}&resultType=articles&articlesCount=25&lang=eng`
+  
+  try {
+    const data = await getJSON<any>(url)
+    
+    if (!data.articles) {
+      throw new Error(`NewsAPI.ai error: ${data.error?.message || 'No articles returned'}`)
+    }
+
+    return {
+      articles: (data.articles.results || []).map((a: any) => ({
+        title: a.title || '',
+        description: String(a.body || a.summary || '').slice(0, 300),
+        url: a.url || '',
+        publishedAt: a.dateTime || a.date || '',
+        source: a.source?.title || 'NewsAPI.ai',
+        category: 'general'
+      })),
+      total_results: data.articles.totalResults || data.articles.results?.length || 0,
+      fetched_at: new Date().toISOString(),
+      source: 'newsapi_ai_general',
+      endpoint: 'articles'
+    }
+  } catch (error) {
+    // If the endpoint is incorrect, log error but don't fail completely
+    console.error('NewsAPI.ai fetch failed (endpoint may need correction):', error)
+    throw new Error(`NewsAPI.ai configuration needs verification: ${error.message}`)
   }
 }
 

@@ -191,6 +191,78 @@ This section provides a comprehensive overview of all external APIs used in the 
 - **Usage Pattern**: 1 call per refresh cycle (10 articles max)
 - **Configuration**: `GNEWS_API_KEY` environment variable (optional)
 
+### TheNewsAPI.com
+- **Purpose**: High-volume news aggregation with advanced search capabilities
+- **Endpoints Used**:
+  - `/v1/news/all` (comprehensive news feed)
+  - `/v1/news/headlines` (breaking news)
+- **Current Plan**: Free tier (testing phase)
+- **Rate Limits**:
+  - **Free Tier**: No documented limits on free plan
+  - **Authentication**: API token via GET parameter
+- **Features**:
+  - 40,000+ news sources worldwide
+  - 50+ countries, 30+ languages
+  - Advanced search with boolean operators
+  - Real-time news feeds
+  - Full-text search capability
+  - Pagination support
+- **Response Format**: 
+  - UUID for each article
+  - Title, description, URL, image URL
+  - Published datetime, source domain
+  - Categories and language tags
+- **Usage Pattern**: 1 call per refresh cycle (25 articles)
+- **Configuration**: `THENEWSAPI_KEY` environment variable
+
+### NewsData.io
+- **Purpose**: Comprehensive news API with historical data access
+- **Endpoints Used**:
+  - `/api/1/latest` (last 48 hours breaking news)
+  - `/api/1/news` (general search)
+- **Current Plan**: Free tier (200 credits/day) → Paid ($99.99/month for 20K credits/day)
+- **Rate Limits**:
+  - **Free Tier**: 200 credits per day
+  - **Paid Plans**: Up to 50,000 credits per day
+  - **Articles per Request**: Max 10 (free) / 50 (paid)
+- **Features**:
+  - 70,000+ news sources globally
+  - 100+ countries, 50+ languages
+  - Historical news data (up to 5 years)
+  - 12 content categories
+  - Advanced filtering options
+  - Real-time and archived content
+- **Parameters**:
+  - Search queries (q, qInTitle, qInMeta)
+  - Geographic filtering (country, language)
+  - Category filtering (sports, politics, science, etc.)
+  - Time range filtering (1-48 hours)
+  - Domain-specific filtering
+- **Response Format**:
+  - Standard JSON with articles array
+  - Title, description, URL, source
+  - Published date, category, language
+- **Usage Pattern**: 1 call per refresh cycle (25 articles)
+- **Configuration**: `NEWSDATA_IO_KEY` environment variable
+
+### NewsAPI.ai
+- **Purpose**: Enterprise-grade news API with advanced analytics and AI features
+- **Endpoints Used**: TBD (documentation access limited)
+- **Current Plan**: Pay-per-usage (pricing on request)
+- **Rate Limits**: Based on subscription plan
+- **Features**:
+  - 150,000+ news publishers worldwide
+  - 60+ languages supported
+  - Advanced entity recognition
+  - Sentiment analysis
+  - Event clustering
+  - Social media sharing metrics
+  - Duplicate detection
+  - Publisher rankings
+- **Enterprise Clients**: Used by Spotify, IBM, Accenture, Bloomberg
+- **Usage Pattern**: 1 call per refresh cycle (25 articles with enhanced data)
+- **Configuration**: `NEWSAPI_AI_KEY` environment variable
+
 ## Financial Data APIs
 
 ### Yahoo Finance (via RapidAPI)
