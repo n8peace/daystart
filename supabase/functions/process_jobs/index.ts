@@ -132,6 +132,18 @@ function flattenAndParseStocks(stocksData: any[] = []): any[] {
   return out.sort((a, b) => (b.market_cap || 0) - (a.market_cap || 0));
 }
 
+function filterSportsByLeagues(sportsItems: any[] = [], selectedSports: string[] = []): any[] {
+  if (!selectedSports || selectedSports.length === 0) {
+    // If no sports selected, return empty array
+    return [];
+  }
+  
+  return sportsItems.filter(game => {
+    const league = game.league || game.competition || '';
+    return selectedSports.includes(league);
+  });
+}
+
 function flattenAndParseSports(sportsData: any[] = []): any[] {
   const seen = new Set<string>();
   const out: any[] = [];
@@ -1183,6 +1195,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     includeWeather: job.include_weather,
     includeNews: job.include_news,
     includeSports: job.include_sports,
+    selectedSports: job.selected_sports || ['MLB', 'NHL', 'NBA', 'NFL', 'NCAAF'],
     includeStocks: job.include_stocks,
     stockSymbols: job.stock_symbols,
     includeQuotes: job.include_quotes,
@@ -1398,7 +1411,9 @@ That's it for today. Have a good DayStart.
     const storyLimits = getStoryLimits(duration, context.social_daystart);
     const flattenedNews = flattenAndDedupeNews(context.contentData?.news || []).slice(0, 80);
     const allSports = flattenAndParseSports(context.contentData?.sports || []);
-    const sportsToday = filterValidSportsItems(allSports, context.date, context.timezone).slice(0, 15);
+    const validSports = filterValidSportsItems(allSports, context.date, context.timezone);
+    const filteredSports = filterSportsByLeagues(validSports, context.selectedSports);
+    const sportsToday = filteredSports.slice(0, 15);
     const sportsTeamWhitelist = teamWhitelistFromSports(sportsToday);
     const dataForBand = {
       user: {
@@ -1757,8 +1772,12 @@ async function buildScriptPrompt(context: any): Promise<string> {
   const allSports = flattenAndParseSports(context.contentData?.sports || []);
   console.log(`[DEBUG] Parsed ${allSports.length} sports events from ${context.contentData?.sports?.length || 0} sources`);
   
-  // Enforce valid, present-day sports items only
-  const sportsToday = filterValidSportsItems(allSports, context.date, context.timezone).slice(0, 15);
+  // Enforce valid, present-day sports items only, then filter by selected leagues
+  const validSports = filterValidSportsItems(allSports, context.date, context.timezone);
+  const filteredSports = filterSportsByLeagues(validSports, context.selectedSports);
+  const sportsToday = filteredSports.slice(0, 15);
+  
+  console.log(`[DEBUG] Sports filtering: ${validSports.length} valid sports → ${filteredSports.length} matching selected leagues (${context.selectedSports?.join(', ') || 'none'}) → ${sportsToday.length} final`);`
 
   // Filter stocks based on market hours (exclude equities on weekends, keep crypto)
   const isWeekendDay = isWeekend(context.date, context.timezone);

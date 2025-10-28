@@ -9,6 +9,7 @@ interface CreateJobRequest {
   include_weather: boolean;
   include_news: boolean;
   include_sports: boolean;
+  selected_sports?: string[];
   include_stocks: boolean;
   stock_symbols: string[];
   include_calendar: boolean;
@@ -239,6 +240,7 @@ serve(async (req: Request): Promise<Response> => {
             include_weather: body.include_weather,
             include_news: body.include_news,
             include_sports: body.include_sports,
+            selected_sports: body.selected_sports || ['MLB', 'NHL', 'NBA', 'NFL', 'NCAAF'],
             include_stocks: body.include_stocks,
             stock_symbols: body.stock_symbols,
             include_calendar: body.include_calendar,
@@ -352,6 +354,7 @@ serve(async (req: Request): Promise<Response> => {
         include_weather: body.include_weather,
         include_news: body.include_news,
         include_sports: body.include_sports,
+        selected_sports: body.selected_sports || ['MLB', 'NHL', 'NBA', 'NFL', 'NCAAF'],
         include_stocks: body.include_stocks,
         stock_symbols: body.stock_symbols,
         include_calendar: body.include_calendar,

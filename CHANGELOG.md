@@ -13,6 +13,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 **Build:** 1 | **Commit:** TBD | **Status:** 🚧 In Development
 
 ### Added
+- **Sport Selections** - Granular control over which sports leagues appear in briefings
+  - Individual toggles for MLB, NHL, NBA, NFL, and NCAAF
+  - 2-column grid layout with yellow/white selection states following BananaTheme design
+  - Real-time count display and status text showing selected leagues
+  - Backward compatible: existing users get all sports selected by default
+  - Smart content filtering: only games from selected leagues included in briefings
+  - Comprehensive logging for debugging sports filtering pipeline
 - **Always-Available DayStart Button** - DayStart button now appears 100% of the time in idle state
   - Eliminates empty greeting-only screens that users were experiencing
   - Works for both scheduled and unscheduled days

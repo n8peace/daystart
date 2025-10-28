@@ -17,6 +17,7 @@ struct EditScheduleView: View {
     @State private var includeQuotes: Bool
     @State private var quotePreference: QuotePreference
     @State private var stockSymbolItems: [StockSymbolItem] = []
+    @State private var selectedSports: [SportType] = []
     @State private var selectedVoice: VoiceOption
     @State private var showResetConfirmation = false
     @EnvironmentObject var themeManager: ThemeManager
@@ -84,6 +85,7 @@ struct EditScheduleView: View {
         let weatherChanged = includeWeather != userPreferences.settings.includeWeather
         let newsChanged = includeNews != userPreferences.settings.includeNews
         let sportsChanged = includeSports != userPreferences.settings.includeSports
+        let selectedSportsChanged = selectedSports != userPreferences.settings.selectedSports
         let stocksChanged = includeStocks != userPreferences.settings.includeStocks
         let calendarChanged = includeCalendar != userPreferences.settings.includeCalendar
         let quotesChanged = includeQuotes != userPreferences.settings.includeQuotes
@@ -106,6 +108,7 @@ struct EditScheduleView: View {
             || weatherChanged
             || newsChanged
             || sportsChanged
+            || selectedSportsChanged
             || stocksChanged
             || calendarChanged
             || quotesChanged
@@ -128,6 +131,7 @@ struct EditScheduleView: View {
         _includeNews = State(initialValue: prefs.settings.includeNews)
         _includeSports = State(initialValue: prefs.settings.includeSports)
         _includeStocks = State(initialValue: prefs.settings.includeStocks)
+        _selectedSports = State(initialValue: prefs.settings.selectedSports)
         _includeCalendar = State(initialValue: prefs.settings.includeCalendar)
         _includeQuotes = State(initialValue: prefs.settings.includeQuotes)
         _quotePreference = State(initialValue: prefs.settings.quotePreference)
@@ -503,6 +507,15 @@ struct EditScheduleView: View {
             Toggle("Sports", isOn: $includeSports)
                 .tint(BananaTheme.ColorToken.primary)
                 .disabled(isLocked)
+            
+            if includeSports {
+                SportsSelector(
+                    selectedSports: $selectedSports,
+                    isDisabled: isLocked
+                )
+                .padding(.leading)
+            }
+            
             Toggle("Stocks", isOn: $includeStocks)
                 .tint(BananaTheme.ColorToken.primary)
                 .disabled(isLocked)
@@ -751,6 +764,7 @@ struct EditScheduleView: View {
         settings.includeWeather = includeWeather
         settings.includeNews = includeNews
         settings.includeSports = includeSports
+        settings.selectedSports = selectedSports
         settings.includeStocks = includeStocks
         
         // Sync stockSymbolItems to stockSymbols and filter/validate
@@ -994,6 +1008,71 @@ struct StockSymbolsEditor: View {
             } else {
             }
         }
+    }
+}
+
+struct SportsSelector: View {
+    @Binding var selectedSports: [SportType]
+    let isDisabled: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Sports (\(selectedSports.count) selected)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                ForEach(SportType.allCases, id: \.self) { sport in
+                    SportSelectionButton(
+                        sport: sport,
+                        isSelected: selectedSports.contains(sport),
+                        isDisabled: isDisabled
+                    ) {
+                        toggleSport(sport)
+                    }
+                }
+            }
+            
+            if selectedSports.count > 0 {
+                Text(selectedSports.map(\.displayName).joined(separator: ", ") + " selected")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+    }
+    
+    private func toggleSport(_ sport: SportType) {
+        if selectedSports.contains(sport) {
+            selectedSports.removeAll { $0 == sport }
+        } else {
+            selectedSports.append(sport)
+        }
+    }
+}
+
+struct SportSelectionButton: View {
+    let sport: SportType
+    let isSelected: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(sport.displayName)
+                .font(.caption.weight(.medium))
+                .foregroundColor(isSelected ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.secondaryText)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
+                        .stroke(BananaTheme.ColorToken.primary.opacity(0.3), lineWidth: 1)
+                )
+        }
+        .disabled(isDisabled)
+        .buttonStyle(BorderlessButtonStyle())
+        .opacity(isDisabled ? 0.6 : 1.0)
     }
 }
 

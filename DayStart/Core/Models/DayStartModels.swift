@@ -222,6 +222,18 @@ enum ThemePreference: String, CaseIterable, Codable {
     }
 }
 
+enum SportType: String, CaseIterable, Codable {
+    case mlb = "MLB"
+    case nhl = "NHL"
+    case nba = "NBA"
+    case nfl = "NFL"
+    case ncaaf = "NCAAF"
+    
+    var displayName: String {
+        return rawValue
+    }
+}
+
 struct UserSettings: Codable, Equatable {
     var preferredName: String
     var includeWeather: Bool
@@ -235,6 +247,7 @@ struct UserSettings: Codable, Equatable {
     var selectedVoice: VoiceOption
     var dayStartLength: Int // Always 3 minutes for now, UI hidden
     var themePreference: ThemePreference
+    var selectedSports: [SportType]
     
     static func isValidStockSymbol(_ symbol: String) -> Bool {
         let trimmed = symbol.trimmingCharacters(in: .whitespaces).uppercased()
@@ -287,7 +300,8 @@ extension UserSettings {
             quotePreference: .goodFeelings,
             selectedVoice: .voice1,
             dayStartLength: 3, // Default 3 minutes
-            themePreference: .system
+            themePreference: .system,
+            selectedSports: SportType.allCases // Default all sports selected
         )
     }
 }
