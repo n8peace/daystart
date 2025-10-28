@@ -19,7 +19,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation,
 - 🟢 **Live**: v2025.10.24 Build 1 available for download on the App Store as of October 24, 2025
   - Includes simplified state machine, immediate job processing, always-available DayStart button
   - Enhanced share messages with expiration notice, improved UX and performance optimizations
-- 🔨 **In Development**: v2025.10.28 Build 1 - New development version with upcoming features
+- 🔨 **In App Store Review**: v2025.10.28 Build 2 - New development version with upcoming features
 
 ## Table of Contents
 - [Features](#features)

@@ -431,6 +431,7 @@ class SupabaseClient {
                 include_weather: settings.includeWeather,
                 include_news: settings.includeNews,
                 include_sports: settings.includeSports,
+                selected_sports: settings.selectedSports.map { $0.rawValue },
                 include_stocks: settings.includeStocks,
                 stock_symbols: settings.stockSymbols,
                 include_calendar: settings.includeCalendar,
@@ -448,6 +449,9 @@ class SupabaseClient {
 
         let jsonData = try JSONEncoder().encode(payload)
         request.httpBody = jsonData
+
+        // Debug logging for sports specifically
+        logger.log("🏈 Sports in payload: includeSports=\(settings.includeSports), selectedSports=\(settings.selectedSports.map(\.rawValue))", level: .debug)
 
         if let requestString = String(data: jsonData, encoding: .utf8) {
             logger.log("📝 update_jobs payload: \(requestString)", level: .debug)
@@ -760,6 +764,7 @@ private struct UpdateSettings: Codable {
     let include_weather: Bool?
     let include_news: Bool?
     let include_sports: Bool?
+    let selected_sports: [String]?
     let include_stocks: Bool?
     let stock_symbols: [String]?
     let include_calendar: Bool?

@@ -8,9 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2025.10.28] - In Development
+## [2025.10.28] - In App Store Review
 
-**Build:** 1 | **Commit:** 0e4c8ea | **Status:** 🚧 In Development, Supabase Deployed
+**Build:** 2 | **Commit:** db4085b | **Status:** 🚧 In App Store Review, Supabase Deployed
 
 ### Added
 - **Sport Selections** - Granular control over which sports leagues appear in briefings

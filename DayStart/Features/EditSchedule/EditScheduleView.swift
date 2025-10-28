@@ -781,6 +781,9 @@ struct EditScheduleView: View {
         settings.includeNews = includeNews
         settings.includeSports = includeSports
         settings.selectedSports = selectedSports
+        
+        // Debug logging for sports settings
+        logger.log("🏈 Sports settings: includeSports=\(includeSports), selectedSports=\(selectedSports.map(\.rawValue))", level: .debug)
         settings.includeStocks = includeStocks
         
         // Sync stockSymbolItems to stockSymbols and filter/validate

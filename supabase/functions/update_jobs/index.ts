@@ -11,6 +11,7 @@ interface UpdateJobsRequest {
     include_weather?: boolean;
     include_news?: boolean;
     include_sports?: boolean;
+    selected_sports?: string[];
     include_stocks?: boolean;
     stock_symbols?: string[];
     include_calendar?: boolean;
@@ -226,6 +227,7 @@ function buildUpdatePayload(body: UpdateJobsRequest, localDate?: string): Record
   if (s.include_weather !== undefined) payload.include_weather = s.include_weather;
   if (s.include_news !== undefined) payload.include_news = s.include_news;
   if (s.include_sports !== undefined) payload.include_sports = s.include_sports;
+  if (s.selected_sports !== undefined) payload.selected_sports = s.selected_sports;
   if (s.include_stocks !== undefined) payload.include_stocks = s.include_stocks;
   if (s.stock_symbols !== undefined) payload.stock_symbols = s.stock_symbols;
   if (s.include_calendar !== undefined) payload.include_calendar = s.include_calendar;
