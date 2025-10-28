@@ -66,7 +66,21 @@ Terms of Service: https://daystart.bananaintelligence.ai/terms
 
 ## What's New in Version 2025.10.28
 ```
-[This section will be updated when features are implemented for the new version]
+Sports Intelligence Revolution: Take Control of Your Game Updates
+
+NEW: Granular Sports League Selection
+Choose exactly which sports leagues matter to you! Individual toggles for MLB, NHL, NBA, NFL, and NCAAF mean you only hear about the games you actually follow. No more unwanted hockey when you're baseball-focused, or basketball updates when football season is your priority.
+
+Enhanced World Series & Championship Coverage
+October just got smarter. Our AI now automatically detects championship context and prioritizes playoff coverage with multi-day data collection. World Series games get premium treatment with enhanced significance scoring and comprehensive coverage that adapts to the stakes.
+
+Always-Ready DayStart Experience
+Your briefing is always one tap away. We eliminated those empty greeting screens - now your DayStart button appears consistently, whether scheduled or on-demand. Plus, schedule information is always visible with intelligent fallbacks for every possible state.
+
+Redesigned Content Controls
+Beautiful new expandable cards for customizing your briefings. Sports selection features a clean 2-column grid with yellow selection states that follow our signature BananaTheme design. Each content type now has consistent, accessible controls.
+
+Perfect for leaders who demand precision in their morning intelligence.
 ```
 
 ## What's New in Version 2025.10.24 (Previous Release)
@@ -234,15 +248,11 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 
 ### App Store Review Notes - Version 2025.10.28
 ```
-[This section will be updated when the version is ready for submission]
-```
-
-### App Store Review Notes - Version 2025.10.24 (Previous Release)
-```
 QUICK TEST:
-1. Experience how successful leaders start their day
+1. Experience the Sports Intelligence Revolution
 2. Complete onboarding → Start free trial → Receive your first Personal Morning Brief
-3. Your brief is generated in ~2 minutes (60-second Welcome Brief for new leaders)
+3. Test NEW Sports Selection: Settings → Edit Schedule → Sports card → Select individual leagues (MLB, NHL, NBA, NFL, NCAAF)
+4. Your brief is generated in ~2 minutes with only your selected sports included
 
 POSITIONING:
 DayStart AI delivers a Personal Morning Brief, the same type of intelligence briefing successful executives receive. We've democratized this advantage for ambitious professionals.
@@ -253,12 +263,14 @@ KEY FEATURES:
 - Professional voice synthesis via OpenAI TTS and ElevenLabs
 - No login required, privacy-first approach
 
-WHAT'S NEW IN 2025.10.24:
-- Instant post-completion flow: Users now see next scheduled DayStart immediately after audio ends, eliminating 30-second delay that was interrupting user flow
-- Always-available today button: DayStart button appears for any scheduled briefing on current day, improving replay accessibility without hunting for controls
-- Enhanced share privacy: Share links now display clear 48-hour expiration notice for improved transparency
-- Improved state management: Smoother app transitions and more responsive UI performance
-- Share message enhancement: Added expiration notice to shared DayStart messages for privacy transparency
+WHAT'S NEW IN 2025.10.28:
+- NEW Sports League Selection: Individual toggles for MLB, NHL, NBA, NFL, and NCAAF - users can now choose exactly which sports they follow rather than all-or-nothing
+- Enhanced Championship Detection: AI automatically detects World Series and playoff context for premium coverage during October
+- Always-Available DayStart Button: Eliminates empty greeting screens, briefing button now appears consistently
+- Always-Visible Schedule Info: Schedule display appears 100% of the time with intelligent fallbacks
+- Redesigned Content Controls: Beautiful expandable cards with 2-column sports grid using signature BananaTheme yellow selection states
+- Backward Compatibility: Existing users automatically get all sports selected by default
+- Smart Content Filtering: Only games from selected leagues appear in briefings
 - Core functionality unchanged: scheduling, audio generation, paywall flows work identically to previous version
 
 WEATHERKIT:
@@ -282,6 +294,7 @@ PERMISSIONS (BOTH OPTIONAL):
 
 CONTACT: nate@bananaintelligence.ai
 ```
+
 
 ### Completed ✓
 - [x] App Store metadata prepared (descriptions, keywords, categories)
