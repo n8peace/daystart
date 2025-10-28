@@ -79,11 +79,11 @@ struct HistoryView: View {
     
     private var historyList: some View {
         List {
-            Section(header: sectionHeader("DayStart Streak")) {
+            Section(header: Text("Streak")) {
                 streakHeader
             }
 
-            Section(header: sectionHeader("Your history")) {
+            Section(header: Text("History")) {
                 let items = displayedHistory
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, dayStart in
                     VStack(alignment: .leading, spacing: 0) {
@@ -111,17 +111,24 @@ struct HistoryView: View {
     // Header card that summarizes streaks
     private var streakHeader: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 12) {
-                        Label("\(streakManager.currentStreak)", systemImage: "flame.fill")
-                            .foregroundColor(BananaTheme.ColorToken.accent)
-                            .adaptiveFont(BananaTheme.Typography.title2)
-                        Text("Best: \(streakManager.bestStreak)")
-                            .adaptiveFont(BananaTheme.Typography.headline)
-                            .foregroundColor(.secondary)
-                    }
-                }
+            HStack {
+                Image(systemName: "flame.fill")
+                    .foregroundColor(BananaTheme.ColorToken.accent)
+                    .frame(width: 20)
+                
+                Text("Current Streak")
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                
+                Text("\(streakManager.currentStreak)")
+                    .font(.title2)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                
+                Spacer()
+                
+                Text("Best: \(streakManager.bestStreak)")
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
             }
 
             // Mini 7-day strip
@@ -144,12 +151,6 @@ struct HistoryView: View {
         .padding(12)
     }
 
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .adaptiveFont(BananaTheme.Typography.headline)
-            .foregroundColor(.primary)
-            .textCase(nil)
-    }
 
     private func color(for status: StreakManager.DayStatus) -> Color {
         switch status {
@@ -227,18 +228,17 @@ struct HistoryRow: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             headerView
 
             actionButtons
 
-            // Show transcript only if audio exists or entry is marked deleted
+            // Show transcript only if expanded and content exists
             if isExpanded && canShowTranscript {
                 transcriptView
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(.vertical, 8)
         .animation(.easeInOut(duration: 0.3), value: isExpanded)
         .onAppear {
             // Start transcript polling if we only have a fallback/empty transcript
@@ -254,19 +254,39 @@ struct HistoryRow: View {
     
     private var headerView: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
+            Image(systemName: "calendar")
+                .foregroundColor(BananaTheme.ColorToken.accent)
+                .frame(width: 20)
+            
+            VStack(alignment: .leading, spacing: 2) {
                 Text(dayStart.date, style: .date)
-                    .adaptiveFont(BananaTheme.Typography.headline)
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.text)
                 
                 Text(dayStart.scheduledTime ?? dayStart.date, style: .time)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.caption)
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
             }
             
             Spacer()
             
-            statusChip
+            // Action buttons and status
+            HStack(spacing: 8) {
+                if hasAudioFile && !dayStart.isDeleted {
+                    Button(action: {
+                        handlePlayButtonTap()
+                    }) {
+                        Image(systemName: audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "pause.circle.fill" : "play.circle.fill")
+                            .foregroundColor(BananaTheme.ColorToken.accent)
+                            .font(.title2)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                
+                statusChip
+            }
         }
+        .padding(.vertical, 8)
     }
 
     // Simplified: Always show transcript if it exists and is not empty
@@ -297,15 +317,11 @@ struct HistoryRow: View {
     private var transcriptView: some View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
-            
-            Text("Transcript")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.secondary)
+                .background(BananaTheme.ColorToken.primary.opacity(0.2))
             
             Text(dayStart.transcript)
                 .font(.subheadline)
-                .foregroundColor(.primary)
+                .foregroundColor(BananaTheme.ColorToken.text)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -314,101 +330,123 @@ struct HistoryRow: View {
     
     private var actionButtons: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                if hasAudioFile && !dayStart.isDeleted {
-                    // Play button (banana yellow)
-                    Button(action: {
-                        let logger = DebugLogger.shared
-                        logger.log("🎵 History: Play button tapped for DayStart \(dayStart.id)", level: .info)
-                        
-                        if audioPlayer.currentTrackId != dayStart.id {
-                            logger.log("🎵 History: Loading new audio for DayStart", level: .info)
-                            
-                            // Try using stored audio file path first
-                            if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path) {
-                                let url = URL(fileURLWithPath: path)
-                                audioPlayer.loadAudio(from: url, trackId: dayStart.id)
-                                audioPlayer.play()
-                            } else {
-                                // Fallback: get cached audio path
-                                let audioCache = ServiceRegistry.shared.audioCache
-                                let dateToUse = dayStart.scheduledTime ?? dayStart.date
-                                let audioPath = audioCache.getAudioPath(for: dateToUse)
-                                
-                                if FileManager.default.fileExists(atPath: audioPath.path) {
-                                    logger.log("🎵 History: Using cached audio path: \(audioPath.path)", level: .debug)
-                                    audioPlayer.loadAudio(from: audioPath, trackId: dayStart.id)
-                                    audioPlayer.play()
-                                } else {
-                                    logger.log("⚠️ History: No audio file found in cache or stored path", level: .warning)
-                                }
-                            }
-                        } else {
-                            logger.log("🎵 History: Track ID matches, toggling play/pause", level: .debug)
-                            audioPlayer.togglePlayPause()
-                        }
-                    }) {
-                        Label(audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "Pause" : "Play",
-                              systemImage: audioPlayer.isPlaying && audioPlayer.currentTrackId == dayStart.id ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.subheadline)
-                            .foregroundColor(BananaTheme.ColorToken.accent)
-                    }
-                    .buttonStyle(.bordered)
-                } else if dayStart.isDeleted {
-                    // DayStart Deleted (red)
-                    Label("DayStart Deleted", systemImage: "trash")
+            // Status messages for deleted or missing DayStarts
+            if dayStart.isDeleted {
+                HStack {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                        .frame(width: 20)
+                    Text("DayStart Deleted")
                         .font(.subheadline)
                         .foregroundColor(.red)
-                } else {
-                    // No DayStart (gray)
-                    Label("No DayStart", systemImage: "nosign")
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+            } else if !hasAudioFile {
+                HStack {
+                    Image(systemName: "nosign")
+                        .foregroundColor(.gray)
+                        .frame(width: 20)
+                    Text("No DayStart")
                         .font(.subheadline)
                         .foregroundColor(.gray)
+                    Spacer()
                 }
-
-                Spacer()
-
-                if canShowTranscript {
-                    Button(action: { 
-                        isExpanded.toggle()
-                        
-                        // Simplified: removed complex polling logic
-                        // Transcripts should be available immediately from the stored data
-                    }) {
-                        HStack(spacing: 6) {
-                            Text("Transcript")
-                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .foregroundColor(BananaTheme.ColorToken.accent)
-                        }
-                        .font(.subheadline)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
+                .padding(.vertical, 8)
             }
 
-            if audioPlayer.currentTrackId == dayStart.id {
-                // Inline voicemail-style player
+            // Audio player controls (always shown when audio is available)
+            if hasAudioFile && !dayStart.isDeleted {
                 VStack(spacing: 8) {
                     Slider(
                         value: Binding(
-                            get: { audioPlayer.currentTime },
-                            set: { newValue in audioPlayer.seek(to: newValue) }
+                            get: { 
+                                // Show current time if this track is playing, otherwise show 0
+                                audioPlayer.currentTrackId == dayStart.id ? audioPlayer.currentTime : 0
+                            },
+                            set: { newValue in 
+                                // Only allow seeking if this track is currently loaded
+                                if audioPlayer.currentTrackId == dayStart.id {
+                                    audioPlayer.seek(to: newValue) 
+                                }
+                            }
                         ),
-                        in: 0...max(audioPlayer.duration, 1)
+                        in: 0...max(getActualAudioDuration(), 1)
                     )
                     .accentColor(BananaTheme.ColorToken.accent)
+                    .disabled(audioPlayer.currentTrackId != dayStart.id) // Disable if not currently loaded
 
                     HStack {
-                        Text(timeString(audioPlayer.currentTime))
+                        Text(timeString(audioPlayer.currentTrackId == dayStart.id ? audioPlayer.currentTime : 0))
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
                         Spacer()
-                        Text(timeString(audioPlayer.duration))
+                        Text(timeString(getActualAudioDuration()))
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
                     }
                 }
+                .padding(.vertical, 8)
             }
+            
+            // Transcript toggle (only if we have transcript content)
+            if canShowTranscript {
+                HStack {
+                    Button(action: { 
+                        isExpanded.toggle()
+                    }) {
+                        HStack {
+                            Image(systemName: "doc.text")
+                                .foregroundColor(BananaTheme.ColorToken.accent)
+                                .frame(width: 20)
+                            
+                            Text("Transcript")
+                                .font(.subheadline)
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                            
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .foregroundColor(BananaTheme.ColorToken.accent)
+                                .font(.caption)
+                            
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding(.vertical, 8)
+            }
+        }
+    }
+    
+    private func handlePlayButtonTap() {
+        let logger = DebugLogger.shared
+        logger.log("🎵 History: Play button tapped for DayStart \(dayStart.id)", level: .info)
+        
+        if audioPlayer.currentTrackId != dayStart.id {
+            logger.log("🎵 History: Loading new audio for DayStart", level: .info)
+            
+            // Try using stored audio file path first
+            if let path = dayStart.audioFilePath, FileManager.default.fileExists(atPath: path) {
+                let url = URL(fileURLWithPath: path)
+                audioPlayer.loadAudio(from: url, trackId: dayStart.id)
+                audioPlayer.play()
+            } else {
+                // Fallback: get cached audio path
+                let audioCache = ServiceRegistry.shared.audioCache
+                let dateToUse = dayStart.scheduledTime ?? dayStart.date
+                let audioPath = audioCache.getAudioPath(for: dateToUse)
+                
+                if FileManager.default.fileExists(atPath: audioPath.path) {
+                    logger.log("🎵 History: Using cached audio path: \(audioPath.path)", level: .debug)
+                    audioPlayer.loadAudio(from: audioPath, trackId: dayStart.id)
+                    audioPlayer.play()
+                } else {
+                    logger.log("⚠️ History: No audio file found in cache or stored path", level: .warning)
+                }
+            }
+        } else {
+            logger.log("🎵 History: Track ID matches, toggling play/pause", level: .debug)
+            audioPlayer.togglePlayPause()
         }
     }
 
@@ -417,51 +455,58 @@ struct HistoryRow: View {
         switch s {
         case .completedSameDay:
             return AnyView(
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.seal.fill").foregroundColor(.green)
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundColor(.green)
+                        .font(.caption)
                     Text(formattedDuration)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
                 .background(BananaTheme.ColorToken.card)
                 .cornerRadius(8)
             )
         case .completedLate:
             return AnyView(
-                HStack(spacing: 6) {
-                    Image(systemName: "clock.badge.exclamationmark").foregroundColor(.orange)
+                HStack(spacing: 4) {
+                    Image(systemName: "clock.badge.exclamationmark")
+                        .foregroundColor(.orange)
+                        .font(.caption)
                     Text(formattedDuration)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
                 .background(BananaTheme.ColorToken.card)
                 .cornerRadius(8)
             )
         case .inProgress:
             return AnyView(
-                HStack(spacing: 6) {
-                    Image(systemName: "bolt.fill").foregroundColor(BananaTheme.ColorToken.accent)
+                HStack(spacing: 4) {
+                    Image(systemName: "bolt.fill")
+                        .foregroundColor(BananaTheme.ColorToken.accent)
+                        .font(.caption)
                     Text("In progress")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
                 .background(BananaTheme.ColorToken.card)
                 .cornerRadius(8)
             )
         case .notStarted:
-            if hasAudioFile && !dayStart.isDeleted {
+            // Always show duration if we have it stored, regardless of audio file existence
+            if dayStart.duration > 0 {
                 return AnyView(
                     Text(formattedDuration)
                         .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .background(BananaTheme.ColorToken.card)
                         .cornerRadius(8)
                 )

@@ -384,14 +384,33 @@ struct EditScheduleView: View {
     
     private var scheduleSection: some View {
         Section(header: Text("Schedule")) {
-            VStack(spacing: 12) {
-                HStack {
-                    Text("Repeat Days")
-                        .font(.subheadline)
-                        .adaptiveFontWeight(light: .medium, dark: .semibold)
-                    Spacer()
-                }
+            // Scheduled Time Row (matches ContentCard structure exactly)
+            HStack {
+                Image(systemName: "clock")
+                    .foregroundColor(BananaTheme.ColorToken.accent)
+                    .frame(width: 20)
                 
+                Text("Scheduled DayStart")
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                
+                Spacer()
+                
+                DatePicker(
+                    "",
+                    selection: $selectedTime,
+                    displayedComponents: .hourAndMinute
+                )
+                .labelsHidden()
+                .disabled(isLocked || selectedDays.isEmpty)
+                .opacity(selectedDays.isEmpty ? 0.6 : 1.0)
+            }
+            .padding(.vertical, 8)
+            .listRowSeparator(.hidden)
+            
+            // Day selection and caption (separate Form row like ContentCard expandable content)
+            VStack(spacing: 12) {
+                // Day chips
                 HStack(spacing: 8) {
                     Spacer()
                     ForEach(WeekDay.allCases) { day in
@@ -414,131 +433,95 @@ struct EditScheduleView: View {
                     Spacer()
                 }
                 
+                // Caption
                 if !selectedDays.isEmpty {
                     HStack {
+                        Spacer()
                         Text("Repeats \(formatScheduleDays(selectedDays))")
                             .font(.caption.weight(.medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                         Spacer()
                     }
+                } else {
+                    HStack {
+                        Spacer()
+                        Text("Select at least one day to enable DayStart")
+                            .font(.caption)
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        Spacer()
+                    }
                 }
             }
-            
-            if selectedDays.isEmpty {
-                HStack {
-                    Text("Select at least one day to enable DayStart")
-                        .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    Spacer()
-                }
-            }
-            
-            DatePicker(
-                "Scheduled DayStart",
-                selection: $selectedTime,
-                displayedComponents: .hourAndMinute
-            )
-            .disabled(isLocked || selectedDays.isEmpty)
-            .opacity(selectedDays.isEmpty ? 0.6 : 1.0)
-            
-            // Toggle("Tomorrow's DayStart", isOn: Binding(
-            //     get: { !skipTomorrow },
-            //     set: { skipTomorrow = !$0 }
-            // ))
-            //     .tint(BananaTheme.ColorToken.primary)
-            //     .disabled(isLocked || selectedDays.isEmpty || !isTomorrowInSchedule)
-            //     .opacity(selectedDays.isEmpty || !isTomorrowInSchedule ? 0.6 : 1.0)
-            
-            if !selectedDays.isEmpty, let nextTime = previewNextOccurrence {
-                HStack {
-                    Text(previewDescription(for: nextTime))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(nextTime, style: .relative)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .listRowSeparator(.hidden)
-            } else if selectedDays.isEmpty {
-                HStack {
-                    Text("DayStart Disabled")
-                        .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    Spacer()
-                    Text("No days selected")
-                        .font(.caption)
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                }
-                .listRowSeparator(.hidden)
-            }
+            .listRowSeparator(.hidden)
         }
     }
     
     private var contentSection: some View {
         Section(header: Text("Content")) {
-            Toggle("Weather", isOn: $includeWeather)
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked)
-                .onChange(of: includeWeather) { enabled in
-                    if enabled {
-                        Task {
-                            await requestLocationPermission()
+            ForEach(ContentType.allCases) { contentType in
+                ContentCard(
+                    type: contentType,
+                    isEnabled: Binding(
+                        get: { 
+                            switch contentType {
+                            case .weather: return includeWeather
+                            case .calendar: return includeCalendar
+                            case .quotes: return includeQuotes
+                            case .news: return includeNews
+                            case .sports: return includeSports
+                            case .stocks: return includeStocks
+                            }
+                        },
+                        set: { enabled in
+                            switch contentType {
+                            case .weather:
+                                includeWeather = enabled
+                                if enabled {
+                                    Task {
+                                        await requestLocationPermission()
+                                    }
+                                }
+                            case .calendar:
+                                includeCalendar = enabled
+                                if enabled {
+                                    Task {
+                                        await requestCalendarPermission()
+                                    }
+                                }
+                            case .quotes:
+                                includeQuotes = enabled
+                            case .news:
+                                includeNews = enabled
+                            case .sports:
+                                includeSports = enabled
+                            case .stocks:
+                                includeStocks = enabled
+                            }
                         }
-                    }
-                }
-            Toggle("Calendar", isOn: $includeCalendar)
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked)
-                .onChange(of: includeCalendar) { enabled in
-                    if enabled {
-                        Task {
-                            await requestCalendarPermission()
-                        }
-                    }
-                }
-            Toggle("Motivational Quotes", isOn: $includeQuotes)
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked)
-            
-            if includeQuotes {
-                Picker("Quote Style", selection: $quotePreference) {
-                    ForEach(QuotePreference.allCases, id: \.rawValue) { preference in
-                        Text(preference.name).tag(preference)
-                    }
-                }
-                .pickerStyle(MenuPickerStyle())
-                .accentColor(BananaTheme.ColorToken.secondaryText)
-                .disabled(isLocked)
-                .padding(.leading)
-                .listRowSeparator(.hidden)
-            }
-            Toggle("News", isOn: $includeNews)
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked)
-            Toggle("Sports", isOn: $includeSports)
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked)
-            
-            if includeSports {
-                SportsSelector(
-                    selectedSports: $selectedSports,
+                    ),
                     isDisabled: isLocked
-                )
-                .padding(.leading)
-                .listRowSeparator(.hidden)
-            }
-            
-            Toggle("Stocks", isOn: $includeStocks)
-                .tint(BananaTheme.ColorToken.primary)
-                .disabled(isLocked)
-            
-            if includeStocks {
-                StockSymbolsEditor(
-                    stockSymbolItems: $stockSymbolItems,
-                    isDisabled: isLocked
-                )
-                .padding(.leading)
+                ) {
+                    // Expandable settings for each content type
+                    switch contentType {
+                    case .quotes:
+                        QuoteSettingsView(
+                            quotePreference: $quotePreference,
+                            isDisabled: isLocked
+                        )
+                    case .sports:
+                        SportsSelector(
+                            selectedSports: $selectedSports,
+                            isDisabled: isLocked
+                        )
+                    case .stocks:
+                        StockSymbolsEditor(
+                            stockSymbolItems: $stockSymbolItems,
+                            isDisabled: isLocked
+                        )
+                    default:
+                        EmptyView()
+                    }
+                }
                 .listRowSeparator(.hidden)
             }
         }
@@ -864,12 +847,9 @@ struct DayToggleChip: View {
     var body: some View {
         Button(action: { isSelected.toggle() }) {
             Text(day.name)
-                .font(.caption.weight(.medium))
-                .adaptiveFontWeight(
-                    light: isSelected ? .bold : .regular,
-                    dark: isSelected ? .heavy : .medium
-                )
-                .foregroundColor(isSelected ? BananaTheme.ColorToken.background : BananaTheme.ColorToken.text)
+                .font(.caption)
+                .fontWeight(.regular)
+                .foregroundColor(isSelected ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.secondaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .frame(width: 40, height: 40)
@@ -1322,6 +1302,82 @@ struct AccountManagementRow: View {
             return "Upgrade to Premium"
         case .unknown:
             return "..."
+        }
+    }
+}
+
+// MARK: - Content Card Component
+
+struct ContentCard<ExpandableContent: View>: View {
+    let type: ContentType
+    @Binding var isEnabled: Bool
+    let isDisabled: Bool
+    @State private var isExpanded: Bool = false
+    @ViewBuilder let expandableContent: () -> ExpandableContent
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Main card content
+            HStack {
+                Image(systemName: type.icon)
+                    .foregroundColor(BananaTheme.ColorToken.accent)
+                    .frame(width: 20)
+                
+                Text(type.displayName)
+                    .font(.subheadline)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                
+                Spacer()
+                
+                if type.hasExpandableSettings && isEnabled {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isExpanded.toggle()
+                        }
+                    }) {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
+                    .disabled(isDisabled)
+                }
+                
+                Toggle("", isOn: $isEnabled)
+                    .tint(BananaTheme.ColorToken.primary)
+                    .disabled(isDisabled)
+            }
+            .padding(.vertical, 8)
+            
+            // Expandable settings
+            if type.hasExpandableSettings && isEnabled && isExpanded {
+                VStack {
+                    Divider()
+                        .background(BananaTheme.ColorToken.primary.opacity(0.2))
+                    
+                    expandableContent()
+                        .padding(.top, 8)
+                }
+                .transition(.opacity.combined(with: .slide))
+            }
+        }
+    }
+}
+
+struct QuoteSettingsView: View {
+    @Binding var quotePreference: QuotePreference
+    let isDisabled: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Quote Style", selection: $quotePreference) {
+                ForEach(QuotePreference.allCases, id: \.rawValue) { preference in
+                    Text(preference.name).tag(preference)
+                }
+            }
+            .pickerStyle(MenuPickerStyle())
+            .accentColor(BananaTheme.ColorToken.secondaryText)
+            .disabled(isDisabled)
         }
     }
 }

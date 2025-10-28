@@ -234,6 +234,54 @@ enum SportType: String, CaseIterable, Codable {
     }
 }
 
+enum ContentType: String, CaseIterable, Identifiable {
+    case weather = "Weather"
+    case calendar = "Calendar"
+    case quotes = "Motivational Quotes"
+    case news = "News"
+    case sports = "Sports"
+    case stocks = "Stocks"
+    
+    var id: String { rawValue }
+    var displayName: String { rawValue }
+    
+    var icon: String {
+        switch self {
+        case .weather: return "cloud.sun"
+        case .calendar: return "calendar"
+        case .quotes: return "quote.bubble"
+        case .news: return "newspaper"
+        case .sports: return "sportscourt"
+        case .stocks: return "chart.line.uptrend.xyaxis"
+        }
+    }
+    
+    var hasExpandableSettings: Bool {
+        switch self {
+        case .quotes, .sports, .stocks: return true
+        case .weather, .calendar, .news: return false
+        }
+    }
+    
+}
+
+struct ContentSettings: Codable {
+    var quotePreference: QuotePreference = .goodFeelings
+    var selectedSports: [SportType] = SportType.allCases
+    var stockSymbols: [String] = ["^GSPC", "^DJI", "BTC-USD"]
+    
+    func isEnabled(_ type: ContentType, in userSettings: UserSettings) -> Bool {
+        switch type {
+        case .weather: return userSettings.includeWeather
+        case .calendar: return userSettings.includeCalendar
+        case .quotes: return userSettings.includeQuotes
+        case .news: return userSettings.includeNews
+        case .sports: return userSettings.includeSports
+        case .stocks: return userSettings.includeStocks
+        }
+    }
+}
+
 struct UserSettings: Codable, Equatable {
     var preferredName: String
     var includeWeather: Bool

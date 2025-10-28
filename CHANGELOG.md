@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.28] - In Development
 
-**Build:** 1 | **Commit:** 6b63d02 | **Status:** 🚧 In Development, Supabase Deployed
+**Build:** 1 | **Commit:** b1d5416 | **Status:** 🚧 In Development, Supabase Deployed
 
 ### Added
 - **Sport Selections** - Granular control over which sports leagues appear in briefings
@@ -36,6 +36,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Dodgers priority boost for LA users during playoffs (+25 significance points)
 
 ### Changed
+- **ContentCard Architecture** - Redesigned EditScheduleView content section with expandable card system
+  - Universal card design with icon, label, and toggle in consistent layout
+  - Expandable settings for Quotes (style picker), Sports (league selector), and Stocks (symbol editor)
+  - Smooth animations for expand/collapse with opacity and slide transitions
+  - Consistent visual hierarchy across all content types
+  - Foundation for future drag-and-drop content reordering capabilities
+  - Improved accessibility with semantic structure and proper touch targets
+- **Schedule Section Redesign** - Streamlined scheduling interface with unified layout
+  - Combined "Scheduled DayStart" time picker with day selection in single card
+  - Removed redundant "Repeat Days" title for cleaner, more intuitive flow
+  - Consistent icon + text + spacer + control layout matching Content cards
+  - Centered day chips and status text for better visual hierarchy
+  - Fixed padding inconsistencies by flattening nested VStack structure
+- **HistoryView Design System** - Applied ContentCard principles for consistent interface
+  - Standardized typography using BananaTheme system (.subheadline for primary, .caption for secondary)
+  - Implemented consistent icon system: calendar for entries, flame for streaks, semantic status icons
+  - Redesigned history rows with clean icon + date + spacer + actions layout
+  - Refined status chips with consistent spacing and color tokens
+  - Preserved essential functionality (inline audio controls, transcript expansion) while improving visual hierarchy
+  - Unified design language between EditScheduleView and HistoryView
 - **Unified DayStart Tap Handler** - Simplified button behavior for better UX
   - If audio exists for today: Play immediately (any scheduled time or on-demand)
   - If no audio exists: Create high-priority on-demand job for today
