@@ -45,7 +45,6 @@ struct PrimaryActionView: View {
                         .fill(BananaTheme.ColorToken.text)
                         .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
                 )
-                .padding(.horizontal, 40)
             case .welcomeReady:
                 Button(action: onStartTapped) {
                     Text("DayStart")
@@ -61,7 +60,6 @@ struct PrimaryActionView: View {
                         .fill(BananaTheme.ColorToken.text)
                         .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
                 )
-                .padding(.horizontal, 40)
             default:
                 EmptyView()
             }
@@ -820,7 +818,6 @@ struct HomeView: View {
                     RoundedRectangle(cornerRadius: 25)
                         .fill(BananaTheme.ColorToken.text)
                 )
-                .padding(.horizontal, 40)
             } else if let _ = viewModel.nextDayStartTime, viewModel.isNextDayStartToday {
                 Button(action: { 
                     hapticManager.impact(style: .medium)
@@ -838,7 +835,6 @@ struct HomeView: View {
                     RoundedRectangle(cornerRadius: 25)
                         .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
                 )
-                .padding(.horizontal, 40)
                 .accessibilityLabel("Start today's DayStart")
                 .accessibilityHint("Tap to begin your daily audio briefing")
             }
@@ -888,7 +884,7 @@ struct HomeView: View {
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(BananaTheme.ColorToken.text)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                .padding(.horizontal, 16)
                 .frame(height: 50)
                 .animation(.easeInOut(duration: 0.3), value: viewModel.preparingMessage)
             
@@ -983,7 +979,6 @@ struct HomeView: View {
                     RoundedRectangle(cornerRadius: 20)
                         .fill(BananaTheme.ColorToken.primary)
                 )
-                .padding(.horizontal, 40)
                 .accessibilityLabel("Replay DayStart")
                 .accessibilityHint("Tap to replay the audio briefing you just completed")
                 
@@ -1063,7 +1058,7 @@ struct HomeView: View {
                         .fill(BananaTheme.ColorToken.card)
                         .shadow(radius: 20)
                 )
-                .padding(.horizontal, 40)
+                .padding(.horizontal, 16)
                 .scaleEffect(showStreakCelebration ? 1.0 : 0.8)
                 .opacity(showStreakCelebration ? 1.0 : 0.0)
                 .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showStreakCelebration)
@@ -1148,7 +1143,7 @@ struct HomeView: View {
                     .fill(BananaTheme.ColorToken.card)
                     .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
             )
-            .padding(.horizontal, 40)
+            .padding(.horizontal, 16)
             .scaleEffect(viewModel.showReviewGate ? 1.0 : 0.9)
             .opacity(viewModel.showReviewGate ? 1.0 : 0.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.showReviewGate)
@@ -1241,7 +1236,7 @@ struct HomeView: View {
                     .fill(BananaTheme.ColorToken.card)
                     .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
             )
-            .padding(.horizontal, 40)
+            .padding(.horizontal, 16)
             .scaleEffect(viewModel.showSharePrompt ? 1.0 : 0.9)
             .opacity(viewModel.showSharePrompt ? 1.0 : 0.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.showSharePrompt)

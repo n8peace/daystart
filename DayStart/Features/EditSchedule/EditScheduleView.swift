@@ -459,6 +459,7 @@ struct EditScheduleView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .listRowSeparator(.hidden)
             } else if selectedDays.isEmpty {
                 HStack {
                     Text("DayStart Disabled")
@@ -469,6 +470,7 @@ struct EditScheduleView: View {
                         .font(.caption)
                         .foregroundColor(BananaTheme.ColorToken.secondaryText)
                 }
+                .listRowSeparator(.hidden)
             }
         }
     }
@@ -509,6 +511,7 @@ struct EditScheduleView: View {
                 .accentColor(BananaTheme.ColorToken.secondaryText)
                 .disabled(isLocked)
                 .padding(.leading)
+                .listRowSeparator(.hidden)
             }
             Toggle("News", isOn: $includeNews)
                 .tint(BananaTheme.ColorToken.primary)
@@ -523,6 +526,7 @@ struct EditScheduleView: View {
                     isDisabled: isLocked
                 )
                 .padding(.leading)
+                .listRowSeparator(.hidden)
             }
             
             Toggle("Stocks", isOn: $includeStocks)
@@ -535,6 +539,7 @@ struct EditScheduleView: View {
                     isDisabled: isLocked
                 )
                 .padding(.leading)
+                .listRowSeparator(.hidden)
             }
         }
     }

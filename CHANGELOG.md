@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.10.28] - In Development
 
-**Build:** 1 | **Commit:** 8fbf1a7 | **Status:** 🚧 In Development, Supabase Deployed
+**Build:** 1 | **Commit:** 6b63d02 | **Status:** 🚧 In Development, Supabase Deployed
 
 ### Added
 - **Sport Selections** - Granular control over which sports leagues appear in briefings
@@ -48,6 +48,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Extended schedule calculation (14-day window) for reliable next occurrence display
   - Smart day formatting: "daily", "weekdays", "weekends", or specific days
 - **Sports Content Prioritization** - World Series gets maximum coverage
+- **UI Consistency Improvements** - DayStart button now perfectly aligns with streak card
+  - Removed horizontal padding from all primary action buttons
+  - Button borders now align exactly with streak card borders
+  - Consistent visual hierarchy throughout HomeView interface
   - Late October MLB games automatically get 3 sports spots (vs normal 1)
   - World Series detection: +40 significance points for explicit mentions
   - October MLB playoff boost: +20 points for any October MLB game
