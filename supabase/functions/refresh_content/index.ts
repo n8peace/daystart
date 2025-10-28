@@ -170,7 +170,9 @@ async function refreshContentAsync(request_id: string): Promise<void> {
       contentSources.push({ type: 'news', source: 'thenewsapi_general', ttlHours: 168, fetchFunction: () => fetchTheNewsAPI() })
     } else { missingEnvs.push('THENEWSAPI_KEY') }
     if (Deno.env.get('NEWSDATA_IO_KEY')) {
-      contentSources.push({ type: 'news', source: 'newsdata_io_latest', ttlHours: 168, fetchFunction: () => fetchNewsDataIO() })
+      contentSources.push({ type: 'news', source: 'newsdata_io_latest', ttlHours: 168, fetchFunction: () => fetchNewsDataIOLatest() })
+      contentSources.push({ type: 'news', source: 'newsdata_io_crypto', ttlHours: 168, fetchFunction: () => fetchNewsDataIOCrypto() })
+      contentSources.push({ type: 'news', source: 'newsdata_io_business', ttlHours: 168, fetchFunction: () => fetchNewsDataIOBusiness() })
     } else { missingEnvs.push('NEWSDATA_IO_KEY') }
     if (Deno.env.get('NEWSAPI_AI_KEY')) {
       contentSources.push({ type: 'news', source: 'newsapi_ai_general', ttlHours: 168, fetchFunction: () => fetchNewsAPIAI() })
@@ -677,16 +679,16 @@ async function fetchTheNewsAPI(): Promise<any> {
   }
 }
 
-// NewsData.io fetch function
-async function fetchNewsDataIO(): Promise<any> {
+// NewsData.io latest news fetch function
+async function fetchNewsDataIOLatest(): Promise<any> {
   const apiKey = Deno.env.get('NEWSDATA_IO_KEY')
   if (!apiKey) throw new Error('NEWSDATA_IO_KEY not configured')
 
-  const url = `https://newsdata.io/api/1/latest?apikey=${apiKey}&country=us&language=en&size=25`
+  const url = `https://newsdata.io/api/1/latest?apikey=${apiKey}&country=us&language=en&size=10`
   const data = await getJSON<any>(url)
   
   if (data.status !== 'success') {
-    throw new Error(`NewsData.io error: ${data.message || 'API request failed'}`)
+    throw new Error(`NewsData.io latest error: ${data.message || 'API request failed'}`)
   }
 
   return {
@@ -702,6 +704,62 @@ async function fetchNewsDataIO(): Promise<any> {
     fetched_at: new Date().toISOString(),
     source: 'newsdata_io_latest',
     endpoint: 'latest'
+  }
+}
+
+// NewsData.io crypto news fetch function
+async function fetchNewsDataIOCrypto(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSDATA_IO_KEY')
+  if (!apiKey) throw new Error('NEWSDATA_IO_KEY not configured')
+
+  const url = `https://newsdata.io/api/1/crypto?apikey=${apiKey}&language=en&size=10`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'success') {
+    throw new Error(`NewsData.io crypto error: ${data.message || 'API request failed'}`)
+  }
+
+  return {
+    articles: (data.results || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.link || '',
+      publishedAt: a.pubDate || '',
+      source: a.source_id || 'NewsData.io Crypto',
+      category: 'crypto'
+    })),
+    total_results: data.totalResults || data.results?.length || 0,
+    fetched_at: new Date().toISOString(),
+    source: 'newsdata_io_crypto',
+    endpoint: 'crypto'
+  }
+}
+
+// NewsData.io business news fetch function  
+async function fetchNewsDataIOBusiness(): Promise<any> {
+  const apiKey = Deno.env.get('NEWSDATA_IO_KEY')
+  if (!apiKey) throw new Error('NEWSDATA_IO_KEY not configured')
+
+  const url = `https://newsdata.io/api/1/news?apikey=${apiKey}&category=business&language=en&size=10`
+  const data = await getJSON<any>(url)
+  
+  if (data.status !== 'success') {
+    throw new Error(`NewsData.io business error: ${data.message || 'API request failed'}`)
+  }
+
+  return {
+    articles: (data.results || []).map((a: any) => ({
+      title: a.title || '',
+      description: String(a.description || '').slice(0, 300),
+      url: a.link || '',
+      publishedAt: a.pubDate || '',
+      source: a.source_id || 'NewsData.io Business',
+      category: 'business'
+    })),
+    total_results: data.totalResults || data.results?.length || 0,
+    fetched_at: new Date().toISOString(),
+    source: 'newsdata_io_business',
+    endpoint: 'news/business'
   }
 }
 

@@ -216,10 +216,11 @@ This section provides a comprehensive overview of all external APIs used in the 
 - **Configuration**: `THENEWSAPI_KEY` environment variable
 
 ### NewsData.io
-- **Purpose**: Comprehensive news API with historical data access
+- **Purpose**: Comprehensive news API with historical data access and specialized content
 - **Endpoints Used**:
   - `/api/1/latest` (last 48 hours breaking news)
-  - `/api/1/news` (general search)
+  - `/api/1/crypto` (cryptocurrency and blockchain news)
+  - `/api/1/news?category=business` (business and market news)
 - **Current Plan**: Free tier (200 credits/day) → Paid ($99.99/month for 20K credits/day)
 - **Rate Limits**:
   - **Free Tier**: 200 credits per day
@@ -229,20 +230,20 @@ This section provides a comprehensive overview of all external APIs used in the 
   - 70,000+ news sources globally
   - 100+ countries, 50+ languages
   - Historical news data (up to 5 years)
-  - 12 content categories
+  - 12 content categories including crypto/business
   - Advanced filtering options
   - Real-time and archived content
 - **Parameters**:
   - Search queries (q, qInTitle, qInMeta)
   - Geographic filtering (country, language)
-  - Category filtering (sports, politics, science, etc.)
+  - Category filtering (sports, politics, science, business, crypto)
   - Time range filtering (1-48 hours)
   - Domain-specific filtering
 - **Response Format**:
   - Standard JSON with articles array
   - Title, description, URL, source
   - Published date, category, language
-- **Usage Pattern**: 1 call per refresh cycle (25 articles)
+- **Usage Pattern**: 3 calls per refresh cycle (30 articles total: 10 latest + 10 crypto + 10 business)
 - **Configuration**: `NEWSDATA_IO_KEY` environment variable
 
 ### NewsAPI.ai
