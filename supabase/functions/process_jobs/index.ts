@@ -1777,7 +1777,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
   const filteredSports = filterSportsByLeagues(validSports, context.selectedSports);
   const sportsToday = filteredSports.slice(0, 15);
   
-  console.log(`[DEBUG] Sports filtering: ${validSports.length} valid sports → ${filteredSports.length} matching selected leagues (${context.selectedSports?.join(', ') || 'none'}) → ${sportsToday.length} final`);`
+  console.log(`[DEBUG] Sports filtering: ${validSports.length} valid sports → ${filteredSports.length} matching selected leagues (${context.selectedSports?.join(', ') || 'none'}) → ${sportsToday.length} final`);
 
   // Filter stocks based on market hours (exclude equities on weekends, keep crypto)
   const isWeekendDay = isWeekend(context.date, context.timezone);

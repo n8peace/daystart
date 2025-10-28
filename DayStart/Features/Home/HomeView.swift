@@ -176,14 +176,9 @@ struct HomeView: View {
                                 }
                         }
                         
-                        // Streak counter at bottom
+                        // Compact streak and weekly progress at bottom
                         if StreakManager.shared.currentStreak > 0 {
-                            streakCounterView
-                        }
-                        
-                        // Weekly progress indicator at bottom
-                        if StreakManager.shared.currentStreak > 0 {
-                            weeklyProgressView
+                            compactStreakView
                         }
                     }
                     .padding(.bottom, 30)
@@ -1292,69 +1287,112 @@ struct HomeView: View {
         }
     }
     
-    private var streakCounterView: some View {
+    private var compactStreakView: some View {
         Button(action: {
             hapticManager.impact(style: .light)
             showHistory = true
         }) {
-            HStack(spacing: 8) {
-                Text("🔥")
-                    .font(.title2)
-                    .scaleEffect(StreakManager.shared.currentStreak >= 7 ? 1.3 : 1.0)
-                    .rotationEffect(.degrees(StreakManager.shared.currentStreak >= 14 ? 10 : 0))
-                    .animation(isViewVisible && StreakManager.shared.currentStreak >= 7 ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .none, value: StreakManager.shared.currentStreak >= 7)
-                
-                Text("\(StreakManager.shared.currentStreak) day streak")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(streakTextColor)
-                    .scaleEffect(showStreakCelebration && celebrationStreak == StreakManager.shared.currentStreak ? 1.1 : 1.0)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showStreakCelebration)
-                
-                // Enhanced streak milestone celebrations
-                Group {
-                    if StreakManager.shared.currentStreak >= 100 {
-                        Text("🏆✨🎊")
-                            .font(.caption)
-                            .scaleEffect(1.2)
-                            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
-                    } else if StreakManager.shared.currentStreak >= 50 {
-                        Text("👑🎆✨")
-                            .font(.caption)
-                            .scaleEffect(1.1)
-                            .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
-                    } else if StreakManager.shared.currentStreak >= 30 {
-                        Text("💪🎆")
-                            .font(.caption)
-                            .scaleEffect(1.05)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
-                    } else if StreakManager.shared.currentStreak >= 14 {
-                        Text("⭐️🎆")
-                            .font(.caption)
-                            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
-                    } else if StreakManager.shared.currentStreak >= 7 {
-                        Text("🎆")
-                            .font(.caption)
+            GeometryReader { geometry in
+                HStack(spacing: 8) {
+                    // Left side - Streak info (1/3 of width)
+                    HStack(spacing: 6) {
+                        Text("🔥")
+                            .font(.title2)
+                            .scaleEffect(StreakManager.shared.currentStreak >= 7 ? 1.3 : 1.0)
+                            .rotationEffect(.degrees(StreakManager.shared.currentStreak >= 14 ? 10 : 0))
+                            .animation(isViewVisible && StreakManager.shared.currentStreak >= 7 ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .none, value: StreakManager.shared.currentStreak >= 7)
+                        
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(String(format: "%03d", StreakManager.shared.currentStreak))
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                .scaleEffect(showStreakCelebration && celebrationStreak == StreakManager.shared.currentStreak ? 1.1 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showStreakCelebration)
+                            
+                            HStack(spacing: 4) {
+                                Text("Day Streak")
+                                    .font(.headline)
+                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                
+                                // Compact milestone celebrations
+                                Group {
+                                    if StreakManager.shared.currentStreak >= 100 {
+                                        Text("🏆✨")
+                                            .font(.caption2)
+                                            .scaleEffect(1.0)
+                                            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
+                                    } else if StreakManager.shared.currentStreak >= 50 {
+                                        Text("👑✨")
+                                            .font(.caption2)
+                                            .scaleEffect(0.9)
+                                            .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
+                                    } else if StreakManager.shared.currentStreak >= 30 {
+                                        Text("💪")
+                                            .font(.caption2)
+                                            .scaleEffect(0.9)
+                                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
+                                    } else if StreakManager.shared.currentStreak >= 14 {
+                                        Text("⭐️")
+                                            .font(.caption2)
+                                            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: StreakManager.shared.currentStreak)
+                                    } else if StreakManager.shared.currentStreak >= 7 {
+                                        Text("🎆")
+                                            .font(.caption2)
+                                    }
+                                }
+                            }
+                        }
                     }
+                    .frame(width: geometry.size.width * 0.45)
+                    
+                    // Right side - Weekly progress (remaining width)
+                    VStack(spacing: 6) {
+                        HStack(spacing: 6) {
+                            Text("\(weeklyCompletionCount)/7")
+                                .font(.title.bold())
+                                .foregroundColor(BananaTheme.ColorToken.primary)
+                            
+                            if weeklyCompletionCount == 7 {
+                                Text("🏆")
+                                    .font(.title3)
+                            }
+                        }
+                        
+                        // 7-day progress bar
+                        HStack(spacing: 3) {
+                            ForEach(0..<7, id: \.self) { dayIndex in
+                                let dayStatus = weeklyStatuses[dayIndex]
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(progressColor(for: dayStatus))
+                                    .frame(height: 8)
+                                    .animation(.easeInOut(duration: 0.3).delay(Double(dayIndex) * 0.05), value: dayStatus)
+                            }
+                        }
+                    }
+                    .frame(width: geometry.size.width * 0.50)
                 }
             }
+            .frame(height: 60)
             .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(streakBackgroundColor)
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(weeklyProgressCardBackground)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .stroke(BananaTheme.ColorToken.primary.opacity(streakBorderOpacity(for: StreakManager.shared.currentStreak)), lineWidth: streakBorderWidth(for: StreakManager.shared.currentStreak))
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(weeklyProgressBorderColor, lineWidth: weeklyProgressBorderWidth)
                     )
             )
             .shadow(
-                color: streakShadowColor, 
-                radius: streakShadowRadius(for: StreakManager.shared.currentStreak)
+                color: colorScheme == .light ? 
+                    BananaTheme.ColorToken.primary.opacity(0.25) : 
+                    Color.clear, 
+                radius: colorScheme == .light ? 8 : 0
             )
         }
         .buttonStyle(PlainButtonStyle())
-        .accessibilityLabel("Current streak: \(StreakManager.shared.currentStreak) days")
+        .accessibilityLabel("Current streak: \(StreakManager.shared.currentStreak) days, this week: \(weeklyCompletionCount) of 7 days")
         .accessibilityHint("Tap to view your streak history")
         .onChange(of: StreakManager.shared.currentStreak) { newStreak in
             // Trigger celebration for milestone streaks
@@ -1366,59 +1404,6 @@ struct HomeView: View {
         }
     }
     
-    private var weeklyProgressView: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("This Week")
-                    .font(.caption)
-                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                Spacer()
-                Text("\(weeklyCompletionCount)/7")
-                    .font(.caption.bold())
-                    .foregroundColor(BananaTheme.ColorToken.primary)
-            }
-            
-            // 7-day progress bar
-            HStack(spacing: 4) {
-                ForEach(0..<7, id: \.self) { dayIndex in
-                    let dayStatus = weeklyStatuses[dayIndex]
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(progressColor(for: dayStatus))
-                        .frame(height: 8)
-                        .animation(.easeInOut(duration: 0.3).delay(Double(dayIndex) * 0.05), value: dayStatus)
-                }
-            }
-            
-            // Progress percentage
-            HStack {
-                Text(weeklyProgressText)
-                    .font(.caption2)
-                    .foregroundColor(BananaTheme.ColorToken.tertiaryText)
-                Spacer()
-                if weeklyCompletionCount == 7 {
-                    Text("Perfect Week! 🏆")
-                        .font(.caption2.bold())
-                        .foregroundColor(BananaTheme.ColorToken.primary)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(weeklyProgressCardBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(weeklyProgressBorderColor, lineWidth: weeklyProgressBorderWidth)
-                )
-        )
-        .shadow(
-            color: colorScheme == .light ? 
-                BananaTheme.ColorToken.primary.opacity(0.25) : 
-                Color.clear, 
-            radius: colorScheme == .light ? 8 : 0
-        )
-    }
     
     private var weeklyStatuses: [StreakManager.DayStatus] {
         StreakManager.shared.lastNDaysStatuses(7).reversed().map { $0.status }

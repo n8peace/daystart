@@ -414,13 +414,22 @@ struct EditScheduleView: View {
                     Spacer()
                 }
                 
-                if selectedDays.isEmpty {
+                if !selectedDays.isEmpty {
                     HStack {
-                        Text("Select at least one day to enable DayStart")
-                            .font(.caption)
+                        Text("Repeats \(formatScheduleDays(selectedDays))")
+                            .font(.caption.weight(.medium))
                             .foregroundColor(BananaTheme.ColorToken.secondaryText)
                         Spacer()
                     }
+                }
+            }
+            
+            if selectedDays.isEmpty {
+                HStack {
+                    Text("Select at least one day to enable DayStart")
+                        .font(.caption)
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    Spacer()
                 }
             }
             
@@ -719,6 +728,25 @@ struct EditScheduleView: View {
         return count
     }
     
+    /// Format schedule days for display
+    private func formatScheduleDays(_ days: Set<WeekDay>) -> String {
+        if days.count == 7 {
+            return "daily"
+        } else if days.count == 5 && !days.contains(.saturday) && !days.contains(.sunday) {
+            return "weekdays"
+        } else if days.count == 2 && days.contains(.saturday) && days.contains(.sunday) {
+            return "weekends"
+        } else if days.count == 6 && days.contains(.saturday) && !days.contains(.sunday) {
+            return "weekdays + Saturday"
+        } else if days.count == 6 && !days.contains(.saturday) && days.contains(.sunday) {
+            return "weekdays + Sunday"
+        } else if days.isEmpty {
+            return "no days selected"
+        } else {
+            return days.sorted(by: { $0.rawValue < $1.rawValue }).map(\.shortName).joined(separator: ", ")
+        }
+    }
+    
     private func saveChanges() {
         let startTime = logger.startPerformanceTimer()
         logger.log("💾 Saving settings changes", level: .info)
@@ -831,7 +859,7 @@ struct DayToggleChip: View {
     var body: some View {
         Button(action: { isSelected.toggle() }) {
             Text(day.name)
-                .font(.caption)
+                .font(.caption.weight(.medium))
                 .adaptiveFontWeight(
                     light: isSelected ? .bold : .regular,
                     dark: isSelected ? .heavy : .medium
@@ -1021,7 +1049,7 @@ struct SportsSelector: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+            FlowLayout(spacing: 8) {
                 ForEach(SportType.allCases, id: \.self) { sport in
                     SportSelectionButton(
                         sport: sport,
@@ -1047,6 +1075,87 @@ struct SportsSelector: View {
             selectedSports.removeAll { $0 == sport }
         } else {
             selectedSports.append(sport)
+        }
+    }
+}
+
+struct FlowLayout: Layout {
+    let spacing: CGFloat
+    
+    init(spacing: CGFloat = 8) {
+        self.spacing = spacing
+    }
+    
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        let totalHeight = rows.reduce(0) { result, row in
+            result + row.maxHeight + (result > 0 ? spacing : 0)
+        }
+        return CGSize(width: proposal.width ?? 0, height: totalHeight)
+    }
+    
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var y = bounds.minY
+        
+        for row in rows {
+            let totalWidth = row.subviews.reduce(0) { $0 + $1.size.width } + spacing * CGFloat(row.subviews.count - 1)
+            let leadingX = bounds.midX - totalWidth / 2 // Center the row
+            var x = leadingX
+            
+            for subview in row.subviews {
+                subview.view.place(
+                    at: CGPoint(x: x, y: y),
+                    proposal: ProposedViewSize(subview.size)
+                )
+                x += subview.size.width + spacing
+            }
+            
+            y += row.maxHeight + spacing
+        }
+    }
+    
+    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [Row] {
+        var rows: [Row] = []
+        var currentRow = Row()
+        
+        for subview in subviews {
+            let size = subview.sizeThatFits(ProposedViewSize(width: nil, height: nil))
+            
+            if currentRow.subviews.isEmpty || 
+               currentRow.totalWidth + spacing + size.width <= (proposal.width ?? CGFloat.greatestFiniteMagnitude) {
+                currentRow.add(SubviewInfo(view: subview, size: size))
+            } else {
+                rows.append(currentRow)
+                currentRow = Row()
+                currentRow.add(SubviewInfo(view: subview, size: size))
+            }
+        }
+        
+        if !currentRow.subviews.isEmpty {
+            rows.append(currentRow)
+        }
+        
+        return rows
+    }
+    
+    private struct SubviewInfo {
+        let view: LayoutSubview
+        let size: CGSize
+    }
+    
+    private struct Row {
+        var subviews: [SubviewInfo] = []
+        var totalWidth: CGFloat = 0
+        var maxHeight: CGFloat = 0
+        
+        mutating func add(_ subview: SubviewInfo) {
+            totalWidth += subview.size.width
+            if !subviews.isEmpty {
+                totalWidth += 8 // spacing
+            }
+            maxHeight = max(maxHeight, subview.size.height)
+            subviews.append(subview)
         }
     }
 }

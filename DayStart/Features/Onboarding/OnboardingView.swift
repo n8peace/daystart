@@ -2300,7 +2300,8 @@ struct OnboardingView: View {
             quotePreference: selectedQuoteType,
             selectedVoice: selectedVoice ?? .voice1,
             dayStartLength: 3, // Default 3 minutes
-            themePreference: .system
+            themePreference: .system,
+            selectedSports: SportType.allCases // Default all sports selected
         )
         userPreferences.saveSettings()
         
