@@ -8,11 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## Added
+- **Intelligent News Filtering** - Enhanced content curation for personalized briefings
+  - AI-curated top stories prioritized when available
+  - Relevance scoring based on recency, source trust, content quality, and geographic proximity
+  - Category diversity enforcement (max 8 general, 4 business, 3 tech, etc.) for balanced coverage
+  - Reduced content volume from 40+ to max 25 articles sent to GPT for efficiency
+  - Geographic relevance boost: +20 points for city mentions, +10 for state, +5 for national
+  - All cached news sources now contribute (NewsDataIO, TheNewsAPI, NewsAPI.ai)
+  - Backwards compatible: No API or schema changes, just smarter filtering
+
 ## Fixed
 - **Stock Selection Behavior** - AI now respects user's exact stock selections
   - When users select specific stocks, only those stocks are mentioned (no extras)
   - When no stocks selected, popular defaults are shown (S&P 500, Dow, Bitcoin)
   - Prevents AI from adding NVDA/AAPL when user only wanted BTC/RIVN/etc
+- **Regional NewsAPI Endpoints** - Removed 6 failing regional endpoints to reduce errors
+  - Commented out newsapi_local_us_[major/west/east/south/midwest] and newsapi_state_issues
+  - Geographic relevance now handled by intelligent filtering instead of separate API calls
+  - Reduces API limit errors while maintaining local news coverage through scoring
 
 ## [2025.10.28] - In App Store Review
 

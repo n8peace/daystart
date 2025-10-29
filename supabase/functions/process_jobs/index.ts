@@ -2056,7 +2056,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
   
   // Filtered content counts (after processing)
   console.log('[DEBUG] Filtered content counts:');
-  console.log(`  - News (compact): ${compactNews.length}`);
+  console.log(`  - News (filtered): ${filteredNews.length}`);
   console.log(`  - Sports today: ${sportsToday.length}`);
   console.log(`  - Stocks (filtered): ${filteredStocks.length} (${equities.length} equities, ${crypto.length} crypto)`);
   
