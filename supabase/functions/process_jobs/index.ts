@@ -80,6 +80,95 @@ function flattenAndDedupeNews(newsData: any[] = []): any[] {
   });
 }
 
+// Enhanced news filtering with intelligent pre-processing
+function intelligentNewsFilter(newsData: any[], userContext: any): any[] {
+  // First, check if we have AI-curated top 10 stories
+  const topTenSource = newsData.find(src => src.source === 'top_ten_ai_curated');
+  if (topTenSource?.data?.stories?.length > 0) {
+    console.log('[DEBUG] Using AI-curated top 10 stories as primary news source');
+    return topTenSource.data.stories.slice(0, 10);
+  }
+
+  // Otherwise, perform intelligent filtering
+  const allArticles = flattenAndDedupeNews(newsData);
+  console.log(`[DEBUG] Processing ${allArticles.length} total articles from ${newsData.length} sources`);
+
+  // Score articles based on relevance
+  const scoredArticles = allArticles.map(article => {
+    let score = 0;
+    
+    // Recency score (0-30 points)
+    const ageHours = (Date.now() - new Date(article.publishedAt || 0).getTime()) / (1000 * 60 * 60);
+    if (ageHours < 6) score += 30;
+    else if (ageHours < 12) score += 20;
+    else if (ageHours < 24) score += 10;
+    
+    // Source trust score (0-20 points)
+    score += (article.trust || 1) * 10;
+    
+    // Content quality (0-20 points)
+    const hasDescription = article.description && article.description.length > 100;
+    const hasTitle = article.title && article.title.length > 20;
+    if (hasDescription) score += 15;
+    if (hasTitle) score += 5;
+    
+    // Geographic relevance (0-20 points) if user location available
+    if (userContext?.locationData?.city) {
+      const cityName = userContext.locationData.city.toLowerCase();
+      const stateCode = userContext.locationData.state?.toLowerCase();
+      const content = (article.title + ' ' + article.description).toLowerCase();
+      
+      if (content.includes(cityName)) score += 20;
+      else if (stateCode && content.includes(stateCode)) score += 10;
+      else if (content.includes('united states') || content.includes('u.s.')) score += 5;
+    }
+    
+    // Category diversity bonus (0-10 points)
+    const category = article.category || 'general';
+    score += category === 'general' ? 5 : 10; // Slight bonus for non-general categories
+    
+    return { ...article, relevanceScore: score };
+  });
+
+  // Sort by relevance score
+  scoredArticles.sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+  // Apply category-based limits to ensure diversity
+  const categoryLimits = {
+    general: 8,
+    business: 4,
+    technology: 3,
+    politics: 4,
+    sports: 2,
+    entertainment: 2,
+    health: 2,
+    science: 2,
+    other: 3
+  };
+
+  const selectedArticles: any[] = [];
+  const categoryCounts: Record<string, number> = {};
+
+  for (const article of scoredArticles) {
+    const category = article.category || 'other';
+    const normalizedCategory = categoryLimits[category] ? category : 'other';
+    
+    if (!categoryCounts[normalizedCategory]) {
+      categoryCounts[normalizedCategory] = 0;
+    }
+    
+    if (categoryCounts[normalizedCategory] < (categoryLimits[normalizedCategory] || 3)) {
+      selectedArticles.push(article);
+      categoryCounts[normalizedCategory]++;
+      
+      if (selectedArticles.length >= 25) break; // Max 25 articles for GPT
+    }
+  }
+
+  console.log(`[DEBUG] Selected ${selectedArticles.length} articles with category distribution:`, categoryCounts);
+  return selectedArticles;
+}
+
 function flattenAndParseStocks(stocksData: any[] = []): any[] {
   const seen = new Set<string>();
   const out: any[] = [];
@@ -1409,7 +1498,12 @@ That's it for today. Have a good DayStart.
 
     // Build a conservative context JSON for the adjust step
     const storyLimits = getStoryLimits(duration, context.social_daystart);
-    const flattenedNews = flattenAndDedupeNews(context.contentData?.news || []).slice(0, 80);
+    const userContextForAdjust = {
+      locationData: context.locationData,
+      timezone: context.timezone,
+      preferredName: context.preferredName
+    };
+    const flattenedNews = intelligentNewsFilter(context.contentData?.news || [], userContextForAdjust);
     const allSports = flattenAndParseSports(context.contentData?.sports || []);
     const validSports = filterValidSportsItems(allSports, context.date, context.timezone);
     const filteredSports = filterSportsByLeagues(validSports, context.selectedSports);
@@ -1752,21 +1846,16 @@ async function buildScriptPrompt(context: any): Promise<string> {
   const upperBound = Math.round(targetWords * 1.1);
   const storyLimits = getStoryLimits(duration, context.social_daystart);
   
-  // Prefer compact news if available, else fall back to raw
-  function collectCompactNews(cd: any): Array<{description: string, source?: string, publishedAt?: string}> {
-    const out: Array<{description: string, source?: string, publishedAt?: string}> = []
-    for (const src of cd?.news || []) {
-      const items = src?.data?.compact?.news
-      if (Array.isArray(items)) {
-        for (const it of items) {
-          const desc = String(it?.description || '').trim()
-          if (desc) out.push({ description: desc, source: it?.source || src?.source, publishedAt: it?.publishedAt })
-        }
-      }
-    }
-    return out
-  }
-  const compactNews = collectCompactNews(context.contentData).slice(0, 40)
+  // Use intelligent news filtering instead of simple compact collection
+  const userContextForNews = {
+    locationData: context.locationData,
+    timezone: context.timezone,
+    preferredName: context.preferredName
+  };
+  
+  // Get intelligently filtered news
+  const filteredNews = intelligentNewsFilter(context.contentData?.news || [], userContextForNews);
+  console.log(`[DEBUG] Intelligent news filter returned ${filteredNews.length} articles`)
 
   // Parse and flatten sports from all sources, then filter for valid items
   const allSports = flattenAndParseSports(context.contentData?.sports || []);
@@ -1844,15 +1933,14 @@ async function buildScriptPrompt(context: any): Promise<string> {
       calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0
     }, context.social_daystart),
     weather: context.weatherData || null,
-    news: (compactNews.length > 0
-      ? compactNews.map(n => ({
-          title: n.description.slice(0, 160),
-          description: n.description,
-          source: n.source || '',
-          publishedAt: n.publishedAt || ''
-        }))
-      : flattenAndDedupeNews(context.contentData?.news || []).map(a => compactNewsItem(a))
-    ).slice(0, 40),
+    news: filteredNews.map(article => ({
+      title: article.title || article.description?.slice(0, 160) || '',
+      description: article.description || '',
+      source: article.sourceName || article.source || '',
+      publishedAt: article.publishedAt || '',
+      category: article.category || 'general',
+      relevanceScore: article.relevanceScore || 0
+    })),
     sports: sportsToday,
     sportsTeamWhitelist: teamWhitelistFromSports(sportsToday),
     localityHints: localityHints(context.locationData),

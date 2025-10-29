@@ -156,12 +156,13 @@ async function refreshContentAsync(request_id: string): Promise<void> {
       contentSources.push({ type: 'news', source: 'newsapi_general', ttlHours: 168, fetchFunction: () => fetchNewsAPIGeneral() })
       contentSources.push({ type: 'news', source: 'newsapi_business', ttlHours: 168, fetchFunction: () => fetchNewsAPIBusiness() })
       contentSources.push({ type: 'news', source: 'newsapi_targeted', ttlHours: 168, fetchFunction: () => fetchNewsAPITargeted() })
-      contentSources.push({ type: 'news', source: 'newsapi_local_us_major', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSMajor() })
-      contentSources.push({ type: 'news', source: 'newsapi_local_us_west', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSWest() })
-      contentSources.push({ type: 'news', source: 'newsapi_local_us_east', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSEast() })
-      contentSources.push({ type: 'news', source: 'newsapi_local_us_south', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSSouth() })
-      contentSources.push({ type: 'news', source: 'newsapi_local_us_midwest', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSMidwest() })
-      contentSources.push({ type: 'news', source: 'newsapi_state_issues', ttlHours: 168, fetchFunction: () => fetchNewsAPIStateIssues() })
+      // Commented out regional endpoints that are hitting API limits
+      // contentSources.push({ type: 'news', source: 'newsapi_local_us_major', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSMajor() })
+      // contentSources.push({ type: 'news', source: 'newsapi_local_us_west', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSWest() })
+      // contentSources.push({ type: 'news', source: 'newsapi_local_us_east', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSEast() })
+      // contentSources.push({ type: 'news', source: 'newsapi_local_us_south', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSSouth() })
+      // contentSources.push({ type: 'news', source: 'newsapi_local_us_midwest', ttlHours: 168, fetchFunction: () => fetchNewsAPILocalUSMidwest() })
+      // contentSources.push({ type: 'news', source: 'newsapi_state_issues', ttlHours: 168, fetchFunction: () => fetchNewsAPIStateIssues() })
     } else { missingEnvs.push('NEWSAPI_KEY') }
     if (Deno.env.get('GNEWS_API_KEY')) {
       contentSources.push({ type: 'news', source: 'gnews_comprehensive', ttlHours: 168, fetchFunction: () => fetchGNewsComprehensive() })
