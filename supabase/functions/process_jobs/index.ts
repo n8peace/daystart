@@ -1932,19 +1932,25 @@ async function buildScriptPrompt(context: any): Promise<string> {
     calendarEvents: context.calendarEvents || []
   };
   
-  // Now populate others based on what's in focus
-  const focusSymbols = data.stocks.focus.map(f => f.symbol);
-  data.stocks.others = filteredStocks
-    .filter(s => !focusSymbols.includes(s.symbol))
-    .slice(0, 20)
-    .map(s => ({
-      name: s.name,
-      symbol: s.symbol,
-      price: Math.round(s.price || 0),
-      change: s.change,
-      percentChange: s.percentChange,
-      isCrypto: crypto.some(c => c.symbol === s.symbol)
-    }));
+  // Only populate others if user has no specific stock selections
+  if (context.stockSymbols && context.stockSymbols.length > 0) {
+    // User has made specific selections - don't give AI access to other stocks
+    data.stocks.others = [];
+  } else {
+    // No user selections - populate others for variety
+    const focusSymbols = data.stocks.focus.map(f => f.symbol);
+    data.stocks.others = filteredStocks
+      .filter(s => !focusSymbols.includes(s.symbol))
+      .slice(0, 20)
+      .map(s => ({
+        name: s.name,
+        symbol: s.symbol,
+        price: Math.round(s.price || 0),
+        change: s.change,
+        percentChange: s.percentChange,
+        isCrypto: crypto.some(c => c.symbol === s.symbol)
+      }));
+  }
   
   // Comprehensive debug logging for content availability
   console.log('====== CONTENT AVAILABILITY DEBUG ======');

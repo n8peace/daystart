@@ -8,9 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## Fixed
+- **Stock Selection Behavior** - AI now respects user's exact stock selections
+  - When users select specific stocks, only those stocks are mentioned (no extras)
+  - When no stocks selected, popular defaults are shown (S&P 500, Dow, Bitcoin)
+  - Prevents AI from adding NVDA/AAPL when user only wanted BTC/RIVN/etc
+
 ## [2025.10.28] - In App Store Review
 
-**Build:** 2 | **Commit:** 2226085 | **Status:** 🚧 In App Store Review, Supabase Deployed
+**Build:** 2 | **Commit:** 28cb77e | **Status:** 🚧 In App Store Review, Supabase Deployed
 
 ### Added
 - **Sport Selections** - Granular control over which sports leagues appear in briefings
