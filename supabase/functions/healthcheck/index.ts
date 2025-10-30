@@ -617,28 +617,52 @@ async function checkContentFetchStatus(supabase: SupabaseClient): Promise<CheckR
       .rpc('get_content_freshness_summary')
     
     if (error) {
+      // Log the exact error for debugging
+      console.log('get_content_freshness_summary error:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      })
+      
       // If the function doesn't exist (migrations not deployed), fall back to basic check
       if (error.message.includes('function get_content_freshness_summary() does not exist') || 
-          error.message.includes('structure of query does not match function result type')) {
+          error.message.includes('structure of query does not match function result type') ||
+          error.message.includes('relation "content_fetch_log" does not exist')) {
         return await checkContentFetchStatusFallback(supabase, start)
       }
       
       return { 
         name: 'content_fetch_status', 
         status: 'fail', 
-        error: error.message, 
+        error: `Function call failed: ${error.message} (code: ${error.code})`, 
         duration_ms: Date.now() - start 
       }
     }
     
     if (!freshnessSummary || freshnessSummary.length === 0) {
+      // Log for debugging - function succeeded but returned no data
+      console.log('get_content_freshness_summary returned empty result:', {
+        data: freshnessSummary,
+        dataType: typeof freshnessSummary,
+        isArray: Array.isArray(freshnessSummary),
+        length: freshnessSummary?.length
+      })
+      
       return {
         name: 'content_fetch_status',
         status: 'warn',
-        details: { message: 'No content fetch history available yet' },
+        details: { message: 'No content fetch history available yet (function succeeded but returned empty data)' },
         duration_ms: Date.now() - start
       }
     }
+    
+    // Log successful function call for debugging
+    console.log('get_content_freshness_summary succeeded:', {
+      resultCount: freshnessSummary.length,
+      firstResult: freshnessSummary[0],
+      sources: freshnessSummary.map(s => s.source).slice(0, 5) // First 5 sources
+    })
     
     // Analyze results
     let status: CheckStatus = 'pass'
@@ -1798,7 +1822,7 @@ Recent errors breakdown: ${JSON.stringify(checks.find(c => c.name === 'request_e
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'o3-mini',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }

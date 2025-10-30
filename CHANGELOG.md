@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.11.1] - In Development
 
-**Build:** 1 | **Commit:** a322749 | **Status:** 🚧 In Development
+**Build:** 1 | **Commit:** 63ff2de | **Status:** 🚧 In Development
 
 ### Added
 - **News Category Selection** - Personalize your morning briefing with granular news filtering
