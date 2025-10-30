@@ -2301,7 +2301,8 @@ struct OnboardingView: View {
             selectedVoice: selectedVoice ?? .voice1,
             dayStartLength: 3, // Default 3 minutes
             themePreference: .system,
-            selectedSports: SportType.allCases // Default all sports selected
+            selectedSports: SportType.allCases, // Default all sports selected
+            selectedNewsCategories: NewsCategory.allCases // Default all news categories selected
         )
         userPreferences.saveSettings()
         

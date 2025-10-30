@@ -10,6 +10,7 @@ interface CreateJobRequest {
   include_news: boolean;
   include_sports: boolean;
   selected_sports?: string[];
+  selected_news_categories?: string[];
   include_stocks: boolean;
   stock_symbols: string[];
   include_calendar: boolean;
@@ -241,6 +242,7 @@ serve(async (req: Request): Promise<Response> => {
             include_news: body.include_news,
             include_sports: body.include_sports,
             selected_sports: body.selected_sports || ['MLB', 'NHL', 'NBA', 'NFL', 'NCAAF'],
+            selected_news_categories: body.selected_news_categories || ['World', 'Business', 'Technology', 'Politics', 'Science'],
             include_stocks: body.include_stocks,
             stock_symbols: body.stock_symbols,
             include_calendar: body.include_calendar,
@@ -355,6 +357,7 @@ serve(async (req: Request): Promise<Response> => {
         include_news: body.include_news,
         include_sports: body.include_sports,
         selected_sports: body.selected_sports || ['MLB', 'NHL', 'NBA', 'NFL', 'NCAAF'],
+        selected_news_categories: body.selected_news_categories || ['World', 'Business', 'Technology', 'Politics', 'Science'],
         include_stocks: body.include_stocks,
         stock_symbols: body.stock_symbols,
         include_calendar: body.include_calendar,

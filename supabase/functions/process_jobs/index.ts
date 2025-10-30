@@ -81,7 +81,7 @@ function flattenAndDedupeNews(newsData: any[] = []): any[] {
 }
 
 // Enhanced news filtering with intelligent pre-processing
-function intelligentNewsFilter(newsData: any[], userContext: any): any[] {
+function intelligentNewsFilter(newsData: any[], userContext: any, selectedCategories: string[] = []): any[] {
   // First, check if we have AI-curated top 10 stories
   const topTenSource = newsData.find(src => src.source === 'top_ten_ai_curated');
   if (topTenSource?.data?.stories?.length > 0) {
@@ -134,11 +134,35 @@ function intelligentNewsFilter(newsData: any[], userContext: any): any[] {
   scoredArticles.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
   // Apply category-based limits to ensure diversity
+  // Map our news categories to content cache categories
+  const categoryMapping = {
+    'World': ['general', 'world'],
+    'Business': ['business', 'finance'],
+    'Technology': ['technology', 'tech'],
+    'Politics': ['politics', 'government'],
+    'Science': ['science', 'health']
+  };
+  
+  // If user has selected specific categories, filter by those
+  let allowedCategories: string[] = [];
+  if (selectedCategories.length > 0) {
+    for (const userCategory of selectedCategories) {
+      const mappedCategories = categoryMapping[userCategory] || [];
+      allowedCategories.push(...mappedCategories);
+    }
+    // Always include 'other' as fallback
+    allowedCategories.push('other');
+  }
+  
   const categoryLimits = {
     general: 8,
+    world: 4,
     business: 4,
+    finance: 3,
     technology: 3,
+    tech: 3,
     politics: 4,
+    government: 3,
     sports: 2,
     entertainment: 2,
     health: 2,
@@ -152,6 +176,11 @@ function intelligentNewsFilter(newsData: any[], userContext: any): any[] {
   for (const article of scoredArticles) {
     const category = article.category || 'other';
     const normalizedCategory = categoryLimits[category] ? category : 'other';
+    
+    // If user has selected specific categories, filter by those
+    if (allowedCategories.length > 0 && !allowedCategories.includes(normalizedCategory)) {
+      continue; // Skip articles not in allowed categories
+    }
     
     if (!categoryCounts[normalizedCategory]) {
       categoryCounts[normalizedCategory] = 0;
@@ -1285,6 +1314,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     includeNews: job.include_news,
     includeSports: job.include_sports,
     selectedSports: job.selected_sports || ['MLB', 'NHL', 'NBA', 'NFL', 'NCAAF'],
+    selectedNewsCategories: job.selected_news_categories || ['World', 'Business', 'Technology', 'Politics', 'Science'],
     includeStocks: job.include_stocks,
     stockSymbols: job.stock_symbols,
     includeQuotes: job.include_quotes,
@@ -1503,7 +1533,7 @@ That's it for today. Have a good DayStart.
       timezone: context.timezone,
       preferredName: context.preferredName
     };
-    const flattenedNews = intelligentNewsFilter(context.contentData?.news || [], userContextForAdjust);
+    const flattenedNews = intelligentNewsFilter(context.contentData?.news || [], userContextForAdjust, context.selectedNewsCategories);
     const allSports = flattenAndParseSports(context.contentData?.sports || []);
     const validSports = filterValidSportsItems(allSports, context.date, context.timezone);
     const filteredSports = filterSportsByLeagues(validSports, context.selectedSports);
@@ -1860,7 +1890,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
   };
   
   // Get intelligently filtered news
-  const filteredNews = intelligentNewsFilter(context.contentData?.news || [], userContextForNews);
+  const filteredNews = intelligentNewsFilter(context.contentData?.news || [], userContextForNews, context.selectedNewsCategories);
   console.log(`[DEBUG] Intelligent news filter returned ${filteredNews.length} articles`)
 
   // Parse and flatten sports from all sources, then filter for valid items

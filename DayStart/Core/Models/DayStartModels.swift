@@ -286,6 +286,18 @@ enum SportType: String, CaseIterable, Codable {
     }
 }
 
+enum NewsCategory: String, CaseIterable, Codable {
+    case world = "World"
+    case business = "Business"
+    case technology = "Technology"
+    case politics = "Politics"
+    case science = "Science"
+    
+    var displayName: String {
+        return rawValue
+    }
+}
+
 enum ContentType: String, CaseIterable, Identifiable {
     case weather = "Weather"
     case calendar = "Calendar"
@@ -310,8 +322,8 @@ enum ContentType: String, CaseIterable, Identifiable {
     
     var hasExpandableSettings: Bool {
         switch self {
-        case .quotes, .sports, .stocks: return true
-        case .weather, .calendar, .news: return false
+        case .quotes, .sports, .stocks, .news: return true
+        case .weather, .calendar: return false
         }
     }
     
@@ -348,6 +360,7 @@ struct UserSettings: Codable, Equatable {
     var dayStartLength: Int // Always 3 minutes for now, UI hidden
     var themePreference: ThemePreference
     var selectedSports: [SportType]
+    var selectedNewsCategories: [NewsCategory]
     
     static func isValidStockSymbol(_ symbol: String) -> Bool {
         let trimmed = symbol.trimmingCharacters(in: .whitespaces).uppercased()
@@ -401,7 +414,8 @@ extension UserSettings {
             selectedVoice: .voice1,
             dayStartLength: 3, // Default 3 minutes
             themePreference: .system,
-            selectedSports: SportType.allCases // Default all sports selected
+            selectedSports: SportType.allCases, // Default all sports selected
+            selectedNewsCategories: NewsCategory.allCases // Default all news categories selected
         )
     }
 }

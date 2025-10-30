@@ -184,6 +184,8 @@ class SupabaseClient {
             include_weather: preferences.includeWeather,
             include_news: preferences.includeNews,
             include_sports: preferences.includeSports,
+            selected_sports: preferences.selectedSports.map(\.rawValue),
+            selected_news_categories: preferences.selectedNewsCategories.map(\.rawValue),
             include_stocks: preferences.includeStocks,
             stock_symbols: preferences.stockSymbols,
             include_calendar: preferences.includeCalendar,
@@ -728,6 +730,8 @@ fileprivate struct CreateJobRequest: Codable {
     let include_weather: Bool
     let include_news: Bool
     let include_sports: Bool
+    let selected_sports: [String]
+    let selected_news_categories: [String]
     let include_stocks: Bool
     let stock_symbols: [String]
     let include_calendar: Bool

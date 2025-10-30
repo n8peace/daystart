@@ -18,6 +18,7 @@ struct EditScheduleView: View {
     @State private var quotePreference: QuotePreference
     @State private var stockSymbolItems: [StockSymbolItem] = []
     @State private var selectedSports: [SportType] = []
+    @State private var selectedNewsCategories: [NewsCategory] = []
     @State private var selectedVoice: VoiceOption
     @State private var showResetConfirmation = false
     @EnvironmentObject var themeManager: ThemeManager
@@ -86,6 +87,7 @@ struct EditScheduleView: View {
         let newsChanged = includeNews != userPreferences.settings.includeNews
         let sportsChanged = includeSports != userPreferences.settings.includeSports
         let selectedSportsChanged = selectedSports != userPreferences.settings.selectedSports
+        let selectedNewsCategoriesChanged = selectedNewsCategories != userPreferences.settings.selectedNewsCategories
         let stocksChanged = includeStocks != userPreferences.settings.includeStocks
         let calendarChanged = includeCalendar != userPreferences.settings.includeCalendar
         let quotesChanged = includeQuotes != userPreferences.settings.includeQuotes
@@ -109,6 +111,7 @@ struct EditScheduleView: View {
             || newsChanged
             || sportsChanged
             || selectedSportsChanged
+            || selectedNewsCategoriesChanged
             || stocksChanged
             || calendarChanged
             || quotesChanged
@@ -132,6 +135,7 @@ struct EditScheduleView: View {
         _includeSports = State(initialValue: prefs.settings.includeSports)
         _includeStocks = State(initialValue: prefs.settings.includeStocks)
         _selectedSports = State(initialValue: prefs.settings.selectedSports)
+        _selectedNewsCategories = State(initialValue: prefs.settings.selectedNewsCategories)
         _includeCalendar = State(initialValue: prefs.settings.includeCalendar)
         _includeQuotes = State(initialValue: prefs.settings.includeQuotes)
         _quotePreference = State(initialValue: prefs.settings.quotePreference)
@@ -513,6 +517,11 @@ struct EditScheduleView: View {
                             selectedSports: $selectedSports,
                             isDisabled: isLocked
                         )
+                    case .news:
+                        NewsSelector(
+                            selectedCategories: $selectedNewsCategories,
+                            isDisabled: isLocked
+                        )
                     case .stocks:
                         StockSymbolsEditor(
                             stockSymbolItems: $stockSymbolItems,
@@ -783,9 +792,11 @@ struct EditScheduleView: View {
         settings.includeNews = includeNews
         settings.includeSports = includeSports
         settings.selectedSports = selectedSports
+        settings.selectedNewsCategories = selectedNewsCategories
         
         // Debug logging for sports settings
         logger.log("🏈 Sports settings: includeSports=\(includeSports), selectedSports=\(selectedSports.map(\.rawValue))", level: .debug)
+        logger.log("📰 News settings: includeNews=\(includeNews), selectedNewsCategories=\(selectedNewsCategories.map(\.rawValue))", level: .debug)
         settings.includeStocks = includeStocks
         
         // Sync stockSymbolItems to stockSymbols and filter/validate
@@ -1069,6 +1080,46 @@ struct SportsSelector: View {
     }
 }
 
+struct NewsSelector: View {
+    @Binding var selectedCategories: [NewsCategory]
+    let isDisabled: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("News Categories (\(selectedCategories.count) selected)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            FlowLayout(spacing: 8) {
+                ForEach(NewsCategory.allCases, id: \.self) { category in
+                    NewsCategorySelectionButton(
+                        category: category,
+                        isSelected: selectedCategories.contains(category),
+                        isDisabled: isDisabled
+                    ) {
+                        toggleCategory(category)
+                    }
+                }
+            }
+            
+            if selectedCategories.count > 0 {
+                Text(selectedCategories.map(\.displayName).joined(separator: ", ") + " selected")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+    }
+    
+    private func toggleCategory(_ category: NewsCategory) {
+        if selectedCategories.contains(category) {
+            selectedCategories.removeAll { $0 == category }
+        } else {
+            selectedCategories.append(category)
+        }
+    }
+}
+
 struct FlowLayout: Layout {
     let spacing: CGFloat
     
@@ -1159,6 +1210,31 @@ struct SportSelectionButton: View {
     var body: some View {
         Button(action: action) {
             Text(sport.displayName)
+                .font(.caption.weight(.medium))
+                .foregroundColor(.black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.card)
+                        .stroke(BananaTheme.ColorToken.primary.opacity(0.3), lineWidth: 1)
+                )
+        }
+        .disabled(isDisabled)
+        .buttonStyle(BorderlessButtonStyle())
+        .opacity(isDisabled ? 0.6 : 1.0)
+    }
+}
+
+struct NewsCategorySelectionButton: View {
+    let category: NewsCategory
+    let isSelected: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(category.displayName)
                 .font(.caption.weight(.medium))
                 .foregroundColor(.black)
                 .padding(.horizontal, 12)
