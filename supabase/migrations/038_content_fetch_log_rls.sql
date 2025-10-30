@@ -46,10 +46,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Grant execute to service role only
 GRANT EXECUTE ON FUNCTION cleanup_old_content_fetch_logs() TO service_role;
 
--- Add index for efficient cleanup
+-- Add index for efficient cleanup (simple index on created_at for date range queries)
 CREATE INDEX IF NOT EXISTS idx_content_fetch_log_cleanup 
-  ON content_fetch_log(created_at) 
-  WHERE created_at < NOW() - INTERVAL '7 days';
+  ON content_fetch_log(created_at);
 
 COMMENT ON FUNCTION cleanup_old_content_fetch_logs IS 
   'Removes content fetch logs older than 7 days to prevent unbounded table growth. Should be called periodically by a scheduled job.';
