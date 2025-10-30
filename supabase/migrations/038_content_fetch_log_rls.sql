@@ -9,7 +9,7 @@ ALTER TABLE content_fetch_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_insert_content_fetch_log" ON content_fetch_log
   FOR INSERT
   TO service_role
-  USING (true);
+  WITH CHECK (true);
 
 -- Service role can read all logs (used by healthcheck and monitoring)
 CREATE POLICY "service_role_select_content_fetch_log" ON content_fetch_log
