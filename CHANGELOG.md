@@ -10,9 +10,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.11.1] - In Development
 
-**Build:** 1 | **Commit:** 3544338 | **Status:** 🚧 In Development
+**Build:** 1 | **Commit:** a322749 | **Status:** 🚧 In Development
 
 ### Added
+- **News Category Selection** - Personalize your morning briefing with granular news filtering
+  - Choose from 5 high-level categories: World, Business, Technology, Politics, Science
+  - Expandable settings UI mirroring sports selection pattern with intuitive chip interface
+  - Smart content filtering with category mapping and fallback to general news
+  - All categories enabled by default for existing users (zero breaking changes)
+  - Backwards-compatible database migration with safe defaults
+  - Enhanced AI script generation respects user category preferences
+  - New `NewsCategory` enum and `NewsSelector` SwiftUI component
+  - Database column `selected_news_categories` in jobs table for per-job filtering
+  - Updated edge functions `create_job` and `process_jobs` with news category support
+
 - **Content Freshness Tracking** - Maximum content freshness with intelligent fallback system
   - New `content_fetch_log` table tracks all API fetch attempts and failures
   - Healthcheck now shows which sources are using stale cache due to API failures

@@ -617,6 +617,12 @@ async function checkContentFetchStatus(supabase: SupabaseClient): Promise<CheckR
       .rpc('get_content_freshness_summary')
     
     if (error) {
+      // If the function doesn't exist (migrations not deployed), fall back to basic check
+      if (error.message.includes('function get_content_freshness_summary() does not exist') || 
+          error.message.includes('structure of query does not match function result type')) {
+        return await checkContentFetchStatusFallback(supabase, start)
+      }
+      
       return { 
         name: 'content_fetch_status', 
         status: 'fail', 
@@ -715,6 +721,66 @@ async function checkContentFetchStatus(supabase: SupabaseClient): Promise<CheckR
       name: 'content_fetch_status', 
       status: 'fail', 
       error: (err as Error).message, 
+      duration_ms: Date.now() - start 
+    }
+  }
+}
+
+async function checkContentFetchStatusFallback(supabase: SupabaseClient, start: number): Promise<CheckResult> {
+  try {
+    // Fallback: Basic content cache freshness check (like the old behavior)
+    const { data: cacheData, error } = await supabase
+      .from('content_cache')
+      .select('source, content_type, created_at, expires_at')
+      .gt('expires_at', new Date().toISOString())
+    
+    if (error) {
+      return { 
+        name: 'content_fetch_status', 
+        status: 'fail', 
+        error: `Cache check failed: ${error.message}`, 
+        duration_ms: Date.now() - start 
+      }
+    }
+    
+    if (!cacheData || cacheData.length === 0) {
+      return {
+        name: 'content_fetch_status',
+        status: 'warn',
+        details: { message: 'No fresh content in cache - content fetch logging not available (migrations pending)' },
+        duration_ms: Date.now() - start
+      }
+    }
+    
+    // Basic analysis of cache freshness
+    const now = new Date()
+    const staleThreshold = 6 * 60 * 60 * 1000 // 6 hours in ms
+    const staleSources = cacheData.filter(item => {
+      const cacheAge = now.getTime() - new Date(item.created_at).getTime()
+      return cacheAge > staleThreshold
+    })
+    
+    const status: CheckStatus = staleSources.length > 0 ? 'warn' : 'pass'
+    const message = staleSources.length > 0 
+      ? `${staleSources.length} sources have stale cache (>6h old) - content fetch logging unavailable`
+      : 'Cache is fresh - content fetch logging unavailable (migrations pending)'
+    
+    return {
+      name: 'content_fetch_status',
+      status,
+      details: { 
+        message,
+        note: 'Limited visibility - content fetch logging migrations not deployed',
+        cache_entries: cacheData.length,
+        stale_entries: staleSources.length
+      },
+      duration_ms: Date.now() - start
+    }
+  } catch (err) {
+    return { 
+      name: 'content_fetch_status', 
+      status: 'fail', 
+      error: `Fallback check failed: ${(err as Error).message}`, 
       duration_ms: Date.now() - start 
     }
   }

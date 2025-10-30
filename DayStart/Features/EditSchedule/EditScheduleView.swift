@@ -865,7 +865,7 @@ struct DayToggleChip: View {
             Text(day.name)
                 .font(.caption)
                 .fontWeight(.regular)
-                .foregroundColor(.black)
+                .foregroundColor(isSelected ? .black : BananaTheme.ColorToken.text)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .frame(width: 40, height: 40)
@@ -1211,7 +1211,7 @@ struct SportSelectionButton: View {
         Button(action: action) {
             Text(sport.displayName)
                 .font(.caption.weight(.medium))
-                .foregroundColor(.black)
+                .foregroundColor(isSelected ? .black : BananaTheme.ColorToken.text)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(
@@ -1236,7 +1236,7 @@ struct NewsCategorySelectionButton: View {
         Button(action: action) {
             Text(category.displayName)
                 .font(.caption.weight(.medium))
-                .foregroundColor(.black)
+                .foregroundColor(isSelected ? .black : BananaTheme.ColorToken.text)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(
