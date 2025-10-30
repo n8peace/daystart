@@ -509,4 +509,82 @@ class NotificationContentGenerator {
         
         history = updatedHistory
     }
+    
+    // MARK: - Re-engagement Notifications
+    
+    /// Generate re-engagement notification content based on inactivity type
+    func generateReengagementNotification(
+        type: ReengagementType,
+        streak: Int,
+        daysInactive: Int
+    ) -> (title: String, body: String) {
+        
+        logger.log("🔔 Generating \(type.rawValue) re-engagement notification (streak: \(streak), inactive: \(daysInactive))", level: .debug)
+        
+        switch type {
+        case .gentle:
+            return generateGentleReengagement(streak: streak, daysInactive: daysInactive)
+        case .value:
+            return generateValueReengagement(streak: streak, daysInactive: daysInactive)
+        case .final:
+            return generateFinalReengagement(streak: streak, daysInactive: daysInactive)
+        }
+    }
+    
+    private func generateGentleReengagement(streak: Int, daysInactive: Int) -> (String, String) {
+        // Focus on gentle nudges and streak awareness
+        if streak >= 14 {
+            return ("🔥 Missing your morning edge?", "Your \(streak)-day streak wants to continue")
+        } else if streak >= 7 {
+            return ("🌅 Ready to restart your routine?", "Week-long streaks take dedication - you've got this")
+        } else if daysInactive >= 10 {
+            return ("☀️ Your mornings miss you", "10 days without your briefing - ready to return?")
+        } else {
+            let options = [
+                ("🌅 Time to rise and shine again?", "Your personalized briefing is waiting"),
+                ("🔥 Ready to restart your streak?", "Every expert was once a beginner"),
+                ("☀️ Missing your morning momentum?", "Leaders never stay down for long")
+            ]
+            return options.randomElement() ?? options[0]
+        }
+    }
+    
+    private func generateValueReengagement(streak: Int, daysInactive: Int) -> (String, String) {
+        // Emphasize the value and benefits of DayStart
+        let options = [
+            ("🎯 Stay ahead of your day", "20 minutes saved daily with AI-curated updates"),
+            ("📰 The world kept moving", "Catch up with personalized news + weather"),
+            ("⚡ Leaders stay informed", "Your executive briefing is ready"),
+            ("🌅 Mornings made simple", "Weather, news, calendar - all in one place"),
+            ("🧠 Smart people stay current", "AI picks what matters to you"),
+            ("📅 Big week ahead?", "Get prepared with your morning briefing")
+        ]
+        
+        // Special case for high streaks
+        if streak >= 30 {
+            return ("👑 Elite performers return", "30+ day veterans don't quit - they restart")
+        } else if streak >= 14 {
+            return ("🏆 Champions make comebacks", "Your \(streak)-day streak proved your commitment")
+        }
+        
+        return options.randomElement() ?? options[0]
+    }
+    
+    private func generateFinalReengagement(streak: Int, daysInactive: Int) -> (String, String) {
+        // Final retention attempt with warmth and value
+        if streak >= 21 {
+            return ("💎 We miss our daily time together", "Elite streakers like you built something special")
+        } else if daysInactive >= 30 {
+            return ("🎁 Welcome back gift waiting", "A month away? Your perfect comeback briefing is ready")
+        } else {
+            let options = [
+                ("✨ Something special awaits", "New features and improvements while you were away"),
+                ("🤝 Your morning partner misses you", "Ready for a fresh start together?"),
+                ("🌟 The best is yet to come", "Your personalized experience is better than ever"),
+                ("🏠 Home is where the heart is", "Your DayStart family welcomes you back"),
+                ("🚀 Ready for your comeback?", "Every champion has a return story")
+            ]
+            return options.randomElement() ?? options[0]
+        }
+    }
 }

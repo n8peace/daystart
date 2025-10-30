@@ -2302,7 +2302,8 @@ struct OnboardingView: View {
             dayStartLength: 3, // Default 3 minutes
             themePreference: .system,
             selectedSports: SportType.allCases, // Default all sports selected
-            selectedNewsCategories: NewsCategory.allCases // Default all news categories selected
+            selectedNewsCategories: NewsCategory.allCases, // Default all news categories selected
+            allowReengagementNotifications: true // Default enabled
         )
         userPreferences.saveSettings()
         

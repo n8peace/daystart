@@ -9,6 +9,7 @@ class NotificationScheduler {
     private let reminderIdentifierPrefix = "daystart_reminder_"
     private let missedIdentifierPrefix = "daystart_missed_"
     private let streakEveningIdentifierPrefix = "daystart_streak_evening_"
+    private let reengagementIdentifierPrefix = "daystart_reengagement_"
     
     private init() {}
     
@@ -425,4 +426,128 @@ class NotificationScheduler {
             DebugLogger.shared.log("Failed to schedule streak evening reminder: \(error)", level: .error)
         }
     }
+    
+    // MARK: - Re-engagement Notifications
+    
+    func scheduleReengagementNotifications() async {
+        // Check if user allows re-engagement notifications
+        let allowNotifications = await MainActor.run { UserPreferences.shared.settings.allowReengagementNotifications }
+        guard allowNotifications else {
+            await DebugLogger.shared.log("🔔 Re-engagement notifications disabled by user", level: .info)
+            return
+        }
+        
+        // Request permission if needed
+        let hasPermission = await requestPermission()
+        guard hasPermission else {
+            await DebugLogger.shared.log("Notification permission denied for re-engagement", level: .warning)
+            return
+        }
+        
+        // Check inactivity from StreakManager
+        let streakManager = await MainActor.run { StreakManager.shared }
+        let daysInactive = await MainActor.run { streakManager.daysInactive }
+        let currentStreak = await MainActor.run { streakManager.currentStreak }
+        
+        await DebugLogger.shared.log("🔔 Checking re-engagement: \(daysInactive) days inactive", level: .debug)
+        
+        // Cancel any existing re-engagement notifications first
+        await cancelReengagementNotifications()
+        
+        // Only schedule if user has been inactive for 3+ days but less than 30 days
+        guard daysInactive >= 3 && daysInactive < 30 else {
+            DebugLogger.shared.log("🔔 No re-engagement needed: \(daysInactive) days inactive", level: .debug)
+            return
+        }
+        
+        // Get user's preferred notification time
+        let schedule = await MainActor.run { UserPreferences.shared.schedule }
+        let preferredTime = schedule.effectiveTimeComponents
+        
+        // Schedule appropriate re-engagement notifications
+        if daysInactive >= 7 && daysInactive < 14 {
+            await scheduleReengagementNotification(daysOut: 0, type: .gentle, streak: currentStreak, preferredTime: preferredTime)
+        } else if daysInactive >= 14 && daysInactive < 28 {
+            await scheduleReengagementNotification(daysOut: 0, type: .value, streak: currentStreak, preferredTime: preferredTime)
+        } else if daysInactive >= 28 {
+            await scheduleReengagementNotification(daysOut: 0, type: .final, streak: currentStreak, preferredTime: preferredTime)
+        } else {
+            // Schedule future notifications based on current inactivity
+            let daysUntilNext7 = 7 - daysInactive
+            let daysUntilNext14 = 14 - daysInactive
+            let daysUntilNext28 = 28 - daysInactive
+            
+            if daysUntilNext7 > 0 {
+                await scheduleReengagementNotification(daysOut: daysUntilNext7, type: .gentle, streak: currentStreak, preferredTime: preferredTime)
+            }
+            if daysUntilNext14 > 0 {
+                await scheduleReengagementNotification(daysOut: daysUntilNext14, type: .value, streak: currentStreak, preferredTime: preferredTime)
+            }
+            if daysUntilNext28 > 0 {
+                await scheduleReengagementNotification(daysOut: daysUntilNext28, type: .final, streak: currentStreak, preferredTime: preferredTime)
+            }
+        }
+    }
+    
+    func cancelReengagementNotifications() async {
+        let requests = await getScheduledNotifications()
+        let reengagementIdentifiers = requests
+            .filter { $0.identifier.hasPrefix(reengagementIdentifierPrefix) }
+            .map { $0.identifier }
+        
+        if !reengagementIdentifiers.isEmpty {
+            notificationCenter.removePendingNotificationRequests(withIdentifiers: reengagementIdentifiers)
+            DebugLogger.shared.log("Cancelled \(reengagementIdentifiers.count) re-engagement notifications", level: .info)
+        }
+    }
+    
+    private func scheduleReengagementNotification(
+        daysOut: Int,
+        type: ReengagementType,
+        streak: Int,
+        preferredTime: DateComponents
+    ) async {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        // Calculate target date
+        guard let targetDate = calendar.date(byAdding: .day, value: daysOut, to: now) else { return }
+        
+        // Set notification time to user's preferred time (with 2-hour window)
+        var components = calendar.dateComponents([.year, .month, .day], from: targetDate)
+        components.hour = preferredTime.hour
+        components.minute = preferredTime.minute
+        
+        guard let notificationDate = calendar.date(from: components),
+              notificationDate > now else { return }
+        
+        // Generate personalized content
+        let currentDaysInactive = await MainActor.run { StreakManager.shared.daysInactive }
+        let daysInactive = daysOut + currentDaysInactive
+        let (title, body) = NotificationContentGenerator.shared.generateReengagementNotification(
+            type: type,
+            streak: streak,
+            daysInactive: daysInactive
+        )
+        
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = "DAYSTART_MISSED_CATEGORY" // Reuse existing category with "Listen Now" action
+        
+        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: notificationDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
+        
+        let identifier = "\(reengagementIdentifierPrefix)\(type.rawValue)_\(daysInactive)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        
+        do {
+            try await notificationCenter.add(request)
+            DebugLogger.shared.log("🔔 Scheduled \(type.rawValue) re-engagement for \(notificationDate): \(title)", level: .info)
+        } catch {
+            DebugLogger.shared.log("Failed to schedule re-engagement notification: \(error)", level: .error)
+        }
+    }
 }
+

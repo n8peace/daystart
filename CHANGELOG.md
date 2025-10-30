@@ -35,6 +35,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - RLS policies secure content_fetch_log table (service_role only)
   - Automatic cleanup of logs older than 7 days to prevent unbounded growth
 
+- **Re-engagement Notifications** - Intelligent win-back system for inactive subscribers
+  - Smart inactivity detection tracks days since last DayStart completion
+  - Three-tier notification strategy: gentle (7 days), value-focused (14 days), final attempt (28 days)
+  - Personalized messaging based on user's streak history and engagement patterns
+  - Respects user's preferred notification time and existing permission settings
+  - Auto-cancels when user returns to prevent notification spam
+  - User toggle in Advanced settings: "Re-engagement Reminders" (default: enabled)
+  - Leverages existing notification infrastructure for reliability and consistency
+  - Apple-compliant retention marketing using subscription context
+  - No background processing required - uses iOS notification scheduling APIs
+  - Revenue protection targeting 3-30 day inactive period (prime churn window)
+
+- **Timezone-Independent Scheduling** - True alarm clock behavior for international travelers
+  - Schedule times now stored as timezone-independent components (hour/minute only)
+  - Maintains same local time when traveling (7:00 AM stays 7:00 AM, like a phone alarm)
+  - Full DST (Daylight Saving Time) support with automatic transitions
+  - Backend correctly calculates UTC times for any timezone without client-side complexity
+  - Simplified implementation eliminates complex timezone change detection
+  - Zero performance impact - no background monitoring or API calls needed
+  - Backwards compatible with existing schedules using legacy `Date` storage
+  - Works seamlessly with existing `effectiveTime` and `effectiveTimeComponents` API
+
 ### Changed
 - **Content Refresh Strategy** - Always fetch fresh, use cache as backup
   - Previously: Only fetched new content after 7-day expiration

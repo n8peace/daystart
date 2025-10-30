@@ -139,6 +139,9 @@ final class StreakManager: ObservableObject {
                     await notificationScheduler.cancelTodaysMissedNotification()
                     await notificationScheduler.cancelTodaysEveningReminder()
                     
+                    // Cancel re-engagement notifications since user is active again
+                    await notificationScheduler.cancelReengagementNotifications()
+                    
                     // Update backend to mark as user_completed
                     do {
                         _ = try await ServiceRegistry.shared.supabaseClient.markDayStartCompleted(for: delivered)
@@ -175,6 +178,9 @@ final class StreakManager: ObservableObject {
                 Task {
                     await notificationScheduler.cancelTodaysMissedNotification()
                     await notificationScheduler.cancelTodaysEveningReminder()
+                    
+                    // Cancel re-engagement notifications since user is active again
+                    await notificationScheduler.cancelReengagementNotifications()
                     
                     // Update backend to mark as user_completed
                     do {
@@ -240,6 +246,37 @@ final class StreakManager: ObservableObject {
         f.timeZone = TimeZone.current
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: date)
+    }
+    
+    // MARK: - Re-engagement Support
+    
+    /// Date of most recent DayStart completion, nil if never completed
+    var lastCompletionDate: Date? {
+        guard !sameDayCompletionDates.isEmpty else { return nil }
+        
+        let calendar = Calendar.current
+        let sortedDates = sameDayCompletionDates.compactMap { dateString -> Date? in
+            let formatter = DateFormatter()
+            formatter.calendar = Calendar(identifier: .gregorian)
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone.current
+            formatter.dateFormat = "yyyy-MM-dd"
+            return formatter.date(from: dateString)
+        }.sorted(by: >)
+        
+        return sortedDates.first
+    }
+    
+    /// Number of days since last completion, 0 if completed today
+    var daysInactive: Int {
+        guard let lastDate = lastCompletionDate else { return Int.max }
+        
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let lastDay = calendar.startOfDay(for: lastDate)
+        
+        let components = calendar.dateComponents([.day], from: lastDay, to: today)
+        return max(0, components.day ?? 0)
     }
 }
 

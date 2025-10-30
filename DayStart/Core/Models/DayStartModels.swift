@@ -361,6 +361,7 @@ struct UserSettings: Codable, Equatable {
     var themePreference: ThemePreference
     var selectedSports: [SportType]
     var selectedNewsCategories: [NewsCategory]
+    var allowReengagementNotifications: Bool
     
     static func isValidStockSymbol(_ symbol: String) -> Bool {
         let trimmed = symbol.trimmingCharacters(in: .whitespaces).uppercased()
@@ -415,7 +416,8 @@ extension UserSettings {
             dayStartLength: 3, // Default 3 minutes
             themePreference: .system,
             selectedSports: SportType.allCases, // Default all sports selected
-            selectedNewsCategories: NewsCategory.allCases // Default all news categories selected
+            selectedNewsCategories: NewsCategory.allCases, // Default all news categories selected
+            allowReengagementNotifications: true // Default enabled
         )
     }
 }

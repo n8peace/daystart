@@ -74,6 +74,10 @@
             ReferencedContainer = "container:DayStart.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <LocationScenarioReference
+         identifier = "com.apple.dt.IDEFoundation.CurrentLocationScenarioIdentifier"
+         referenceType = "1">
+      </LocationScenarioReference>
       <StoreKitConfigurationFileReference
          identifier = "../../DayStart/DayStart.storekit">
       </StoreKitConfigurationFileReference>
