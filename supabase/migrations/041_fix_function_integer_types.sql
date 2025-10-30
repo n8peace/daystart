@@ -2,7 +2,11 @@
 -- PostgreSQL COUNT() returns BIGINT, not INTEGER
 -- Date: 2025-10-30
 
-CREATE OR REPLACE FUNCTION get_content_freshness_summary()
+-- Drop existing function first (required to change return type)
+DROP FUNCTION IF EXISTS get_content_freshness_summary();
+
+-- Recreate with correct return types
+CREATE FUNCTION get_content_freshness_summary()
 RETURNS TABLE(
   source TEXT,
   content_type TEXT,
