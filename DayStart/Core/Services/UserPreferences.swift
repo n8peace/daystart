@@ -415,8 +415,8 @@ class UserPreferences: ObservableObject {
             let weekday = calendar.component(.weekday, from: targetDate)
             guard let weekDay = WeekDay(weekday: weekday), schedule.repeatDays.contains(weekDay) else { continue }
             
-            // Build occurrence at scheduled time
-            let timeComponents = calendar.dateComponents([.hour, .minute], from: schedule.time)
+            // Build occurrence at scheduled time using timezone-independent components
+            let timeComponents = schedule.effectiveTimeComponents
             var components = calendar.dateComponents([.year, .month, .day], from: targetDate)
             components.hour = timeComponents.hour
             components.minute = timeComponents.minute

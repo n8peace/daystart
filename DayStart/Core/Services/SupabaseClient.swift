@@ -294,9 +294,10 @@ class SupabaseClient {
                 continue
             }
             
-            // Create scheduled time for this date
-            let scheduledTime = calendar.date(bySettingHour: calendar.component(.hour, from: schedule.time),
-                                              minute: calendar.component(.minute, from: schedule.time),
+            // Create scheduled time for this date using timezone-independent components
+            let timeComponents = schedule.effectiveTimeComponents
+            let scheduledTime = calendar.date(bySettingHour: timeComponents.hour ?? 7,
+                                              minute: timeComponents.minute ?? 0,
                                               second: 0,
                                               of: targetDate) ?? targetDate
             

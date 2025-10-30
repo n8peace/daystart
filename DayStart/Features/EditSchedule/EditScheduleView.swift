@@ -75,8 +75,8 @@ struct EditScheduleView: View {
     
     // Detect if there are unsaved changes compared to persisted preferences
     private var hasUnsavedChanges: Bool {
-        // Compare schedule fields
-        let timeChanged = abs(selectedTime.timeIntervalSince(userPreferences.schedule.time)) > 1.0
+        // Compare schedule fields - use effective time to handle timezone-independent comparison
+        let timeChanged = abs(selectedTime.timeIntervalSince(userPreferences.schedule.effectiveTime)) > 1.0
         let daysChanged = selectedDays != userPreferences.schedule.repeatDays
         // let skipTomorrowChanged = skipTomorrow != userPreferences.schedule.skipTomorrow // Skip tomorrow disabled
         
@@ -123,7 +123,7 @@ struct EditScheduleView: View {
     
     init() {
         let prefs = UserPreferences.shared
-        _selectedTime = State(initialValue: prefs.schedule.time)
+        _selectedTime = State(initialValue: prefs.schedule.effectiveTime)
         _selectedDays = State(initialValue: prefs.schedule.repeatDays)
         _skipTomorrow = State(initialValue: false) // Always false - skip tomorrow feature disabled
         _preferredName = State(initialValue: prefs.settings.preferredName)
@@ -744,7 +744,7 @@ struct EditScheduleView: View {
         
         // More robust time comparison - check if times differ by more than 1 second
         let timeChanged: Bool = {
-            let currentTime = userPreferences.schedule.time
+            let currentTime = userPreferences.schedule.effectiveTime
             let timeDifference = abs(selectedTime.timeIntervalSince(currentTime))
             let hasTimeChanged = timeDifference > 1.0 // 1 second threshold
             
@@ -767,12 +767,14 @@ struct EditScheduleView: View {
         
         DebugLogger.shared.logUserAction("Save EditSchedule changes")
         
-        // Schedule
-        userPreferences.schedule = DayStartSchedule(
-            time: selectedTime,
+        // Schedule - use timezone-independent time setting
+        var newSchedule = DayStartSchedule(
+            time: selectedTime, // Keep for backwards compatibility
             repeatDays: selectedDays,
             skipTomorrow: false // Always false - skip tomorrow feature disabled
         )
+        newSchedule.setTime(from: selectedTime) // Store timezone-independent components
+        userPreferences.schedule = newSchedule
         
         // Settings (mutate only fields we expose here)
         var settings = userPreferences.settings
@@ -852,7 +854,7 @@ struct DayToggleChip: View {
             Text(day.name)
                 .font(.caption)
                 .fontWeight(.regular)
-                .foregroundColor(isSelected ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.secondaryText)
+                .foregroundColor(.black)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .frame(width: 40, height: 40)
@@ -1158,7 +1160,7 @@ struct SportSelectionButton: View {
         Button(action: action) {
             Text(sport.displayName)
                 .font(.caption.weight(.medium))
-                .foregroundColor(isSelected ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.secondaryText)
+                .foregroundColor(.black)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(

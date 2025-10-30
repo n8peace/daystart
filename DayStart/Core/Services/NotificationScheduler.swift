@@ -46,8 +46,8 @@ class NotificationScheduler {
                 continue
             }
             
-            // Create the notification time for this day
-            let timeComponents = calendar.dateComponents([.hour, .minute], from: schedule.time)
+            // Create the notification time for this day using timezone-independent components
+            let timeComponents = schedule.effectiveTimeComponents
             var notificationComponents = calendar.dateComponents([.year, .month, .day], from: targetDate)
             notificationComponents.hour = timeComponents.hour
             notificationComponents.minute = timeComponents.minute
@@ -320,8 +320,8 @@ class NotificationScheduler {
         let localTomorrowDate = calendar.startOfDay(for: tomorrowDate)
         let tomorrowSnapshot = await SnapshotBuilder.shared.buildSnapshot(for: localTomorrowDate)
         
-        // Get scheduled time for tomorrow
-        let scheduledTime = await MainActor.run { UserPreferences.shared.schedule.time }
+        // Get scheduled time for tomorrow using timezone-independent time
+        let scheduledTime = await MainActor.run { UserPreferences.shared.schedule.effectiveTime }
         
         // Generate personalized night-before notification
         let (title, body) = NotificationContentGenerator.shared.generateNightBeforeNotification(

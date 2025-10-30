@@ -1329,7 +1329,7 @@ class HomeViewModel: ObservableObject {
     private func getTodayScheduledTime() -> Date? {
         let calendar = Calendar.current
         let now = Date()
-        let todayComponents = calendar.dateComponents([.hour, .minute], from: userPreferences.schedule.time)
+        let todayComponents = userPreferences.schedule.effectiveTimeComponents
         
         // Get today's scheduled time
         var components = calendar.dateComponents([.year, .month, .day], from: now)

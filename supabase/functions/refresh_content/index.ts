@@ -383,6 +383,16 @@ async function refreshContentAsync(request_id: string): Promise<void> {
     } catch (error) {
       console.error(`⚠️ Cleanup failed: ${error.message}`)
     }
+    
+    // Clean up old content fetch logs (runs ~once per day based on random chance)
+    if (Math.random() < 0.02) { // ~2% chance = roughly once every 50 runs = ~once per day
+      try {
+        const { data: logCleanupCount } = await supabase.rpc('cleanup_old_content_fetch_logs')
+        console.log(`🧹 Cleaned up ${logCleanupCount} old content fetch logs`)
+      } catch (error) {
+        console.error(`⚠️ Content fetch log cleanup failed: ${error.message}`)
+      }
+    }
 
     const duration = Date.now() - startTime
     

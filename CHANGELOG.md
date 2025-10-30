@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Tracks cache age when fallback is used (e.g., "Using 18h old cache")
   - New healthcheck section shows fresh/stale/critical sources at a glance
   - SQL function `get_content_freshness_summary()` for monitoring content age
+  - RLS policies secure content_fetch_log table (service_role only)
+  - Automatic cleanup of logs older than 7 days to prevent unbounded growth
 
 ### Changed
 - **Content Refresh Strategy** - Always fetch fresh, use cache as backup

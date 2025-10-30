@@ -657,7 +657,7 @@ struct HomeView: View {
                 .adaptiveFont(BananaTheme.Typography.title2)
                 .foregroundColor(BananaTheme.ColorToken.text)
             
-            let timeText = userPreferences.schedule.time.formatted(date: .omitted, time: .shortened)
+            let timeText = userPreferences.schedule.effectiveTime.formatted(date: .omitted, time: .shortened)
             let daysText = formatScheduleDays(userPreferences.schedule.repeatDays)
             
             Text("Scheduled for \(timeText) on \(daysText)")
@@ -677,7 +677,7 @@ struct HomeView: View {
         // If that fails, look further ahead (extended window)
         let calendar = Calendar.current
         let now = Date()
-        let todayComponents = calendar.dateComponents([.hour, .minute], from: userPreferences.schedule.time)
+        let todayComponents = userPreferences.schedule.effectiveTimeComponents
         
         // Look up to 14 days ahead
         for dayOffset in 0..<14 {

@@ -223,8 +223,8 @@ class AudioPrefetchManager {
                 }
             }
             
-            // Create the scheduled time for this date
-            let timeComponents = calendar.dateComponents([.hour, .minute], from: schedule.time)
+            // Create the scheduled time for this date using timezone-independent components
+            let timeComponents = schedule.effectiveTimeComponents
             var scheduledComponents = calendar.dateComponents([.year, .month, .day], from: candidateDate)
             scheduledComponents.hour = timeComponents.hour
             scheduledComponents.minute = timeComponents.minute
