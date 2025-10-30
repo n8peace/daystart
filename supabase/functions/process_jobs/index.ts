@@ -1507,7 +1507,13 @@ That's it for today. Have a good DayStart.
     const allSports = flattenAndParseSports(context.contentData?.sports || []);
     const validSports = filterValidSportsItems(allSports, context.date, context.timezone);
     const filteredSports = filterSportsByLeagues(validSports, context.selectedSports);
-    const sportsToday = filteredSports.slice(0, 15);
+    // Sort by significance_score to ensure championship games get priority
+    const sortedSports = filteredSports.sort((a, b) => {
+      const scoreA = a.significance_score || 0;
+      const scoreB = b.significance_score || 0;
+      return scoreB - scoreA; // Descending order
+    });
+    const sportsToday = sortedSports.slice(0, 15);
     const sportsTeamWhitelist = teamWhitelistFromSports(sportsToday);
     const dataForBand = {
       user: {
@@ -1864,9 +1870,23 @@ async function buildScriptPrompt(context: any): Promise<string> {
   // Enforce valid, present-day sports items only, then filter by selected leagues
   const validSports = filterValidSportsItems(allSports, context.date, context.timezone);
   const filteredSports = filterSportsByLeagues(validSports, context.selectedSports);
-  const sportsToday = filteredSports.slice(0, 15);
+  // Sort by significance_score to ensure championship games get priority
+  const sortedSports = filteredSports.sort((a, b) => {
+    const scoreA = a.significance_score || 0;
+    const scoreB = b.significance_score || 0;
+    return scoreB - scoreA; // Descending order
+  });
+  const sportsToday = sortedSports.slice(0, 15);
   
   console.log(`[DEBUG] Sports filtering: ${validSports.length} valid sports → ${filteredSports.length} matching selected leagues (${context.selectedSports?.join(', ') || 'none'}) → ${sportsToday.length} final`);
+  
+  // Log top 5 sports by significance for debugging
+  if (sportsToday.length > 0) {
+    console.log(`[DEBUG] Top sports by significance:`);
+    sportsToday.slice(0, 5).forEach((sport, i) => {
+      console.log(`  ${i + 1}. ${sport.event || sport.name} - Score: ${sport.significance_score || 0}, Spots: ${sport.sports_spots || 1}`);
+    });
+  }
 
   // Filter stocks based on market hours (exclude equities on weekends, keep crypto)
   const isWeekendDay = isWeekend(context.date, context.timezone);
@@ -2204,8 +2224,11 @@ You are an executive assistant delivering a personalized morning briefing. Creat
 ⚡ EXECUTION RULES
 CONTENT SELECTION:
 • News (${storyLimits.news} spots): US National → Local → International flow with contextual transitions
-• Sports (${storyLimits.sports} spots): Use game_type priority: championship > playoff > season_opener > rivalry > regular
-• CHAMPIONSHIP OVERRIDE: World Series/Finals games get priority regardless of spot limits  
+• Sports (${storyLimits.sports} spots): Use significance_score field - games are pre-sorted by importance
+  - Games with sports_spots: 3 = championship games requiring extended coverage
+  - Games with sports_spots: 2 = major events needing deeper analysis
+  - Always prioritize games with highest significance_score values
+• CHAMPIONSHIP OVERRIDE: World Series/Finals games (sports_spots: 3) get priority regardless of normal limits  
 • Stocks: ALWAYS mention ALL stocks.focus companies by name (user's personal picks)
 • Weather: Include temps/conditions with neighborhood specificity when available
 • Calendar: Prioritize personal/social events over routine meetings

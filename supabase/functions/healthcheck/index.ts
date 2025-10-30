@@ -84,6 +84,7 @@ async function runHealthcheckAsync({ request_id, notify, started_at }: { request
   checks.push(await withTimeout('db_connectivity', () => checkDbConnectivity(supabase), 3000))
   checks.push(await withTimeout('jobs_queue', () => checkJobsHealth(supabase), 5000))
   checks.push(await withTimeout('content_cache_freshness', () => checkContentCache(supabase), 4000))
+  checks.push(await withTimeout('content_fetch_status', () => checkContentFetchStatus(supabase), 4000))
   checks.push(await withTimeout('storage_access', () => checkStorageAccess(supabase), 8000))
   checks.push(await withTimeout('internal_urls', () => checkInternalUrls(), 6000))
   checks.push(await withTimeout('audio_cleanup_heartbeat', () => checkAudioCleanupHeartbeat(supabase), 3000))
@@ -607,6 +608,118 @@ async function checkContentCache(supabase: SupabaseClient): Promise<CheckResult>
   return { name: 'content_cache_freshness', status, details, duration_ms: Date.now() - start }
 }
 
+async function checkContentFetchStatus(supabase: SupabaseClient): Promise<CheckResult> {
+  const start = Date.now()
+  
+  try {
+    // Get content freshness summary using our new function
+    const { data: freshnessSummary, error } = await supabase
+      .rpc('get_content_freshness_summary')
+    
+    if (error) {
+      return { 
+        name: 'content_fetch_status', 
+        status: 'fail', 
+        error: error.message, 
+        duration_ms: Date.now() - start 
+      }
+    }
+    
+    if (!freshnessSummary || freshnessSummary.length === 0) {
+      return {
+        name: 'content_fetch_status',
+        status: 'warn',
+        details: { message: 'No content fetch history available yet' },
+        duration_ms: Date.now() - start
+      }
+    }
+    
+    // Analyze results
+    let status: CheckStatus = 'pass'
+    const criticalSources: any[] = []
+    const staleSources: any[] = []
+    const cacheOnlySources: any[] = []
+    const details: any = {
+      sources: {}
+    }
+    
+    for (const source of freshnessSummary) {
+      const sourceInfo: any = {
+        status: source.status,
+        last_success: source.last_success,
+        hours_since_success: source.hours_since_success,
+        current_cache_age: source.current_cache_age,
+        fallback_count_24h: source.fallback_count_24h,
+        failure_count_24h: source.failure_count_24h
+      }
+      
+      // Add max cache age used if there were fallbacks
+      if (source.max_cache_age_used) {
+        sourceInfo.max_cache_age_used = source.max_cache_age_used
+      }
+      
+      details.sources[source.source] = sourceInfo
+      
+      // Categorize problematic sources
+      if (source.status === 'critical') {
+        criticalSources.push({
+          name: source.source,
+          hours_since_success: source.hours_since_success || 'never',
+          failures: source.failure_count_24h
+        })
+        status = 'fail'
+      } else if (source.status === 'stale') {
+        staleSources.push({
+          name: source.source,
+          cache_age_hours: source.current_cache_age,
+          fallbacks: source.fallback_count_24h
+        })
+        if (status === 'pass') status = 'warn'
+      } else if (source.status === 'cache_only') {
+        cacheOnlySources.push({
+          name: source.source,
+          cache_age_hours: source.current_cache_age
+        })
+        if (status === 'pass') status = 'warn'
+      }
+    }
+    
+    // Add summary
+    details.summary = {
+      total_sources: freshnessSummary.length,
+      fresh_sources: freshnessSummary.filter(s => s.status === 'fresh').length,
+      recent_sources: freshnessSummary.filter(s => s.status === 'recent').length,
+      stale_sources: staleSources.length,
+      critical_sources: criticalSources.length,
+      cache_only_sources: cacheOnlySources.length
+    }
+    
+    if (criticalSources.length > 0) {
+      details.critical_sources = criticalSources
+      details.message = `${criticalSources.length} sources are critically stale or failing!`
+    } else if (staleSources.length > 0) {
+      details.stale_sources = staleSources
+      details.message = `${staleSources.length} sources are using stale cache`
+    } else {
+      details.message = 'All content sources are fresh'
+    }
+    
+    return {
+      name: 'content_fetch_status',
+      status,
+      details,
+      duration_ms: Date.now() - start
+    }
+  } catch (err) {
+    return { 
+      name: 'content_fetch_status', 
+      status: 'fail', 
+      error: (err as Error).message, 
+      duration_ms: Date.now() - start 
+    }
+  }
+}
+
 async function checkStorageAccess(supabase: SupabaseClient): Promise<CheckResult> {
   const start = Date.now()
   const { data: job } = await supabase
@@ -1121,6 +1234,46 @@ function buildEmailHtml(report: HealthReport & { ai_diagnosis?: string }): strin
           <div style="font-size:13px;line-height:1.5">
             ${cacheTableHtml}
             ${d.expiredEntries > 0 ? `<div style="margin-top:8px;font-size:12px;color:#6b7280">Total expired entries: ${d.expiredEntries}</div>` : ''}
+          </div>`
+      } else if (c.name === 'content_fetch_status' && c.details) {
+        const d = c.details as any
+        
+        // Build summary line
+        const summaryColor = d.summary?.critical_sources > 0 ? '#dc2626' : d.summary?.stale_sources > 0 ? '#f59e0b' : '#16a34a'
+        
+        detailsHtml = `
+          <div style="font-size:13px;line-height:1.5">
+            <div style="margin-bottom:8px;font-weight:600;color:${summaryColor}">
+              ${d.message || 'Content freshness status'}
+            </div>
+            ${d.summary ? `
+              <div style="font-size:12px;color:#6b7280;margin-bottom:8px">
+                Fresh: ${d.summary.fresh_sources} | Recent: ${d.summary.recent_sources} | 
+                Stale: ${d.summary.stale_sources} | Critical: ${d.summary.critical_sources}
+              </div>
+            ` : ''}
+            ${d.critical_sources?.length > 0 ? `
+              <div style="margin-bottom:8px">
+                <strong style="color:#dc2626">❌ Critical Sources:</strong>
+                ${d.critical_sources.map(s => `
+                  <div style="margin-left:16px;font-size:12px;color:#dc2626">
+                    ${s.name}: ${s.hours_since_success === 'never' ? 'Never succeeded' : `${s.hours_since_success}h since last success`} 
+                    (${s.failures} failures)
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+            ${d.stale_sources?.length > 0 ? `
+              <div style="margin-bottom:8px">
+                <strong style="color:#f59e0b">⚠️ Stale Sources:</strong>
+                ${d.stale_sources.map(s => `
+                  <div style="margin-left:16px;font-size:12px;color:#6b7280">
+                    ${s.name}: Using ${s.cache_age_hours}h old cache 
+                    ${s.fallbacks > 0 ? `(${s.fallbacks} fallbacks today)` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
           </div>`
       } else if (c.name === 'external_services' && c.details) {
         const d = c.details as any

@@ -266,6 +266,26 @@ async function refreshContentAsync(request_id: string): Promise<void> {
             results.failed++
           } else {
             console.log(`✅ Cached ${source.source} successfully`)
+            
+            // Count items fetched
+            let itemCount = 0
+            if (source.type === 'news' && (data as any).articles) {
+              itemCount = (data as any).articles.length
+            } else if (source.type === 'sports' && ((data as any).games || (data as any).events)) {
+              itemCount = ((data as any).games || (data as any).events).length
+            } else if (source.type === 'stocks' && (data as any).quotes) {
+              itemCount = Object.keys((data as any).quotes).length
+            }
+            
+            // Log successful fetch
+            await supabase.from('content_fetch_log').insert({
+              source: source.source,
+              content_type: source.type,
+              fetch_status: 'success',
+              items_fetched: itemCount,
+              api_response_time_ms: Date.now() - t0
+            })
+            
             results.successful++
             results.sources.push({ source: source.source, type: source.type, duration_ms: Date.now() - t0, success: true })
           }
@@ -277,9 +297,68 @@ async function refreshContentAsync(request_id: string): Promise<void> {
         }
       } catch (error) {
         console.error(`❌ Error fetching ${source.source}: ${error.message}`)
-        results.errors.push(`${source.source}: ${error.message}`)
-        results.failed++
-        results.sources.push({ source: source.source, type: source.type, duration_ms: 0, success: false, error: (error as Error).message })
+        
+        // Try to use cached content as fallback
+        try {
+          const { data: cachedData, error: cacheError } = await supabase
+            .from('content_cache')
+            .select('data, created_at')
+            .eq('content_type', source.type)
+            .eq('source', source.source)
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
+          
+          if (cachedData && !cacheError) {
+            // Calculate cache age
+            const cacheAgeMs = Date.now() - new Date(cachedData.created_at).getTime()
+            const cacheAgeHours = Math.round(cacheAgeMs / (1000 * 60 * 60) * 10) / 10
+            
+            console.warn(`⚠️ Using ${cacheAgeHours}h old cache for ${source.source} due to fetch error`)
+            
+            // Log the fallback usage
+            await supabase.from('content_fetch_log').insert({
+              source: source.source,
+              content_type: source.type,
+              fetch_status: 'failed_used_cache',
+              error_message: (error as Error).message,
+              cached_data_age_hours: cacheAgeHours,
+              api_response_time_ms: Date.now() - t0
+            })
+            
+            results.successful++
+            results.sources.push({ 
+              source: source.source, 
+              type: source.type, 
+              duration_ms: Date.now() - t0, 
+              success: true, 
+              cached_fallback: true,
+              cache_age_hours: cacheAgeHours 
+            })
+          } else {
+            // No cache available
+            console.error(`❌ No cache available for ${source.source}`)
+            
+            // Log the complete failure
+            await supabase.from('content_fetch_log').insert({
+              source: source.source,
+              content_type: source.type,
+              fetch_status: 'failed_no_cache',
+              error_message: (error as Error).message,
+              api_response_time_ms: Date.now() - t0
+            })
+            
+            results.errors.push(`${source.source}: ${error.message} (no cache available)`)
+            results.failed++
+            results.sources.push({ source: source.source, type: source.type, duration_ms: Date.now() - t0, success: false, error: (error as Error).message })
+          }
+        } catch (fallbackError) {
+          console.error(`❌ Fallback also failed for ${source.source}: ${fallbackError.message}`)
+          results.errors.push(`${source.source}: ${error.message} (fallback failed)`)
+          results.failed++
+          results.sources.push({ source: source.source, type: source.type, duration_ms: 0, success: false, error: (error as Error).message })
+        }
       }
     })
 

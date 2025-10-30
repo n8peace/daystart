@@ -40,11 +40,7 @@ struct PrimaryActionView: View {
                         .frame(height: 80)
                 }
                 .buttonStyle(InstantResponseStyle())
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .fill(BananaTheme.ColorToken.text)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                )
+                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
             case .welcomeReady:
                 Button(action: onStartTapped) {
                     Text("DayStart")
@@ -55,11 +51,7 @@ struct PrimaryActionView: View {
                         .frame(height: 80)
                 }
                 .buttonStyle(InstantResponseStyle())
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .fill(BananaTheme.ColorToken.text)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                )
+                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
             default:
                 EmptyView()
             }
@@ -814,10 +806,6 @@ struct HomeView: View {
                         .frame(height: 80)
                 }
                 .buttonStyle(InstantResponseStyle())
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .fill(BananaTheme.ColorToken.text)
-                )
             } else if let _ = viewModel.nextDayStartTime, viewModel.isNextDayStartToday {
                 Button(action: { 
                     hapticManager.impact(style: .medium)
@@ -831,10 +819,7 @@ struct HomeView: View {
                         .frame(height: 80)
                 }
                 .buttonStyle(InstantResponseStyle())
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
-                )
+                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: 20)
                 .accessibilityLabel("Start today's DayStart")
                 .accessibilityHint("Tap to begin your daily audio briefing")
             }

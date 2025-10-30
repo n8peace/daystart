@@ -8,29 +8,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## Added
-- **Intelligent News Filtering** - Enhanced content curation for personalized briefings
-  - AI-curated top stories prioritized when available
-  - Relevance scoring based on recency, source trust, content quality, and geographic proximity
-  - Category diversity enforcement (max 8 general, 4 business, 3 tech, etc.) for balanced coverage
-  - Reduced content volume from 40+ to max 25 articles sent to GPT for efficiency
-  - Geographic relevance boost: +20 points for city mentions, +10 for state, +5 for national
-  - All cached news sources now contribute (NewsDataIO, TheNewsAPI, NewsAPI.ai)
-  - Backwards compatible: No API or schema changes, just smarter filtering
+## [2025.11.1] - In Development
 
-## Fixed
-- **Stock Selection Behavior** - AI now respects user's exact stock selections
-  - When users select specific stocks, only those stocks are mentioned (no extras)
-  - When no stocks selected, popular defaults are shown (S&P 500, Dow, Bitcoin)
-  - Prevents AI from adding NVDA/AAPL when user only wanted BTC/RIVN/etc
-- **Regional NewsAPI Endpoints** - Removed 6 failing regional endpoints to reduce errors
-  - Commented out newsapi_local_us_[major/west/east/south/midwest] and newsapi_state_issues
-  - Geographic relevance now handled by intelligent filtering instead of separate API calls
-  - Reduces API limit errors while maintaining local news coverage through scoring
+**Build:** 1 | **Commit:** TBD | **Status:** 🚧 In Development
 
-## [2025.10.28] - In App Store Review
+### Added
+- **Content Freshness Tracking** - Maximum content freshness with intelligent fallback system
+  - New `content_fetch_log` table tracks all API fetch attempts and failures
+  - Healthcheck now shows which sources are using stale cache due to API failures
+  - Content fetched every 30 minutes (was only when 7-day cache expired!)
+  - Automatic fallback to cached content when APIs fail
+  - Tracks cache age when fallback is used (e.g., "Using 18h old cache")
+  - New healthcheck section shows fresh/stale/critical sources at a glance
+  - SQL function `get_content_freshness_summary()` for monitoring content age
 
-**Build:** 2 | **Commit:** 28cb77e | **Status:** 🚧 In App Store Review, Supabase Deployed
+### Changed
+- **Content Refresh Strategy** - Always fetch fresh, use cache as backup
+  - Previously: Only fetched new content after 7-day expiration
+  - Now: Attempts fresh fetch every 30 minutes, falls back to cache on failure
+  - Result: News/sports/stocks always < 30 minutes old when APIs work
+  - Maintains 7-day cache for reliability during API outages
+  - Logs all fetch attempts for visibility into content freshness
+
+### Fixed
+- **Week-old Content Issue** - Users no longer see stale news and outdated sports scores
+  - Root cause: Content was only refreshed after 168-hour TTL expiration
+  - Now content is always fresh with automatic fallback to cache
+  - Added comprehensive logging to track when cache fallback occurs
+
+### Removed
+
+---
+
+## [2025.10.28] - 2025-10-28
+
+**Build:** 2 | **Commit:** 28cb77e | **Status:** **LIVE** on App Store as of 2025-10-28
 
 ### Added
 - **Sport Selections** - Granular control over which sports leagues appear in briefings
@@ -54,6 +66,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Smart World Series detection: All late October (25-31) MLB games treated as championships
   - Enhanced sports intelligence with date-based inference for playoff context
   - Dodgers priority boost for LA users during playoffs (+25 significance points)
+- **Intelligent News Filtering** - Enhanced content curation for personalized briefings
+  - AI-curated top stories prioritized when available
+  - Relevance scoring based on recency, source trust, content quality, and geographic proximity
+  - Category diversity enforcement (max 8 general, 4 business, 3 tech, etc.) for balanced coverage
+  - Reduced content volume from 40+ to max 25 articles sent to GPT for efficiency
+  - Geographic relevance boost: +20 points for city mentions, +10 for state, +5 for national
+  - All cached news sources now contribute (NewsDataIO, TheNewsAPI, NewsAPI.ai)
+  - Backwards compatible: No API or schema changes, just smarter filtering
+- **Enhanced Sports Prioritization** - Championship games now guaranteed top coverage
+  - Sports sorted by significance_score before selection (World Series games score 100+)
+  - Debug logging shows top 5 sports with scores and spot allocations
+  - AI prompt updated to respect sports_spots field (3 = championships, 2 = major events)
+  - Ensures World Series and championship games appear first in briefings
 
 ### Changed
 - **ContentCard Architecture** - Redesigned EditScheduleView content section with expandable card system
@@ -123,6 +148,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Fixed using proper `Intl.DateTimeFormat` with noon time to avoid edge cases around midnight
   - Weekend filtering now works correctly: weekends show crypto + major ETFs only, weekdays show all equities + crypto
   - Tested across multiple timezones (LA, NY, London, Tokyo, Sydney) to ensure accuracy
+- **Stock Selection Behavior** - AI now respects user's exact stock selections
+  - When users select specific stocks, only those stocks are mentioned (no extras)
+  - When no stocks selected, popular defaults are shown (S&P 500, Dow, Bitcoin)
+  - Prevents AI from adding NVDA/AAPL when user only wanted BTC/RIVN/etc
+- **Regional NewsAPI Endpoints** - Removed 6 failing regional endpoints to reduce errors
+  - Commented out newsapi_local_us_[major/west/east/south/midwest] and newsapi_state_issues
+  - Geographic relevance now handled by intelligent filtering instead of separate API calls
+  - Reduces API limit errors while maintaining local news coverage through scoring
 
 ### Removed
 - **Complex Button Conditional Logic** - Simplified always-available approach

@@ -3,8 +3,8 @@
 ## Basic Information
 - **App Name:** DayStart AI: Morning Briefing
 - **Subtitle:** Wake Up. Get Briefed. Succeed.
-- **Current Version:** 2025.10.28 (Build 2) - **In App Store Review** 
-- **Previous Version:** 2025.10.24 (Build 1) - **LIVE** on App Store as of Oct 24, 2025
+- **Current Version:** 2025.11.1 (Build 1) - **In Development** 
+- **Previous Version:** 2025.10.28 (Build 2) - **LIVE** on App Store as of Oct 28, 2025
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 
@@ -64,23 +64,9 @@ Privacy Policy: https://daystart.bananaintelligence.ai/privacy
 Terms of Service: https://daystart.bananaintelligence.ai/terms
 ```
 
-## What's New in Version 2025.10.28
+## What's New in Version 2025.11.1
 ```
-Sports Intelligence Revolution: Take Control of Your Game Updates
-
-NEW: Granular Sports League Selection
-Choose exactly which sports leagues matter to you! Individual toggles for MLB, NHL, NBA, NFL, and NCAAF mean you only hear about the games you actually follow. No more unwanted hockey when you're baseball-focused, or basketball updates when football season is your priority.
-
-Enhanced World Series & Championship Coverage
-October just got smarter. Our AI now automatically detects championship context and prioritizes playoff coverage with multi-day data collection. World Series games get premium treatment with enhanced significance scoring and comprehensive coverage that adapts to the stakes.
-
-Always-Ready DayStart Experience
-Your briefing is always one tap away. We eliminated those empty greeting screens - now your DayStart button appears consistently, whether scheduled or on-demand. Plus, schedule information is always visible with intelligent fallbacks for every possible state.
-
-Redesigned Content Controls
-Beautiful new expandable cards for customizing your briefings. Sports selection features a clean 2-column grid with yellow selection states that follow our signature BananaTheme design. Each content type now has consistent, accessible controls.
-
-Perfect for leaders who demand precision in their morning intelligence.
+[What's new description to be added for version 2025.11.1]
 ```
 
 ## Categories
@@ -199,7 +185,7 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 - [x] Complete subscription metadata in App Store Connect
 - [x] Ensure Supabase backend is running during review
 
-### App Store Review Notes - Version 2025.10.28
+### App Store Review Notes - Version 2025.11.1
 ```
 QUICK TEST:
 1. Experience the Sports Intelligence Revolution
@@ -216,15 +202,9 @@ KEY FEATURES:
 - Professional voice synthesis via OpenAI TTS and ElevenLabs
 - No login required, privacy-first approach
 
-WHAT'S NEW IN 2025.10.28:
-- NEW Sports League Selection: Individual toggles for MLB, NHL, NBA, NFL, and NCAAF - users can now choose exactly which sports they follow rather than all-or-nothing
-- Enhanced Championship Detection: AI automatically detects World Series and playoff context for premium coverage during October
-- Always-Available DayStart Button: Eliminates empty greeting screens, briefing button now appears consistently
-- Always-Visible Schedule Info: Schedule display appears 100% of the time with intelligent fallbacks
-- Redesigned Content Controls: Beautiful expandable cards with 2-column sports grid using signature BananaTheme yellow selection states
-- Backward Compatibility: Existing users automatically get all sports selected by default
-- Smart Content Filtering: Only games from selected leagues appear in briefings
-- Core functionality unchanged: scheduling, audio generation, paywall flows work identically to previous version
+WHAT'S NEW IN 2025.11.1:
+- [Features to be added]
+- Core functionality unchanged: scheduling, audio generation, paywall flows work as in previous version
 
 WEATHERKIT:
 - Yes, app uses WeatherKit for weather data
@@ -271,7 +251,8 @@ CONTACT: nate@bananaintelligence.ai
 - [x] Build 2 (2025.10.16) submitted to App Store
 - [x] Build 2 (2025.10.19) submitted to App Store - Previous LIVE version (Oct 22, 2025)
 - [x] Build 1 (2025.10.24) submitted to App Store - Currently LIVE as of Oct 24, 2025
-- [ ] Build 2 (2025.10.28) - In development
+- [x] Build 2 (2025.10.28) submitted to App Store - Currently LIVE as of Oct 28, 2025
+- [ ] Build 1 (2025.11.1) - In development
 
 ### Remaining Tasks
 - [x] App Store Connect setup
