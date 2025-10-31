@@ -82,6 +82,14 @@ serve(async (req: Request): Promise<Response> => {
       return errorResponse('INVALID_JSON', 'Invalid JSON body', request_id);
     }
 
+    // Debug logging for news categories
+    console.log('📰 DEBUG: Received settings:', JSON.stringify(body.settings, null, 2));
+    if (body.settings?.selected_news_categories) {
+      console.log('📰 DEBUG: selected_news_categories received:', body.settings.selected_news_categories);
+    } else {
+      console.log('📰 DEBUG: selected_news_categories NOT found in request');
+    }
+
     const statuses = Array.isArray(body.statuses) && body.statuses.length > 0
       ? body.statuses
       : (['queued', 'failed'] as const);
@@ -229,7 +237,12 @@ function buildUpdatePayload(body: UpdateJobsRequest, localDate?: string): Record
   if (s.include_news !== undefined) payload.include_news = s.include_news;
   if (s.include_sports !== undefined) payload.include_sports = s.include_sports;
   if (s.selected_sports !== undefined) payload.selected_sports = s.selected_sports;
-  if (s.selected_news_categories !== undefined) payload.selected_news_categories = s.selected_news_categories;
+  if (s.selected_news_categories !== undefined) {
+    payload.selected_news_categories = s.selected_news_categories;
+    console.log('📰 DEBUG: Adding selected_news_categories to payload:', s.selected_news_categories);
+  } else {
+    console.log('📰 DEBUG: selected_news_categories is undefined, not adding to payload');
+  }
   if (s.include_stocks !== undefined) payload.include_stocks = s.include_stocks;
   if (s.stock_symbols !== undefined) payload.stock_symbols = s.stock_symbols;
   if (s.include_calendar !== undefined) payload.include_calendar = s.include_calendar;
@@ -259,6 +272,7 @@ function buildUpdatePayload(body: UpdateJobsRequest, localDate?: string): Record
     payload.estimated_ready_time = new Date(Date.now() + 90_000).toISOString();
   }
 
+  console.log('📰 DEBUG: Final update payload:', JSON.stringify(payload, null, 2));
   return payload;
 }
 
