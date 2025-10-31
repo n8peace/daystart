@@ -58,6 +58,12 @@ struct DayStartApp: App {
                         await triggerSnapshotUpdateOnForeground()
                     }
                 }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name.NSSystemTimeZoneDidChange)) { _ in
+                    // Handle timezone changes to maintain alarm clock behavior
+                    Task.detached {
+                        await handleTimezoneChange()
+                    }
+                }
         }
     }
     
@@ -187,6 +193,26 @@ struct DayStartApp: App {
             await DebugLogger.shared.log("✅ Audio session reconfigured after media services reset", level: .info)
         } catch {
             await DebugLogger.shared.logError(error, context: "Reconfiguring audio session after media services reset")
+        }
+    }
+    
+    /// Handle timezone changes to maintain alarm clock behavior
+    private func handleTimezoneChange() async {
+        await MainActor.run {
+            let userPreferences = UserPreferences.shared
+            
+            // Only update if user has active schedule
+            guard !userPreferences.schedule.repeatDays.isEmpty else {
+                logger.log("🌍 Timezone changed but no active schedule - skipping job updates", level: .info)
+                return
+            }
+            
+            logger.log("🌍 Timezone changed - updating scheduled jobs to maintain local time", level: .info)
+            
+            // Trigger timezone change handling in UserPreferences
+            Task.detached {
+                await userPreferences.updateJobsForTimezoneChange()
+            }
         }
     }
 }

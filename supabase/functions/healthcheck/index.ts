@@ -240,8 +240,14 @@ async function checkDayStartsCompleted(supabase: SupabaseClient): Promise<CheckR
       }
     }
     
-    // Count unique users who got DayStarts
-    const uniqueUsers = new Set(recentCompleted?.map(j => j.user_id) ?? []).size
+    // Count unique users who got DayStarts in the past 24 hours (separate query without limit)
+    const { data: allUserIds } = await supabase
+      .from('jobs')
+      .select('user_id')
+      .eq('status', 'ready')
+      .gte('completed_at', since24h)
+    
+    const uniqueUsers = new Set(allUserIds?.map(j => j.user_id) ?? []).size
     
     // Status based on volume
     let status: CheckStatus = 'pass'

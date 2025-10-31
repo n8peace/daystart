@@ -247,6 +247,55 @@ class UserPreferences: ObservableObject {
         }
     }
     
+    /// Update jobs when timezone changes to maintain alarm clock behavior
+    func updateJobsForTimezoneChange() async {
+        do {
+            let supabaseClient = ServiceRegistry.shared.supabaseClient
+            let currentSettings = await MainActor.run { self.settings }
+            let currentSchedule = await MainActor.run { self.schedule }
+            
+            // Get upcoming scheduled dates that need timezone updates
+            let upcomingDates = await MainActor.run { self.upcomingScheduledDates(windowHours: 72) }
+            guard !upcomingDates.isEmpty else {
+                await MainActor.run {
+                    logger.log("🌍 No upcoming scheduled dates to update for timezone change", level: .info)
+                }
+                return
+            }
+            
+            // Format current schedule time for backend recalculation (timezone-independent)
+            let scheduleTimeString: String = {
+                let components = currentSchedule.effectiveTimeComponents
+                let hour = String(format: "%02d", components.hour ?? 7)
+                let minute = String(format: "%02d", components.minute ?? 0)
+                return "\(hour):\(minute)"
+            }()
+            
+            await MainActor.run {
+                logger.log("🌍 Updating \(upcomingDates.count) jobs for timezone change to maintain \(scheduleTimeString) local time", level: .info)
+            }
+            
+            // Call updateJobs WITH scheduleTime parameter to trigger backend recalculation
+            let result = try await supabaseClient.updateJobs(
+                dates: upcomingDates,
+                with: currentSettings,
+                scheduleTime: scheduleTimeString // ← This triggers scheduled_at recalculation in new timezone
+            )
+            
+            await MainActor.run {
+                logger.log("🌍 Timezone change: Successfully updated \(result.updatedCount) jobs to maintain local time (\(scheduleTimeString))", level: .info)
+            }
+            
+            // Trigger snapshot update since times have changed
+            await triggerSnapshotUpdateForPreferenceChange()
+            
+        } catch {
+            await MainActor.run {
+                logger.logError(error, context: "Failed to update jobs for timezone change")
+            }
+        }
+    }
+    
     /// Update upcoming jobs for schedule changes (add/remove days)
     private func updateJobsForScheduleChange() async {
         do {

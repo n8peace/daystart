@@ -126,7 +126,13 @@ struct EditScheduleView: View {
     
     init() {
         let prefs = UserPreferences.shared
-        _selectedTime = State(initialValue: prefs.schedule.effectiveTime)
+        let effectiveTime = prefs.schedule.effectiveTime
+        let components = prefs.schedule.effectiveTimeComponents
+        
+        print("⚙️ EditScheduleView init - Components: \(components.hour ?? -1):\(String(format: "%02d", components.minute ?? 0))")
+        print("⚙️ EditScheduleView init - EffectiveTime: \(effectiveTime)")
+        
+        _selectedTime = State(initialValue: effectiveTime)
         _selectedDays = State(initialValue: prefs.schedule.repeatDays)
         _skipTomorrow = State(initialValue: false) // Always false - skip tomorrow feature disabled
         _preferredName = State(initialValue: prefs.settings.preferredName)

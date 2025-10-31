@@ -557,7 +557,9 @@ class HomeViewModel: ObservableObject {
         // Lightweight observers (no service loading)
         userPreferences.$schedule
             .sink { [weak self] newSchedule in
-                self?.logger.log("📅 Schedule observer triggered: time=\(FormatterCache.shared.shortTimeFormatter.string(from: newSchedule.time))", level: .debug)
+                let components = newSchedule.effectiveTimeComponents
+                let timeString = String(format: "%d:%02d", components.hour ?? 7, components.minute ?? 0)
+                self?.logger.log("📅 Schedule observer triggered: time=\(timeString)", level: .debug)
                 // Use same pattern as settings observer for immediate UI updates
                 Task { @MainActor in
                     self?.objectWillChange.send() // Force SwiftUI refresh

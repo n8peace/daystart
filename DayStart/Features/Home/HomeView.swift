@@ -657,7 +657,7 @@ struct HomeView: View {
                 .adaptiveFont(BananaTheme.Typography.title2)
                 .foregroundColor(BananaTheme.ColorToken.text)
             
-            let timeText = userPreferences.schedule.effectiveTime.formatted(date: .omitted, time: .shortened)
+            let timeText = formatScheduleTimeForDisplay(userPreferences.schedule)
             let daysText = formatScheduleDays(userPreferences.schedule.repeatDays)
             
             Text("Scheduled for \(timeText) on \(daysText)")
@@ -712,6 +712,27 @@ struct HomeView: View {
         }
     }
     
+    /// Format schedule time for display (timezone-agnostic)
+    /// Always shows the same local time regardless of device timezone
+    private func formatScheduleTimeForDisplay(_ schedule: DayStartSchedule) -> String {
+        let components = schedule.effectiveTimeComponents
+        let hour = components.hour ?? 7
+        let minute = components.minute ?? 0
+        
+        // Create timezone-agnostic formatter
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        formatter.timeZone = TimeZone(identifier: "UTC") // Use UTC to prevent timezone conversion
+        
+        // Create a fixed date with our time components in UTC
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let referenceDate = Date(timeIntervalSince1970: 946684800) // Jan 1, 2000
+        let timeDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: referenceDate)!
+        
+        return formatter.string(from: timeDate)
+    }
+    
     private func countdownContent(for nextTime: Date, timeUntil: TimeInterval) -> some View {
         VStack(spacing: 20) {
             Text("Starting in")
@@ -723,7 +744,7 @@ struct HomeView: View {
                 .foregroundColor(BananaTheme.ColorToken.primary)
             
             VStack(spacing: 4) {
-                Text(nextTime, style: .time)
+                Text(formatScheduleTimeForDisplay(userPreferences.schedule))
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundColor(BananaTheme.ColorToken.tertiaryText)
                 
@@ -747,7 +768,7 @@ struct HomeView: View {
                 .font(.system(size: 24, weight: .medium))
                 .foregroundColor(BananaTheme.ColorToken.secondaryText)
             
-            Text(nextTime, style: .time)
+            Text(formatScheduleTimeForDisplay(userPreferences.schedule))
                 .font(.system(size: 48, weight: .bold, design: .rounded))
                 .foregroundColor(BananaTheme.ColorToken.text)
                 
@@ -765,7 +786,7 @@ struct HomeView: View {
                     .font(.system(size: 24, weight: .medium))
                     .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.secondaryText : BananaTheme.ColorToken.tertiaryText)
                 
-                Text(nextTime, style: .time)
+                Text(formatScheduleTimeForDisplay(userPreferences.schedule))
                     .font(.system(size: 48, weight: .bold, design: .rounded))
                     .foregroundColor((viewModel.isNextDayStartTomorrow || viewModel.isNextDayStartToday) ? BananaTheme.ColorToken.text : BananaTheme.ColorToken.tertiaryText)
                 

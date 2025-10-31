@@ -66,27 +66,37 @@ struct DayStartSchedule: Codable, Equatable {
          repeatDays: Set<WeekDay> = Set(WeekDay.allCases),
          skipTomorrow: Bool = false) { // Note: skipTomorrow=false means "Next DayStart" toggle shows as ON
         self.time = time
-        self.timeComponents = nil // Will be set when user updates schedule
         self.repeatDays = repeatDays
         self.skipTomorrow = skipTomorrow
+        
+        // Auto-migrate: Extract timezone-independent components from legacy Date
+        // CRITICAL: Use the device's current timezone to extract the intended local time
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute], from: time)
+        self.timeComponents = DateComponents(hour: components.hour ?? 7, minute: components.minute ?? 0)
+        
     }
     
     // MARK: - Timezone-Independent Time Access
     
-    /// Returns the effective scheduled time, preferring timezone-independent components over legacy Date
+    /// Returns the effective scheduled time for display and DatePicker usage
+    /// This creates a Date in the current timezone with the stored hour/minute components
     var effectiveTime: Date {
         if let components = timeComponents {
-            // Use timezone-independent components (preferred)
+            // Create a time in the current timezone using our stored components
+            // This ensures DatePickers and display show the correct local time
             let calendar = Calendar.current
-            let now = Date()
-            let today = calendar.startOfDay(for: now)
+            let today = calendar.startOfDay(for: Date())
             
-            if let scheduledTime = calendar.date(byAdding: components, to: today) {
-                return scheduledTime
+            if let displayTime = calendar.date(bySettingHour: components.hour ?? 7, 
+                                               minute: components.minute ?? 0, 
+                                               second: 0, 
+                                               of: today) {
+                return displayTime
             }
         }
         
-        // Fallback to legacy Date storage
+        // Fallback to legacy Date storage for backwards compatibility
         return time
     }
     
@@ -103,7 +113,7 @@ struct DayStartSchedule: Codable, Equatable {
     
     /// Updates the scheduled time using timezone-independent components
     mutating func setTime(hour: Int, minute: Int) {
-        // Store as timezone-independent components
+        // Always store as timezone-independent components (primary storage)
         self.timeComponents = DateComponents(hour: hour, minute: minute)
         
         // Update legacy storage for backwards compatibility
@@ -113,7 +123,9 @@ struct DayStartSchedule: Codable, Equatable {
     }
     
     /// Updates the scheduled time from a Date (extracts components for timezone independence)
+    /// This ensures the time shown will always be the same regardless of timezone
     mutating func setTime(from date: Date) {
+        // Extract local time components from the date (ignore timezone)
         let calendar = Calendar.current
         let components = calendar.dateComponents([.hour, .minute], from: date)
         setTime(hour: components.hour ?? 7, minute: components.minute ?? 0)
