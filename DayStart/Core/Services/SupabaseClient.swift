@@ -441,6 +441,7 @@ class SupabaseClient {
                 include_news: settings.includeNews,
                 include_sports: settings.includeSports,
                 selected_sports: settings.selectedSports.map { $0.rawValue },
+                selected_news_categories: settings.selectedNewsCategories.map { $0.rawValue },
                 include_stocks: settings.includeStocks,
                 stock_symbols: settings.stockSymbols,
                 include_calendar: settings.includeCalendar,
@@ -779,6 +780,7 @@ private struct UpdateSettings: Codable {
     let include_news: Bool?
     let include_sports: Bool?
     let selected_sports: [String]?
+    let selected_news_categories: [String]?
     let include_stocks: Bool?
     let stock_symbols: [String]?
     let include_calendar: Bool?
