@@ -225,6 +225,10 @@ class UserPreferences: ObservableObject {
     func saveSettings() {
         let settingsToSave = settings
         
+        // Debug logging for news and sports settings being saved
+        logger.log("💾 Saving settings - News: includeNews=\(settingsToSave.includeNews), selectedNewsCategories=\(settingsToSave.selectedNewsCategories.map(\.rawValue))", level: .debug)
+        logger.log("💾 Saving settings - Sports: includeSports=\(settingsToSave.includeSports), selectedSports=\(settingsToSave.selectedSports.map(\.rawValue))", level: .debug)
+        
         // IMMEDIATE: Save to UserDefaults for fast access
         if let data = try? JSONEncoder().encode(settingsToSave) {
             userDefaults.set(data, forKey: "settings")
@@ -382,6 +386,11 @@ class UserPreferences: ObservableObject {
         guard !upcomingDates.isEmpty else { return }
         
         do {
+            // Debug logging before updating jobs
+            await MainActor.run {
+                logger.log("🔄 Updating \(upcomingDates.count) upcoming jobs with settings - News: includeNews=\(settings.includeNews), selectedNewsCategories=\(settings.selectedNewsCategories.map(\.rawValue))", level: .debug)
+            }
+            
             // LAZY: Only load SupabaseClient when actually updating jobs
             let supabaseClient = ServiceRegistry.shared.supabaseClient
             let result = try await supabaseClient.updateJobs(dates: upcomingDates, with: settings)

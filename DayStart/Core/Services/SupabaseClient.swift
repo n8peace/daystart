@@ -204,6 +204,12 @@ class SupabaseClient {
         let jsonData = try JSONEncoder().encode(jobRequest)
         request.httpBody = jsonData
         
+        // Debug logging for news specifically
+        logger.log("📰 News in create_job: includeNews=\(preferences.includeNews), selectedNewsCategories=\(preferences.selectedNewsCategories.map(\.rawValue))", level: .debug)
+        
+        // Debug logging for sports specifically  
+        logger.log("🏈 Sports in create_job: includeSports=\(preferences.includeSports), selectedSports=\(preferences.selectedSports.map(\.rawValue))", level: .debug)
+        
         // Log request payload
         if let requestString = String(data: jsonData, encoding: .utf8) {
             logger.log("📝 create_job payload: \(requestString)", level: .debug)
@@ -455,6 +461,9 @@ class SupabaseClient {
 
         // Debug logging for sports specifically
         logger.log("🏈 Sports in payload: includeSports=\(settings.includeSports), selectedSports=\(settings.selectedSports.map(\.rawValue))", level: .debug)
+        
+        // Debug logging for news specifically
+        logger.log("📰 News in payload: includeNews=\(settings.includeNews), selectedNewsCategories=\(settings.selectedNewsCategories.map(\.rawValue))", level: .debug)
 
         if let requestString = String(data: jsonData, encoding: .utf8) {
             logger.log("📝 update_jobs payload: \(requestString)", level: .debug)

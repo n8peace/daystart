@@ -66,7 +66,17 @@ Terms of Service: https://daystart.bananaintelligence.ai/terms
 
 ## What's New in Version 2025.11.1
 ```
-[What's new description to be added for version 2025.11.1]
+PERSONALIZE YOUR NEWS INTELLIGENCE
+
+Take control of your morning brief with granular news filtering! Choose from 5 categories (World, Business, Technology, Politics, Science) to craft your perfect briefing.
+
+NEW FEATURES:
+• News Category Selection - Filter news by your interests and priorities
+• Enhanced Content Freshness - Always-current news with intelligent fallback 
+• Re-engagement Notifications - Smart reminders to maintain your morning advantage
+• Timezone-Independent Scheduling
+
+Your morning brief, your priorities. Start ahead with intelligence that matters to you.
 ```
 
 ## Categories
@@ -203,7 +213,10 @@ KEY FEATURES:
 - No login required, privacy-first approach
 
 WHAT'S NEW IN 2025.11.1:
-- [Features to be added]
+- NEWS CATEGORY SELECTION: Choose from 5 categories (World, Business, Technology, Politics, Science) for personalized news filtering
+- Enhanced Content Freshness: Always-current news with intelligent 30-minute refresh cycles
+- Re-engagement Notifications: Smart reminders for inactive users to maintain their morning advantage  
+- Timezone-Independent Scheduling
 - Core functionality unchanged: scheduling, audio generation, paywall flows work as in previous version
 
 WEATHERKIT:

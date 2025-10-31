@@ -12,6 +12,7 @@ interface UpdateJobsRequest {
     include_news?: boolean;
     include_sports?: boolean;
     selected_sports?: string[];
+    selected_news_categories?: string[];
     include_stocks?: boolean;
     stock_symbols?: string[];
     include_calendar?: boolean;
@@ -228,6 +229,7 @@ function buildUpdatePayload(body: UpdateJobsRequest, localDate?: string): Record
   if (s.include_news !== undefined) payload.include_news = s.include_news;
   if (s.include_sports !== undefined) payload.include_sports = s.include_sports;
   if (s.selected_sports !== undefined) payload.selected_sports = s.selected_sports;
+  if (s.selected_news_categories !== undefined) payload.selected_news_categories = s.selected_news_categories;
   if (s.include_stocks !== undefined) payload.include_stocks = s.include_stocks;
   if (s.stock_symbols !== undefined) payload.stock_symbols = s.stock_symbols;
   if (s.include_calendar !== undefined) payload.include_calendar = s.include_calendar;
