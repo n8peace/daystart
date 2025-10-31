@@ -578,6 +578,15 @@ class HomeViewModel: ObservableObject {
             }
             .store(in: &cancellables)
         
+        // Observe timezone changes to restart countdown timer
+        NotificationCenter.default.publisher(for: NSNotification.Name.NSSystemTimeZoneDidChange)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.handleTimezoneChange()
+                }
+            }
+            .store(in: &cancellables)
+        
         // LAZY: Only observe welcome scheduler if it's enabled
         if !userPreferences.schedule.repeatDays.isEmpty {
             observeWelcomeSchedulerIfNeeded()
@@ -825,6 +834,34 @@ class HomeViewModel: ObservableObject {
         if newText != countdownText {
             countdownText = newText
         }
+    }
+    
+    /// Handle timezone changes by restarting countdown timer with updated time
+    private func handleTimezoneChange() {
+        logger.log("🌍 HomeViewModel: Timezone changed, checking if countdown timer needs restart", level: .info)
+        
+        // Only restart countdown timer if we're in idle state with an active timer
+        guard state == .idle, timer != nil else {
+            logger.log("🌍 HomeViewModel: No countdown timer restart needed - state: \(state), timer: \(timer != nil)", level: .debug)
+            return
+        }
+        
+        // Update state will trigger schedule recalculation and restart countdown if needed
+        debouncedUpdateState()
+        
+        logger.log("🌍 HomeViewModel: Triggered state update for timezone change", level: .info)
+    }
+    
+    /// Restart countdown timer with current nextDayStartTime
+    private func restartCountdownTimer() {
+        // Invalidate existing timer
+        timer?.invalidate()
+        timer = nil
+        
+        // Restart countdown display which will create new timer if appropriate
+        updateCountdownDisplay()
+        
+        logger.log("🌍 HomeViewModel: Countdown timer restarted for timezone change", level: .debug)
     }
     
     // MARK: - Audio Readiness & Preparing State
