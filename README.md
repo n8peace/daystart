@@ -20,7 +20,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation,
   - New: Granular sport selections, always-available DayStart button, enhanced World Series coverage
   - Includes simplified state machine, immediate job processing, enhanced share messages
   - Content card redesign, improved UX and performance optimizations
-- 🔨 **In Development**: v2025.11.1 Build 1 - New features coming soon
+- 📋 **Under Review**: v2025.11.1 Build 2 - Submitted to App Store for review
 
 ## Table of Contents
 - [Features](#features)
