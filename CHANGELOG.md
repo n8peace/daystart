@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.11.1] - Under Review
 
-**Build:** 2 | **Commit:** 761aa1d | **Status:** 📋 Submitted for App Store Review
+**Build:** 2 | **Commit:** ad5b209 | **Status:** 📋 Submitted for App Store Review
 
 ### Added
 - **News Category Selection** - Personalize your morning briefing with granular news filtering

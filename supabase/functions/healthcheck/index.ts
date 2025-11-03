@@ -1566,6 +1566,11 @@ function getJobsSummaryHtml(report: HealthReport): string {
   const jobsCheck = report.checks.find(c => c.name === 'jobs_queue')
   if (!jobsCheck?.details) return ''
   
+  // Extract project reference from Supabase URL for dashboard links
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+  const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || ''
+  const dashboardBase = projectRef ? `https://supabase.com/dashboard/project/${projectRef}` : ''
+  
   const details = jobsCheck.details as any
   const hasOverdue = details.overdue?.total > 0
   const hasTomorrow = details.tomorrowMorning?.total > 0

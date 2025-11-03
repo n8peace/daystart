@@ -64,14 +64,72 @@ function trustScore(name: string = ''): number {
 function flattenAndDedupeNews(newsData: any[] = []): any[] {
   const seen = new Set<string>();
   const out: any[] = [];
+  let failedSources = 0;
+  
   for (const src of newsData || []) {
-    for (const a of src?.data?.articles || []) {
-      const key = String(a.url || a.title || '').toLowerCase().slice(0, 180);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ ...a, sourceName: src.source, trust: trustScore(src.source) });
+    try {
+      // Validate source structure
+      if (!src || typeof src !== 'object') {
+        console.warn(`❌ Invalid news source structure: ${JSON.stringify(src)?.substring(0, 100)}`);
+        failedSources++;
+        continue;
+      }
+
+      // Parse data if it's a string
+      let articles = src?.data?.articles;
+      if (typeof src.data === 'string') {
+        try {
+          const parsed = JSON.parse(src.data);
+          articles = parsed?.articles;
+        } catch (parseError) {
+          console.error(`❌ Failed to parse news data from ${src.source}:`, {
+            error: parseError.message,
+            dataPreview: src.data?.substring(0, 200)
+          });
+          failedSources++;
+          continue;
+        }
+      }
+
+      // Validate articles array
+      if (!Array.isArray(articles)) {
+        console.warn(`❌ No valid articles from ${src.source}: ${typeof articles}`);
+        failedSources++;
+        continue;
+      }
+
+      let processedCount = 0;
+      for (const a of articles || []) {
+        try {
+          // Validate article structure
+          if (!a || typeof a !== 'object') continue;
+          
+          const key = String(a.url || a.title || '').toLowerCase().slice(0, 180);
+          if (!key || seen.has(key)) continue;
+          
+          seen.add(key);
+          out.push({ ...a, sourceName: src.source, trust: trustScore(src.source) });
+          processedCount++;
+        } catch (articleError) {
+          console.warn(`❌ Failed to process article from ${src.source}:`, articleError.message);
+        }
+      }
+      
+      console.log(`✅ Processed ${processedCount} articles from ${src.source}`);
+      
+    } catch (sourceError) {
+      console.error(`❌ Failed to process news source ${src?.source || 'unknown'}:`, {
+        error: sourceError.message,
+        source: src?.source
+      });
+      failedSources++;
     }
   }
+
+  if (failedSources > 0) {
+    console.warn(`⚠️ ${failedSources} news sources failed processing, continuing with ${out.length} articles`);
+  }
+
   // Newer + trusted first (light, non-opinionated ordering)
   return out.sort((a, b) => {
     const ta = new Date(a.publishedAt || 0).getTime();
@@ -201,49 +259,88 @@ function intelligentNewsFilter(newsData: any[], userContext: any, selectedCatego
 function flattenAndParseStocks(stocksData: any[] = []): any[] {
   const seen = new Set<string>();
   const out: any[] = [];
+  let failedSources = 0;
   
   for (const src of stocksData || []) {
     try {
+      // Validate source structure
+      if (!src || typeof src !== 'object') {
+        console.warn(`❌ Invalid stocks source structure: ${JSON.stringify(src)?.substring(0, 100)}`);
+        failedSources++;
+        continue;
+      }
+
       let quotes: any[] = [];
       
-      // Handle different data formats
+      // Handle different data formats with error handling
       if (typeof src.data === 'string') {
-        // Data is JSON-stringified, parse it
-        const parsed = JSON.parse(src.data);
-        quotes = parsed?.quotes || [];
+        try {
+          const parsed = JSON.parse(src.data);
+          quotes = parsed?.quotes || [];
+        } catch (parseError) {
+          console.error(`❌ Failed to parse stocks data from ${src.source}:`, {
+            error: parseError.message,
+            dataPreview: src.data?.substring(0, 200)
+          });
+          failedSources++;
+          continue;
+        }
       } else if (src.data?.quotes) {
-        // Data is already parsed with quotes array
         quotes = src.data.quotes;
       } else if (Array.isArray(src.data)) {
-        // Data is directly an array of stocks
         quotes = src.data;
       } else if (Array.isArray(src)) {
-        // Source itself is an array of stocks (backward compatibility)
         quotes = src;
+      } else {
+        console.warn(`❌ No valid quotes from ${src.source}: ${typeof src.data}`);
+        failedSources++;
+        continue;
+      }
+
+      if (!Array.isArray(quotes)) {
+        console.warn(`❌ Quotes not an array from ${src.source}: ${typeof quotes}`);
+        failedSources++;
+        continue;
       }
       
+      let processedCount = 0;
       // Add each quote to output, deduping by symbol
       for (const quote of quotes || []) {
-        const symbol = String(quote?.symbol || '').toUpperCase();
-        if (!symbol || seen.has(symbol)) continue;
-        
-        seen.add(symbol);
-        out.push({
-          name: quote.name || '',
-          symbol: quote.symbol || '',
-          price: quote.price || 0,
-          change: quote.change || 0,
-          change_percent: quote.change_percent || quote.chgPct || 0,
-          percentChange: quote.change_percent || quote.chgPct || 0, // Alias for backward compatibility
-          market_cap: quote.market_cap || 0,
-          timestamp: quote.timestamp || quote.fetched_at || new Date().toISOString(),
-          source: src.source || 'unknown'
-        });
+        try {
+          const symbol = String(quote?.symbol || '').toUpperCase();
+          if (!symbol || seen.has(symbol)) continue;
+          
+          seen.add(symbol);
+          out.push({
+            name: quote.name || '',
+            symbol: quote.symbol || '',
+            price: quote.price || 0,
+            change: quote.change || 0,
+            change_percent: quote.change_percent || quote.chgPct || 0,
+            percentChange: quote.change_percent || quote.chgPct || 0, // Alias for backward compatibility
+            market_cap: quote.market_cap || 0,
+            timestamp: quote.timestamp || quote.fetched_at || new Date().toISOString(),
+            source: src.source || 'unknown'
+          });
+          processedCount++;
+        } catch (quoteError) {
+          console.warn(`❌ Failed to process quote from ${src.source}:`, quoteError.message);
+        }
       }
+      
+      console.log(`✅ Processed ${processedCount} quotes from ${src.source}`);
+      
     } catch (error) {
-      console.warn(`[DEBUG] Failed to parse stock data from source ${src.source}:`, error);
-      // Continue with other sources even if one fails
+      console.error(`❌ Failed to parse stock data from source ${src?.source || 'unknown'}:`, {
+        error: error.message,
+        source: src?.source
+      });
+      failedSources++;
     }
+  }
+
+  if (failedSources > 0) {
+    console.warn(`⚠️ ${failedSources} stock sources failed processing, continuing with ${out.length} quotes`);
   }
   
   // Sort by market cap descending (larger companies first)
@@ -265,32 +362,56 @@ function filterSportsByLeagues(sportsItems: any[] = [], selectedSports: string[]
 function flattenAndParseSports(sportsData: any[] = []): any[] {
   const seen = new Set<string>();
   const out: any[] = [];
+  let failedSources = 0;
   
   for (const src of sportsData || []) {
     try {
+      // Validate source structure
+      if (!src || typeof src !== 'object') {
+        console.warn(`❌ Invalid sports source structure: ${JSON.stringify(src)?.substring(0, 100)}`);
+        failedSources++;
+        continue;
+      }
+
       let games: any[] = [];
       
-      // Handle different data formats
+      // Handle different data formats with error handling
       if (typeof src.data === 'string') {
-        // Data is JSON-stringified, parse it
-        const parsed = JSON.parse(src.data);
-        games = parsed?.games || parsed?.events || [];
+        try {
+          const parsed = JSON.parse(src.data);
+          games = parsed?.games || parsed?.events || [];
+        } catch (parseError) {
+          console.error(`❌ Failed to parse sports data from ${src.source}:`, {
+            error: parseError.message,
+            dataPreview: src.data?.substring(0, 200)
+          });
+          failedSources++;
+          continue;
+        }
       } else if (src.data?.games) {
-        // Data is already parsed with games array
         games = src.data.games;
       } else if (src.data?.events) {
-        // Data uses 'events' instead of 'games'
         games = src.data.events;
       } else if (Array.isArray(src.data)) {
-        // Data is directly an array of games
         games = src.data;
       } else if (Array.isArray(src)) {
-        // Source itself is an array of games (backward compatibility)
         games = src;
+      } else {
+        console.warn(`❌ No valid games from ${src.source}: ${typeof src.data}`);
+        failedSources++;
+        continue;
+      }
+
+      if (!Array.isArray(games)) {
+        console.warn(`❌ Games not an array from ${src.source}: ${typeof games}`);
+        failedSources++;
+        continue;
       }
       
+      let processedCount = 0;
       // Add each game to output, deduping by id
       for (const game of games || []) {
+        try {
         const gameId = String(game?.id || '');
         if (!gameId || seen.has(gameId)) continue;
         
@@ -311,25 +432,40 @@ function flattenAndParseSports(sportsData: any[] = []): any[] {
           away_score = competitors[1]?.score || '0';
         }
         
-        out.push({
-          id: game.id || '',
-          date: game.date || '',
-          name: game.name || `${away_team} at ${home_team}`,
-          status: game.status || 'UNKNOWN',
-          league: game.league || src.source || 'unknown',
-          competitors: game.competitors || [],
-          home_team,
-          away_team,
-          home_score,
-          away_score,
-          event: game.name || game.event || `${away_team} vs ${home_team}`,
-          source: src.source || 'unknown'
-        });
+          out.push({
+            id: game.id || '',
+            date: game.date || '',
+            name: game.name || `${away_team} at ${home_team}`,
+            status: game.status || 'UNKNOWN',
+            league: game.league || src.source || 'unknown',
+            competitors: game.competitors || [],
+            home_team,
+            away_team,
+            home_score,
+            away_score,
+            event: game.name || game.event || `${away_team} vs ${home_team}`,
+            source: src.source || 'unknown'
+          });
+          processedCount++;
+          
+        } catch (gameError) {
+          console.warn(`❌ Failed to process game from ${src.source}:`, gameError.message);
+        }
       }
+      
+      console.log(`✅ Processed ${processedCount} games from ${src.source}`);
+      
     } catch (error) {
-      console.warn(`[DEBUG] Failed to parse sports data from source ${src.source}:`, error);
-      // Continue with other sources even if one fails
+      console.error(`❌ Failed to parse sports data from source ${src?.source || 'unknown'}:`, {
+        error: error.message,
+        source: src?.source
+      });
+      failedSources++;
     }
+  }
+
+  if (failedSources > 0) {
+    console.warn(`⚠️ ${failedSources} sports sources failed processing, continuing with ${out.length} games`);
   }
   
   // Sort by date (most recent first)
@@ -1040,7 +1176,13 @@ async function processJobsAsync(worker_id: string, request_id: string, specificJ
         await processJob(supabase, leasedJobId, worker_id);
         processedCount++;
       } catch (error) {
-        console.error(`Failed to process job ${leasedJobId}:`, error);
+        console.error(`💥 FAILED TO PROCESS JOB ${leasedJobId}:`, {
+          error: error.message,
+          name: error.name,
+          stack: error.stack?.substring(0, 1000),
+          jobId: leasedJobId,
+          worker_id: worker_id
+        });
         failedCount++;
       }
     } else {
@@ -1078,7 +1220,13 @@ async function processJobsAsync(worker_id: string, request_id: string, specificJ
             const success = await processJob(supabase, jobId, worker_id);
             return { jobId, success, error: null };
           } catch (error) {
-            console.error(`Failed to process job ${jobId}:`, error);
+            console.error(`💥 BATCH JOB FAILED ${jobId}:`, {
+              error: error.message,
+              name: error.name,
+              stack: error.stack?.substring(0, 500),
+              jobId: jobId,
+              worker_id: worker_id
+            });
             
             // Mark job as failed
             await supabase
@@ -1136,10 +1284,12 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
     throw new Error('Job not found');
   }
 
-  console.log(`Processing DayStart for ${job.user_id} on ${job.local_date}`);
+  console.log(`🚀 Processing DayStart for ${job.user_id} on ${job.local_date} (job_id: ${jobId})`);
 
   // Generate script content and track costs
+  console.log(`📝 Starting script generation for job ${jobId}...`);
   const scriptResult = await generateScript(job);
+  console.log(`✅ Script generation completed for job ${jobId}. Cost: $${scriptResult.cost}`);
   
   // Validate social DayStart script contains required elements
   if (job.social_daystart) {
@@ -1164,35 +1314,50 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
     .eq('job_id', jobId);
 
   // Generate audio with retry logic
+  console.log(`🎙️ Starting audio generation for job ${jobId}...`);
   let audioResult: any = null;
   let lastError: string = '';
   
   for (let attempt = 1; attempt <= 3; attempt++) {
+    console.log(`🎯 Audio attempt ${attempt}/3 for job ${jobId}...`);
     const result = await generateAudio(scriptResult.content, job, attempt);
     
     if (result.success) {
       audioResult = result;
-      if (attempt > 1) {
-        console.log(`Audio generation succeeded on attempt ${attempt} using ${result.provider}`);
-      }
+      console.log(`✅ Audio generation succeeded on attempt ${attempt} using ${result.provider} for job ${jobId}. Cost: $${result.cost}`);
       break;
     }
     
     lastError = result.error || 'Unknown error';
-    console.log(`Audio generation attempt ${attempt} failed: ${lastError}`);
+    console.error(`❌ Audio generation attempt ${attempt} failed for job ${jobId}:`, {
+      error: lastError,
+      provider: attempt <= 2 ? 'OpenAI' : 'ElevenLabs',
+      scriptLength: scriptResult.content.length,
+      jobId: jobId
+    });
     
     if (attempt < 3) {
-      // Wait before retry
-      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      const delayMs = 1000 * attempt;
+      console.log(`⏳ Retrying audio generation in ${delayMs}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
   
   if (!audioResult || !audioResult.success) {
+    console.error(`💥 AUDIO GENERATION FAILED for job ${jobId} after 3 attempts:`, {
+      finalError: lastError,
+      jobId: jobId,
+      userId: job.user_id,
+      localDate: job.local_date,
+      scriptLength: scriptResult.content.length,
+      attempts: 3
+    });
     throw new Error(`Audio generation failed after 3 attempts: ${lastError}`);
   }
 
   // Upload audio to storage
   const audioPath = `${job.user_id}/${job.local_date}/${jobId}.aac`;
+  console.log(`💾 Uploading audio for job ${jobId} to path: ${audioPath}`);
   
   const { error: uploadError } = await supabase.storage
     .from('daystart-audio')
@@ -1202,8 +1367,15 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
     });
 
   if (uploadError) {
+    console.error(`❌ Audio upload failed for job ${jobId}:`, {
+      error: uploadError,
+      path: audioPath,
+      audioDataSize: audioResult.audioData?.length
+    });
     throw new Error(`Audio upload failed: ${uploadError.message}`);
   }
+  
+  console.log(`✅ Audio uploaded successfully for job ${jobId}`);
 
   // Calculate total cost
   const totalCost = Number((scriptResult.cost + (audioResult.cost ?? 0)).toFixed(5));
@@ -1289,7 +1461,14 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     }
     
     if (contentError) {
-      console.error('[DEBUG] Error fetching content:', contentError);
+      console.error('[DEBUG] ❌ CONTENT FETCH ERROR:', {
+        error: contentError,
+        message: contentError?.message,
+        details: contentError?.details,
+        hint: contentError?.hint,
+        code: contentError?.code,
+        requestedTypes: contentTypes
+      });
     }
     
     contentData = freshContent || {};
@@ -1761,8 +1940,11 @@ function normalizeSymbol(symbol: string): string {
 }
 
 async function generateAudioWithOpenAI(script: string, job: any): Promise<{success: boolean, audioData?: Uint8Array, duration?: number, cost?: number, provider?: string, error?: string}> {
+  console.log(`🤖 Starting OpenAI TTS for job ${job.job_id}, script length: ${script.length} chars`);
+  
   const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openaiApiKey) {
+    console.error(`❌ OpenAI API key not configured for job ${job.job_id}`);
     throw new Error('OpenAI API key not configured');
   }
 
@@ -1800,7 +1982,15 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
 
     if (!response.ok) {
       const errorText = await response.text();
-      return { success: false, error: `OpenAI TTS API error: ${response.status} - ${errorText}` };
+      const errorMsg = `OpenAI TTS API error: ${response.status} - ${errorText}`;
+      console.error(`❌ OpenAI TTS API failure for job ${job.job_id}:`, {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+        voice: voice,
+        scriptLength: script.length
+      });
+      return { success: false, error: errorMsg };
     }
 
     const audioData = new Uint8Array(await response.arrayBuffer());
@@ -1827,7 +2017,13 @@ async function generateAudioWithOpenAI(script: string, job: any): Promise<{succe
       provider: 'openai'
     };
   } catch (error) {
-    console.error('OpenAI TTS error:', error);
+    console.error(`❌ OpenAI TTS exception for job ${job.job_id}:`, {
+      error: error.message,
+      name: error.name,
+      stack: error.stack?.substring(0, 500),
+      scriptLength: script.length,
+      voice: voice
+    });
     return { success: false, error: error.message };
   }
 }
@@ -1954,6 +2150,32 @@ async function buildScriptPrompt(context: any): Promise<string> {
   const encouragement = dayContext.encouragements.length > 0 
     ? randomChoice(dayContext.encouragements) 
     : "";
+
+  // Validate minimum content requirements
+  const contentSummary = {
+    news: filteredNews.length,
+    sports: sportsToday.length,
+    stocks: filteredStocks.length,
+    calendar: Array.isArray(context.calendarEvents) ? context.calendarEvents.length : 0,
+    weather: context.weatherData ? 1 : 0
+  };
+
+  const totalContent = Object.values(contentSummary).reduce((sum, count) => sum + count, 0);
+  
+  if (totalContent === 0) {
+    console.warn(`⚠️ WARNING: No content available for script generation`, contentSummary);
+    // Add fallback content to prevent script generation failure
+    filteredNews.push({
+      title: "Content temporarily unavailable",
+      description: "We're working to restore full content feeds. Please check back shortly.",
+      sourceName: "DayStart",
+      category: "general"
+    });
+  } else if (totalContent < 3) {
+    console.warn(`⚠️ WARNING: Limited content available (${totalContent} items)`, contentSummary);
+  } else {
+    console.log(`✅ Content validation passed: ${totalContent} items available`, contentSummary);
+  }
 
   // Provide machine-readable context so the model can cite specifics cleanly
   const data = {
