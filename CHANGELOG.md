@@ -8,9 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2025.11.1] - Under Review
+## [2025.11.10] - In Development
 
-**Build:** 2 | **Commit:** ad5b209 | **Status:** 📋 Submitted for App Store Review
+**Build:** 1 | **Commit:** TBD | **Status:** 🚧 In Development
+
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+---
+
+## [2025.11.1] - 2025-11-02
+
+**Build:** 2 | **Commit:** ad5b209 | **Status:** **LIVE** on App Store as of 2025-11-02
 
 ### Added
 - **News Category Selection** - Personalize your morning briefing with granular news filtering

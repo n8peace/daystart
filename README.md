@@ -8,7 +8,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation,
 
 ## 🚀 App Store Status
 
-**Current Status**: Live on App Store (v2025.10.28 Build 2) as of October 28, 2025
+**Current Status**: Live on App Store (v2025.11.1 Build 2) as of November 2, 2025
 - ✅ Backend deployed and tested in production with receipt-based authentication
 - ✅ App Store Connect configured with subscription products ($4.99/month, $39.99/year)
 - ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete
@@ -16,11 +16,11 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation,
 - ✅ New positioning as "Your Personal Morning Brief" targeting ambitious professionals
 - ✅ 3-minute intelligence briefings with dynamic content scaling
 - ✅ Welcome Brief for new users (60-second personalized introduction)
-- 🟢 **Live**: v2025.10.28 Build 2 available for download on the App Store as of October 28, 2025
-  - New: Granular sport selections, always-available DayStart button, enhanced World Series coverage
-  - Includes simplified state machine, immediate job processing, enhanced share messages
-  - Content card redesign, improved UX and performance optimizations
-- 📋 **Under Review**: v2025.11.1 Build 2 - Submitted to App Store for review
+- 🟢 **Live**: v2025.11.1 Build 2 available for download on the App Store as of November 2, 2025
+  - New: News category selection, content freshness tracking, re-engagement notifications
+  - Enhanced timezone-independent scheduling, improved content refresh strategy
+  - Backwards-compatible database migrations and enhanced user experience
+- 🚧 **In Development**: v2025.11.10 Build 1 - Development build in progress
 
 ## Table of Contents
 - [Features](#features)
