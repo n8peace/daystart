@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2026.01.23] - In Development
 
-**Build:** 1 | **Commit:** b8d09c4 | **Status:** 🚧 In Development
+**Build:** 1 | **Commit:** 0b418ff | **Status:** 🚧 Submitted for Review, Jan 23, 2026
 
 ### Added
 - **Firebase Analytics Integration** - Added Google Analytics tracking for app insights
@@ -49,9 +49,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Fixed audio not playing due to premature playback attempt before loading completed
   - Welcome DayStart now reliably plays after generation completes
 
-- **Share Functionality** - Fixed DayStart sharing failing with 500 error
-  - Fixed edge function crash caused by unpinned Supabase JS dependency
-  - Pinned `@supabase/supabase-js` to version 2.39.3 (auto-resolved 2.92.0 had Deno compatibility bug)
+- **Share Functionality** - Fixed DayStart sharing failing with CORS preflight error
+  - Root cause: Edge function crash during initialization before handling any requests
+  - Unpinned `@supabase/supabase-js@2` import allowed esm.sh to serve v2.92.0
+  - Version 2.92.0 incompatible with Deno v2.1.4 runtime (createRequire error)
+  - Pinned to `@supabase/supabase-js@2.39.3` matching other working edge functions
   - Share links now generate successfully from audio player and completion screens
 
 - **Audio Playback Loop** - Fixed welcome audio looping after onboarding

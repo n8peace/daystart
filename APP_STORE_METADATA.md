@@ -3,7 +3,7 @@
 ## Basic Information
 - **App Name:** DayStart AI: Morning Briefing
 - **Subtitle:** Wake Up. Get Briefed. Succeed.
-- **In Development:** 2026.01.23 (Build 1) - 🚧 Development build
+- **In Development:** 2026.01.23 (Build 1) - 🚧 Submitted for Review, Jan 23, 2026
 - **Current Version:** 2025.11.1 (Build 2) - **LIVE** on App Store as of Nov 2, 2025
 - **Previous Version:** 2025.10.28 (Build 2) - Previously LIVE on App Store
 - **Support URL:** https://daystart.bananaintelligence.ai
@@ -68,7 +68,20 @@ Terms of Service: https://daystart.bananaintelligence.ai/terms
 
 ## What's New in Version 2026.01.23
 ```
-TBD - Features and improvements for the next release will be documented here.
+MORE FLEXIBILITY. BETTER EXPERIENCE. ROCK-SOLID RELIABILITY.
+
+NEW FEATURES:
+• Weekly Subscription - Try DayStart for just $1.99/week with no trial commitment
+• Enhanced Analytics - Improved crash reporting for better app stability
+• Streamlined Paywall - Cleaner, more focused subscription experience
+
+RELIABILITY IMPROVEMENTS:
+• Settings Persistence - Your preferences now survive app updates (never lose your personalization again)
+• Fixed Welcome Briefing - New users get a perfect onboarding experience
+• Fixed Share Functionality - Share your briefings with friends and colleagues
+• Improved Audio Playback - Smoother, more reliable playback experience
+
+Your morning intelligence platform, now more accessible and reliable than ever.
 ```
 
 ## What's New in Version 2025.11.1
@@ -226,6 +239,52 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 - [x] Complete subscription metadata in App Store Connect
 - [x] Ensure Supabase backend is running during review
 
+### App Store Review Notes - Version 2026.01.23
+```
+QUICK TEST:
+1. Complete onboarding → Try NEW Weekly Subscription ($1.99, no trial) or start free trial
+2. Receive your first Personal Morning Brief (generated in ~2 minutes)
+3. Test Share Functionality: Play briefing → Tap share icon → Share link with contacts
+4. Verify Settings Persistence: Change name/preferences → Force quit app → Reopen (settings should persist)
+
+POSITIONING:
+DayStart AI delivers a Personal Morning Brief, the same type of intelligence briefing successful executives receive. We've democratized this advantage for ambitious professionals.
+
+KEY FEATURES:
+- 3 minute audio intelligence briefs
+- Personalized to each user's priorities
+- Professional voice synthesis via OpenAI TTS and ElevenLabs
+- No login required, privacy-first approach
+
+WHAT'S NEW IN 2026.01.23:
+- WEEKLY SUBSCRIPTION: New $1.99/week option with no trial for immediate access (first pricing tier)
+- FIREBASE ANALYTICS: Integrated crash reporting for improved stability
+- STREAMLINED PAYWALL: Cleaner design with dynamic pricing visibility
+- CRITICAL FIXES: Settings persistence, Welcome DayStart generation, share functionality, audio playback reliability
+- Core functionality unchanged: scheduling, audio generation, news/sports selection work as in previous version
+
+WEATHERKIT:
+- Yes, app uses WeatherKit for weather data
+- Weather plays automatically in every briefing (no navigation needed)
+- Toggle weather: Onboarding page 5 or Edit screen
+- Apple Weather attribution properly displayed
+
+SUBSCRIPTIONS:
+- Product IDs: daystart_weekly_subscription, daystart_monthly_subscription, daystart_annual_subscription
+- Free trials: None (weekly), 3-day (monthly), 7-day (annual)
+- No login required, uses StoreKit receipt IDs
+
+BACKGROUND PROCESSING:
+Essential for prefetching audio before scheduled wake time using BGTaskScheduler. Prevents playback delays and enables offline functionality.
+
+PERMISSIONS (BOTH OPTIONAL):
+- Location: Weather updates only
+- Calendar: Event summaries only
+- App works fully without any permissions (graceful degradation)
+
+CONTACT: nate@bananaintelligence.ai
+```
+
 ### App Store Review Notes - Version 2025.11.1
 ```
 QUICK TEST:
@@ -246,7 +305,7 @@ KEY FEATURES:
 WHAT'S NEW IN 2025.11.1:
 - NEWS CATEGORY SELECTION: Choose from 5 categories (World, Business, Technology, Politics, Science) for personalized news filtering
 - Enhanced Content Freshness: Always-current news with intelligent 30-minute refresh cycles
-- Re-engagement Notifications: Smart reminders for inactive users to maintain their morning advantage  
+- Re-engagement Notifications: Smart reminders for inactive users to maintain their morning advantage
 - Timezone-Independent Scheduling
 - Core functionality unchanged: scheduling, audio generation, paywall flows work as in previous version
 
