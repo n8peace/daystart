@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyA5WSUPMMp5ZyNfjfLTg3ImWCN4Vj2f9Oc</string>
+	<key>GCM_SENDER_ID</key>
+	<string>316697200731</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>ai.bananaintelligence.DayStart</string>
+	<key>PROJECT_ID</key>
+	<string>banana-intelligence</string>
+	<key>STORAGE_BUCKET</key>
+	<string>banana-intelligence.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:316697200731:ios:7b425dc1129ee6f764d77e</string>
+</dict>
+</plist>

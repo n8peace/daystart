@@ -32,18 +32,20 @@ extension DayStartApp {
             case .notPurchased:
                 // Show onboarding flow (includes paywall)
                 OnboardingView {
-                    UserPreferences.shared.hasCompletedOnboarding = true
+                    logger.log("🎓 Auth: Onboarding completion callback - setting hasCompletedOnboarding = true", level: .info)
+                    userPreferences.hasCompletedOnboarding = true
                 }
                 .onAppear {
                     logger.log("🆓 Auth: No purchase found, showing onboarding", level: .info)
                 }
                 
             case .purchased:
-                // Show main app for paid users
-                if !UserPreferences.shared.hasCompletedOnboarding {
+                // Show main app for paid users or onboarding if needed
+                if !userPreferences.hasCompletedOnboarding {
                     // First time setup after purchase
                     OnboardingView {
-                        UserPreferences.shared.hasCompletedOnboarding = true
+                        logger.log("🎓 Auth: Post-purchase onboarding completion - setting hasCompletedOnboarding = true", level: .info)
+                        userPreferences.hasCompletedOnboarding = true
                     }
                     .onAppear {
                         logger.log("💰 Auth: Purchase found, onboarding incomplete - showing onboarding", level: .info)
@@ -51,7 +53,7 @@ extension DayStartApp {
                 } else {
                     // Regular app usage
                     ContentView()
-                        .environmentObject(UserPreferences.shared)
+                        .environmentObject(userPreferences)
                         .environmentObject(themeManager)
                         .preferredColorScheme(themeManager.effectiveColorScheme)
                         .accentColor(BananaTheme.ColorToken.primary)
@@ -60,10 +62,16 @@ extension DayStartApp {
                             updateNavigationAppearance(for: colorScheme)
                         }
                         .onAppear {
-                            logger.log("✅ Auth: Purchase found, onboarding complete - showing main app (hasCompletedOnboarding: \(UserPreferences.shared.hasCompletedOnboarding))", level: .info)
+                            logger.log("✅ Auth: Purchase found, onboarding complete - showing main app (hasCompletedOnboarding: \(userPreferences.hasCompletedOnboarding))", level: .info)
                         }
                 }
             }
+        }
+        .onReceive(userPreferences.$hasCompletedOnboarding) { hasCompleted in
+            logger.log("🔄 Auth: Received hasCompletedOnboarding change: \(hasCompleted), purchaseState: \(purchaseManager.purchaseState)", level: .info)
+        }
+        .onReceive(purchaseManager.$purchaseState) { purchaseState in
+            logger.log("🔄 Auth: Received purchaseState change: \(purchaseState), hasCompletedOnboarding: \(userPreferences.hasCompletedOnboarding)", level: .info)
         }
     }
     

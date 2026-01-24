@@ -15,9 +15,9 @@ struct SplashScreenView: View {
             // Full screen centered image
             Image("SplashIcon")
                 .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
+                .scaledToFill()
+                .frame(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height)
+                .ignoresSafeArea()
                 .opacity(opacity)
             
             // Loading indicator at bottom

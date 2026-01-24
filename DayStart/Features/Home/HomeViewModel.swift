@@ -108,7 +108,14 @@ class StateTransitionManager {
     }
     
     private func canTransition(from currentState: HomeViewModel.AppState, to newState: HomeViewModel.AppState) -> Bool {
-        // Allow any transition for now - can add validation logic later
+        // Prevent any transitions away from playing state
+        // Only audio completion handlers should transition from playing
+        if currentState == .playing && newState != .playing {
+            logger.log("⚠️ Blocked invalid transition from playing to \(newState)", level: .warning)
+            return false
+        }
+
+        // Allow all other transitions
         return true
     }
 }
@@ -141,6 +148,7 @@ class HomeViewModel: ObservableObject {
     @Published var nextDayStartTime: Date?
     @Published var currentDayStart: DayStartData?
     @Published var showNoScheduleMessage = false
+    @Published var showWelcomeExperiencedMessage = false
     @Published var hasCompletedCurrentOccurrence = false
     @Published var isNextDayStartTomorrow = false
     @Published var isNextDayStartToday = false
@@ -573,7 +581,7 @@ class HomeViewModel: ObservableObject {
             .sink { [weak self] _ in
                 Task { @MainActor in
                     self?.objectWillChange.send()
-                    self?.performStateUpdate()
+                    await self?.performStateUpdate()
                 }
             }
             .store(in: &cancellables)
@@ -660,7 +668,9 @@ class HomeViewModel: ObservableObject {
                     self.isTransitioning = false
                 }
             }
-            self?.performStateUpdate()
+            Task {
+                await self?.performStateUpdate()
+            }
         }
         
         if let workItem = updateStateWorkItem {
@@ -669,10 +679,12 @@ class HomeViewModel: ObservableObject {
     }
     
     private func updateState() {
-        performStateUpdate()
+        Task {
+            await performStateUpdate()
+        }
     }
     
-    private func performStateUpdate() {
+    private func performStateUpdate() async {
         logger.log("🎵 HomeViewModel: updateState() called", level: .debug)
         
         // Prevent rapid state transitions
@@ -689,7 +701,15 @@ class HomeViewModel: ObservableObject {
             logger.log("⚠️ State change too rapid, skipping", level: .debug)
             return
         }
-        
+
+        // Don't update state if currently playing audio
+        // Only audio completion should transition away from playing
+        if state == .playing {
+            logger.log("⏸️ Skipping state update - audio is playing", level: .debug)
+            isTransitioning = false
+            return
+        }
+
         isTransitioning = true
         lastStateChangeTime = now
         
@@ -721,6 +741,57 @@ class HomeViewModel: ObservableObject {
             }
         }
         
+        // Check for existing welcome DayStart for subscribers (only if not currently playing)
+        if PurchaseManager.shared.isPremium && state != .playing {
+            let hasExperienced = UserDefaults.standard.bool(forKey: "hasExperiencedWelcomeDayStart")
+            if hasExperienced, let welcomeDate = UserDefaults.standard.object(forKey: "welcomeCreationDate") as? Date {
+                
+                // Skip welcome check if user just finished a DayStart (prevents rapid state switching)
+                let timeSinceWelcome = Date().timeIntervalSince(welcomeDate)
+                if timeSinceWelcome < 60 && currentDayStart == nil {
+                    // Recently completed welcome, skip to normal flow
+                    logger.log("⏭️ Skipping welcome check - recently completed", level: .debug)
+                } else {
+                    // Check if welcome audio still exists and is ready
+                    Task {
+                        do {
+                            let audioStatus = try await serviceRegistry.supabaseClient.getAudioStatus(for: welcomeDate)
+                            
+                            if audioStatus.success && audioStatus.status == "ready" {
+                                await MainActor.run {
+                                    if !self.isTransitioning { // Check if still valid
+                                        self.stateTransitionManager.transitionTo(.welcomeReady)
+                                        self.logger.log("🎁 Existing welcome DayStart found for subscriber - showing welcome ready screen", level: .info)
+                                    }
+                                    self.isTransitioning = false
+                                }
+                                return
+                            } else {
+                                // Welcome audio not available, continue with normal flow
+                                await MainActor.run {
+                                    Task { await self.continueNormalStateUpdate() }
+                                }
+                            }
+                        } catch {
+                            logger.logError(error, context: "Failed to check existing welcome DayStart")
+                            // Continue with normal flow if welcome check fails
+                            await MainActor.run {
+                                Task { await self.continueNormalStateUpdate() }
+                            }
+                        }
+                    }
+                    return // Exit early to let async task complete
+                }
+            }
+        }
+        
+        // Continue with normal state update
+        await continueNormalStateUpdate()
+    }
+    
+    private func continueNormalStateUpdate() async {
+        let now = Date()
+        
         // Don't update state if currently playing audio
         if state == .playing {
             isTransitioning = false
@@ -740,10 +811,22 @@ class HomeViewModel: ObservableObject {
         }
         
         guard let nextOccurrence = nextOccurrence else {
-            // No schedule found
+            // No schedule found - check if user has experienced welcome DayStart
+            let hasExperienced = UserDefaults.standard.bool(forKey: "hasExperiencedWelcomeDayStart")
+            let hasSubscription = PurchaseManager.shared.isPremium
+            
             withAnimation(.none) {
                 stateTransitionManager.transitionTo(.idle, animated: false)
-                showNoScheduleMessage = true
+                
+                if hasExperienced && !hasSubscription {
+                    showWelcomeExperiencedMessage = true
+                    showNoScheduleMessage = false
+                    logger.log("👋 Showing welcome experienced message for returning user", level: .info)
+                } else {
+                    showNoScheduleMessage = true
+                    showWelcomeExperiencedMessage = false
+                }
+                
                 nextDayStartTime = nil
                 hasCompletedCurrentOccurrence = false
                 isNextDayStartTomorrow = false
@@ -755,6 +838,7 @@ class HomeViewModel: ObservableObject {
         // Update schedule info
         withAnimation(.none) {
             showNoScheduleMessage = false
+            showWelcomeExperiencedMessage = false
             nextDayStartTime = nextOccurrence
         }
         
@@ -1425,6 +1509,9 @@ class HomeViewModel: ObservableObject {
     
     func startDayStart() {
         logger.logUserAction("Start DayStart", details: ["time": Date().description])
+        
+        // Track analytics event
+        ServiceRegistry.shared.analyticsManager.trackDayStartCreated()
         
         // Trigger snapshot update for remaining scheduled jobs
         triggerSnapshotUpdateAfterDayStart()

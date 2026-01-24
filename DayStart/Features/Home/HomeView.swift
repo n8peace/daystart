@@ -619,6 +619,52 @@ struct HomeView: View {
                         .foregroundColor(BananaTheme.ColorToken.primary)
                 }
             }
+        } else if viewModel.showWelcomeExperiencedMessage {
+            // Returning user who experienced welcome DayStart but didn't purchase
+            VStack(spacing: 16) {
+                Text("👋")
+                    .font(.system(size: 60))
+                    .scaleEffect(1.1)
+                    .animation(
+                        Animation.easeInOut(duration: 2.0)
+                            .repeatForever(autoreverses: true),
+                        value: viewModel.state
+                    )
+                
+                Text("Remember Your Welcome DayStart?")
+                    .adaptiveFont(BananaTheme.Typography.title2)
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                    .multilineTextAlignment(.center)
+                
+                Text("You've experienced the magic of personalized morning briefings. Ready for daily DayStarts?")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                
+                Button(action: {
+                    hapticManager.impact(style: .light)
+                    showEditSchedule = true
+                }) {
+                    Text("Get Daily DayStarts Like That!")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(
+                            LinearGradient(
+                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(16)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .padding(.horizontal, 20)
+                .scaleEffect(1.02)
+                .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: viewModel.state)
+            }
         } else if viewModel.showNoScheduleMessage {
             // Temporary state - show encouraging message
             Text("Tap DayStart to get your briefing")

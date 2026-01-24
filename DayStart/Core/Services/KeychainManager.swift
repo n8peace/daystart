@@ -3,8 +3,30 @@ import Security
 
 final class KeychainManager {
     static let shared = KeychainManager()
-    
+
     private init() {}
+
+    // MARK: - Error Types
+
+    enum KeychainError: LocalizedError {
+        case encodingFailed
+        case storeFailed(OSStatus)
+        case deviceLocked
+        case unknown(OSStatus)
+
+        var errorDescription: String? {
+            switch self {
+            case .encodingFailed:
+                return "Failed to encode data for secure storage"
+            case .storeFailed(let status):
+                return "Failed to store data securely (code: \(status))"
+            case .deviceLocked:
+                return "Device must be unlocked to complete this operation"
+            case .unknown(let status):
+                return "Keychain error (code: \(status))"
+            }
+        }
+    }
     
     // MARK: - Generic Keychain Operations
     
@@ -30,12 +52,41 @@ final class KeychainManager {
         var query = keychainQuery(for: key)
         query[kSecValueData as String] = data
         query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        
+
         // Delete existing item first
         SecItemDelete(query as CFDictionary)
-        
+
         let status = SecItemAdd(query as CFDictionary, nil)
         return status == errSecSuccess
+    }
+
+    // MARK: - Throwing Store Methods
+
+    func storeWithError<T: Codable>(_ value: T, forKey key: String) throws {
+        guard let data = try? JSONEncoder().encode(value) else {
+            throw KeychainError.encodingFailed
+        }
+
+        try storeDataWithError(data, forKey: key)
+    }
+
+    func storeDataWithError(_ data: Data, forKey key: String) throws {
+        var query = keychainQuery(for: key)
+        query[kSecValueData as String] = data
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+
+        // Delete existing item first
+        SecItemDelete(query as CFDictionary)
+
+        let status = SecItemAdd(query as CFDictionary, nil)
+
+        if status != errSecSuccess {
+            if status == errSecInteractionNotAllowed {
+                throw KeychainError.deviceLocked
+            } else {
+                throw KeychainError.storeFailed(status)
+            }
+        }
     }
     
     // MARK: - Retrieve Data
@@ -99,8 +150,7 @@ final class KeychainManager {
 
 extension KeychainManager {
     enum Keys {
-        static let userSettings = "user_settings"
-        static let schedule = "schedule"
-        static let history = "history"
+        // Only keeping keys that are actually used for sensitive data
+        // userSettings, schedule, history moved to UserDefaults for reliability
     }
 }

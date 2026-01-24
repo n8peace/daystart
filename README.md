@@ -20,7 +20,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation,
   - New: News category selection, content freshness tracking, re-engagement notifications
   - Enhanced timezone-independent scheduling, improved content refresh strategy
   - Backwards-compatible database migrations and enhanced user experience
-- 🚧 **In Development**: v2025.11.10 Build 1 - Development build in progress
+- 🚧 **In Development**: v2026.01.23 Build 1 - Development build in progress
 
 ## Table of Contents
 - [Features](#features)

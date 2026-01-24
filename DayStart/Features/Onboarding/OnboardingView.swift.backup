@@ -2,6 +2,8 @@ import SwiftUI
 import StoreKit
 import CoreLocation
 import EventKit
+import RevenueCat
+import RevenueCatUI
 
 
 struct ContentToggleRow: View {
@@ -101,7 +103,7 @@ struct OnboardingView: View {
     let onComplete: () -> Void
     
     @State private var currentPage = 0
-    @StateObject private var purchaseManager = PurchaseManager.shared
+    @ObservedObject private var purchaseManager = PurchaseManager.shared
     
     private let logger = DebugLogger.shared
     @State private var name = ""
@@ -290,15 +292,7 @@ struct OnboardingView: View {
                     calendarPermissionPage.tag(6)
                     voiceSelectionPage.tag(7)
                     welcomeDayStartPage.tag(8)
-                    PaywallView(
-                        onPurchaseComplete: {
-                            completeOnboarding()
-                        },
-                        onDismiss: {
-                            // Don't allow dismissal during onboarding
-                        }
-                    )
-                    .tag(9)
+                    paywallPage.tag(9)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
@@ -455,114 +449,196 @@ struct OnboardingView: View {
     // MARK: - Page 1: Wake Up. Get Briefed. Succeed. (10%)
     private var painPointPage: some View {
         GeometryReader { geometry in
-            let isCompactHeight = geometry.size.height < 700
-            let topSpacing = isCompactHeight ? geometry.size.height * 0.12 : geometry.size.height * 0.18
-            let sectionSpacing = isCompactHeight ? geometry.size.height * 0.025 : geometry.size.height * 0.04
-            let heroSize = isCompactHeight ? min(100, geometry.size.width * 0.20) : min(120, geometry.size.width * 0.25)
-            
-            ZStack {
-                // Scrollable content
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        Spacer(minLength: topSpacing)
-                        
-                        VStack(spacing: sectionSpacing) {
-                            // Animated sunrise hero visual
-                            ZStack {
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [BananaTheme.ColorToken.primary.opacity(0.3), BananaTheme.ColorToken.accent.opacity(0.1)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: heroSize)
-                                    .scaleEffect(animationTrigger ? 1.05 : 0.95)
-                                    .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: animationTrigger)
-                                
-                                Text("☀️")
-                                    .font(.system(size: isCompactHeight ? min(40, geometry.size.width * 0.08) : min(50, geometry.size.width * 0.10)))
-                                    .scaleEffect(animationTrigger ? 1.1 : 0.9)
-                                    .rotationEffect(.degrees(animationTrigger ? 10 : -10))
-                                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
-                            }
-                            
-                            VStack(spacing: isCompactHeight ? geometry.size.height * 0.02 : geometry.size.height * 0.03) {
-                                // Three-stage animated headline
-                                VStack(spacing: 12) {
-                                    Text("Wake Up.")
-                                        .font(.system(size: min(36, geometry.size.width * 0.09), weight: .bold, design: .rounded))
-                                        .foregroundColor(BananaTheme.ColorToken.text)
-                                        .opacity(animationStage >= 1 ? 1 : 0)
-                                        .animation(.easeInOut(duration: 0.6), value: animationStage)
-                                    
-                                    Text("Get Briefed.")
-                                        .font(.system(size: min(36, geometry.size.width * 0.09), weight: .bold, design: .rounded))
-                                        .foregroundColor(BananaTheme.ColorToken.text)
-                                        .opacity(animationStage >= 2 ? 1 : 0)
-                                        .animation(.easeInOut(duration: 0.6), value: animationStage)
-                                    
-                                    Text("Succeed.")
-                                        .font(.system(size: min(36, geometry.size.width * 0.09), weight: .bold, design: .rounded))
-                                        .foregroundColor(BananaTheme.ColorToken.text)
-                                        .opacity(animationStage >= 3 ? 1 : 0)
-                                        .animation(.easeInOut(duration: 0.6), value: animationStage)
-                                }
-                                .multilineTextAlignment(.center)
-                                .id("animation-\(animationStage)") // Force re-render on state change
-                                
-                                VStack(spacing: geometry.size.height * 0.02) {
-                                    Text("The first morning intelligence briefing built for ambitious professionals.")
-                                        .font(.system(size: min(18, geometry.size.width * 0.045), weight: .medium))
-                                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                                        .multilineTextAlignment(.center)
-                                        .lineLimit(nil)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .padding(.horizontal, geometry.size.width * 0.10)
-                                        .opacity(animationStage >= 3 ? textOpacity : 0)
-                                        .animation(.easeInOut(duration: 0.6).delay(0.3), value: animationStage)
-                                }
-                            }
-                        }
-                        
-                        // Space for fixed button
-                        Spacer(minLength: 120)
-                    }
-                }
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
                 
-                // Fixed bottom button
-                OnboardingBottomButton(
-                    buttonText: "Get My Morning Brief",
-                    action: { 
-                        logger.logUserAction("Get My Morning Brief CTA tapped")
-                        impactFeedback()
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                            currentPage = 1 
+                VStack(spacing: geometry.size.height * 0.05) {
+                        // Three-stage animated headline
+                        VStack(spacing: 12) {
+                            Text("Wake Up.")
+                                .font(.system(size: min(36, geometry.size.width * 0.09), weight: .bold, design: .rounded))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                .opacity(animationStage >= 1 ? 1 : 0)
+                                .animation(.easeInOut(duration: 0.6), value: animationStage)
+                            
+                            Text("Get Briefed.")
+                                .font(.system(size: min(36, geometry.size.width * 0.09), weight: .bold, design: .rounded))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                .opacity(animationStage >= 2 ? 1 : 0)
+                                .animation(.easeInOut(duration: 0.6), value: animationStage)
+                            
+                            Text("Succeed.")
+                                .font(.system(size: min(36, geometry.size.width * 0.09), weight: .bold, design: .rounded))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                .opacity(animationStage >= 3 ? 1 : 0)
+                                .animation(.easeInOut(duration: 0.6), value: animationStage)
                         }
-                    },
-                    geometry: geometry,
-                    animationTrigger: animationTrigger,
-                    textOpacity: animationStage >= 3 ? 1 : 0,
-                    poweredByText: "Powered by 🍌🧠 Banana Intelligence",
-                    poweredByURL: "https://bananaintelligence.ai/"
-                )
-            }
+                        .multilineTextAlignment(.center)
+                        .id("animation-\(animationStage)") // Force re-render on state change
+                        
+                        VStack(spacing: geometry.size.height * 0.02) {
+                            Text("The first morning intelligence briefing built for ambitious professionals.")
+                                .font(.system(size: min(18, geometry.size.width * 0.045), weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, geometry.size.width * 0.10)
+                                .opacity(animationStage >= 3 ? textOpacity : 0)
+                                .animation(.easeInOut(duration: 0.6).delay(0.3), value: animationStage)
+                            
+                            Text("You're about to experience how the most successful people start their day.")
+                                .font(.system(size: min(16, geometry.size.width * 0.04), weight: .regular))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, geometry.size.width * 0.10)
+                                .opacity(animationStage >= 3 ? textOpacity : 0)
+                                .animation(.easeInOut(duration: 0.6).delay(0.5), value: animationStage)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // CTA Button (appears after animation completes)
+                    VStack(spacing: 16) {
+                        Button(action: { 
+                            logger.logUserAction("Get My Morning Brief CTA tapped")
+                            impactFeedback()
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                currentPage = 1 
+                            }
+                        }) {
+                            Text("Get My Morning Brief")
+                                .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: max(56, geometry.size.height * 0.07))
+                                .background(
+                                    LinearGradient(
+                                        colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .cornerRadius(16)
+                                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                        }
+                        .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                        .padding(.horizontal, geometry.size.width * 0.10)
+                        .opacity(animationStage >= 3 ? 1 : 0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(3.5), value: animationStage)
+                        
+                        // Powered by Banana Intelligence with link
+                        Button(action: {
+                            if let url = URL(string: "https://bananaintelligence.ai/") {
+                                UIApplication.shared.open(url)
+                            }
+                        }) {
+                            Text("Powered by 🍌🧠 Banana Intelligence")
+                                .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .opacity(animationStage >= 3 ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.6).delay(4), value: animationStage)
+                    }
+                    .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
+                }
             }
         }
     
     // MARK: - Page 2: Your Chief of Staff (20%)
     private var valueDemoPage: some View {
         GeometryReader { geometry in
-            ZStack {
-                // Scrollable content
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        Spacer(minLength: geometry.size.height * 0.08)
+            let isCompactHeight = geometry.size.height < 700
+            let topSpacing = isCompactHeight ? geometry.size.height * 0.02 : geometry.size.height * 0.08
+            let sectionSpacing = isCompactHeight ? geometry.size.height * 0.02 : geometry.size.height * 0.05
+            let textSpacing = isCompactHeight ? geometry.size.height * 0.01 : geometry.size.height * 0.02
+            
+            VStack(spacing: 0) {
+                if isCompactHeight {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVStack(spacing: 0) {
+                            Spacer(minLength: topSpacing)
+                            
+                            VStack(spacing: sectionSpacing) {
+                                // Text content (moved to top)
+                                VStack(spacing: textSpacing) {
+                                    Text("Your Chief of Staff")
+                                        .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                                        .foregroundColor(BananaTheme.ColorToken.text)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                        .minimumScaleFactor(0.5)
+                                        .padding(.horizontal, geometry.size.width * 0.05)
+                                        .opacity(textOpacity)
+                                    
+                                    Text("Each day, your personalized brief is prepared overnight — markets, news, weather, and your day, distilled and narrated.")
+                                        .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                        .minimumScaleFactor(0.5)
+                                        .padding(.horizontal, geometry.size.width * 0.10)
+                                        .opacity(textOpacity)
+                                }
+                                
+                                // Briefing preview card (moved below text)
+                                briefingPreviewCard(geometry: geometry)
+                                
+                                // Bottom content
+                                VStack(spacing: 12) {
+                                    // Personalized Info. Zero Scrolling.
+                                    Text("Personalized Info. Zero Scrolling.")
+                                        .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
+                                        .foregroundColor(BananaTheme.ColorToken.text)
+                                        .opacity(textOpacity)
+                                    
+                                    // CTA
+                                    Button(action: {
+                                        logger.logUserAction("Build Your Brief CTA tapped")
+                                        impactFeedback()
+                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                            currentPage = 2 
+                                        }
+                                    }) {
+                                        Text("Let's Build Your Brief")
+                                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: max(56, geometry.size.height * 0.07))
+                                            .background(
+                                                LinearGradient(
+                                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                                    startPoint: .leading,
+                                                    endPoint: .trailing
+                                                )
+                                            )
+                                            .cornerRadius(16)
+                                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                                    }
+                                    .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                                    .padding(.horizontal, geometry.size.width * 0.10)
+                                    
+                                    // Credibility line
+                                    Text("Trusted by ambitious professionals worldwide.")
+                                        .font(.system(size: min(13, geometry.size.width * 0.032), weight: .regular))
+                                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, geometry.size.width * 0.10)
+                                        .opacity(textOpacity)
+                                }
+                            }
+                            
+                            Spacer(minLength: isCompactHeight ? 16 : geometry.size.height * 0.04)
+                        }
+                        .padding(.bottom, max(isCompactHeight ? 16 : 24, geometry.safeAreaInsets.bottom))
+                    }
+                } else {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: topSpacing)
                         
-                        VStack(spacing: geometry.size.height * 0.05) {
-                            // Text content
-                            VStack(spacing: geometry.size.height * 0.02) {
+                        VStack(spacing: sectionSpacing) {
+                            // Text content (moved to top)
+                            VStack(spacing: textSpacing) {
                                 Text("Your Chief of Staff")
                                     .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
                                     .foregroundColor(BananaTheme.ColorToken.text)
@@ -582,37 +658,57 @@ struct OnboardingView: View {
                                     .opacity(textOpacity)
                             }
                             
-                            // Briefing preview card
+                            // Briefing preview card (moved below text)
                             briefingPreviewCard(geometry: geometry)
-                            
+                        }
+                        
+                        Spacer(minLength: geometry.size.height * 0.04)
+                        
+                        // Bottom content
+                        VStack(spacing: 16) {
                             // Personalized Info. Zero Scrolling.
                             Text("Personalized Info. Zero Scrolling.")
                                 .font(.system(size: min(16, geometry.size.width * 0.04), weight: .semibold))
                                 .foregroundColor(BananaTheme.ColorToken.text)
                                 .opacity(textOpacity)
+                            
+                            // CTA
+                            Button(action: {
+                                logger.logUserAction("Build Your Brief CTA tapped")
+                                impactFeedback()
+                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                    currentPage = 2 
+                                }
+                            }) {
+                                Text("Let's Build Your Brief")
+                                    .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: max(56, geometry.size.height * 0.07))
+                                    .background(
+                                        LinearGradient(
+                                            colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .cornerRadius(16)
+                                    .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                            }
+                            .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                            .padding(.horizontal, geometry.size.width * 0.10)
+                            
+                            // Credibility line
+                            Text("Trusted by ambitious professionals worldwide.")
+                                .font(.system(size: min(13, geometry.size.width * 0.032), weight: .regular))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, geometry.size.width * 0.10)
+                                .opacity(textOpacity)
                         }
-                        
-                        Spacer(minLength: max(140, geometry.size.height * 0.25))
+                        .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                     }
                 }
-                .scrollIndicators(.hidden)
-                
-                // Fixed bottom button
-                OnboardingBottomButton(
-                    buttonText: "Let's Build Your Brief",
-                    action: {
-                        logger.logUserAction("Build Your Brief CTA tapped")
-                        impactFeedback()
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                            currentPage = 2 
-                        }
-                    },
-                    geometry: geometry,
-                    animationTrigger: animationTrigger,
-                    textOpacity: textOpacity,
-                    poweredByText: "Trusted by ambitious professionals worldwide",
-                    poweredByURL: nil
-                )
             }
         }
     }
@@ -620,157 +716,134 @@ struct OnboardingView: View {
     // MARK: - Page 3: Name Personalization (30%)
     private var namePersonalizationPage: some View {
         GeometryReader { geometry in
-            ZStack {
-                // Scrollable content
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        Spacer(minLength: geometry.size.height * 0.08)
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                VStack(spacing: geometry.size.height * 0.05) {
+                    // Greeting animation
+                    Text("👋")
+                        .font(.system(size: min(100, geometry.size.width * 0.25)))
+                        .scaleEffect(animationTrigger ? 1.2 : 0.9)
+                        .rotationEffect(.degrees(animationTrigger ? 15 : -15))
+                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: animationTrigger)
+                    
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("Let's Make This Personal")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
+                            .opacity(textOpacity)
                         
-                        VStack(spacing: geometry.size.height * 0.05) {
-                            // Greeting animation
-                            Text("👋")
-                                .font(.system(size: min(100, geometry.size.width * 0.25)))
-                                .scaleEffect(animationTrigger ? 1.2 : 0.9)
-                                .rotationEffect(.degrees(animationTrigger ? 15 : -15))
-                                .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: animationTrigger)
-                            
-                            VStack(spacing: geometry.size.height * 0.02) {
-                                Text("Let's Make This Personal")
-                                    .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
-                                    .foregroundColor(BananaTheme.ColorToken.text)
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.5)
-                                    .padding(.horizontal, geometry.size.width * 0.05)
-                                    .opacity(textOpacity)
-                                
-                                Text("Your AI will greet you by name each morning")
-                                    .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, geometry.size.width * 0.10)
-                                    .opacity(textOpacity)
-                            }
-                        }
-                        
-                        Spacer(minLength: geometry.size.height * 0.06)
-                        
-                        // Name input
-                        VStack(spacing: geometry.size.height * 0.03) {
-                            TextField("What should I call you?", text: Binding(
-                                get: { name },
-                                set: { newValue in
-                                    // Apply character filtering and limit
-                                    let filtered = UserSettings.sanitizeName(newValue)
-                                    name = String(filtered.prefix(UserSettings.maxNameLength))
-                                }
-                            ))
-                                .font(.system(size: min(24, geometry.size.width * 0.06), weight: .medium))
-                                .foregroundColor(BananaTheme.ColorToken.text)
-                                .multilineTextAlignment(.center)
-                                .padding(.vertical, 20)
-                                .padding(.horizontal, 24)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(BananaTheme.ColorToken.card)
-                                        .stroke(isNameValid ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border, lineWidth: 2)
-                                )
-                                .padding(.horizontal, geometry.size.width * 0.10)
-                                .submitLabel(.done)
-                                .onSubmit {
-                                    if isNameValid {
-                                        impactFeedback()
-                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                            currentPage = 3
-                                        }
-                                    }
-                                }
-                                .opacity(textOpacity)
-                            
-                            // Character count when approaching limit
-                            if name.count > 40 {
-                                Text("\(name.count)/\(UserSettings.maxNameLength)")
-                                    .font(.caption)
-                                    .foregroundColor(name.count >= UserSettings.maxNameLength ? .orange : BananaTheme.ColorToken.secondaryText)
-                                    .opacity(textOpacity)
-                            }
-                            
-                            // Preview
-                            if !name.isEmpty {
-                                Text("Good morning \(name)! Ready to conquer today?")
-                                    .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, geometry.size.width * 0.10)
-                                    .transition(.opacity.combined(with: .scale))
-                            }
-                        }
-                        
-                        // Space for fixed button
-                        Spacer(minLength: 120)
+                        Text("Your AI will greet you by name each morning")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.10)
+                            .opacity(textOpacity)
                     }
                 }
                 
-                // Fixed bottom button with custom skip action
-                VStack(spacing: 0) {
-                    Spacer()
-                    
-                    // Fixed bottom button container
-                    VStack(spacing: 16) {
-                        Button(action: {
-                            logger.logUserAction("Name personalization CTA tapped", details: ["hasName": !name.isEmpty])
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 3
-                            }
-                        }) {
-                            Text(isNameValid ? "That's Perfect!" : "Continue")
-                                .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: max(56, geometry.size.height * 0.07))
-                                .background(
-                                    LinearGradient(
-                                        colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .cornerRadius(16)
-                                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                Spacer(minLength: geometry.size.height * 0.06)
+                
+                // Name input
+                VStack(spacing: geometry.size.height * 0.03) {
+                    TextField("What should I call you?", text: Binding(
+                        get: { name },
+                        set: { newValue in
+                            // Apply character filtering and limit
+                            let filtered = UserSettings.sanitizeName(newValue)
+                            name = String(filtered.prefix(UserSettings.maxNameLength))
                         }
-                        .scaleEffect(animationTrigger ? 1.05 : 1.0)
-                    }
-                    .padding(.horizontal, geometry.size.width * 0.10)
-                    .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
-                    .opacity(textOpacity)
-                    .background(
-                        // Semi-transparent background for overlay effect
-                        Rectangle()
-                            .fill(BananaTheme.ColorToken.background.opacity(0.95))
-                            .blur(radius: 0.5)
-                            .ignoresSafeArea(edges: .bottom)
-                    )
-                    .overlay(alignment: .bottom) {
-                        // Skip button styled like powered by text
-                        Button(action: {
-                            logger.logUserAction("Name personalization skipped")
-                            impactFeedback()
-                            name = "" // Clear name if they skip
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 3
-                            }
-                        }) {
-                            Text("Skip for now")
-                                .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                                .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
-                        }
-                        .buttonStyle(.plain)
-                        .opacity(textOpacity)
+                    ))
+                        .font(.system(size: min(24, geometry.size.width * 0.06), weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.text)
+                        .multilineTextAlignment(.center)
+                        .padding(.vertical, 20)
+                        .padding(.horizontal, 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(BananaTheme.ColorToken.card)
+                                .stroke(isNameValid ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border, lineWidth: 2)
+                        )
                         .padding(.horizontal, geometry.size.width * 0.10)
-                        .padding(.bottom, max(8, geometry.safeAreaInsets.bottom + 8))
+                        .submitLabel(.done)
+                        .onSubmit {
+                            if isNameValid {
+                                impactFeedback()
+                                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                                    currentPage = 3
+                                }
+                            }
+                        }
+                        .opacity(textOpacity)
+                    
+                    // Character count when approaching limit
+                    if name.count > 40 {
+                        Text("\(name.count)/\(UserSettings.maxNameLength)")
+                            .font(.caption)
+                            .foregroundColor(name.count >= UserSettings.maxNameLength ? .orange : BananaTheme.ColorToken.secondaryText)
+                            .opacity(textOpacity)
+                    }
+                    
+                    // Preview
+                    if !name.isEmpty {
+                        Text("Good morning \(name)! Ready to conquer today?")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.10)
+                            .transition(.opacity.combined(with: .scale))
                     }
                 }
+                
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                // CTA Buttons
+                VStack(spacing: 16) {
+                    Button(action: {
+                        logger.logUserAction("Name personalization CTA tapped", details: ["hasName": !name.isEmpty])
+                        impactFeedback()
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 3
+                        }
+                    }) {
+                        Text(isNameValid ? "That's Perfect!" : "Continue")
+                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(56, geometry.size.height * 0.07))
+                            .background(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(16)
+                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                    .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                    
+                    // Skip button
+                    Button(action: {
+                        logger.logUserAction("Name personalization skipped")
+                        impactFeedback()
+                        name = "" // Clear name if they skip
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 3
+                        }
+                    }) {
+                        Text("Skip for now")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
+                }
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
+                .opacity(textOpacity)
             }
         }
     }
@@ -778,128 +851,133 @@ struct OnboardingView: View {
     // MARK: - Page 4: Schedule Setup (40%)
     private var scheduleSetupPage: some View {
         GeometryReader { geometry in
-            ZStack {
-                // Scrollable content
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        Spacer(minLength: geometry.size.height * 0.08)
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                VStack(spacing: geometry.size.height * 0.05) {
+                    // Clock with sunrise animation
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.orange.opacity(0.3), Color.yellow.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: min(120, geometry.size.width * 0.25))
                         
-                        VStack(spacing: geometry.size.height * 0.05) {
-                            // Clock with sunrise animation
-                            ZStack {
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color.orange.opacity(0.3), Color.yellow.opacity(0.1)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: min(120, geometry.size.width * 0.25))
-                                
-                                Text("⏰")
-                                    .font(.system(size: min(60, geometry.size.width * 0.12)))
-                                    .scaleEffect(animationTrigger ? 1.1 : 0.9)
-                                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
-                                
-                                // Sunrise rays
-                                ForEach(0..<8) { index in
-                                    Rectangle()
-                                        .fill(Color.orange.opacity(0.6))
-                                        .frame(width: 3, height: 20)
-                                        .offset(y: -50)
-                                        .rotationEffect(.degrees(Double(index) * 45))
-                                        .opacity(animationTrigger ? 1.0 : 0.3)
-                                        .animation(.easeInOut(duration: 2.0).repeatForever().delay(Double(index) * 0.1), value: animationTrigger)
-                                }
-                            }
-                            
-                            VStack(spacing: geometry.size.height * 0.02) {
-                                Text("Set Your Daily Wake Time")
-                                    .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
-                                    .foregroundColor(BananaTheme.ColorToken.text)
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.5)
-                                    .padding(.horizontal, geometry.size.width * 0.05)
-                                    .opacity(textOpacity)
-                                
-                                Text("We'll deliver your daily briefing every morning")
-                                    .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, geometry.size.width * 0.10)
-                                    .opacity(textOpacity)
-                            }
+                        Text("⏰")
+                            .font(.system(size: min(60, geometry.size.width * 0.12)))
+                            .scaleEffect(animationTrigger ? 1.1 : 0.9)
+                            .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
+                        
+                        // Sunrise rays
+                        ForEach(0..<8) { index in
+                            Rectangle()
+                                .fill(Color.orange.opacity(0.6))
+                                .frame(width: 3, height: 20)
+                                .offset(y: -50)
+                                .rotationEffect(.degrees(Double(index) * 45))
+                                .opacity(animationTrigger ? 1.0 : 0.3)
+                                .animation(.easeInOut(duration: 2.0).repeatForever().delay(Double(index) * 0.1), value: animationTrigger)
                         }
+                    }
+                    
+                    VStack(spacing: geometry.size.height * 0.02) {
+                        Text("Set Your Daily Wake Time")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
+                            .opacity(textOpacity)
                         
-                        Spacer(minLength: geometry.size.height * 0.04)
-                        
-                        // Time picker section
-                        VStack(spacing: geometry.size.height * 0.03) {
-                            // Time picker
-                            VStack(spacing: 20) {
-                                HStack {
-                                    Spacer()
-                                    DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
-                                        .datePickerStyle(.wheel)
-                                        .labelsHidden()
-                                        .frame(height: min(140, geometry.size.height * 0.18))
-                                        .clipped()
-                                    Spacer()
-                                }
-                                .frame(maxWidth: .infinity)
-                                .opacity(textOpacity)
-                                
-                                // Note about customization
-                                VStack(spacing: 8) {
-                                    Text("Daily briefings, 7 days a week")
-                                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                                        .foregroundColor(BananaTheme.ColorToken.text)
-                                        .multilineTextAlignment(.center)
-                                    
-                                    Text("You can customize which days later in Settings")
-                                        .font(.system(size: min(12, geometry.size.width * 0.03), weight: .regular))
-                                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                                        .multilineTextAlignment(.center)
-                                }
-                                .opacity(textOpacity)
-                                .padding(.horizontal, geometry.size.width * 0.08)
-                            }
-                            
-                            // Preview
-                            Text("Your briefing will be ready every day at \(shortTimeFormatter.string(from: selectedTime))")
-                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
-                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                                .multilineTextAlignment(.center)
-                                .lineLimit(nil)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.horizontal, geometry.size.width * 0.10)
-                                .opacity(textOpacity)
-                        }
-                        
-                        Spacer(minLength: max(140, geometry.size.height * 0.25))
+                        Text("We'll deliver your daily briefing every morning")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.10)
+                            .opacity(textOpacity)
                     }
                 }
-                .scrollIndicators(.hidden)
                 
-                // Fixed bottom button
-                OnboardingBottomButton(
-                    buttonText: "Lock It In!",
-                    subtextButton: nil,
-                    action: {
-                        // All days are always selected now
-                        logger.logUserAction("Schedule setup CTA tapped")
-                        impactFeedback()
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                            currentPage = 4
+                Spacer(minLength: geometry.size.height * 0.04)
+                
+                // Time picker section
+                VStack(spacing: geometry.size.height * 0.03) {
+                    // Time picker
+                    VStack(spacing: 20) {
+                        HStack {
+                            Spacer()
+                            DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                                .datePickerStyle(.wheel)
+                                .labelsHidden()
+                                .frame(height: min(140, geometry.size.height * 0.18))
+                                .clipped()
+                            Spacer()
                         }
-                    },
-                    subtextAction: nil,
-                    geometry: geometry,
-                    animationTrigger: animationTrigger,
-                    textOpacity: textOpacity
-                )
+                        .frame(maxWidth: .infinity)
+                        .opacity(textOpacity)
+                        
+                        // Note about customization
+                        VStack(spacing: 8) {
+                            Text("Daily briefings, 7 days a week")
+                                .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                                .multilineTextAlignment(.center)
+                            
+                            Text("You can customize which days later in Settings")
+                                .font(.system(size: min(12, geometry.size.width * 0.03), weight: .regular))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                .multilineTextAlignment(.center)
+                        }
+                        .opacity(textOpacity)
+                        .padding(.horizontal, geometry.size.width * 0.08)
+                    }
+                    
+                    // Preview
+                    Text("Your briefing will be ready every day at \(shortTimeFormatter.string(from: selectedTime))")
+                        .font(.system(size: min(14, geometry.size.width * 0.035), weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, geometry.size.width * 0.10)
+                        .opacity(textOpacity)
+                }
+                
+                Spacer(minLength: geometry.size.height * 0.06)
+                
+                // CTA
+                Button(action: {
+                    // All days are always selected now
+                    logger.logUserAction("Schedule setup CTA tapped")
+                    impactFeedback()
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                        currentPage = 4
+                    }
+                }) {
+                    Text("Lock It In!")
+                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: max(56, geometry.size.height * 0.07))
+                        .background(
+                            LinearGradient(
+                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(16)
+                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
+                .opacity(textOpacity)
             }
         }
     }
@@ -1015,7 +1093,7 @@ struct OnboardingView: View {
                 .padding(.horizontal, geometry.size.width * 0.10)
                 .opacity(textOpacity)
                 
-                Spacer(minLength: geometry.size.height * 0.04)
+                Spacer(minLength: geometry.size.height * 0.03)
                 
                 // CTA
                 Button(action: {
@@ -1120,7 +1198,7 @@ struct OnboardingView: View {
                         .opacity(textOpacity)
                 }
                 
-                Spacer(minLength: geometry.size.height * 0.04)
+                Spacer(minLength: geometry.size.height * 0.06)
                 
                 // CTA Button
                 Button(action: {
@@ -1266,7 +1344,7 @@ struct OnboardingView: View {
                         .opacity(textOpacity)
                 }
                 
-                Spacer(minLength: geometry.size.height * 0.04)
+                Spacer(minLength: geometry.size.height * 0.06)
                 
                 // CTA Button
                 Button(action: {
@@ -1320,150 +1398,126 @@ struct OnboardingView: View {
     // MARK: - Page 8: Voice Selection (80%)
     private var voiceSelectionPage: some View {
         GeometryReader { geometry in
-            ZStack {
-                // Scrollable content
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        Spacer(minLength: geometry.size.height * 0.15)
+            VStack(spacing: 0) {
+                Spacer(minLength: geometry.size.height * 0.08)
+                
+                VStack(spacing: geometry.size.height * 0.03) {
+                    // Microphone with sound waves
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary.opacity(0.3), BananaTheme.ColorToken.accent.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: min(120, geometry.size.width * 0.25))
                         
-                        VStack(spacing: geometry.size.height * 0.025) {
-                            // Microphone with sound waves
-                            ZStack {
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [BananaTheme.ColorToken.primary.opacity(0.3), BananaTheme.ColorToken.accent.opacity(0.1)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: min(120, geometry.size.width * 0.25))
-                                
-                                Text("🎤")
-                                    .font(.system(size: min(50, geometry.size.width * 0.10)))
-                                    .scaleEffect(animationTrigger ? 1.1 : 0.9)
-                                
-                                // Sound wave lines
-                                ForEach(0..<4) { index in
-                                    soundWaveLine(for: index)
-                                }
-                            }
-                            
-                            VStack(spacing: geometry.size.height * 0.015) {
-                                Text("Choose Your Voice")
-                                    .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
-                                    .foregroundColor(BananaTheme.ColorToken.text)
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.5)
-                                    .padding(.horizontal, geometry.size.width * 0.05)
-                                    .opacity(textOpacity)
-                                
-                                Text("The voice that starts your day right")
-                                    .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, geometry.size.width * 0.10)
-                                    .opacity(textOpacity)
-                            }
-                            
-                            // Voice selection cards - compact layout
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
-                                ForEach(VoiceOption.allCases, id: \.rawValue) { voice in
-                                    VoiceCard(
-                                        voice: voice,
-                                        isSelected: selectedVoice == voice,
-                                        geometry: geometry,
-                                        onSelect: {
-                                            selectedVoice = voice
-                                            AudioPlayerManager.shared.previewVoice(voice)
-                                            impactFeedback()
-                                            logger.logUserAction("Voice selected", details: ["voice": voice.name])
-                                        }
-                                    )
-                                }
-                            }
+                        Text("🎤")
+                            .font(.system(size: min(50, geometry.size.width * 0.10)))
+                            .scaleEffect(animationTrigger ? 1.1 : 0.9)
+                        
+                        // Sound wave lines
+                        ForEach(0..<4) { index in
+                            soundWaveLine(for: index)
+                        }
+                    }
+                    
+                    VStack(spacing: geometry.size.height * 0.015) {
+                        Text("Choose Your Voice")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
+                            .opacity(textOpacity)
+                        
+                        Text("The voice that starts your day right")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
                             .padding(.horizontal, geometry.size.width * 0.10)
                             .opacity(textOpacity)
-                            
-                            // Voice preview - compact
-                            if selectedVoice != nil {
-                                Text("\"Good morning! Your briefing will sound like this...\"")
-                                    .font(.system(size: min(13, geometry.size.width * 0.032), weight: .medium, design: .rounded))
-                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, geometry.size.width * 0.10)
-                                    .italic()
-                                    .transition(.opacity.combined(with: .scale))
-                            }
-                        }
-                        
-                        // Space for fixed button
-                        Spacer(minLength: max(140, geometry.size.height * 0.25))
                     }
-                }
-                .scrollIndicators(.hidden)
-                
-                // Fixed bottom button with custom skip action
-                VStack(spacing: 0) {
-                    Spacer()
                     
-                    // Fixed bottom button container
-                    VStack(spacing: 16) {
-                        Button(action: {
-                            logger.logUserAction("Voice selection CTA tapped")
-                            impactFeedback()
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 8
-                            }
-                        }) {
-                            Text("Continue")
-                                .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: max(56, geometry.size.height * 0.07))
-                                .background(
-                                    LinearGradient(
-                                        colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .cornerRadius(16)
-                                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                    // Voice selection cards - compact layout
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+                        ForEach(VoiceOption.allCases, id: \.rawValue) { voice in
+                            VoiceCard(
+                                voice: voice,
+                                isSelected: selectedVoice == voice,
+                                geometry: geometry,
+                                onSelect: {
+                                    selectedVoice = voice
+                                    AudioPlayerManager.shared.previewVoice(voice)
+                                    impactFeedback()
+                                    logger.logUserAction("Voice selected", details: ["voice": voice.name])
+                                }
+                            )
                         }
-                        .scaleEffect(animationTrigger ? 1.05 : 1.0)
                     }
                     .padding(.horizontal, geometry.size.width * 0.10)
-                    .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
                     .opacity(textOpacity)
-                    .background(
-                        // Semi-transparent background for overlay effect
-                        Rectangle()
-                            .fill(BananaTheme.ColorToken.background.opacity(0.95))
-                            .blur(radius: 0.5)
-                            .ignoresSafeArea(edges: .bottom)
-                    )
-                    .overlay(alignment: .bottom) {
-                        // Skip button styled like powered by text
-                        Button(action: {
-                            logger.logUserAction("Voice selection skipped")
-                            impactFeedback()
-                            // Keep default voice selection
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
-                                currentPage = 8
-                            }
-                        }) {
-                            Text("Use default voice")
-                                .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                                .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
-                        }
-                        .buttonStyle(.plain)
-                        .opacity(textOpacity)
-                        .padding(.horizontal, geometry.size.width * 0.10)
-                        .padding(.bottom, max(8, geometry.safeAreaInsets.bottom + 8))
+                    
+                    // Voice preview - compact
+                    if selectedVoice != nil {
+                        Text("\"Good morning! Your briefing will sound like this...\"")
+                            .font(.system(size: min(13, geometry.size.width * 0.032), weight: .medium, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.10)
+                            .italic()
+                            .transition(.opacity.combined(with: .scale))
                     }
                 }
+                
+                Spacer(minLength: geometry.size.height * 0.04)
+                
+                // CTA Buttons
+                VStack(spacing: 16) {
+                    Button(action: {
+                        logger.logUserAction("Voice selection CTA tapped")
+                        impactFeedback()
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 8
+                        }
+                    }) {
+                        Text("Continue")
+                            .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(56, geometry.size.height * 0.07))
+                            .background(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(16)
+                            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                    .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                    
+                    // Skip button
+                    Button(action: {
+                        logger.logUserAction("Voice selection skipped")
+                        impactFeedback()
+                        // Keep default voice selection
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) { 
+                            currentPage = 8
+                        }
+                    }) {
+                        Text("Use default voice")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
+                }
+                .padding(.horizontal, geometry.size.width * 0.10)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
+                .opacity(textOpacity)
             }
         }
     }
@@ -1493,6 +1547,492 @@ struct OnboardingView: View {
         )
     }
     
+    // MARK: - Page 9: Hard Paywall (90%)
+    private var paywallPage: some View {
+        GeometryReader { geometry in
+            let isCompactHeight = geometry.size.height < 700 // iPhone 13 mini is 812pt
+            let _ = isCompactHeight ? geometry.size.height * 0.01 : geometry.size.height * 0.02
+            let sectionSpacing = isCompactHeight ? geometry.size.height * 0.02 : geometry.size.height * 0.04
+            
+            VStack(spacing: 0) {
+                // Top spacer to center content
+                Spacer()
+                
+                // Header section
+                VStack(spacing: sectionSpacing) {
+                    VStack(spacing: isCompactHeight ? 8 : geometry.size.height * 0.02) {
+                        Text("Unlock Your Better Mornings")
+                            .font(.system(size: min(28, geometry.size.width * 0.07), weight: .bold, design: .rounded))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            .padding(.horizontal, geometry.size.width * 0.05)
+                            .opacity(textOpacity)
+                        
+                        Text("Skip the scrolling, get briefed")
+                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, geometry.size.width * 0.10)
+                            .opacity(textOpacity)
+                    }
+                }
+                
+                Spacer(minLength: isCompactHeight ? 20 : 30)
+                
+                // Show promotional banner if any products have promotional pricing
+                if !purchaseManager.availablePromotions.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "flame.fill")
+                            .foregroundColor(.white)
+                            .font(.system(size: isCompactHeight ? 14 : 16, weight: .bold))
+                        
+                        Text("LIMITED TIME OFFER")
+                            .font(.system(size: isCompactHeight ? 14 : 16, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Image(systemName: "flame.fill")
+                            .foregroundColor(.white)
+                            .font(.system(size: isCompactHeight ? 14 : 16, weight: .bold))
+                    }
+                    .padding(.horizontal, isCompactHeight ? 16 : 20)
+                    .padding(.vertical, isCompactHeight ? 6 : 8)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.red, Color.orange],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(20)
+                    .shadow(color: Color.red.opacity(0.4), radius: 8, x: 0, y: 4)
+                    .scaleEffect(animationTrigger ? 1.05 : 1.0)
+                    .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animationTrigger)
+                    .padding(.bottom, isCompactHeight ? 8 : 12)
+                }
+                
+                // Pricing options - optimized for conversion
+                if purchaseManager.isLoadingProducts {
+                    // Loading state
+                    VStack(spacing: isCompactHeight ? 12 : 20) {
+                        ProgressView()
+                            .scaleEffect(isCompactHeight ? 1.2 : 1.5)
+                            .progressViewStyle(CircularProgressViewStyle(tint: BananaTheme.ColorToken.primary))
+                        
+                        Text("Loading pricing options...")
+                            .font(.system(size: isCompactHeight ? 14 : min(16, geometry.size.width * 0.04), weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, geometry.size.width * 0.10)
+                    .opacity(textOpacity)
+                } else if purchaseManager.availableProducts.isEmpty {
+                    // Error state - no products loaded
+                    VStack(spacing: isCompactHeight ? 12 : 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: isCompactHeight ? 30 : 40))
+                            .foregroundColor(.orange)
+                        
+                        Text("Unable to load pricing")
+                            .font(.system(size: isCompactHeight ? 16 : min(18, geometry.size.width * 0.045), weight: .semibold))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                        
+                        Button("Retry") {
+                            Task {
+                                do {
+                                    try await purchaseManager.fetchProductsForDisplay()
+                                    if selectedProduct == nil {
+                                        if let weeklyProduct = getProduct(for: "daystart_weekly_subscription") {
+                                            selectedProduct = weeklyProduct
+                                        } else {
+                                            selectedProduct = getProduct(for: "daystart_annual_subscription")
+                                        }
+                                    }
+                                } catch {
+                                    logger.logError(error, context: "Retry fetch products failed")
+                                }
+                            }
+                        }
+                        .padding(.horizontal, isCompactHeight ? 16 : 20)
+                        .padding(.vertical, isCompactHeight ? 6 : 8)
+                        .background(BananaTheme.ColorToken.primary)
+                        .foregroundColor(BananaTheme.ColorToken.background)
+                        .cornerRadius(isCompactHeight ? 10 : 12)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, geometry.size.width * 0.10)
+                    .opacity(textOpacity)
+                } else {
+                    // Use HStack for wider screens, VStack for narrow
+                    Group {
+                        if geometry.size.width > 500 {
+                            HStack(spacing: 12) {
+                                // Weekly subscription - only show if available
+                                if getProduct(for: "daystart_weekly_subscription") != nil {
+                                    PricingCard(
+                                        title: "Weekly Pass",
+                                        price: {
+                                            let product = getProduct(for: "daystart_weekly_subscription")
+                                            let promoInfo = getPromotionalPriceInfo(for: product)
+                                            return promoInfo.price.isEmpty ? "$1.99/week" : promoInfo.price
+                                        }(),
+                                        originalPrice: {
+                                            let product = getProduct(for: "daystart_weekly_subscription")
+                                            let promoInfo = getPromotionalPriceInfo(for: product)
+                                            return promoInfo.originalPrice
+                                        }(),
+                                        promotionalBadge: {
+                                            let product = getProduct(for: "daystart_weekly_subscription")
+                                            let promoInfo = getPromotionalPriceInfo(for: product)
+                                            return promoInfo.badge
+                                        }(),
+                                        subtitle: nil,
+                                        badge: "🚀 Try First",
+                                        trialText: "No commitment",
+                                        renewalText: "renews weekly",
+                                        savings: nil,
+                                        isSelected: selectedProduct?.id == "daystart_weekly_subscription",
+                                        geometry: geometry,
+                                        animationTrigger: animationTrigger,
+                                        action: {
+                                            selectedProduct = getProduct(for: "daystart_weekly_subscription")
+                                            impactFeedback()
+                                        }
+                                    )
+                                }
+                        
+                                PricingCard(
+                                    title: "Monthly Pass",
+                                    price: {
+                                        let product = getProduct(for: "daystart_monthly_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.price.isEmpty ? "$4.99/month" : promoInfo.price
+                                    }(),
+                                    originalPrice: {
+                                        let product = getProduct(for: "daystart_monthly_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.originalPrice
+                                    }(),
+                                    promotionalBadge: {
+                                        let product = getProduct(for: "daystart_monthly_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.badge
+                                    }(),
+                                    subtitle: nil,
+                                    badge: nil,
+                                    trialText: getTrialText(for: getProduct(for: "daystart_monthly_subscription")) ?? "3-Day Free Trial",
+                                    renewalText: "renews monthly",
+                                    savings: nil,
+                                    isSelected: selectedProduct?.id == "daystart_monthly_subscription",
+                                    geometry: geometry,
+                                    animationTrigger: animationTrigger,
+                                    action: {
+                                        selectedProduct = getProduct(for: "daystart_monthly_subscription")
+                                        impactFeedback()
+                                    }
+                                )
+                        
+                                PricingCard(
+                                    title: "Annual Pass",
+                            price: {
+                                let product = getProduct(for: "daystart_annual_subscription")
+                                let promoInfo = getPromotionalPriceInfo(for: product)
+                                return promoInfo.price.isEmpty ? "$39.99/year" : promoInfo.price
+                            }(),
+                            originalPrice: {
+                                let product = getProduct(for: "daystart_annual_subscription")
+                                let promoInfo = getPromotionalPriceInfo(for: product)
+                                return promoInfo.originalPrice
+                            }(),
+                            promotionalBadge: {
+                                let product = getProduct(for: "daystart_annual_subscription")
+                                let promoInfo = getPromotionalPriceInfo(for: product)
+                                return promoInfo.badge
+                            }(),
+                            subtitle: nil,
+                            badge: "🔥 Most Popular",
+                            trialText: getTrialText(for: getProduct(for: "daystart_annual_subscription")) ?? "7-Day Free Trial",
+                            renewalText: "renews annually",
+                            savings: getSavingsText(annual: getProduct(for: "daystart_annual_subscription"), monthly: getProduct(for: "daystart_monthly_subscription")),
+                            isSelected: selectedProduct?.id == "daystart_annual_subscription",
+                            geometry: geometry,
+                            animationTrigger: animationTrigger,
+                            action: {
+                                selectedProduct = getProduct(for: "daystart_annual_subscription")
+                                impactFeedback()
+                            }
+                        )
+                            }
+                        } else {
+                            VStack(spacing: 12) {
+                                // Weekly subscription - only show if available
+                                if getProduct(for: "daystart_weekly_subscription") != nil {
+                                    PricingCard(
+                                        title: "Weekly Pass",
+                                        price: {
+                                            let product = getProduct(for: "daystart_weekly_subscription")
+                                            let promoInfo = getPromotionalPriceInfo(for: product)
+                                            return promoInfo.price.isEmpty ? "$1.99/week" : promoInfo.price
+                                        }(),
+                                        originalPrice: {
+                                            let product = getProduct(for: "daystart_weekly_subscription")
+                                            let promoInfo = getPromotionalPriceInfo(for: product)
+                                            return promoInfo.originalPrice
+                                        }(),
+                                        promotionalBadge: {
+                                            let product = getProduct(for: "daystart_weekly_subscription")
+                                            let promoInfo = getPromotionalPriceInfo(for: product)
+                                            return promoInfo.badge
+                                        }(),
+                                        subtitle: nil,
+                                        badge: "🚀 Try First",
+                                        trialText: "No commitment",
+                                        renewalText: "renews weekly",
+                                        savings: nil,
+                                        isSelected: selectedProduct?.id == "daystart_weekly_subscription",
+                                        geometry: geometry,
+                                        animationTrigger: animationTrigger,
+                                        action: {
+                                            selectedProduct = getProduct(for: "daystart_weekly_subscription")
+                                            impactFeedback()
+                                        }
+                                    )
+                                }
+                                
+                                PricingCard(
+                                    title: "Monthly Pass",
+                                    price: {
+                                        let product = getProduct(for: "daystart_monthly_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.price.isEmpty ? "$4.99/month" : promoInfo.price
+                                    }(),
+                                    originalPrice: {
+                                        let product = getProduct(for: "daystart_monthly_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.originalPrice
+                                    }(),
+                                    promotionalBadge: {
+                                        let product = getProduct(for: "daystart_monthly_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.badge
+                                    }(),
+                                    subtitle: nil,
+                                    badge: nil,
+                                    trialText: getTrialText(for: getProduct(for: "daystart_monthly_subscription")) ?? "3-Day Free Trial",
+                                    renewalText: "renews monthly",
+                                    savings: nil,
+                                    isSelected: selectedProduct?.id == "daystart_monthly_subscription",
+                                    geometry: geometry,
+                                    animationTrigger: animationTrigger,
+                                    action: {
+                                        selectedProduct = getProduct(for: "daystart_monthly_subscription")
+                                        impactFeedback()
+                                    }
+                                )
+                                
+                                PricingCard(
+                                    title: "Annual Pass",
+                                    price: {
+                                        let product = getProduct(for: "daystart_annual_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.price.isEmpty ? "$39.99/year" : promoInfo.price
+                                    }(),
+                                    originalPrice: {
+                                        let product = getProduct(for: "daystart_annual_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.originalPrice
+                                    }(),
+                                    promotionalBadge: {
+                                        let product = getProduct(for: "daystart_annual_subscription")
+                                        let promoInfo = getPromotionalPriceInfo(for: product)
+                                        return promoInfo.badge
+                                    }(),
+                                    subtitle: nil,
+                                    badge: "🔥 Most Popular",
+                                    trialText: getTrialText(for: getProduct(for: "daystart_annual_subscription")) ?? "7-Day Free Trial",
+                                    renewalText: "renews annually",
+                                    savings: getSavingsText(annual: getProduct(for: "daystart_annual_subscription"), monthly: getProduct(for: "daystart_monthly_subscription")),
+                                    isSelected: selectedProduct?.id == "daystart_annual_subscription",
+                                    geometry: geometry,
+                                    animationTrigger: animationTrigger,
+                                    action: {
+                                        selectedProduct = getProduct(for: "daystart_annual_subscription")
+                                        impactFeedback()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, geometry.size.width * 0.10)
+                    .opacity(textOpacity)
+                }
+                
+                // Bottom spacer to center content
+                Spacer()
+                
+                
+                // Fixed bottom action area
+                VStack(spacing: 0) {
+                    Divider()
+                        .opacity(0.1)
+                    
+                    VStack(spacing: isCompactHeight ? 16 : 24) {
+                        // Adaptive "Limited Time Offer" badge
+                        if !isCompactHeight {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock.fill")
+                                    .font(.system(size: 12))
+                                Text("Limited Time Offer")
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundColor(BananaTheme.ColorToken.primary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(BananaTheme.ColorToken.primary.opacity(0.1))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(BananaTheme.ColorToken.primary.opacity(0.3), lineWidth: 1)
+                            )
+                            .opacity(textOpacity)
+                        }
+                        
+                        // CTA Button Group
+                        VStack(spacing: 8) {
+                            Button(action: {
+                                logger.logUserAction("Paywall CTA tapped", details: [
+                                    "selectedProduct": selectedProduct?.id ?? "none",
+                                    "hasName": !name.isEmpty,
+                                    "includeWeather": includeWeather,
+                                    "includeNews": includeNews,
+                                    "includeSports": includeSports,
+                                    "includeStocks": includeStocks,
+                                    "includeCalendar": includeCalendar,
+                                    "includeQuotes": includeQuotes,
+                                    "selectedVoice": selectedVoice?.name ?? "none"
+                                ])
+                                
+                                // Start purchase flow and trigger job creation
+                                startPurchaseFlow()
+                            }) {
+                                VStack(spacing: isCompactHeight ? 2 : 4) {
+                                    Text(getCTAText(for: selectedProduct))
+                                        .font(.system(size: isCompactHeight ? 18 : min(22, geometry.size.width * 0.055), weight: .bold))
+                                        .foregroundColor(BananaTheme.ColorToken.background)
+                                    
+                                    if let product = selectedProduct {
+                                        Text(getCTASubtext(for: product))
+                                            .font(.system(size: isCompactHeight ? 12 : min(14, geometry.size.width * 0.035), weight: .medium))
+                                            .foregroundColor(BananaTheme.ColorToken.background.opacity(0.9))
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: isCompactHeight ? 56 : max(64, geometry.size.height * 0.08))
+                            }
+                            .buttonStyle(InstantResponseStyle())
+                            .background(
+                                LinearGradient(
+                                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                                .cornerRadius(25)
+                                .shadow(color: BananaTheme.ColorToken.primary.opacity(0.5), radius: isCompactHeight ? 12 : 20)
+                            )
+                            .scaleEffect(animationTrigger ? 1.02 : 1.0)
+                            .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: animationTrigger)
+                            .opacity(textOpacity)
+                            .disabled(purchaseManager.isLoadingProducts || selectedProduct == nil)
+                            
+                            Text("Auto-renews until canceled. Cancel anytime in Settings.")
+                                .font(.system(size: isCompactHeight ? 10 : 11, weight: .regular))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
+                                .multilineTextAlignment(.center)
+                                .opacity(textOpacity)
+                        }
+                        
+                        // Legal links - smaller and less prominent
+                        HStack(spacing: isCompactHeight ? 12 : 16) {
+                            Button("Terms") {
+                                if let url = URL(string: "https://daystart.bananaintelligence.ai/terms") {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            Text("•")
+                            Button("Privacy") {
+                                if let url = URL(string: "https://daystart.bananaintelligence.ai/privacy") {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            Text("•")
+                            Button("Restore") {
+                                Task {
+                                    do {
+                                        try await PurchaseManager.shared.restorePurchases()
+                                    } catch {
+                                        logger.logError(error, context: "Failed to restore purchases")
+                                        await MainActor.run {
+                                            restoreErrorMessage = "No previous purchase found. Please subscribe to continue."
+                                            showRestoreError = true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .font(.system(size: isCompactHeight ? 10 : 11, weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.6))
+                        .opacity(textOpacity)
+                    }
+                    .padding(.horizontal, geometry.size.width * 0.10)
+                    .padding(.top, isCompactHeight ? 12 : 20)
+                    .padding(.bottom, max(isCompactHeight ? 16 : 24, geometry.safeAreaInsets.bottom))
+                }
+                .background(
+                    LinearGradient(
+                        colors: [
+                            BananaTheme.ColorToken.background,
+                            BananaTheme.ColorToken.background.opacity(0.95)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea(edges: .bottom)
+                )
+            }
+        }
+        .onAppear {
+            // Fetch products if not already loaded
+            if purchaseManager.availableProducts.isEmpty {
+                Task {
+                    do {
+                        try await purchaseManager.fetchProductsForDisplay()
+                        // Set default selection to weekly product (if available), then fall back to annual
+                        if selectedProduct == nil {
+                            if let weeklyProduct = getProduct(for: "daystart_weekly_subscription") {
+                                selectedProduct = weeklyProduct
+                            } else {
+                                selectedProduct = getProduct(for: "daystart_annual_subscription")
+                            }
+                        }
+                    } catch {
+                        logger.logError(error, context: "Failed to fetch products on paywall appear")
+                    }
+                }
+            } else {
+                // Products already loaded, just set default selection
+                if selectedProduct == nil {
+                    if let weeklyProduct = getProduct(for: "daystart_weekly_subscription") {
+                        selectedProduct = weeklyProduct
+                    } else {
+                        selectedProduct = getProduct(for: "daystart_annual_subscription")
+                    }
+                }
+            }
+        }
+    }
     
     // MARK: - Helper Functions
     
@@ -1576,22 +2116,22 @@ struct OnboardingView: View {
         // Special animation sequence for page 1
         if currentPage == 0 {
             // Add a small delay to ensure the view has rendered with reset values
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                // Stage 1: Wake Up (coordinated with sunrise animation)
-                withAnimation(.easeInOut(duration: 0.8)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                // Stage 1: Wake Up
+                withAnimation(.easeInOut(duration: 0.6)) {
                     animationStage = 1
                 }
                 
                 // Stage 2: Get Briefed
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                    withAnimation(.easeInOut(duration: 0.8)) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    withAnimation(.easeInOut(duration: 0.6)) {
                         animationStage = 2
                     }
                 }
                 
-                // Stage 3: Succeed (with shorter pause for better flow)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-                    withAnimation(.easeInOut(duration: 0.8)) {
+                // Stage 3: Succeed (with pause)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    withAnimation(.easeInOut(duration: 0.6)) {
                         animationStage = 3
                     }
                 }
@@ -1647,7 +2187,7 @@ struct OnboardingView: View {
                 logger.log("💳 Initiating StoreKit purchase", level: .info)
                 
                 // Promotional offers are automatically applied by StoreKit
-                if purchaseManager.getPromotionalPrice(for: product) != nil {
+                if purchaseManager.availablePromotions[product.id] != nil {
                     logger.log("🎁 Promotional pricing available for this purchase", level: .info)
                 }
                 
@@ -1660,51 +2200,29 @@ struct OnboardingView: View {
                     startWelcomeDayStartProcessing()
                     
                     // Complete onboarding directly after purchase
-                    logger.log("🔄 Post-purchase: Calling completeOnboarding() to transition to home", level: .info)
                     completeOnboarding()
                 }
             } catch {
                 await MainActor.run {
                     logger.logError(error, context: "Purchase flow failed")
-
+                    
                     // Show user-friendly error message
                     let errorMessage: String
-                    let errorTitle: String
-
-                    if let purchaseError = error as? PurchaseError {
-                        switch purchaseError {
-                        case .purchaseFailed(let message):
-                            errorTitle = "Purchase Failed"
-                            if message.contains("cancelled") {
-                                errorMessage = "Purchase was cancelled."
-                            } else if message.contains("pending") {
-                                errorMessage = "Your purchase is pending. Please check back later."
-                            } else {
-                                errorMessage = "Unable to complete your purchase. Please check your payment method and try again."
-                            }
-                        case .keychainStorageFailed(let message):
-                            // Special handling for storage failures
-                            errorTitle = "Storage Error"
-                            errorMessage = "Purchase couldn't be saved securely. Please try again or contact support if you were charged."
-                            logger.log("🚨 CRITICAL: Purchase storage failed: \(message)", level: .error)
-                        case .restoreFailed:
-                            errorTitle = "Restore Failed"
-                            errorMessage = "Unable to restore purchases. Please try again."
-                        case .receiptNotFound:
-                            errorTitle = "No Purchase Found"
-                            errorMessage = "No previous purchase found."
-                        case .networkError:
-                            errorTitle = "Network Error"
-                            errorMessage = "Network error. Please check your connection."
-                        case .productNotFound:
-                            errorTitle = "Product Not Available"
-                            errorMessage = "Product not available. Please try again later."
+                    let errorTitle = "Purchase Failed"
+                    
+                    // Check if it's a RevenueCat configuration issue
+                    if let purchaseError = error as? PurchaseError,
+                       case .purchaseFailed(let message) = purchaseError {
+                        
+                        if message.contains("configuration") || message.contains("not valid") {
+                            errorMessage = "We're experiencing technical difficulties with our payment system. Please try again in a few moments, or contact support if the issue persists."
+                        } else {
+                            errorMessage = "Unable to complete your purchase. Please check your payment method and try again."
                         }
                     } else {
-                        errorTitle = "Purchase Failed"
                         errorMessage = "Unable to complete your purchase. Please check your connection and try again."
                     }
-
+                    
                     // Show alert
                     showErrorAlert(title: errorTitle, message: errorMessage)
                 }
@@ -1848,13 +2366,8 @@ struct OnboardingView: View {
         WelcomeDayStartScheduler.shared.scheduleWelcomeDayStart()
         logger.log("🎉 Welcome DayStart scheduled for existing subscriber", level: .info)
         
-        // Ensure state updates are properly propagated
-        DispatchQueue.main.async {
-            logger.log("🔄 Auth: Forcing UI state refresh after onboarding completion", level: .info)
-            
-            // Complete onboarding - this will trigger the auth extension's navigation logic
-            onComplete()
-        }
+        // Complete onboarding - settings already saved and job already processing
+        onComplete()
     }
     
     // MARK: - Product Helpers (Phase 2)
@@ -1961,9 +2474,9 @@ struct OnboardingView: View {
         // Check if PurchaseManager has promotional pricing for this product
         if let promoInfo = purchaseManager.getPromotionalPrice(for: product) {
             let formatter = product.priceFormatStyle
-            let promoPrice = promoInfo.0.formatted(formatter)
+            let promoPrice = promoInfo.promotional.formatted(formatter)
             let originalPrice = product.displayPrice
-            let badge = "\(promoInfo.1)% OFF"
+            let badge = "\(promoInfo.savingsPercent)% OFF"
             
             return (price: promoPrice, originalPrice: originalPrice, badge: badge)
         }
@@ -2360,120 +2873,6 @@ struct PaywallFeatureRow: View {
             Spacer()
         }
         .padding(.horizontal, 4)
-    }
-}
-
-// MARK: - Standardized Bottom Button Component
-
-struct OnboardingBottomButton: View {
-    let buttonText: String
-    let subtextButton: String?
-    let action: () -> Void
-    let subtextAction: (() -> Void)?
-    let geometry: GeometryProxy
-    let animationTrigger: Bool
-    let textOpacity: Double
-    let poweredByText: String?
-    let poweredByURL: String?
-    
-    init(
-        buttonText: String,
-        subtextButton: String? = nil,
-        action: @escaping () -> Void,
-        subtextAction: (() -> Void)? = nil,
-        geometry: GeometryProxy,
-        animationTrigger: Bool = false,
-        textOpacity: Double = 1.0,
-        poweredByText: String? = nil,
-        poweredByURL: String? = nil
-    ) {
-        self.buttonText = buttonText
-        self.subtextButton = subtextButton
-        self.action = action
-        self.subtextAction = subtextAction
-        self.geometry = geometry
-        self.animationTrigger = animationTrigger
-        self.textOpacity = textOpacity
-        self.poweredByText = poweredByText
-        self.poweredByURL = poweredByURL
-    }
-    
-    var body: some View {
-        VStack {
-            Spacer()
-            
-            // Fixed bottom button container
-            VStack(spacing: 16) {
-                Button(action: action) {
-                    Text(buttonText)
-                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: max(56, geometry.size.height * 0.07))
-                        .background(
-                            LinearGradient(
-                                colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(16)
-                        .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
-                }
-                .scaleEffect(animationTrigger ? 1.05 : 1.0)
-                
-                // Optional subtext button
-                if let subtextButton = subtextButton, let subtextAction = subtextAction {
-                    Button(action: subtextAction) {
-                        Text(subtextButton)
-                            .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                    }
-                } else if let subtextButton = subtextButton {
-                    // Non-button subtext
-                    Text(subtextButton)
-                        .font(.system(size: min(16, geometry.size.width * 0.04), weight: .medium))
-                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
-                }
-            }
-            .padding(.horizontal, geometry.size.width * 0.10)
-            .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
-            .opacity(textOpacity)
-            .background(
-                // Semi-transparent background for overlay effect
-                Rectangle()
-                    .fill(BananaTheme.ColorToken.background.opacity(0.95))
-                    .blur(radius: 0.5)
-                    .ignoresSafeArea(edges: .bottom)
-            )
-            .overlay(alignment: .bottom) {
-                // Powered by attribution below button
-                if let poweredByText = poweredByText {
-                    HStack(spacing: 6) {
-                        if let poweredByURL = poweredByURL {
-                            Button(action: {
-                                if let url = URL(string: poweredByURL) {
-                                    UIApplication.shared.open(url)
-                                }
-                            }) {
-                                Text(poweredByText)
-                                    .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                                    .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            Text(poweredByText)
-                                .font(.system(size: min(12, geometry.size.width * 0.03), weight: .medium))
-                                .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.7))
-                        }
-                    }
-                    .opacity(textOpacity)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, geometry.size.width * 0.10)
-                    .padding(.bottom, max(8, geometry.safeAreaInsets.bottom + 8))
-                }
-            }
-        }
     }
 }
 

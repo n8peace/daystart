@@ -8,6 +8,7 @@ import MediaPlayer
 import FirebaseCore
 import FirebaseAnalytics
 import FirebaseCrashlytics
+import RevenueCat
 
 /// Minimal DayStartApp with aggressive service deferral
 /// Only loads 3 essential services on startup for Spotify-level performance
@@ -16,13 +17,11 @@ struct DayStartApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     // TIER 1: Only essential services (no lazy loading needed)
+    private var userPreferences: UserPreferences { UserPreferences.shared }
     @StateObject var themeManager = ThemeManager.shared  // Made internal for auth extension
     
     // Purchase state
     @StateObject var purchaseManager = PurchaseManager.shared
-    
-    // User preferences for onboarding state
-    @StateObject var userPreferences = UserPreferences.shared
     
     // Logger for auth extension  
     internal let logger = DebugLogger.shared
@@ -103,9 +102,9 @@ struct DayStartApp: App {
         
         // DEFERRED: Background cleanup (non-blocking)
         // Only run cleanup if user has completed onboarding
-        if userPreferences.hasCompletedOnboarding {
+        if UserPreferences.shared.hasCompletedOnboarding {
             Task.detached(priority: .background) {
-                await userPreferences.cleanupOldAudioFiles()
+                await UserPreferences.shared.cleanupOldAudioFiles()
             }
         }
     }
@@ -168,7 +167,7 @@ struct DayStartApp: App {
             let registry = ServiceRegistry.shared
             
             // Only trigger if user has active schedule
-            guard !userPreferences.schedule.repeatDays.isEmpty else {
+            guard !UserPreferences.shared.schedule.repeatDays.isEmpty else {
                 return
             }
             
@@ -204,6 +203,8 @@ struct DayStartApp: App {
     /// Handle timezone changes to maintain alarm clock behavior
     private func handleTimezoneChange() async {
         await MainActor.run {
+            let userPreferences = UserPreferences.shared
+            
             // Only update if user has active schedule
             guard !userPreferences.schedule.repeatDays.isEmpty else {
                 logger.log("🌍 Timezone changed but no active schedule - skipping job updates", level: .info)
@@ -214,7 +215,7 @@ struct DayStartApp: App {
             
             // Trigger timezone change handling in UserPreferences
             Task.detached {
-                await self.userPreferences.updateJobsForTimezoneChange()
+                await userPreferences.updateJobsForTimezoneChange()
             }
         }
     }
@@ -251,6 +252,16 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         FirebaseApp.configure()
         DebugLogger.shared.log("✅ Firebase configured", level: .info)
         
+        // Configure RevenueCat
+        DebugLogger.shared.log("💰 About to configure RevenueCat", level: .info)
+        do {
+            configureRevenueCat()
+            DebugLogger.shared.log("✅ RevenueCat configuration method completed", level: .info)
+        } catch {
+            DebugLogger.shared.log("❌ FATAL: RevenueCat configuration failed: \(error)", level: .error)
+            // Continue app startup even if RevenueCat fails
+        }
+        
         // REQUIRED: Register all background task handlers before app finishes launching
         DebugLogger.shared.log("📱 Registering background tasks", level: .info)
         registerBackgroundTasks()
@@ -260,6 +271,127 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
     
+    /// Configure RevenueCat with API key and user identification
+    private func configureRevenueCat() {
+        DebugLogger.shared.log("🔧 Starting RevenueCat configuration in DayStartApp", level: .info)
+        
+        defer {
+            DebugLogger.shared.log("🏁 Exiting configureRevenueCat method", level: .info)
+        }
+        
+        do {
+            // Configure with API key from Info.plist (use sandbox for debug builds)
+            DebugLogger.shared.log("📋 Checking Info.plist for API key", level: .info)
+            
+            #if DEBUG
+            // Use sandbox key for debug builds (simulator testing)
+            guard let apiKey = Bundle.main.object(forInfoDictionaryKey: "REVENUECAT_SANDBOX_API_KEY") as? String else {
+                DebugLogger.shared.log("❌ FATAL: RevenueCat sandbox API key not found in Info.plist", level: .error)
+                fatalError("RevenueCat sandbox API key not found in Info.plist")
+            }
+            DebugLogger.shared.log("✅ Sandbox API key found: \(apiKey.prefix(12))...", level: .info)
+            #else
+            // Use production key for release builds
+            guard let apiKey = Bundle.main.object(forInfoDictionaryKey: "REVENUECAT_API_KEY") as? String else {
+                DebugLogger.shared.log("❌ FATAL: RevenueCat API key not found in Info.plist", level: .error)
+                fatalError("RevenueCat API key not found in Info.plist")
+            }
+            DebugLogger.shared.log("✅ Production API key found: \(apiKey.prefix(12))...", level: .info)
+            #endif
+            
+            // Configure RevenueCat
+            DebugLogger.shared.log("⚙️ Calling Purchases.configure", level: .info)
+            
+            #if DEBUG
+            // Enable debug logging and verbose logs for testing
+            Purchases.logLevel = .debug
+            Purchases.debugLogsEnabled = true
+            
+            // Check if we're using StoreKit Configuration file (local testing)
+            let useStoreKitConfig = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" &&
+                                   Bundle.main.bundleURL.pathExtension == "app"
+            
+            if useStoreKitConfig {
+                DebugLogger.shared.log("🧪 Using StoreKit Configuration file - setting up for local testing", level: .info)
+                // Use StoreKit 2 testing mode
+                Purchases.configure(
+                    with: .builder(withAPIKey: apiKey)
+                        .with(usesStoreKit2IfAvailable: true)
+                        .with(storeKit1Timeout: 5)
+                        .build()
+                )
+            } else {
+                // Normal configuration
+                Purchases.configure(withAPIKey: apiKey)
+            }
+            
+            // Enable StoreKit testing mode when using local StoreKit configuration files
+            Purchases.simulatesAskToBuyInSandbox = true
+            
+            DebugLogger.shared.log("✅ RevenueCat SDK configured (DEBUG mode with verbose logging)", level: .info)
+            #else
+            Purchases.configure(withAPIKey: apiKey)
+            DebugLogger.shared.log("✅ RevenueCat SDK configured", level: .info)
+            #endif
+            
+            // Check initial user ID
+            let initialUserId = Purchases.shared.appUserID
+            DebugLogger.shared.log("👤 Initial anonymous user ID: \(initialUserId)", level: .info)
+            
+            // Get or create user ID
+            let receiptKey = "purchase_receipt_id"
+            DebugLogger.shared.log("🔍 Checking keychain for existing receipt ID", level: .info)
+            let existingReceiptId = KeychainManager.shared.retrieve(String.self, forKey: receiptKey)
+            
+            // Check if existing ID is invalid (like "0")
+            let isValidUserId = existingReceiptId != nil && existingReceiptId != "0" && !existingReceiptId!.isEmpty
+            let userId = isValidUserId ? existingReceiptId! : UUID().uuidString
+            
+            if !isValidUserId {
+                DebugLogger.shared.log("🚨 Invalid existing receipt ID detected ('\(existingReceiptId ?? "nil")'), generating new UUID", level: .info)
+            }
+            
+            DebugLogger.shared.log("🔍 User ID to use: \(userId.prefix(8))... (existing: \(existingReceiptId != nil ? "yes" : "no"))", level: .info)
+            
+            // Set user ID immediately to avoid "0" issue
+            DebugLogger.shared.log("🔄 Calling Purchases.shared.logIn", level: .info)
+            Purchases.shared.logIn(userId) { (customerInfo, created, error) in
+                if let error = error {
+                    DebugLogger.shared.log("❌ RevenueCat login failed: \(error.localizedDescription)", level: .error)
+                    DebugLogger.shared.log("🔧 User ID after failed login: \(Purchases.shared.appUserID)", level: .info)
+                } else {
+                    DebugLogger.shared.log("✅ RevenueCat user ID set successfully: \(userId.prefix(8))...", level: .info)
+                    
+                    // Store new ID if it didn't exist or was invalid
+                    if !isValidUserId {
+                        _ = KeychainManager.shared.store(userId, forKey: receiptKey)
+                        DebugLogger.shared.log("💾 Stored new user ID in keychain", level: .info)
+                    }
+                }
+                
+                // Log final user ID for verification
+                let finalUserId = Purchases.shared.appUserID
+                DebugLogger.shared.log("🎯 Final RevenueCat user ID: \(finalUserId)", level: .info)
+                
+                // Additional verification
+                if finalUserId == "0" {
+                    DebugLogger.shared.log("🚨 WARNING: User ID is still '0' - this will cause API failures!", level: .error)
+                } else {
+                    DebugLogger.shared.log("✅ User ID successfully set to non-zero value", level: .info)
+                }
+            }
+            
+            // Enable debug logs for testing
+            Purchases.logLevel = .debug
+            DebugLogger.shared.log("📊 RevenueCat debug logs enabled", level: .info)
+            
+            DebugLogger.shared.log("✅ RevenueCat configuration complete", level: .info)
+            
+        } catch {
+            DebugLogger.shared.log("❌ EXCEPTION in configureRevenueCat: \(error.localizedDescription)", level: .error)
+            // Don't let RevenueCat configuration failures crash the app
+        }
+    }
     
     /// Register background task handlers (required in didFinishLaunchingWithOptions)
     private func registerBackgroundTasks() {

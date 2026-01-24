@@ -1,0 +1,861 @@
+import SwiftUI
+import StoreKit
+import RevenueCat
+
+struct PaywallView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    // RevenueCat integration
+    @StateObject private var purchaseManager = PurchaseManager.shared
+    
+    // UI state
+    @State private var selectedProductID: String = "daystart_monthly_subscription"
+    @State private var isLoading = false
+    @State private var showingError = false
+    @State private var errorMessage = ""
+    @State private var animationTrigger = false
+    
+    // Animation properties
+    @State private var heroScale: CGFloat = 1.0
+    @State private var starRotation: Double = 0
+    
+    private let logger = DebugLogger.shared
+    
+    // Completion handlers
+    let onPurchaseComplete: (() -> Void)?
+    let onDismiss: (() -> Void)?
+    
+    init(
+        onPurchaseComplete: (() -> Void)? = nil,
+        onDismiss: (() -> Void)? = nil
+    ) {
+        self.onPurchaseComplete = onPurchaseComplete
+        self.onDismiss = onDismiss
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            mainContent(geometry: geometry)
+        }
+        .onAppear {
+            logger.log("💳 PaywallView appeared", level: .info)
+            startAnimations()
+            fetchProductsIfNeeded()
+        }
+        .alert("Purchase Error", isPresented: $showingError) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage)
+        }
+        .navigationBarHidden(true)
+    }
+    
+    private func mainContent(geometry: GeometryProxy) -> some View {
+        ZStack {
+            // Standard background pattern (matches onboarding and rest of app)
+            BananaTheme.ColorToken.background
+                .ignoresSafeArea()
+            
+            // Subtle gradient overlay (15% opacity like onboarding)
+            DayStartGradientBackground()
+                .opacity(0.15)
+            
+            VStack(spacing: 0) {
+                // Fixed header
+                headerSection(geometry: geometry)
+                
+                // Scrollable features
+                scrollableContent(geometry: geometry)
+                
+                // Fixed pricing section at bottom
+                bottomSection(geometry: geometry)
+            }
+        }
+    }
+    
+    private func scrollableContent(geometry: GeometryProxy) -> some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            featuresSection(geometry: geometry)
+                .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
+        }
+    }
+    
+    private func bottomSection(geometry: GeometryProxy) -> some View {
+        bottomContent(geometry: geometry)
+    }
+    
+    private func bottomContent(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 12) {
+            subscriptionPlansSection(geometry: geometry)
+            purchaseButton(geometry: geometry)
+            footerSection(geometry: geometry)
+        }
+        .padding(.horizontal, max(20, geometry.size.width * 0.05))
+        .padding(.top, 16)
+        .padding(.bottom, max(44, geometry.safeAreaInsets.bottom + 24))
+    }
+    
+    // MARK: - Sections
+    
+    private func headerSection(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 16) {
+            heroSection
+        }
+        .padding(.horizontal, max(20, geometry.size.width * 0.05))
+        .padding(.top, max(20, geometry.safeAreaInsets.top + 20))
+    }
+    
+    private var closeButton: some View {
+        HStack {
+            Spacer()
+            Button(action: {
+                onDismiss?()
+                dismiss()
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.8))
+            }
+        }
+    }
+    
+    private var heroSection: some View {
+        VStack(spacing: 16) {
+            heroIcon
+            heroText
+        }
+    }
+    
+    private var heroIcon: some View {
+        ZStack {
+            // Animated background circle
+            Circle()
+                .fill(BananaTheme.ColorToken.primary.opacity(0.2))
+                .frame(width: 120, height: 120)
+                .scaleEffect(heroScale)
+            
+            // Main sun icon
+            Text("☀️")
+                .font(.system(size: 64))
+                .scaleEffect(heroScale)
+            
+            // Animated stars
+            animatedStars
+        }
+    }
+    
+    private var animatedStars: some View {
+        ForEach(0..<3) { index in
+            starView(for: index)
+        }
+    }
+    
+    private func starView(for index: Int) -> some View {
+        let angle = Double(index) * 2 * .pi / 3 + starRotation * .pi / 180
+        let xOffset = cos(angle) * 60
+        let yOffset = sin(angle) * 60
+        
+        return Image(systemName: "star.fill")
+            .font(.system(size: 12))
+            .foregroundColor(BananaTheme.ColorToken.primary)
+            .offset(x: xOffset, y: yOffset)
+            .opacity(animationTrigger ? 1.0 : 0.3)
+    }
+    
+    private var heroText: some View {
+        VStack(spacing: 8) {
+            Text("Unlock DayStart AI")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundColor(BananaTheme.ColorToken.text)
+                .multilineTextAlignment(.center)
+            
+            Text("Start every day perfectly informed")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                .multilineTextAlignment(.center)
+        }
+    }
+    
+    private func featuresSection(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 16) {
+            PaywallBenefitRow(
+                icon: "brain.head.profile",
+                title: "AI-Powered Briefings",
+                subtitle: "Personalized content curated just for you",
+                geometry: geometry
+            )
+            
+            PaywallBenefitRow(
+                icon: "waveform.circle.fill",
+                title: "Premium Voice Options",
+                subtitle: "Choose from multiple high-quality AI voices",
+                geometry: geometry
+            )
+            
+            PaywallBenefitRow(
+                icon: "calendar.circle.fill",
+                title: "Calendar Integration",
+                subtitle: "Never miss important events and appointments",
+                geometry: geometry
+            )
+            
+            PaywallBenefitRow(
+                icon: "cloud.sun.fill",
+                title: "Weather & News",
+                subtitle: "Stay informed about what matters most",
+                geometry: geometry
+            )
+            
+            PaywallBenefitRow(
+                icon: "chart.line.uptrend.xyaxis.circle.fill",
+                title: "Stock & Sports Updates",
+                subtitle: "Track your investments and favorite teams",
+                geometry: geometry
+            )
+        }
+        .padding(.horizontal, max(20, geometry.size.width * 0.05))
+        .padding(.top, 20)
+        .padding(.bottom, 10)
+    }
+    
+    private func subscriptionPlansSection(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 12) {
+            if purchaseManager.isLoadingProducts {
+                ProgressView()
+                    .scaleEffect(1.2)
+                    .frame(height: 100)
+            } else if purchaseManager.availableProducts.isEmpty {
+                VStack(spacing: 12) {
+                    Text("Unable to load subscription options")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    
+                    Button("Retry") {
+                        fetchProductsIfNeeded()
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(BananaTheme.ColorToken.primary)
+                }
+                .frame(height: 100)
+            } else {
+                subscriptionCards(geometry: geometry)
+            }
+        }
+    }
+    
+    private func subscriptionCards(geometry: GeometryProxy) -> some View {
+        let weeklyProduct = getProduct(for: "daystart_weekly_subscription")
+        let monthlyProduct = getProduct(for: "daystart_monthly_subscription")
+        let annualProduct = getProduct(for: "daystart_annual_subscription")
+        
+        return VStack(spacing: 8) {
+            // Weekly Plan
+            if let product = weeklyProduct {
+                SubscriptionPlanCard(
+                    product: product,
+                    title: "Weekly",
+                    badge: "Try It Out",
+                    badgeColor: .blue,
+                    isSelected: selectedProductID == product.id,
+                    geometry: geometry,
+                    purchaseManager: purchaseManager,
+                    animationTrigger: animationTrigger
+                ) {
+                    selectedProductID = product.id
+                    impactFeedback()
+                }
+            }
+            
+            // Monthly Plan
+            if let product = monthlyProduct {
+                SubscriptionPlanCard(
+                    product: product,
+                    title: "Monthly",
+                    badge: "3-Day Free Trial",
+                    badgeColor: BananaTheme.ColorToken.primary,
+                    isSelected: selectedProductID == product.id,
+                    geometry: geometry,
+                    purchaseManager: purchaseManager,
+                    animationTrigger: animationTrigger
+                ) {
+                    selectedProductID = product.id
+                    impactFeedback()
+                }
+            }
+            
+            // Annual Plan  
+            if let product = annualProduct {
+                SubscriptionPlanCard(
+                    product: product,
+                    title: "Annual",
+                    badge: "7-Day Free Trial",
+                    badgeColor: BananaTheme.ColorToken.primary,
+                    isSelected: selectedProductID == product.id,
+                    geometry: geometry,
+                    purchaseManager: purchaseManager,
+                    animationTrigger: animationTrigger,
+                    savings: getSavingsText(annual: product, monthly: monthlyProduct)
+                ) {
+                    selectedProductID = product.id
+                    impactFeedback()
+                }
+            }
+        }
+    }
+    
+    private func purchaseButton(geometry: GeometryProxy) -> some View {
+        Button(action: {
+            startPurchaseFlow()
+        }) {
+            VStack(spacing: 4) {
+                HStack {
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .foregroundColor(Color.adaptive(light: .white, dark: .black))
+                    }
+                    
+                    Text(isLoading ? "Processing..." : getPurchaseButtonText())
+                        .font(.system(size: min(20, geometry.size.width * 0.05), weight: .bold))
+                }
+                
+                if let product = getSelectedProduct() {
+                    Text(getPurchaseButtonSubtext(for: product))
+                        .font(.system(size: 12, weight: .medium))
+                        .opacity(0.9)
+                }
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: max(56, geometry.size.height * 0.07))
+            .background(
+                LinearGradient(
+                    colors: [BananaTheme.ColorToken.primary, BananaTheme.ColorToken.accent],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .cornerRadius(16)
+            .shadow(color: BananaTheme.ColorToken.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+        }
+        .padding(.horizontal, geometry.size.width * 0.10)
+        .disabled(isLoading || purchaseManager.isLoadingProducts)
+        .scaleEffect(animationTrigger ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: animationTrigger)
+    }
+    
+    private func footerSection(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 8) {
+            // All footer links on one line
+            HStack(spacing: 16) {
+                Button(action: {
+                    Task {
+                        await restorePurchases()
+                    }
+                }) {
+                    Text("Restore Purchases")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                }
+                
+                Text("•")
+                    .font(.system(size: 12))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                
+                Button(action: {
+                    if let url = URL(string: "https://daystart.bananaintelligence.ai/terms") {
+                        UIApplication.shared.open(url)
+                    }
+                }) {
+                    Text("Terms")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                }
+                
+                Text("•")
+                    .font(.system(size: 12))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                
+                Button(action: {
+                    if let url = URL(string: "https://daystart.bananaintelligence.ai/privacy") {
+                        UIApplication.shared.open(url)
+                    }
+                }) {
+                    Text("Privacy")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                }
+            }
+            
+            // Subscription terms
+            Text("Auto renews unless cancelled.")
+                .font(.system(size: 10, weight: .regular))
+                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                .multilineTextAlignment(.center)
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func startAnimations() {
+        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+            heroScale = 1.05
+        }
+        
+        withAnimation(.linear(duration: 8.0).repeatForever(autoreverses: false)) {
+            starRotation = 360
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                animationTrigger.toggle()
+            }
+        }
+    }
+    
+    private func fetchProductsIfNeeded() {
+        if purchaseManager.availableProducts.isEmpty && !purchaseManager.isLoadingProducts {
+            Task {
+                do {
+                    try await purchaseManager.fetchProductsForDisplay()
+                    
+                    // Set default selection to monthly if available
+                    if getProduct(for: "daystart_monthly_subscription") != nil {
+                        selectedProductID = "daystart_monthly_subscription"
+                    } else if let firstProduct = purchaseManager.availableProducts.first {
+                        selectedProductID = firstProduct.id
+                    }
+                } catch {
+                    logger.logError(error, context: "Failed to fetch products for paywall")
+                }
+            }
+        }
+    }
+    
+    private func getProduct(for id: String) -> Product? {
+        return purchaseManager.availableProducts.first { $0.id == id }
+    }
+    
+    private func getSelectedProduct() -> Product? {
+        return getProduct(for: selectedProductID)
+    }
+    
+    private func getPurchaseButtonText() -> String {
+        guard let product = getSelectedProduct() else {
+            return "Continue"
+        }
+        
+        if let trialText = purchaseManager.getTrialText(for: product) {
+            return "Start \(trialText)"
+        } else {
+            return "Subscribe for \(product.displayPrice)"
+        }
+    }
+    
+    private func getPurchaseButtonSubtext(for product: Product) -> String {
+        guard let subscription = product.subscription else {
+            return ""
+        }
+        
+        if let trialText = purchaseManager.getTrialText(for: product) {
+            return "Then \(product.displayPrice) per \(subscription.subscriptionPeriod.unit.localizedDescription.lowercased())"
+        } else {
+            return "Auto renews \(subscription.subscriptionPeriod.unit.adverbForm)"
+        }
+    }
+    
+    private func getSavingsText(annual: Product?, monthly: Product?) -> String? {
+        return purchaseManager.getSavingsText(annual: annual, monthly: monthly)
+    }
+    
+    private func startPurchaseFlow() {
+        guard !isLoading else { return }
+        
+        isLoading = true
+        logger.log("🛒 Starting purchase flow for product: \(selectedProductID)", level: .info)
+        
+        Task {
+            do {
+                try await purchaseManager.purchase(productId: selectedProductID)
+                
+                await MainActor.run {
+                    logger.log("✅ Purchase completed successfully", level: .info)
+                    onPurchaseComplete?()
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    logger.logError(error, context: "Purchase failed")
+                    
+                    if let purchaseError = error as? PurchaseError,
+                       case .purchaseFailed(let message) = purchaseError {
+                        errorMessage = message.contains("cancelled") ? 
+                            "Purchase was cancelled." : 
+                            "Purchase failed. Please try again."
+                    } else {
+                        errorMessage = "Unable to complete purchase. Please check your connection and try again."
+                    }
+                    showingError = true
+                }
+            }
+        }
+    }
+    
+    private func restorePurchases() async {
+        logger.log("🔄 Restoring purchases", level: .info)
+        
+        do {
+            try await purchaseManager.restorePurchases()
+            logger.log("✅ Purchases restored successfully", level: .info)
+            
+            if purchaseManager.isPremium {
+                onPurchaseComplete?()
+                dismiss()
+            }
+        } catch {
+            logger.logError(error, context: "Failed to restore purchases")
+            errorMessage = "Unable to restore purchases. Please try again."
+            showingError = true
+        }
+    }
+    
+    private func impactFeedback() {
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+    }
+}
+
+// MARK: - Supporting Views
+
+struct SubscriptionPlanCard: View {
+    let product: Product
+    let title: String
+    let badge: String?
+    let badgeColor: Color
+    let isSelected: Bool
+    let geometry: GeometryProxy
+    let purchaseManager: PurchaseManager
+    let animationTrigger: Bool
+    let savings: String?
+    let onTap: () -> Void
+    
+    init(
+        product: Product,
+        title: String,
+        badge: String? = nil,
+        badgeColor: Color = .clear,
+        isSelected: Bool,
+        geometry: GeometryProxy,
+        purchaseManager: PurchaseManager,
+        animationTrigger: Bool,
+        savings: String? = nil,
+        onTap: @escaping () -> Void
+    ) {
+        self.product = product
+        self.title = title
+        self.badge = badge
+        self.badgeColor = badgeColor
+        self.isSelected = isSelected
+        self.geometry = geometry
+        self.purchaseManager = purchaseManager
+        self.animationTrigger = animationTrigger
+        self.savings = savings
+        self.onTap = onTap
+    }
+    
+    // Helper computed properties
+    private var hasBottomBadges: Bool {
+        purchaseManager.getPromotionalPrice(for: product) != nil ||
+        savings != nil
+    }
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 16) {
+                // Left side - Title, price, and badge
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(title)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(BananaTheme.ColorToken.text)
+                        
+                        if let badge = badge {
+                            Text(badge)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(badgeColor)
+                                .cornerRadius(6)
+                        }
+                    }
+                    
+                    // Time frame and price display with promotional handling
+                    if let (promotional, _) = purchaseManager.getPromotionalPrice(for: product) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(promotional.formatted(.currency(code: product.priceFormatStyle.currencyCode)))
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            
+                            Text(product.displayPrice)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.gray)
+                                .strikethrough()
+                        }
+                    } else {
+                        Text(getTimeFrameAndPrice(for: product, title: title))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                    }
+                    
+                }
+                
+                Spacer()
+                
+                // Right side - Price
+                VStack(alignment: .trailing, spacing: 2) {
+                    // Price with promotional handling
+                    if let (promotional, savingsPercent) = purchaseManager.getPromotionalPrice(for: product) {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(product.displayPrice)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                .strikethrough()
+                            
+                            HStack(spacing: 4) {
+                                Text("\(savingsPercent)% OFF")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Color.red)
+                                    .cornerRadius(3)
+                                
+                                Text(promotional.formatted(.currency(code: product.priceFormatStyle.currencyCode)))
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(BananaTheme.ColorToken.text)
+                            }
+                        }
+                    } else {
+                        // Show monthly equivalent for annual plan
+                        if title == "Annual" {
+                            let monthlyEquivalent = product.price / 12
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(monthlyEquivalent.formatted(.currency(code: product.priceFormatStyle.currencyCode)))
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(BananaTheme.ColorToken.text)
+                                
+                                Text("per month")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                                
+                                Text("(\(product.displayPrice) annually)")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(BananaTheme.ColorToken.secondaryText.opacity(0.8))
+                            }
+                        } else if title == "Monthly" {
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(product.displayPrice)
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(BananaTheme.ColorToken.text)
+                                
+                                Text("per month")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            }
+                        } else {
+                            // Weekly plan
+                            Text(product.displayPrice)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(BananaTheme.ColorToken.text)
+                            
+                            if let subscription = product.subscription {
+                                Text("per \(subscription.subscriptionPeriod.unit.localizedDescription.lowercased())")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+                            }
+                        }
+                    }
+                }
+                
+                // Selection indicator
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundColor(isSelected ? BananaTheme.ColorToken.primary : BananaTheme.ColorToken.border)
+            }
+            .padding(16)
+            .padding(.bottom, hasBottomBadges ? 12 : 0) // Extra space for badges
+            .background(
+                ZStack {
+                    if isSelected {
+                        // Selected state: primary color background with reduced opacity
+                        RoundedRectangle(cornerRadius: BananaTheme.CornerRadius.md)
+                            .fill(BananaTheme.ColorToken.primary.opacity(0.1))
+                    } else {
+                        // Standard card background
+                        RoundedRectangle(cornerRadius: BananaTheme.CornerRadius.md)
+                            .fill(BananaTheme.ColorToken.card)
+                    }
+                    
+                    // Border for selected state
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: BananaTheme.CornerRadius.md)
+                            .stroke(BananaTheme.ColorToken.primary, lineWidth: 2)
+                    }
+                }
+            )
+            .shadow(
+                color: isSelected ? BananaTheme.ColorToken.primary.opacity(0.2) : BananaTheme.ColorToken.shadow,
+                radius: isSelected ? 6 : BananaTheme.Shadow.md.radius,
+                x: isSelected ? 0 : BananaTheme.Shadow.md.x,
+                y: isSelected ? 3 : BananaTheme.Shadow.md.y
+            )
+            .overlay(
+                // Top-right savings badge
+                VStack {
+                    HStack {
+                        Spacer()
+                        if let savings = savings {
+                            Text(savings)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.green)
+                                )
+                        }
+                    }
+                    Spacer()
+                }
+                .padding(.top, 8)
+                .padding(.trailing, 16)
+            )
+            .overlay(
+                // Bottom badges overlay
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        
+                        // Promotional badge at bottom-right
+                        if let (_, savingsPercent) = purchaseManager.getPromotionalPrice(for: product) {
+                            Text("🔥 \(savingsPercent)% OFF")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.red)
+                                )
+                        }
+                    }
+                }
+                .padding(.bottom, 8)
+                .padding(.horizontal, 16)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .scaleEffect(isSelected ? 1.02 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+        .scaleEffect(isSelected ? (animationTrigger ? 1.03 : 1.02) : 1.0)
+        .animation(
+            isSelected ? .easeInOut(duration: 2.0).repeatForever(autoreverses: true) : .default,
+            value: animationTrigger
+        )
+    }
+    
+    // Helper function to get time frame and price text
+    private func getTimeFrameAndPrice(for product: Product, title: String) -> String {
+        switch title {
+        case "Weekly":
+            return "1wk - \(product.displayPrice)"
+        case "Monthly":
+            return "1mo - \(product.displayPrice)"
+        case "Annual":
+            return "12 mos - \(product.displayPrice)"
+        default:
+            return product.displayPrice
+        }
+    }
+}
+
+struct PaywallBenefitRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let geometry: GeometryProxy
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 24))
+                .foregroundColor(BananaTheme.ColorToken.primary)
+                .frame(width: 32)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(BananaTheme.ColorToken.text)
+                
+                Text(subtitle)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(BananaTheme.ColorToken.secondaryText)
+            }
+            
+            Spacer()
+            
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 20))
+                .foregroundColor(.green)
+        }
+        .padding(16)
+        .bananaCardStyle()
+    }
+}
+
+// MARK: - Extensions
+
+extension StoreKit.Product.SubscriptionPeriod.Unit {
+    var localizedDescription: String {
+        switch self {
+        case .day:
+            return "Day"
+        case .week:
+            return "Week"
+        case .month:
+            return "Month"
+        case .year:
+            return "Year"
+        @unknown default:
+            return "Period"
+        }
+    }
+    
+    var adverbForm: String {
+        switch self {
+        case .day:
+            return "daily"
+        case .week:
+            return "weekly"
+        case .month:
+            return "monthly"
+        case .year:
+            return "yearly"
+        @unknown default:
+            return "periodically"
+        }
+    }
+}
+
+
+// MARK: - Preview
+
+struct PaywallView_Previews: PreviewProvider {
+    static var previews: some View {
+        PaywallView()
+    }
+}

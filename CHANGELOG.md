@@ -8,15 +8,82 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2025.11.10] - In Development
+## [2026.01.23] - In Development
 
 **Build:** 1 | **Commit:** TBD | **Status:** 🚧 In Development
 
 ### Added
+- **Firebase Analytics Integration** - Added Google Analytics tracking for app insights
+  - Integrated Firebase SDK (Analytics + Crashlytics) with lazy loading architecture
+  - Tracks key user events: DayStart creation, subscription events
+  - Automatic crash reporting for improved app stability
+  - Privacy-compliant implementation with updated Privacy Manifest
+  - Follows production-ready patterns with backwards compatibility
+
+- **Weekly Subscription Option** - New low-commitment pricing tier for faster user acquisition
+  - $1.99/week subscription with no free trial for immediate access
+  - Positioned as "🚀 Try First" option at top of pricing tiers
+  - Dynamic continue button shows "Continue for $1.99" vs "Start Free Trial" 
+  - StoreKit product ID: `daystart_weekly_subscription`
+  - Fully backwards compatible - existing users and older app versions unaffected
+  - Smart default selection prioritizes weekly option for new users
 
 ### Changed
+- **Paywall User Experience** - Streamlined conversion flow for better engagement
+  - Removed distracting animated star emoji from pricing page
+  - Replaced ScrollView with centered VStack layout (no more scrolling required)
+  - Added dynamic pricing visibility in continue button for transparency
+  - Optimized spacing and centering across all device sizes
 
 ### Fixed
+- **Settings Persistence** - User settings (name, sports/news preferences) now persist reliably across app updates
+  - Fixed inappropriate Keychain storage for non-sensitive user preferences
+  - Simplified to UserDefaults-only storage following iOS best practices
+  - Eliminates race conditions and dual-storage complexity that caused settings loss
+  - PurchaseManager still correctly uses Keychain for sensitive receipt data
+  - Users will never lose their personalized settings during App Store updates again
+
+- **Welcome DayStart Generation** - Fixed onboarding experience issues
+  - Fixed stage progression showing all statuses at 5% progress
+  - Properly mapped generation stages to actual job lifecycle (connecting → queued → processing → ready)
+  - Fixed audio not playing due to premature playback attempt before loading completed
+  - Welcome DayStart now reliably plays after generation completes
+
+- **Audio Playback Loop** - Fixed welcome audio looping after onboarding
+  - Fixed schedule observer triggering state updates during active audio playback
+  - Added defensive guards to prevent state transitions away from `.playing` state
+  - Strengthened `StateTransitionManager.canTransition()` validation to block invalid transitions
+  - Welcome audio now plays once without restarting after onboarding completion
+
+- **Anonymous User Authentication** - **CRITICAL FIX** - Fixed Welcome DayStart creation failure during onboarding
+  - **Issue:** Backend requires `x-client-info` header for ALL API calls, but anonymous users (pre-purchase) had no identifier
+  - **Impact:** New users couldn't generate Welcome DayStart during onboarding → missing "aha moment" experience
+  - **Root Cause:** iOS client only set `x-client-info` for purchased users with receipt IDs
+  - **Solution:** Implemented permanent anonymous user ID (UUID) generated on first app launch
+  - Anonymous ID stored in UserDefaults and becomes user's permanent identifier
+  - Same ID persists even after purchase (continuity of all DayStarts and user data)
+  - Receipt ID tracked separately for premium verification only
+  - Updated `x-auth-type` header to reflect actual premium status (purchase vs anonymous)
+  - **Result:** Welcome DayStart works during onboarding, zero data loss, seamless upgrade path
+
+- **Purchase Receipt Storage** - **CRITICAL FIX** - Eliminated revenue loss from failed receipt storage
+  - **Issue:** Keychain write failures caused users to permanently lose their purchase on app restart
+  - **Impact:** Device locked during background transactions = guaranteed Keychain failure → lost premium access
+  - **Solution:** Implemented dual storage (Keychain primary + UserDefaults fallback) with retry logic
+  - Added 3-attempt retry with exponential backoff (0.5s, 1.5s, 3.5s) for transient Keychain failures
+  - Transactions now finish ONLY after confirmed receipt persistence (prevents revenue loss)
+  - StoreKit automatically redelivers unfinished transactions if storage fails completely
+  - UserDefaults fallback works even when device locked, ensuring maximum reliability
+  - Added comprehensive error logging and user-friendly error messages for support escalation
+  - Enhanced KeychainManager with detailed error reporting (device locked, storage failed, etc.)
+  - **Result:** Zero revenue loss from storage failures, improved production reliability
+
+- **Job Scheduling** - Fixed jobs becoming unprocessable after schedule changes
+  - Fixed critical bug where `process_not_before` wasn't updated when users changed their schedule time
+  - Jobs with rescheduled times would remain stuck in `queued` status indefinitely
+  - Now properly recalculates `process_not_before` to be 45 minutes before new `scheduled_at` time
+  - Ensures all rescheduled jobs can be processed at their new intended times
+  - Added interactive slider bubble for audio scrubbing in welcome player
 
 ### Removed
 
@@ -24,7 +91,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2025.11.1] - 2025-11-02
 
-**Build:** 2 | **Commit:** ad5b209 | **Status:** **LIVE** on App Store as of 2025-11-02
+**Build:** 2 | **Commit:** 68c11ba | **Status:** **LIVE** on App Store as of 2025-11-02
 
 ### Added
 - **News Category Selection** - Personalize your morning briefing with granular news filtering

@@ -1,6 +1,9 @@
 import Foundation
 import Combine
 import StoreKit
+import SwiftUI
+
+// MARK: - Purchase Types
 
 enum PurchaseState {
     case unknown
@@ -13,7 +16,9 @@ enum PurchaseError: LocalizedError {
     case restoreFailed(String)
     case receiptNotFound
     case networkError
-    
+    case productNotFound
+    case keychainStorageFailed(String)
+
     var errorDescription: String? {
         switch self {
         case .purchaseFailed(let message):
@@ -24,34 +29,91 @@ enum PurchaseError: LocalizedError {
             return "No valid purchase receipt found"
         case .networkError:
             return "Network error. Please check your connection."
+        case .productNotFound:
+            return "Product not found"
+        case .keychainStorageFailed(let message):
+            return "Failed to save purchase: \(message)"
         }
     }
 }
 
+// MARK: - StoreKit Purchase Manager
+
+/// StoreKit 2 based implementation of PurchaseManager
+/// Provides subscription management without external dependencies
 @MainActor
 class PurchaseManager: ObservableObject {
     static let shared = PurchaseManager()
     
+    // MARK: - Published Properties
     @Published private(set) var purchaseState: PurchaseState = .unknown
     @Published private(set) var currentReceiptId: String?
     @Published private(set) var isLoading = false
     @Published private(set) var availableProducts: [Product] = []
     @Published private(set) var isLoadingProducts = false
-    @Published private(set) var availablePromotions: [String: Product.SubscriptionOffer] = [:]
+    @Published private(set) var isPremium: Bool = false
     
     private let logger = DebugLogger.shared
     private let keychainManager = KeychainManager.shared
     private let receiptKey = "purchase_receipt_id"
+    private let receiptUserDefaultsKey = "purchase_receipt_id_backup"
+    private let anonymousUserIdKey = "anonymous_user_id"
     private var updateListenerTask: Task<Void, Never>?
+    
+    // Product IDs
+    private let productIds = [
+        "daystart_weekly_subscription",
+        "daystart_monthly_subscription",
+        "daystart_annual_subscription"
+    ]
     
     private init() {
         Task {
             await checkPurchaseStatus()
+            await fetchProducts()
         }
         
-        // Start listening for transaction updates
-        updateListenerTask = Task {
-            await observeTransactionUpdates()
+        // Listen for transaction updates
+        updateListenerTask = listenForTransactions()
+    }
+    
+    deinit {
+        updateListenerTask?.cancel()
+    }
+    
+    // MARK: - Transaction Listener
+    
+    private func listenForTransactions() -> Task<Void, Never> {
+        Task.detached {
+            // Listen for transaction updates
+            for await result in Transaction.updates {
+                await self.handle(transactionResult: result)
+            }
+        }
+    }
+    
+    @MainActor
+    private func handle(transactionResult result: VerificationResult<StoreKit.Transaction>) async {
+        guard case .verified(let transaction) = result else {
+            logger.log("⚠️ Unverified transaction received", level: .warning)
+            return
+        }
+
+        do {
+            // Update purchase state (includes storage with retry logic)
+            try await updatePurchaseState(from: transaction)
+
+            // ONLY finish transaction after successful storage
+            await transaction.finish()
+            logger.log("✅ Transaction finished successfully: \(transaction.id)", level: .info)
+
+        } catch {
+            // CRITICAL: Do NOT finish transaction if storage failed
+            logger.log("🚨 CRITICAL: Not finishing transaction \(transaction.id) due to storage failure. Will retry on next app launch.", level: .error)
+            logger.logError(error, context: "Transaction listener storage failure")
+
+            // StoreKit will redeliver this transaction on next app launch
+            // This is MUCH better than losing the user's purchase
         }
     }
     
@@ -59,36 +121,113 @@ class PurchaseManager: ObservableObject {
     
     func checkPurchaseStatus() async {
         logger.log("🛒 Checking purchase status", level: .info)
-        
-        // First check if we have a stored receipt ID
-        if let storedReceiptId = keychainManager.retrieve(String.self, forKey: receiptKey) {
-            await MainActor.run {
-                self.purchaseState = .purchased(receiptId: storedReceiptId)
-                self.currentReceiptId = storedReceiptId
-            }
+
+        // Use dual storage retrieval (Keychain first, UserDefaults fallback)
+        if let storedReceiptId = retrieveReceiptId() {
+            self.purchaseState = .purchased(receiptId: storedReceiptId)
+            self.currentReceiptId = storedReceiptId
+            self.isPremium = true
             logger.log("✅ Found stored receipt: \(storedReceiptId.prefix(8))...", level: .info)
-            return
+        }
+
+        // Always check for valid StoreKit transactions
+        await checkForValidTransactions()
+    }
+    
+    func fetchProducts() async {
+        guard !isLoadingProducts else { return }
+        
+        isLoadingProducts = true
+        logger.log("📦 Fetching products: \(productIds)", level: .info)
+        
+        do {
+            let products = try await Product.products(for: productIds)
+            self.availableProducts = products.sorted { $0.price < $1.price }
+            logger.log("✅ Fetched \(products.count) products", level: .info)
+        } catch {
+            logger.logError(error, context: "Failed to fetch products")
         }
         
-        // Check for valid StoreKit transactions
-        await checkForValidTransactions()
+        isLoadingProducts = false
+    }
+    
+    func fetchProductsForDisplay() async throws {
+        if availableProducts.isEmpty {
+            await fetchProducts()
+        }
+    }
+    
+    func purchase(productId: String) async throws {
+        logger.log("💳 Starting purchase for product: \(productId)", level: .info)
+        
+        guard let product = availableProducts.first(where: { $0.id == productId }) else {
+            throw PurchaseError.productNotFound
+        }
+        
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            let result = try await product.purchase()
+            
+            switch result {
+            case .success(let verification):
+                switch verification {
+                case .verified(let transaction):
+                    logger.log("✅ Purchase verified: \(transaction.id)", level: .info)
+
+                    do {
+                        try await updatePurchaseState(from: transaction)
+                        await transaction.finish()
+                        logger.log("✅ Purchase completed and transaction finished", level: .info)
+
+                    } catch {
+                        // If storage fails, throw error to UI but DON'T finish transaction
+                        logger.log("🚨 Purchase storage failed - transaction not finished", level: .error)
+
+                        if let purchaseError = error as? PurchaseError {
+                            throw purchaseError
+                        } else if let keychainError = error as? KeychainManager.KeychainError {
+                            throw PurchaseError.keychainStorageFailed(keychainError.localizedDescription)
+                        } else {
+                            throw PurchaseError.keychainStorageFailed("Failed to save purchase. Please try again.")
+                        }
+                    }
+
+                case .unverified(_, let error):
+                    logger.logError(error, context: "Purchase verification failed")
+                    throw PurchaseError.purchaseFailed("Verification failed")
+                }
+
+            case .userCancelled:
+                logger.log("🚫 Purchase cancelled by user", level: .info)
+                throw PurchaseError.purchaseFailed("Purchase was cancelled")
+                
+            case .pending:
+                logger.log("⏳ Purchase pending", level: .info)
+                throw PurchaseError.purchaseFailed("Purchase is pending. Please check back later.")
+                
+            @unknown default:
+                throw PurchaseError.purchaseFailed("Unknown error occurred")
+            }
+        } catch let error as PurchaseError {
+            throw error
+        } catch {
+            throw PurchaseError.purchaseFailed(error.localizedDescription)
+        }
     }
     
     func restorePurchases() async throws {
         logger.log("🔄 Restoring purchases", level: .info)
-        await MainActor.run { isLoading = true }
+        isLoading = true
         
-        defer { 
-            Task { @MainActor in
-                isLoading = false
-            }
-        }
+        defer { isLoading = false }
         
         do {
             try await AppStore.sync()
             await checkForValidTransactions()
             
-            if case .purchased = purchaseState {
+            if isPremium {
                 logger.log("✅ Purchase restoration successful", level: .info)
             } else {
                 throw PurchaseError.receiptNotFound
@@ -99,234 +238,272 @@ class PurchaseManager: ObservableObject {
         }
     }
     
+    // MARK: - Helper Methods
     
-    func purchase(productId: String) async throws {
-        logger.log("💳 Starting real StoreKit purchase for product: \(productId)", level: .info)
-        await MainActor.run { isLoading = true }
+    func getTrialText(for product: Product) -> String? {
+        guard let subscription = product.subscription,
+              let introOffer = subscription.introductoryOffer else {
+            return nil
+        }
         
-        defer { 
-            Task { @MainActor in
-                isLoading = false
+        if case .freeTrial = introOffer.paymentMode {
+            let period = introOffer.period
+            return "\(period.value) Day Free Trial"
+        }
+        
+        return nil
+    }
+    
+    func getPromotionalPrice(for product: Product) -> (Decimal, Int)? {
+        guard let subscription = product.subscription,
+              let introOffer = subscription.introductoryOffer,
+              introOffer.paymentMode == .payAsYouGo || introOffer.paymentMode == .payUpFront else {
+            return nil
+        }
+        
+        let priceDouble = Double(truncating: product.price as NSDecimalNumber)
+        let introDouble = Double(truncating: introOffer.price as NSDecimalNumber)
+        let savingsPercent = Int(((priceDouble - introDouble) / priceDouble) * 100)
+        return (introOffer.price, savingsPercent)
+    }
+    
+    func getSavingsText(annual: Product?, monthly: Product?) -> String? {
+        guard let annualProduct = annual,
+              let monthlyProduct = monthly else { return nil }
+        
+        let monthlyDouble = Double(truncating: monthlyProduct.price as NSDecimalNumber)
+        let annualDouble = Double(truncating: annualProduct.price as NSDecimalNumber)
+        let monthlyTotal = monthlyDouble * 12
+        let savings = monthlyTotal - annualDouble
+        let savingsPercent = Int((savings / monthlyTotal) * 100)
+        
+        if savingsPercent > 0 {
+            return "Save \(savingsPercent)%"
+        }
+        return nil
+    }
+    
+    func getWeeklySavings(for product: Product, weeklyProduct: Product?) -> (percentage: Int, color: Color)? {
+        guard let weekly = weeklyProduct else { return nil }
+        
+        let weeklyDouble = Double(truncating: weekly.price as NSDecimalNumber)
+        let productDouble = Double(truncating: product.price as NSDecimalNumber)
+        
+        // Calculate annual cost for comparison
+        let weeklyAnnual = weeklyDouble * 52
+        let productAnnual: Double
+        
+        // Determine product annual cost based on subscription period
+        if let subscription = product.subscription {
+            switch subscription.subscriptionPeriod.unit {
+            case .week:
+                productAnnual = productDouble * 52
+            case .month:
+                productAnnual = productDouble * 12
+            case .year:
+                productAnnual = productDouble
+            default:
+                return nil
             }
+        } else {
+            return nil
         }
         
-        // Fetch products from App Store
-        let products = try await Product.products(for: [productId])
-        guard let product = products.first else {
-            logger.log("❌ Product not found: \(productId)", level: .error)
-            throw PurchaseError.purchaseFailed("Product not found")
+        // Don't show badge if product is more expensive than weekly
+        guard productAnnual < weeklyAnnual else { return nil }
+        
+        let savings = weeklyAnnual - productAnnual
+        let savingsPercent = Int((savings / weeklyAnnual) * 100)
+        
+        // Dynamic green color based on savings percentage
+        let color: Color
+        if savingsPercent >= 50 {
+            color = Color.green // Bright green for 50%+ savings
+        } else if savingsPercent >= 30 {
+            color = Color.green.opacity(0.8) // Medium green for 30-49% savings
+        } else {
+            color = Color.green.opacity(0.6) // Light green for under 30% savings
         }
         
-        // Initiate purchase
-        // Note: Promotional offers are automatically applied by StoreKit based on eligibility
-        // The promotional pricing is handled at the display level, not the purchase level
-        let result = try await product.purchase()
-        
-        switch result {
-        case .success(let verification):
-            // Verify the transaction
-            switch verification {
-            case .verified(let transaction):
-                // Use the original transaction ID as our stable user identifier
-                let receiptId = String(transaction.originalID)
-                
-                // Store for future use
-                keychainManager.store(receiptId, forKey: receiptKey)
-                
-                await MainActor.run {
-                    self.purchaseState = .purchased(receiptId: receiptId)
-                    self.currentReceiptId = receiptId
-                }
-                
-                // Always finish transactions
-                await transaction.finish()
-                
-                #if DEBUG
-                logger.log("✅ Purchase successful: \(receiptId.prefix(8))...", level: .info)
-                #else
-                logger.log("✅ Purchase successful", level: .info)
-                #endif
-                
-            case .unverified(let transaction, let error):
-                // Failed verification
-                await transaction.finish()
-                logger.logError(error, context: "Purchase verification failed")
-                throw PurchaseError.purchaseFailed("Verification failed")
-            }
-            
-        case .userCancelled:
-            logger.log("👤 User cancelled purchase", level: .info)
-            throw PurchaseError.purchaseFailed("Purchase cancelled")
-            
-        case .pending:
-            logger.log("⏳ Purchase pending (parental approval, etc.)", level: .info)
-            throw PurchaseError.purchaseFailed("Purchase pending approval")
-            
-        @unknown default:
-            logger.log("❌ Unknown purchase result", level: .error)
-            throw PurchaseError.purchaseFailed("Unknown error")
-        }
+        return (percentage: savingsPercent, color: color)
     }
     
     // MARK: - Computed Properties
-    
-    var isPurchased: Bool {
-        if case .purchased = purchaseState {
-            return true
+
+    /// Anonymous user ID - generated once on first app launch and persists forever
+    /// This becomes the permanent user identifier even after purchase (receipt tracked separately)
+    private var anonymousUserId: String {
+        // Check if we already have one
+        if let existingId = UserDefaults.standard.string(forKey: anonymousUserIdKey) {
+            return existingId
         }
-        return false
+
+        // Generate new anonymous ID (format: anon_UUID)
+        let newId = "anon_\(UUID().uuidString)"
+        UserDefaults.standard.set(newId, forKey: anonymousUserIdKey)
+        UserDefaults.standard.synchronize()
+
+        logger.log("🆔 Generated new anonymous user ID: \(newId.prefix(20))...", level: .info)
+        return newId
     }
-    
+
+    /// Returns the user identifier for API calls
+    /// IMPORTANT: Always returns anonymous ID (permanent), even after purchase
+    /// Receipt ID is tracked separately in currentReceiptId for premium verification
     var userIdentifier: String? {
-        return currentReceiptId
+        return anonymousUserId
     }
     
+    // MARK: - Dual Storage Methods
+
+    /// Store receipt ID with retry logic and dual storage (Keychain primary, UserDefaults backup)
+    /// - Parameter receiptId: The receipt ID to store
+    /// - Parameter maxAttempts: Maximum retry attempts (default 3)
+    /// - Throws: PurchaseError.keychainStorageFailed if BOTH storage methods fail
+    private func storeReceiptIdWithRetry(_ receiptId: String, maxAttempts: Int = 3) async throws {
+        var lastError: Error?
+
+        for attempt in 0..<maxAttempts {
+            do {
+                // Try Keychain first (primary storage)
+                try keychainManager.storeWithError(receiptId, forKey: receiptKey)
+
+                // Also store in UserDefaults as backup
+                UserDefaults.standard.set(receiptId, forKey: receiptUserDefaultsKey)
+                UserDefaults.standard.synchronize()
+
+                logger.log("✅ Receipt stored successfully (attempt \(attempt + 1)): \(receiptId.prefix(8))...", level: .info)
+                return // Success!
+
+            } catch let error as KeychainManager.KeychainError {
+                lastError = error
+
+                // Log the specific error
+                logger.log("⚠️ Keychain storage attempt \(attempt + 1) failed: \(error.localizedDescription)", level: .warning)
+
+                if attempt == maxAttempts - 1 {
+                    // Last attempt failed, try UserDefaults only as final fallback
+                    logger.log("🚨 All Keychain attempts failed, using UserDefaults-only storage", level: .error)
+                    UserDefaults.standard.set(receiptId, forKey: receiptUserDefaultsKey)
+                    UserDefaults.standard.synchronize()
+
+                    // REFINEMENT: Don't throw if UserDefaults succeeds - we have persistent storage
+                    logger.log("✅ Receipt stored in UserDefaults backup (Keychain unavailable): \(receiptId.prefix(8))...", level: .warning)
+                    return // Success via fallback
+                }
+
+                // Exponential backoff: 0.5s, 1.5s, 3.5s
+                let delay = 0.5 * pow(2.0, Double(attempt))
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+            } catch {
+                lastError = error
+                logger.logError(error, context: "Unexpected error storing receipt (attempt \(attempt + 1))")
+
+                // For unknown errors, still retry
+                if attempt < maxAttempts - 1 {
+                    let delay = 0.5 * pow(2.0, Double(attempt))
+                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                }
+            }
+        }
+
+        // If we get here, all attempts failed
+        throw lastError ?? PurchaseError.keychainStorageFailed("Failed to store receipt after \(maxAttempts) attempts")
+    }
+
+    /// Retrieve receipt ID from dual storage (Keychain first, UserDefaults fallback)
+    /// - Returns: The receipt ID if found in either storage, nil otherwise
+    private func retrieveReceiptId() -> String? {
+        // Try Keychain first
+        if let receiptId = keychainManager.retrieve(String.self, forKey: receiptKey) {
+            logger.log("📦 Retrieved receipt from Keychain: \(receiptId.prefix(8))...", level: .debug)
+            return receiptId
+        }
+
+        // Fallback to UserDefaults
+        if let receiptId = UserDefaults.standard.string(forKey: receiptUserDefaultsKey) {
+            logger.log("📦 Retrieved receipt from UserDefaults backup: \(receiptId.prefix(8))...", level: .info)
+
+            // Try to restore to Keychain in background
+            Task.detached { [weak self] in
+                guard let self = self else { return }
+                do {
+                    try await self.storeReceiptIdWithRetry(receiptId, maxAttempts: 1)
+                    await MainActor.run {
+                        self.logger.log("✅ Restored receipt to Keychain from UserDefaults", level: .info)
+                    }
+                } catch {
+                    // Ignore errors - UserDefaults is working as fallback
+                }
+            }
+
+            return receiptId
+        }
+
+        return nil
+    }
+
     // MARK: - Private Methods
-    
+
     private func checkForValidTransactions() async {
         // Check for current entitlements
-        for await transaction in Transaction.currentEntitlements {
-            guard case .verified(let validTransaction) = transaction else {
-                continue
-            }
-            
-            // Use the original transaction ID as our stable user identifier
-            let receiptId = String(validTransaction.originalID)
-            
-            // Store for future use
-            keychainManager.store(receiptId, forKey: receiptKey)
-            
-            await MainActor.run {
+        for await result in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result else { continue }
+
+            do {
+                try await updatePurchaseState(from: transaction)
+                return
+            } catch {
+                // Log error but still update in-memory state for current session
+                logger.logError(error, context: "Failed to store receipt during entitlement check")
+
+                // REFINEMENT: Give user premium for current session even if storage fails
+                // This handles the case where the app was reinstalled and we're recovering from Apple's servers
+                let receiptId = "tx_\(transaction.originalID)"
                 self.purchaseState = .purchased(receiptId: receiptId)
                 self.currentReceiptId = receiptId
+                self.isPremium = true
+
+                logger.log("⚠️ User has premium (current session only, storage failed): \(receiptId.prefix(8))...", level: .warning)
+                return
             }
-            
-            logger.log("✅ Valid transaction found: \(receiptId.prefix(8))...", level: .info)
-            return
         }
-        
+
         // No valid transactions found
-        await MainActor.run {
+        if currentReceiptId == nil {
             self.purchaseState = .notPurchased
-            self.currentReceiptId = nil
-        }
-        logger.log("🚫 No valid purchases found", level: .info)
-    }
-    
-    func fetchProductsForDisplay() async throws {
-        logger.log("🛍️ Fetching products for display", level: .info)
-        await MainActor.run { isLoadingProducts = true }
-        
-        defer {
-            Task { @MainActor in
-                isLoadingProducts = false
-            }
-        }
-        
-        let productIds = ["daystart_annual_subscription", "daystart_monthly_subscription"]
-        let products = try await Product.products(for: productIds)
-        
-        // Check for promotional offers on each product
-        var promotions: [String: Product.SubscriptionOffer] = [:]
-        for product in products {
-            if let offers = await checkEligiblePromotionalOffers(for: product),
-               let bestOffer = offers.first {
-                promotions[product.id] = bestOffer
-                logger.log("🎁 Found promotional offer for \(product.id): \(bestOffer.id ?? "unknown")", level: .info)
-            }
-        }
-        
-        await MainActor.run {
-            self.availableProducts = products.sorted { product1, product2 in
-                // Sort by price descending (annual first)
-                product1.price > product2.price
-            }
-            self.availablePromotions = promotions
-        }
-        
-        logger.log("✅ Fetched \(products.count) products with \(promotions.count) promotional offers", level: .info)
-    }
-    
-    func checkEligiblePromotionalOffers(for product: Product) async -> [Product.SubscriptionOffer]? {
-        guard let subscription = product.subscription else { return nil }
-        
-        // Get all promotional offers (not introductory offers)
-        let promotionalOffers = subscription.promotionalOffers
-        
-        // In a real app, you might check eligibility based on user status
-        // For now, return all available promotional offers
-        if !promotionalOffers.isEmpty {
-            logger.log("🔍 Found \(promotionalOffers.count) promotional offers for \(product.id)", level: .info)
-        }
-        
-        return promotionalOffers.isEmpty ? nil : promotionalOffers
-    }
-    
-    func getPromotionalPrice(for product: Product) -> (original: Decimal, promotional: Decimal, savingsPercent: Int)? {
-        guard let offer = availablePromotions[product.id],
-              let subscription = product.subscription else { return nil }
-        
-        let originalPrice = product.price
-        
-        // Calculate promotional price based on offer type
-        let promotionalPrice: Decimal
-        switch offer.paymentMode {
-        case .payAsYouGo:
-            // Discounted price for the offer period
-            promotionalPrice = offer.price ?? originalPrice
-        case .payUpFront:
-            // One-time discounted payment
-            promotionalPrice = offer.price ?? originalPrice
-        case .freeTrial:
-            // Free trial (already handled as intro offer)
-            return nil
-        default:
-            return nil
-        }
-        
-        // Calculate savings percentage
-        let savings = originalPrice - promotionalPrice
-        let savingsPercent = Int(((savings / originalPrice) * 100) as NSDecimalNumber)
-        
-        return (original: originalPrice, promotional: promotionalPrice, savingsPercent: savingsPercent)
-    }
-    
-    private func clearStoredReceipt() {
-        keychainManager.delete(forKey: receiptKey)
-        currentReceiptId = nil
-        purchaseState = .notPurchased
-        logger.log("🧹 Cleared stored receipt", level: .info)
-    }
-    
-    private func observeTransactionUpdates() async {
-        logger.log("🔄 Starting transaction update observer", level: .info)
-        
-        for await result in Transaction.updates {
-            guard case .verified(let transaction) = result else {
-                continue
-            }
-            
-            logger.log("📦 Processing transaction update: \(transaction.productID)", level: .info)
-            
-            // Use the original transaction ID as our stable user identifier
-            let receiptId = String(transaction.originalID)
-            
-            // Store for future use
-            keychainManager.store(receiptId, forKey: receiptKey)
-            
-            await MainActor.run {
-                self.purchaseState = .purchased(receiptId: receiptId)
-                self.currentReceiptId = receiptId
-            }
-            
-            // Always finish transactions
-            await transaction.finish()
-            
-            logger.log("✅ Transaction processed: \(receiptId.prefix(8))...", level: .info)
+            self.isPremium = false
+            logger.log("🚫 No valid purchases found", level: .info)
         }
     }
     
-    deinit {
-        updateListenerTask?.cancel()
+    private func updatePurchaseState(from transaction: StoreKit.Transaction) async throws {
+        // Use the original transaction ID as our stable user identifier
+        let receiptId = "tx_\(transaction.originalID)"
+
+        // CRITICAL: Store receipt BEFORE updating state or finishing transaction
+        try await storeReceiptIdWithRetry(receiptId)
+
+        // Only update state after successful storage
+        self.purchaseState = .purchased(receiptId: receiptId)
+        self.currentReceiptId = receiptId
+        self.isPremium = true
+
+        logger.log("✅ Valid transaction stored and state updated: \(receiptId.prefix(8))...", level: .info)
+    }
+}
+
+// MARK: - Extensions
+
+extension Product.SubscriptionPeriod.Unit {
+    var localizedPluralDescription: String {
+        switch self {
+        case .day: return "Days"
+        case .week: return "Weeks"
+        case .month: return "Months"
+        case .year: return "Years"
+        @unknown default: return "Period"
+        }
     }
 }

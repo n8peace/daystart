@@ -3,7 +3,7 @@ import SwiftUI
 import Combine
 
 /// Simplified UserPreferences with aggressive dependency deferral
-/// Only loads UserDefaults immediately, defers Keychain and all other services
+/// Uses UserDefaults as single source of truth for reliable persistence
 @MainActor
 class UserPreferences: ObservableObject {
     static let shared = UserPreferences()
@@ -11,11 +11,11 @@ class UserPreferences: ObservableObject {
     private let userDefaults = UserDefaults.standard
     
     // Lazy-loaded dependencies (only when needed)
-    private var _keychain: KeychainManager?
     private var _logger: DebugLogger?
     
     @Published var hasCompletedOnboarding: Bool {
         didSet {
+            logger.log("🎓 hasCompletedOnboarding changed: \(oldValue) → \(hasCompletedOnboarding)", level: .info)
             userDefaults.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding")
         }
     }
@@ -50,20 +50,11 @@ class UserPreferences: ObservableObject {
         self.settings = Self.loadSettingsFromUserDefaults() ?? UserSettings.default
         self.history = Self.loadHistoryFromUserDefaults() ?? []
         
-        // DEFERRED: Keychain reconciliation happens only when needed
-        Task.detached { [weak self] in
-            await self?.lazyReconcileWithKeychain()
-        }
+        // UserDefaults is now the single source of truth - no reconciliation needed
     }
     
     // MARK: - Lazy Dependencies
     
-    private var keychain: KeychainManager {
-        if _keychain == nil {
-            _keychain = KeychainManager.shared
-        }
-        return _keychain!
-    }
     
     private var logger: DebugLogger {
         if _logger == nil {
@@ -98,54 +89,8 @@ class UserPreferences: ObservableObject {
         return Self.processHistory(decoded)
     }
     
-    // MARK: - Deferred Keychain Loading (Only When Needed)
-    
-    private static func loadScheduleFromKeychain() -> DayStartSchedule? {
-        return KeychainManager.shared.retrieve(DayStartSchedule.self, forKey: KeychainManager.Keys.schedule)
-    }
-    
-    private static func loadSettingsFromKeychain() -> UserSettings? {
-        return KeychainManager.shared.retrieve(UserSettings.self, forKey: KeychainManager.Keys.userSettings)
-    }
-    
-    private static func loadHistoryFromKeychain() -> [DayStartData]? {
-        if let history = KeychainManager.shared.retrieve([DayStartData].self, forKey: KeychainManager.Keys.history) {
-            return Self.processHistory(history)
-        }
-        return nil
-    }
-    
-    /// Background reconciliation with Keychain (deferred, non-blocking)
-    private func lazyReconcileWithKeychain() async {
-        // Load from Keychain in background (only when needed)
-        let keychainSchedule = Self.loadScheduleFromKeychain()
-        let keychainSettings = Self.loadSettingsFromKeychain()
-        let keychainHistory = Self.loadHistoryFromKeychain()
-        
-        await MainActor.run {
-            var hasUpdates = false
-            
-            // Update from Keychain data if it exists and is different
-            if let keychainSchedule = keychainSchedule, keychainSchedule != self.schedule {
-                self.schedule = keychainSchedule
-                hasUpdates = true
-            }
-            
-            if let keychainSettings = keychainSettings, keychainSettings != self.settings {
-                self.settings = keychainSettings
-                hasUpdates = true
-            }
-            
-            if let keychainHistory = keychainHistory, keychainHistory.count != self.history.count {
-                self.history = keychainHistory
-                hasUpdates = true
-            }
-            
-            if hasUpdates {
-                logger.log("✅ Keychain reconciliation completed with updates", level: .info)
-            }
-        }
-    }
+    // MARK: - UserDefaults is now single source of truth
+    // Keychain reconciliation removed - no longer needed
     
     // MARK: - History Processing (Static, No Dependencies)
     
@@ -207,11 +152,7 @@ class UserPreferences: ObservableObject {
             userDefaults.set(data, forKey: "schedule")
         }
         
-        // DEFERRED: Background save to Keychain
-        Task.detached { [weak self] in
-            guard let self = self else { return }
-            _ = await self.keychain.store(scheduleToSave, forKey: KeychainManager.Keys.schedule)
-        }
+        // UserDefaults is now the single source of truth - no Keychain needed
     }
     
     /// Handle schedule changes to update/cancel jobs when days are added/removed
@@ -234,19 +175,9 @@ class UserPreferences: ObservableObject {
             userDefaults.set(data, forKey: "settings")
         }
         
-        // DEFERRED: Background save to Keychain and job updates
+        // DEFERRED: Background job updates (only if content generation is needed)
         Task.detached { [weak self] in
             guard let self = self else { return }
-            
-            // Save to keychain
-            let success = await self.keychain.store(settingsToSave, forKey: KeychainManager.Keys.userSettings)
-            if !success {
-                await MainActor.run {
-                    self.logger.logError(NSError(domain: "KeychainError", code: 1), context: "Failed to save user settings to Keychain")
-                }
-            }
-            
-            // Update upcoming jobs (only if content generation is needed)
             await self.updateUpcomingJobsIfNeeded(with: settingsToSave)
         }
     }
@@ -445,11 +376,7 @@ class UserPreferences: ObservableObject {
             userDefaults.set(data, forKey: "history")
         }
         
-        // DEFERRED: Background save to Keychain
-        Task.detached { [weak self] in
-            guard let self = self else { return }
-            _ = await self.keychain.store(historyToSave, forKey: KeychainManager.Keys.history)
-        }
+        // UserDefaults is now the single source of truth - no Keychain needed
     }
     
     // MARK: - Scheduling Helpers (No Dependencies)

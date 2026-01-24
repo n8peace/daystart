@@ -1,0 +1,439 @@
+import Foundation
+import Combine
+import StoreKit
+import RevenueCat
+
+// MARK: - Purchase Types
+
+enum PurchaseState {
+    case unknown
+    case notPurchased
+    case purchased(receiptId: String)
+}
+
+enum PurchaseError: Error {
+    case receiptNotFound
+    case restoreFailed(String)
+    case purchaseFailed(String)
+}
+
+// MARK: - RevenueCat Purchase Manager
+
+/// RevenueCat-based implementation of PurchaseManager
+/// Maintains same interface for UI compatibility while adding RevenueCat features
+@MainActor
+class PurchaseManager: NSObject, ObservableObject {
+    static let shared = PurchaseManager()
+    
+    // MARK: - Published Properties (same as original PurchaseManager)
+    @Published private(set) var purchaseState: PurchaseState = .unknown
+    @Published private(set) var currentReceiptId: String?
+    @Published private(set) var isLoading = false
+    @Published private(set) var availableProducts: [Product] = []
+    @Published private(set) var isLoadingProducts = false
+    @Published private(set) var availablePromotions: [String: Product.SubscriptionOffer] = [:]
+    
+    // MARK: - RevenueCat-specific Properties
+    @Published private(set) var customerInfo: CustomerInfo?
+    @Published private(set) var currentOffering: Offering?
+    @Published private(set) var isPremium: Bool = false
+    
+    private let logger = DebugLogger.shared
+    private let keychainManager = KeychainManager.shared
+    private let receiptKey = "purchase_receipt_id"
+    
+    // Product ID mappings
+    private let productMapping: [String: String] = [
+        "daystart_weekly_subscription": "weekly",
+        "daystart_monthly_subscription": "monthly", 
+        "daystart_annual_subscription": "yearly"
+    ]
+    
+    override private init() {
+        super.init()
+        Task {
+            await setupRevenueCat()
+        }
+    }
+    
+    // MARK: - RevenueCat Setup
+    
+    private func setupRevenueCat() async {
+        // Initial customer info fetch
+        await refreshCustomerInfo()
+        try? await fetchProductsForDisplay()
+        
+        // Set delegate on main actor
+        await MainActor.run {
+            Purchases.shared.delegate = self
+        }
+    }
+    
+    private func refreshCustomerInfo() async {
+        do {
+            let customerInfo = try await Purchases.shared.customerInfo()
+            await MainActor.run {
+                self.customerInfo = customerInfo
+                self.updatePurchaseState(from: customerInfo)
+            }
+        } catch {
+            logger.logError(error, context: "Failed to refresh customer info")
+        }
+    }
+    
+    private func updatePurchaseState(from customerInfo: CustomerInfo) {
+        // Log all available entitlements for debugging
+        let entitlements = customerInfo.entitlements.all
+        logger.log("🔍 Available entitlements: \(entitlements.keys.sorted())", level: .info)
+        
+        // Check for DayStart AI Pro entitlement (this is our main premium entitlement)
+        let entitlement = customerInfo.entitlements["DayStart AI Pro"]
+        isPremium = entitlement?.isActive == true
+        
+        // Debug entitlement details
+        if let ent = entitlement {
+            logger.log("🎫 DayStart AI Pro entitlement - isActive: \(ent.isActive), willRenew: \(ent.willRenew), periodType: \(ent.periodType)", level: .info)
+        } else {
+            logger.log("❌ No 'DayStart AI Pro' entitlement found", level: .error)
+        }
+        
+        if isPremium {
+            // Use RevenueCat's app user ID or stored receipt ID
+            let userID = Purchases.shared.appUserID
+            purchaseState = .purchased(receiptId: userID)
+            currentReceiptId = userID
+            
+            // Store receipt ID for compatibility
+            _ = keychainManager.store(userID, forKey: receiptKey)
+        } else {
+            purchaseState = .notPurchased
+            currentReceiptId = nil
+        }
+        
+        logger.log("📊 Purchase state updated: isPremium=\(isPremium), userID=\(Purchases.shared.appUserID.prefix(8))...", level: .info)
+    }
+    
+    // MARK: - Public Interface (Compatible with original PurchaseManager)
+    
+    func checkPurchaseStatus() async {
+        await refreshCustomerInfo()
+    }
+    
+    func restorePurchases() async throws {
+        logger.log("🔄 Restoring purchases via RevenueCat", level: .info)
+        isLoading = true
+        
+        defer { isLoading = false }
+        
+        do {
+            let customerInfo = try await Purchases.shared.restorePurchases()
+            self.customerInfo = customerInfo
+            updatePurchaseState(from: customerInfo)
+            
+            if isPremium {
+                logger.log("✅ Purchase restoration successful", level: .info)
+            } else {
+                throw PurchaseError.receiptNotFound
+            }
+        } catch {
+            logger.logError(error, context: "Purchase restoration failed")
+            throw PurchaseError.restoreFailed(error.localizedDescription)
+        }
+    }
+    
+    func purchase(productId: String) async throws {
+        // Debug: Log current RevenueCat state
+        logger.log("🔍 DEBUG: Current RevenueCat user ID: \(Purchases.shared.appUserID)", level: .info)
+        logger.log("🔍 DEBUG: Is configured: \(Purchases.isConfigured)", level: .info)
+        
+        #if DEBUG
+        logger.log("🧪 DEBUG: Running in Sandbox mode", level: .info)
+        #else
+        logger.log("🚀 DEBUG: Running in Production mode", level: .info)
+        #endif
+        
+        guard let rcProductId = productMapping[productId] else {
+            throw PurchaseError.purchaseFailed("Invalid product ID: \(productId)")
+        }
+        
+        logger.log("💳 Starting RevenueCat purchase for product: \(productId) -> \(rcProductId)", level: .info)
+        isLoading = true
+        
+        defer { isLoading = false }
+        
+        do {
+            // Get current offering
+            let offerings = try await Purchases.shared.offerings()
+            guard let offering = offerings.current else {
+                throw PurchaseError.purchaseFailed("No current offering available")
+            }
+            
+            // Debug: Log available packages
+            logger.log("📦 Available packages in offering:", level: .info)
+            for pkg in offering.availablePackages {
+                logger.log("  - Package: \(pkg.identifier), Product ID: \(pkg.storeProduct.productIdentifier)", level: .info)
+            }
+            
+            // Find the package for the product
+            var package: Package?
+            switch rcProductId {
+            case "weekly":
+                package = offering.weekly
+                logger.log("🔍 Selected weekly package: \(package?.storeProduct.productIdentifier ?? "nil")", level: .info)
+            case "monthly": 
+                package = offering.monthly
+                logger.log("🔍 Selected monthly package: \(package?.storeProduct.productIdentifier ?? "nil")", level: .info)
+            case "yearly":
+                package = offering.annual
+                logger.log("🔍 Selected annual package: \(package?.storeProduct.productIdentifier ?? "nil")", level: .info)
+            default:
+                // Look through all packages for a match
+                package = offering.availablePackages.first { $0.storeProduct.productIdentifier == productId }
+                logger.log("🔍 Fallback package search for \(productId): \(package?.storeProduct.productIdentifier ?? "nil")", level: .info)
+            }
+            
+            guard let purchasePackage = package else {
+                throw PurchaseError.purchaseFailed("Package not found for product: \(productId)")
+            }
+            
+            logger.log("✅ Final package selected: \(purchasePackage.identifier) with product ID: \(purchasePackage.storeProduct.productIdentifier)", level: .info)
+            
+            // Perform purchase
+            let result = try await Purchases.shared.purchase(package: purchasePackage)
+            let customerInfo = result.customerInfo
+            
+            // Update state
+            self.customerInfo = customerInfo
+            updatePurchaseState(from: customerInfo)
+            
+            if isPremium {
+                logger.log("✅ RevenueCat purchase successful", level: .info)
+            } else {
+                throw PurchaseError.purchaseFailed("Purchase completed but entitlement not active")
+            }
+            
+        } catch {
+            logger.logError(error, context: "RevenueCat purchase failed")
+            
+            // Check for specific RevenueCat errors
+            if let rcError = error as? RevenueCat.ErrorCode {
+                logger.log("❌ RevenueCat Error Code: \(rcError.rawValue)", level: .error)
+                logger.log("❌ Error Details: \(error)", level: .error)
+                
+                // Check for invalid receipt error
+                if rcError == .invalidReceiptError {
+                    logger.log("🚨 INVALID RECEIPT ERROR - This usually means:", level: .error)
+                    logger.log("  1. App Bundle ID doesn't match RevenueCat configuration", level: .error)
+                    logger.log("  2. Using wrong API key (sandbox vs production)", level: .error)
+                    logger.log("  3. Products not properly configured in RevenueCat", level: .error)
+                    logger.log("  4. StoreKit configuration file issues", level: .error)
+                }
+            }
+            
+            throw PurchaseError.purchaseFailed(error.localizedDescription)
+        }
+    }
+    
+    func fetchProductsForDisplay() async throws {
+        logger.log("🛍️ Fetching products via RevenueCat", level: .info)
+        isLoadingProducts = true
+        
+        defer { isLoadingProducts = false }
+        
+        do {
+            let offerings = try await Purchases.shared.offerings()
+            
+            // Try current offering first, then look for "default" offering specifically
+            var offering: Offering?
+            if let currentOffering = offerings.current {
+                offering = currentOffering
+                logger.log("✅ Using current offering", level: .info)
+            } else if let defaultOffering = offerings.offering(identifier: "default") {
+                offering = defaultOffering
+                logger.log("✅ Using 'default' offering", level: .info)
+            } else {
+                logger.log("❌ No current or 'default' offering available, falling back to StoreKit", level: .error)
+                try await fetchProductsDirectly()
+                return
+            }
+            
+            guard let finalOffering = offering else {
+                logger.log("❌ No offering found, falling back to StoreKit", level: .error)
+                try await fetchProductsDirectly()
+                return
+            }
+            
+            self.currentOffering = finalOffering
+            
+            // Extract product IDs from RevenueCat packages and fetch via StoreKit
+            let productIds = finalOffering.availablePackages.map { $0.storeProduct.productIdentifier }
+            
+            logger.log("📦 Found RevenueCat packages with product IDs: \(productIds)", level: .info)
+            
+            // Check if we actually got product IDs
+            if productIds.isEmpty {
+                logger.log("❌ RevenueCat offering exists but has no product IDs, falling back to StoreKit", level: .error)
+                try await fetchProductsDirectly()
+                return
+            }
+            
+            // Fetch the actual StoreKit products using the IDs from RevenueCat
+            do {
+                let storeProducts = try await Product.products(for: productIds)
+                let sortedProducts = storeProducts.sorted { $0.price < $1.price }
+                
+                self.availableProducts = sortedProducts
+                
+                // Check for promotional offers (placeholder - RevenueCat handles this differently)
+                self.availablePromotions = [:]
+                
+                logger.log("✅ Fetched \(sortedProducts.count) products via RevenueCat offering + StoreKit", level: .info)
+            } catch {
+                logger.logError(error, context: "Failed to fetch StoreKit products from RevenueCat IDs")
+                try await fetchProductsDirectly()
+                return
+            }
+            
+        } catch {
+            logger.logError(error, context: "Failed to fetch RevenueCat products, falling back to StoreKit")
+            // Fallback to direct StoreKit for now
+            try await fetchProductsDirectly()
+        }
+    }
+    
+    /// Fallback method to fetch products directly from StoreKit
+    private func fetchProductsDirectly() async throws {
+        logger.log("🛍️ Fetching products directly from StoreKit (fallback)", level: .info)
+        
+        let productIds = ["daystart_weekly_subscription", "daystart_monthly_subscription", "daystart_annual_subscription"]
+        
+        do {
+            let storeProducts = try await Product.products(for: productIds)
+            let sortedProducts = storeProducts.sorted { $0.price < $1.price }
+            
+            self.availableProducts = sortedProducts
+            self.availablePromotions = [:]
+            
+            logger.log("✅ Fetched \(sortedProducts.count) products via StoreKit fallback", level: .info)
+        } catch {
+            logger.logError(error, context: "StoreKit fallback also failed")
+            throw error
+        }
+    }
+    
+    // MARK: - RevenueCat-specific Methods
+    
+    /// Update customer info from RevenueCat callbacks
+    func updateCustomerInfo(_ customerInfo: CustomerInfo) {
+        self.customerInfo = customerInfo
+        updatePurchaseState(from: customerInfo)
+    }
+    
+    /// Check if user has specific entitlement
+    func hasEntitlement(_ entitlementId: String) -> Bool {
+        return customerInfo?.entitlements[entitlementId]?.isActive == true
+    }
+    
+    /// Get customer info for advanced features
+    func getCustomerInfo() async -> CustomerInfo? {
+        do {
+            return try await Purchases.shared.customerInfo()
+        } catch {
+            logger.logError(error, context: "Failed to get customer info")
+            return nil
+        }
+    }
+    
+    // MARK: - Computed Properties (Compatible with original)
+    
+    var isPurchased: Bool {
+        return isPremium
+    }
+    
+    var userIdentifier: String? {
+        return Purchases.shared.appUserID
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Get promotional pricing info (placeholder for UI compatibility)
+    func getPromotionalPriceInfo(for product: Product?) -> (price: String, originalPrice: String?, badge: String?) {
+        guard let product = product else {
+            return (price: "", originalPrice: nil, badge: nil)
+        }
+        
+        // RevenueCat handles promotional pricing through their dashboard
+        // For now, return standard pricing
+        return (price: product.displayPrice, originalPrice: nil, badge: nil)
+    }
+    
+    /// Get trial text for product
+    func getTrialText(for product: Product?) -> String? {
+        guard let product = product,
+              let subscription = product.subscription,
+              let introOffer = subscription.introductoryOffer else {
+            return nil
+        }
+        
+        switch introOffer.paymentMode {
+        case .freeTrial:
+            let period = introOffer.period
+            if period.unit == .day && period.value == 3 {
+                return "3-Day Free Trial"
+            } else if period.unit == .day && period.value == 7 {
+                return "7-Day Free Trial"
+            }
+            return "Free Trial"
+        default:
+            return nil
+        }
+    }
+    
+    /// Get savings text (annual vs monthly comparison)
+    func getSavingsText(annual: Product?, monthly: Product?) -> String? {
+        guard let annual = annual, let monthly = monthly else { return nil }
+        
+        let monthlyPrice = monthly.price
+        let annualPrice = annual.price
+        let monthlyEquivalent = monthlyPrice * 12
+        
+        guard monthlyEquivalent > annualPrice else { return nil }
+        
+        let savings = monthlyEquivalent - annualPrice
+        let savingsPercent = Int((Double(truncating: savings as NSDecimalNumber) / Double(truncating: monthlyEquivalent as NSDecimalNumber)) * 100)
+        
+        logger.log("💰 Savings calculation: monthly=\(monthlyPrice), annual=\(annualPrice), yearlyEquiv=\(monthlyEquivalent), savings=\(savings), percent=\(savingsPercent)%", level: .info)
+        
+        return "Save \(savingsPercent)%"
+    }
+    
+    /// Get promotional price info (for backwards compatibility with UI)
+    func getPromotionalPrice(for product: Product?) -> (promotional: Decimal, savingsPercent: Int)? {
+        // RevenueCat handles promotional pricing through their dashboard
+        // For now, return nil (no promotional pricing)
+        return nil
+    }
+}
+
+// MARK: - PurchasesDelegate
+extension PurchaseManager: PurchasesDelegate {
+    nonisolated func purchases(_ purchases: Purchases, receivedUpdated customerInfo: CustomerInfo) {
+        Task { @MainActor in
+            self.customerInfo = customerInfo
+            updatePurchaseState(from: customerInfo)
+            logger.log("📱 Received customer info update from RevenueCat", level: .info)
+        }
+    }
+    
+    nonisolated func purchases(_ purchases: Purchases, readyForPromotedProduct product: StoreProduct, purchase startPurchase: @escaping StartPurchaseBlock) {
+        // Handle promoted purchases if needed
+        startPurchase { (transaction, customerInfo, error, cancelled) in
+            Task { @MainActor in
+                if let customerInfo = customerInfo {
+                    self.customerInfo = customerInfo
+                    self.updatePurchaseState(from: customerInfo)
+                }
+            }
+        }
+    }
+}

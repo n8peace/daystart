@@ -12,6 +12,7 @@ class WelcomeDayStartScheduler: ObservableObject {
     @Published var initializationStep: Int = 0
     @Published var totalInitializationSteps: Int = 7
     @Published var isWelcomeReadyToPlay = false
+    @Published var currentJobStatus: String = "connecting"
     
     private var welcomeTimer: Timer?
     private var audioStatusTimer: Timer?
@@ -34,18 +35,15 @@ class WelcomeDayStartScheduler: ObservableObject {
         isWelcomePending = true
         logger.log("⏳ Welcome DayStart preparation started", level: .info)
         
-        // PHASE 4: Make welcome instantly available, prepare content in background
+        // PHASE 4: Initialize services and prepare content
         Task {
             await performDeferredInitialization()
             
-            // After initialization, mark as ready immediately
-            await MainActor.run {
-                self.isWelcomeReadyToPlay = true
-                self.isWelcomePending = false
-                logger.log("✅ Welcome DayStart ready to play immediately", level: .info)
-            }
+            // Don't mark as ready immediately - wait for real job completion
+            // The polling will detect when audio is actually ready
+            logger.log("✅ Initialization complete, waiting for job completion", level: .info)
             
-            // Background: Prepare real content for future use
+            // Background: Prepare real content for future use  
             await prepareWelcomeContentInBackground()
         }
     }
@@ -94,10 +92,23 @@ class WelcomeDayStartScheduler: ObservableObject {
     }
     
     private func checkIfReadyToShow() {
-        logger.log("🔍 Checking if welcome ready to show: countdown=\(hasCountdownCompleted), audio=\(isAudioReady)", level: .debug)
+        logger.log("🔍 Checking if welcome ready to show: countdown=\(hasCountdownCompleted), audio=\(isAudioReady), pending=\(isWelcomePending)", level: .debug)
         
-        // Only show as ready when BOTH countdown is complete AND audio is ready
-        if hasCountdownCompleted && isAudioReady {
+        // Check for onboarding welcome generation (immediate generation)
+        let isOnboardingWelcome = UserDefaults.standard.bool(forKey: "shouldAutoStartWelcome")
+        
+        let readyCondition: Bool
+        if isOnboardingWelcome {
+            // Onboarding flow: Only need audio to be ready
+            readyCondition = isAudioReady
+            logger.log("📱 Onboarding welcome mode: audio ready = \(isAudioReady)", level: .debug)
+        } else {
+            // Scheduled welcome: Need countdown completion AND audio ready
+            readyCondition = hasCountdownCompleted && isAudioReady
+            logger.log("⏰ Scheduled welcome mode: countdown=\(hasCountdownCompleted) && audio=\(isAudioReady)", level: .debug)
+        }
+        
+        if readyCondition {
             logger.log("✅ Welcome DayStart is ready to play! Transitioning to ready state.", level: .info)
             DispatchQueue.main.async {
                 self.isWelcomePending = false
@@ -105,7 +116,7 @@ class WelcomeDayStartScheduler: ObservableObject {
                 self.logger.log("🔄 Published state change: isWelcomePending=false, isWelcomeReadyToPlay=true", level: .debug)
             }
         } else {
-            logger.log("⏳ Not ready yet: countdown=\(hasCountdownCompleted), audio=\(isAudioReady)", level: .debug)
+            logger.log("⏳ Not ready yet: readyCondition=\(readyCondition)", level: .debug)
         }
     }
     
@@ -177,6 +188,11 @@ class WelcomeDayStartScheduler: ObservableObject {
                 }
             } else {
                 logger.log("⏳ Welcome DayStart audio status: \(audioStatus.status ?? "unknown")", level: .debug)
+                
+                // Update status for UI
+                await MainActor.run {
+                    self.currentJobStatus = audioStatus.status
+                }
             }
         } catch {
             logger.logError(error, context: "Failed to check welcome DayStart audio status")
@@ -299,8 +315,8 @@ class WelcomeDayStartScheduler: ObservableObject {
         logger.log("📦 Pre-creating today's audio during countdown", level: .info)
         
         // Skip if we're in the onboarding flow - job is already created there
-        if UserDefaults.standard.bool(forKey: "shouldAutoStartWelcome") {
-            logger.log("⏭️ Skipping prefetch - welcome job already created in onboarding", level: .info)
+        if UserDefaults.standard.bool(forKey: "shouldAutoStartWelcome") || isWelcomePending {
+            logger.log("⏭️ Skipping prefetch - welcome job already created in onboarding or pending", level: .info)
             return
         }
         
@@ -335,8 +351,8 @@ class WelcomeDayStartScheduler: ObservableObject {
         logger.log("📦 Preparing welcome content in background", level: .info)
         
         // Skip if we're in the onboarding flow - job is already created there
-        if UserDefaults.standard.bool(forKey: "shouldAutoStartWelcome") {
-            logger.log("⏭️ Skipping background prep - welcome job already created in onboarding", level: .info)
+        if UserDefaults.standard.bool(forKey: "shouldAutoStartWelcome") || isWelcomePending {
+            logger.log("⏭️ Skipping background prep - welcome job already created in onboarding or pending", level: .info)
             return
         }
         

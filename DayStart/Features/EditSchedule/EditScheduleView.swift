@@ -1288,7 +1288,7 @@ struct StockSymbolRow: View {
                                 }
                             }
                         )
-                        .onChange(of: symbol) { newValue in
+                        .onChange(of: symbol) { _, newValue in
                             if !newValue.isEmpty {
                                 // Debounce validation
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -1349,7 +1349,7 @@ struct AccountManagementRow: View {
             
             Button(action: {
                 Task {
-                    if !purchaseManager.isPurchased {
+                    if !purchaseManager.isPremium {
                         // Guide user back to paywall
                         // In practice, this might restart onboarding or show paywall directly
                     } else {

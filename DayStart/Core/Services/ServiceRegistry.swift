@@ -34,6 +34,7 @@ class ServiceRegistry: ObservableObject {
     private var _locationManager: LocationManager?
     private var _weatherService: WeatherService?
     private var _calendarManager: CalendarManager?
+    private var _analyticsManager: AnalyticsManager?
     
     private init() {
         logger.log("🏗️ ServiceRegistry initialized - all services will load on-demand", level: .info)
@@ -187,6 +188,15 @@ class ServiceRegistry: ObservableObject {
         return _calendarManager
     }
     
+    /// Analytics Manager - Load when analytics tracking needed
+    var analyticsManager: AnalyticsManager {
+        if _analyticsManager == nil {
+            logger.log("📊 Loading AnalyticsManager on-demand", level: .info)
+            _analyticsManager = AnalyticsManager.shared
+        }
+        return _analyticsManager!
+    }
+    
     // MARK: - Background Task Management
     
     /// Background tasks are now registered in AppDelegate - this method is kept for compatibility
@@ -241,6 +251,7 @@ class ServiceRegistry: ObservableObject {
         if _locationManager != nil { services.append("LocationManager") }
         if _weatherService != nil { services.append("WeatherService") }
         if _calendarManager != nil { services.append("CalendarManager") }
+        if _analyticsManager != nil { services.append("AnalyticsManager") }
         return services
     }
     

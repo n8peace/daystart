@@ -2,6 +2,11 @@
 #
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
 
+# StoreKit Test Certificate
+DayStart-StoreKit-Test.cer
+DayStart-SubscriptionKey.p8
+*.p8
+
 ## User settings
 xcuserdata/
 

@@ -13,6 +13,10 @@
 		B34BF6AB2E56CD4000D23C40 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = B34BF6AA2E56CD4000D23C40 /* Realtime */; };
 		B34BF6AD2E56CD4000D23C40 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = B34BF6AC2E56CD4000D23C40 /* Storage */; };
 		B34BF6AF2E56CD4000D23C40 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B34BF6AE2E56CD4000D23C40 /* Supabase */; };
+		B377F8292EC2B5B600044683 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = B377F8282EC2B5B600044683 /* FirebaseAnalytics */; };
+		B377F82B2EC2B5B600044683 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = B377F82A2EC2B5B600044683 /* FirebaseCrashlytics */; };
+		B3RC78302EC2B5B600044683 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = B3RC782F2EC2B5B600044683 /* RevenueCat */; };
+		B3RC78322EC2B5B600044683 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = B3RC78312EC2B5B600044683 /* RevenueCatUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,9 +42,22 @@
 		B350B7402E45D78C009A6C78 /* DayStartUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DayStartUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B377F8262EC2B3BE00044683 /* Exceptions for "DayStart" folder in "DayStart" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B350B7212E45D78B009A6C78 /* DayStart */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B350B7242E45D78B009A6C78 /* DayStart */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B377F8262EC2B3BE00044683 /* Exceptions for "DayStart" folder in "DayStart" target */,
+			);
 			path = DayStart;
 			sourceTree = "<group>";
 		};
@@ -61,12 +78,16 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B377F8292EC2B5B600044683 /* FirebaseAnalytics in Frameworks */,
 				B34BF6A92E56CD4000D23C40 /* PostgREST in Frameworks */,
 				B34BF6A72E56CD4000D23C40 /* Functions in Frameworks */,
 				B34BF6AF2E56CD4000D23C40 /* Supabase in Frameworks */,
 				B34BF6A52E56CD4000D23C40 /* Auth in Frameworks */,
+				B377F82B2EC2B5B600044683 /* FirebaseCrashlytics in Frameworks */,
 				B34BF6AD2E56CD4000D23C40 /* Storage in Frameworks */,
 				B34BF6AB2E56CD4000D23C40 /* Realtime in Frameworks */,
+				B3RC78302EC2B5B600044683 /* RevenueCat in Frameworks */,
+				B3RC78322EC2B5B600044683 /* RevenueCatUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -133,6 +154,8 @@
 				B34BF6AA2E56CD4000D23C40 /* Realtime */,
 				B34BF6AC2E56CD4000D23C40 /* Storage */,
 				B34BF6AE2E56CD4000D23C40 /* Supabase */,
+				B377F8282EC2B5B600044683 /* FirebaseAnalytics */,
+				B377F82A2EC2B5B600044683 /* FirebaseCrashlytics */,
 			);
 			productName = DayStart;
 			productReference = B350B7222E45D78B009A6C78 /* DayStart.app */;
@@ -218,6 +241,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				B34BF6A32E56CD4000D23C40 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				B377F8272EC2B5B600044683 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				B3RC78292EC2B5B600044683 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B350B7232E45D78B009A6C78 /* Products */;
@@ -316,7 +341,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2025.11.10;
+				MARKETING_VERSION = 2026.01.23;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.bananaintelligence.DayStart;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -354,7 +379,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2025.11.10;
+				MARKETING_VERSION = 2026.01.23;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.bananaintelligence.DayStart;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -503,7 +528,7 @@
 				DEVELOPMENT_TEAM = LSMXA794RP;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 2025.11.10;
+				MARKETING_VERSION = 2026.01.23;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.bananaintelligence.DayStartTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -525,7 +550,7 @@
 				DEVELOPMENT_TEAM = LSMXA794RP;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 2025.11.10;
+				MARKETING_VERSION = 2026.01.23;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.bananaintelligence.DayStartTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -545,7 +570,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = LSMXA794RP;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2025.11.10;
+				MARKETING_VERSION = 2026.01.23;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.bananaintelligence.DayStartUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -565,7 +590,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = LSMXA794RP;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2025.11.10;
+				MARKETING_VERSION = 2026.01.23;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.bananaintelligence.DayStartUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -628,6 +653,22 @@
 				minimumVersion = 2.5.1;
 			};
 		};
+		B377F8272EC2B5B600044683 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.5.0;
+			};
+		};
+		B3RC78292EC2B5B600044683 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.31.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -660,6 +701,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B34BF6A32E56CD4000D23C40 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		B377F8282EC2B5B600044683 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B377F8272EC2B5B600044683 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		B377F82A2EC2B5B600044683 /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B377F8272EC2B5B600044683 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
+		};
+		B3RC782F2EC2B5B600044683 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B3RC78292EC2B5B600044683 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		B3RC78312EC2B5B600044683 /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B3RC78292EC2B5B600044683 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

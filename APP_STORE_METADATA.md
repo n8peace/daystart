@@ -3,7 +3,7 @@
 ## Basic Information
 - **App Name:** DayStart AI: Morning Briefing
 - **Subtitle:** Wake Up. Get Briefed. Succeed.
-- **In Development:** 2025.11.10 (Build 1) - 🚧 Development build
+- **In Development:** 2026.01.23 (Build 1) - 🚧 Development build
 - **Current Version:** 2025.11.1 (Build 2) - **LIVE** on App Store as of Nov 2, 2025
 - **Previous Version:** 2025.10.28 (Build 2) - Previously LIVE on App Store
 - **Support URL:** https://daystart.bananaintelligence.ai
@@ -56,6 +56,7 @@ PERFECT FOR:
 • Anyone striving to start each day sharper and more informed
 
 SUBSCRIPTIONS:
+• Weekly: $1.99 with no free trial - immediate access
 • Monthly: $4.99 with 3-day free trial
 • Annual: $39.99 with 7-day free trial (save 33%)
 
@@ -65,7 +66,7 @@ Privacy Policy: https://daystart.bananaintelligence.ai/privacy
 Terms of Service: https://daystart.bananaintelligence.ai/terms
 ```
 
-## What's New in Version 2025.11.10
+## What's New in Version 2026.01.23
 ```
 TBD - Features and improvements for the next release will be documented here.
 ```
@@ -101,6 +102,13 @@ Your morning brief, your priorities. Start ahead with intelligence that matters 
 
 ## In-App Purchase Products
 
+### Weekly Subscription
+- **Product ID:** `daystart_weekly_subscription`
+- **Reference Name:** DayStart Weekly
+- **Price:** $1.99/week
+- **Free Trial:** None
+- **Description:** Get unlimited personalized morning briefings
+
 ### Monthly Subscription
 - **Product ID:** `daystart_monthly_subscription`
 - **Reference Name:** DayStart Monthly
@@ -119,6 +127,10 @@ Your morning brief, your priorities. Start ahead with intelligence that matters 
 - **Reference Name:** DayStart Premium
 - **Description:** Unlock your Personal Morning Brief, the same intelligence advantage used by successful leaders worldwide. Transform how you start each day
 
+### Weekly Subscription - Localization (English)
+- **Display Name:** Weekly Leadership Pass
+- **Description:** Get your Personal Morning Brief delivered daily. Perfect for trying our premium intelligence platform with minimal commitment. No trial - immediate access.
+
 ### Monthly Subscription - Localization (English)
 - **Display Name:** Monthly Leadership Pass
 - **Description:** Get your Personal Morning Brief delivered daily. Join successful professionals who start each day with intelligence, not information overload. Includes 3-day free trial.
@@ -126,6 +138,19 @@ Your morning brief, your priorities. Start ahead with intelligence that matters 
 ### Annual Subscription - Localization (English)  
 - **Display Name:** Annual Leadership Pass
 - **Description:** Get your Personal Morning Brief delivered daily. The choice of leaders who invest in their morning advantage. Save 33% with 7-day free trial.
+
+### Weekly Subscription - Review Notes
+```
+DayStart Weekly subscription provides unlimited access to personalized AI-generated morning briefings. Features include:
+
+- Daily personalized audio briefings with weather, news, calendar events, and market updates
+- Customizable content preferences
+- Offline audio download and playback
+- Background audio generation and scheduling
+- No free trial - immediate access upon purchase
+
+To test: Use sandbox account, tap "Weekly Pass" on paywall screen (first option, pre-selected), complete purchase flow. Note continue button shows "Continue for $1.99" (not "Start Free Trial"). Audio generation requires network connectivity and may take 2-3 minutes for first briefing.
+```
 
 ### Monthly Subscription - Review Notes
 ```
@@ -272,7 +297,7 @@ CONTACT: nate@bananaintelligence.ai
 - [x] Build 1 (2025.10.24) submitted to App Store - Previously LIVE as of Oct 24, 2025
 - [x] Build 2 (2025.10.28) submitted to App Store - Previously LIVE as of Oct 28, 2025
 - [x] Build 2 (2025.11.1) - **LIVE** on App Store as of Nov 2, 2025
-- [ ] Build 1 (2025.11.10) - 🚧 In Development
+- [ ] Build 1 (2026.01.23) - 🚧 In Development
 
 ### Remaining Tasks
 - [x] App Store Connect setup

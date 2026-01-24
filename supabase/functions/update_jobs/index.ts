@@ -255,6 +255,9 @@ function buildUpdatePayload(body: UpdateJobsRequest, localDate?: string): Record
   // NEW: Calculate scheduled_at for each job individually based on its local_date
   if (s.schedule_time !== undefined && s.timezone !== undefined && localDate !== undefined) {
     payload.scheduled_at = calculateScheduledAt(localDate, s.schedule_time, s.timezone);
+    // Also update process_not_before to be 45 minutes before scheduled_at
+    const scheduledTime = new Date(payload.scheduled_at);
+    payload.process_not_before = new Date(scheduledTime.getTime() - 45 * 60 * 1000).toISOString();
   }
 
   if (body.force_requeue) {

@@ -1,5 +1,5 @@
 {
-  "identifier" : "DayStart",
+  "identifier" : "4E27BE9B",
   "nonRenewingSubscriptions" : [
 
   ],
@@ -7,10 +7,10 @@
 
   ],
   "settings" : {
-    "_applicationInternalID" : "0",
-    "_developerTeamID" : "0",
+    "_applicationInternalID" : "6523962320",
+    "_developerTeamID" : "2B8Y6TAM5T",
     "_failTransactionsEnabled" : false,
-    "_lastSynchronizedDate" : 0,
+    "_lastSynchronizedDate" : 752284500.73026204,
     "_locale" : "en_US",
     "_storefront" : "USA",
     "_storeKitErrors" : [
@@ -53,16 +53,22 @@
         "current" : null,
         "enabled" : false,
         "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
       }
     ]
   },
   "subscriptionGroups" : [
     {
-      "id" : "21526490",
+      "displayName" : "DayStart AI Pro",
+      "identifier" : "21552077",
       "localizations" : [
 
       ],
-      "name" : "DayStart Premium",
+      "name" : "DayStart AI Pro",
       "subscriptions" : [
         {
           "adHocOffers" : [
@@ -74,18 +80,19 @@
           "displayPrice" : "1.99",
           "familyShareable" : false,
           "groupNumber" : 1,
-          "internalID" : "6740144078",
+          "identifier" : "daystart_weekly_subscription",
+          "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Get unlimited personalized morning briefings",
-              "displayName" : "DayStart Weekly",
+              "description" : "Weekly access to AI-powered morning briefings",
+              "displayName" : "DayStart AI Pro Weekly",
               "locale" : "en_US"
             }
           ],
           "productID" : "daystart_weekly_subscription",
           "recurringSubscriptionPeriod" : "P1W",
-          "referenceName" : "DayStart Weekly",
-          "subscriptionGroupID" : "21526490",
+          "referenceName" : "DayStart AI Pro Weekly",
+          "subscriptionGroupIdentifier" : "21552077",
           "type" : "RecurringSubscription"
         },
         {
@@ -97,25 +104,26 @@
           ],
           "displayPrice" : "4.99",
           "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "6740144074",
+          "groupNumber" : 2,
+          "identifier" : "daystart_monthly_subscription",
           "introductoryOffer" : {
-            "internalID" : "6740144075",
-            "numberOfPeriods" : 1,
+            "displayPrice" : "0.00",
+            "identifier" : "monthly_free_trial",
             "paymentMode" : "free",
-            "subscriptionPeriod" : "P3D"
+            "subscriptionPeriod" : "P7D",
+            "type" : "FreeTrial"
           },
           "localizations" : [
             {
-              "description" : "Get unlimited personalized morning briefings",
-              "displayName" : "DayStart Monthly",
+              "description" : "Monthly access to AI-powered morning briefings with 7-day free trial",
+              "displayName" : "DayStart AI Pro Monthly",
               "locale" : "en_US"
             }
           ],
           "productID" : "daystart_monthly_subscription",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "DayStart Monthly",
-          "subscriptionGroupID" : "21526490",
+          "referenceName" : "DayStart AI Pro Monthly",
+          "subscriptionGroupIdentifier" : "21552077",
           "type" : "RecurringSubscription"
         },
         {
@@ -127,25 +135,26 @@
           ],
           "displayPrice" : "39.99",
           "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "6740144076",
+          "groupNumber" : 3,
+          "identifier" : "daystart_annual_subscription",
           "introductoryOffer" : {
-            "internalID" : "6740144077",
-            "numberOfPeriods" : 1,
+            "displayPrice" : "0.00",
+            "identifier" : "annual_free_trial",
             "paymentMode" : "free",
-            "subscriptionPeriod" : "P7D"
+            "subscriptionPeriod" : "P7D",
+            "type" : "FreeTrial"
           },
           "localizations" : [
             {
-              "description" : "Get unlimited personalized morning briefings (Save 33%)",
-              "displayName" : "DayStart Annual",
+              "description" : "Annual access to AI-powered morning briefings with 7-day free trial",
+              "displayName" : "DayStart AI Pro Annual",
               "locale" : "en_US"
             }
           ],
           "productID" : "daystart_annual_subscription",
           "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "DayStart Annual",
-          "subscriptionGroupID" : "21526490",
+          "referenceName" : "DayStart AI Pro Annual",
+          "subscriptionGroupIdentifier" : "21552077",
           "type" : "RecurringSubscription"
         }
       ]

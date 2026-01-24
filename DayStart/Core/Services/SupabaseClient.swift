@@ -700,25 +700,21 @@ class SupabaseClient {
         request.setValue("DayStart-iOS/1.0", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 30
         
-        // Use receipt ID as user identifier if available
-        if let receiptId = await PurchaseManager.shared.userIdentifier {
-            // Use anon key for authorization (server validates receipt separately)
-            if let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String {
-                request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-            }
-            
-            // Receipt ID becomes our user identifier
-            request.setValue(receiptId, forHTTPHeaderField: "x-client-info")
-            request.setValue("purchase", forHTTPHeaderField: "x-auth-type")
-        } else {
-            // No purchase - limited functionality
-            if let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String {
-                request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-            }
-            request.setValue("anonymous", forHTTPHeaderField: "x-auth-type")
+        // Set authorization header
+        if let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String {
+            request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
         }
-        
-        logger.log("🔑 Request headers set: x-auth-type=\(request.value(forHTTPHeaderField: "x-auth-type") ?? "none")", level: .debug)
+
+        // ALWAYS set user identifier (anonymous ID for all users, permanent even after purchase)
+        if let userId = await PurchaseManager.shared.userIdentifier {
+            request.setValue(userId, forHTTPHeaderField: "x-client-info")
+        }
+
+        // Set auth type based on premium status (not just identifier existence)
+        let isPremium = await PurchaseManager.shared.isPremium
+        request.setValue(isPremium ? "purchase" : "anonymous", forHTTPHeaderField: "x-auth-type")
+
+        logger.log("🔑 Request headers set: x-client-info=\(request.value(forHTTPHeaderField: "x-client-info")?.prefix(20) ?? "none"), x-auth-type=\(request.value(forHTTPHeaderField: "x-auth-type") ?? "none")", level: .debug)
         
         return request
     }
