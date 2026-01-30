@@ -3,9 +3,8 @@
 ## Basic Information
 - **App Name:** DayStart AI: Morning Briefing
 - **Subtitle:** Wake Up. Get Briefed. Succeed.
-- **In Development:** 2026.01.23 (Build 1) - 🚧 Submitted for Review, Jan 23, 2026
-- **Current Version:** 2025.11.1 (Build 2) - **LIVE** on App Store as of Nov 2, 2025
-- **Previous Version:** 2025.10.28 (Build 2) - Previously LIVE on App Store
+- **In Development:** 2026.02.1 (Build 1) - 🚧 In Development
+- **Current Version:** 2026.01.23 (Build 1) - **LIVE** on App Store as of Jan 25, 2026
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
 
@@ -64,6 +63,19 @@ You don't just wake up. You start ahead.
 
 Privacy Policy: https://daystart.bananaintelligence.ai/privacy
 Terms of Service: https://daystart.bananaintelligence.ai/terms
+```
+
+## What's New in Version 2026.02.1
+```
+[TO BE DETERMINED]
+
+NEW FEATURES:
+• TBD
+
+IMPROVEMENTS:
+• TBD
+
+Your morning intelligence platform, continuously improving.
 ```
 
 ## What's New in Version 2026.01.23
@@ -355,8 +367,9 @@ CONTACT: nate@bananaintelligence.ai
 - [x] Build 2 (2025.10.19) submitted to App Store - Previous LIVE version (Oct 22, 2025)
 - [x] Build 1 (2025.10.24) submitted to App Store - Previously LIVE as of Oct 24, 2025
 - [x] Build 2 (2025.10.28) submitted to App Store - Previously LIVE as of Oct 28, 2025
-- [x] Build 2 (2025.11.1) - **LIVE** on App Store as of Nov 2, 2025
-- [ ] Build 1 (2026.01.23) - 🚧 In Development
+- [x] Build 2 (2025.11.1) - Previously LIVE on App Store (Nov 2, 2025 - Jan 25, 2026)
+- [x] Build 1 (2026.01.23) - **LIVE** on App Store as of Jan 25, 2026
+- [ ] Build 1 (2026.02.1) - 🚧 In Development
 
 ### Remaining Tasks
 - [x] App Store Connect setup

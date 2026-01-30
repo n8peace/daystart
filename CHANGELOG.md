@@ -8,9 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2026.01.23] - In Development
+## [2026.02.1] - In Development
 
-**Build:** 1 | **Commit:** 0b418ff | **Status:** 🚧 Submitted for Review, Jan 23, 2026
+**Build:** 1 | **Commit:** TBD | **Status:** 🚧 In Development
+
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+---
+
+## [2026.01.23] - 2026-01-25
+
+**Build:** 1 | **Commit:** 82cd169 | **Status:** **LIVE** on App Store as of 2026-01-25
 
 ### Added
 - **Firebase Analytics Integration** - Added Google Analytics tracking for app insights
@@ -91,6 +105,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Now properly recalculates `process_not_before` to be 45 minutes before new `scheduled_at` time
   - Ensures all rescheduled jobs can be processed at their new intended times
   - Added interactive slider bubble for audio scrubbing in welcome player
+
+- **Content Refresh Function Crash** - **CRITICAL FIX** - Fixed refresh_content edge function completely broken in production
+  - **Issue:** Hourly content refresh failing with Deno v2.1.4 module resolution error
+  - **Impact:** Users receiving stale news/weather/sports data - content pipeline completely broken
+  - **Root Cause:** Unpinned `@supabase/supabase-js@2` import allowed esm.sh to serve v2.92.0
+  - Version 2.92.0 incompatible with Deno v2 runtime (createRequire error with HTTPS URLs)
+  - **Solution:** Pinned to `@supabase/supabase-js@2.39.3` matching other working edge functions
+  - **Result:** Content refresh pipeline restored, fresh content delivery within 30 minutes
 
 ### Removed
 
