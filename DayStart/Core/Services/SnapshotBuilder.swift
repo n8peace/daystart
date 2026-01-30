@@ -188,6 +188,8 @@ class SnapshotBuilder {
                     for await result in group {
                         if let location = result.1 {
                             locationsWithCoords.append((result.0, location, result.2))
+                        } else {
+                            self.logger.log("❌ Failed to geocode location: '\(result.0)' for date \(result.2)", level: .warning)
                         }
                     }
                 }

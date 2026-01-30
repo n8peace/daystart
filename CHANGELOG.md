@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2026.02.1] - In Development
 
-**Build:** 1 | **Commit:** TBD | **Status:** 🚧 In Development
+**Build:** 1 | **Commit:** 87e77bf | **Status:** 🚧 In Development
 
 ### Added
 - **Calendar-Based Weather Forecasting** - Intelligent multi-location weather with travel detection
@@ -38,6 +38,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Single calendar fetch instead of duplicate queries (eliminates redundant EventKit calls)
   - 30-second timeout protection prevents indefinite hangs from API failures
   - Rate limiting to 5 destinations max prevents API throttling
+
+- **Enhanced Weather AI Prompt** - Improved script generation instructions for travel weather
+  - AI now explicitly instructed to use enhancedWeather data when available
+  - Clear guidance on notableConditions array usage for important weather events
+  - Better formatting instructions for multi-location weather delivery
+  - Distinguishes between simple weather (basic) and enhanced weather (travel destinations)
+
+- **Geocoding Diagnostics** - Enhanced logging for travel weather debugging
+  - Failed geocoding attempts now logged with location name and date
+  - Helps identify patterns in location parsing failures
+  - Improves production debugging when users report missing travel weather
 
 ### Fixed
 - **Privacy Compliance** - Enhanced weather data now properly cleaned up after job completion

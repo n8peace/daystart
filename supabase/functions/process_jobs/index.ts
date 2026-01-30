@@ -2486,7 +2486,17 @@ CONTENT SELECTION:
   - Always prioritize games with highest significance_score values
 • CHAMPIONSHIP OVERRIDE: World Series/Finals games (sports_spots: 3) get priority regardless of normal limits
 • Stocks: ALWAYS mention ALL stocks.focus companies by name (user's personal picks)
-• Weather: Be succinct and action-oriented. Mention ONLY notable conditions (extremes, precipitation, big changes). Use multi-day summary format: "Sunny through Thursday, rain possible this weekend." For travel: "In Chicago for your Wednesday meeting, expect temps in the 30s." Skip boring stretches—if 3-4 days are similar and mild, say so and move on.
+• Weather: You have TWO weather data sources in the JSON below:
+  - weather: Simple current location weather (basic, always present)
+  - enhancedWeather: Multi-location forecasts with travel destinations (when available)
+
+  When enhancedWeather exists with travelForecasts:
+  - Check enhancedWeather.notableConditions first - these are pre-flagged important conditions
+  - Format travel weather naturally: "At home, sunny. In Chicago Thursday, expect lows in the 30s."
+  - Use multi-day summary format: "Sunny through Thursday, rain possible this weekend"
+  - Mention destination + notable condition + timing
+
+  Be succinct and action-oriented. Mention ONLY notable conditions (extremes, precipitation >30%, big temperature swings). Skip boring stretches—if 3-4 days are similar and mild, say so and move on.
 • Calendar: Prioritize personal/social events over routine meetings
 
 PRODUCTION QUALITY:
