@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2026.02.1] - In Development
 
-**Build:** 1 | **Commit:** 87e77bf | **Status:** 🚧 In Development
+**Build:** 1 | **Commit:** 46799fb | **Status:** 🚧 In Development
 
 ### Added
 - **Calendar-Based Weather Forecasting** - Intelligent multi-location weather with travel detection
@@ -66,6 +66,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Privacy Compliance** - Enhanced weather data now properly cleaned up after job completion
   - `enhanced_weather_data` column added to auto-deletion after audio generation
   - Follows same privacy pattern as calendar_events and weather_data fields
+
+### Developer Tools
+- **Prompt Variety Test Script** - Created automated testing infrastructure for script generation
+  - `scripts/test_prompt_variety.sh` - Creates 3 identical jobs to verify tone and variety
+  - Automated job creation, status polling, and completion detection
+  - Documentation in `scripts/README_TEST_SCRIPT.md` with analysis guidelines
+  - Tests authoritative tone, natural variance, and elimination of filler commentary
 
 ### Removed
 

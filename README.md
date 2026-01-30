@@ -8,19 +8,28 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation,
 
 ## 🚀 App Store Status
 
-**Current Status**: Live on App Store (v2025.11.1 Build 2) as of November 2, 2025
+**Production**: Live on App Store (v2026.01.23 Build 1) as of January 25, 2026
 - ✅ Backend deployed and tested in production with receipt-based authentication
-- ✅ App Store Connect configured with subscription products ($4.99/month, $39.99/year)
+- ✅ App Store Connect configured with subscription products (Weekly $1.99, Monthly $4.99, Annual $39.99)
 - ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete
 - ✅ Legal documents hosted at daystart.bananaintelligence.ai
-- ✅ New positioning as "Your Personal Morning Brief" targeting ambitious professionals
+- ✅ Positioned as "Your Personal Morning Brief" targeting ambitious professionals
 - ✅ 3-minute intelligence briefings with dynamic content scaling
 - ✅ Welcome Brief for new users (60-second personalized introduction)
-- 🟢 **Live**: v2025.11.1 Build 2 available for download on the App Store as of November 2, 2025
-  - New: News category selection, content freshness tracking, re-engagement notifications
-  - Enhanced timezone-independent scheduling, improved content refresh strategy
-  - Backwards-compatible database migrations and enhanced user experience
-- 🚧 **In Development**: v2026.01.23 Build 1 - Development build in progress
+- ✅ Firebase Analytics integration with lazy loading architecture
+
+**Latest Production Release**: v2026.01.23 Build 1 (January 25, 2026)
+- New: Weekly $1.99 subscription tier for faster user acquisition
+- New: Firebase Analytics + Crashlytics integration
+- Fixed: Settings persistence across app updates
+- Fixed: Welcome DayStart generation and audio playback
+- Fixed: Anonymous user authentication for pre-purchase users
+
+**In Development**: v2026.02.1 Build 1
+- New: Calendar-based weather forecasting with travel detection
+- New: Authoritative briefing tone (executive assistant vs morning DJ)
+- Enhanced: Multi-location weather with geocoding and WeatherKit integration
+- Enhanced: Script generation variety and professionalism
 
 ## Table of Contents
 - [Features](#features)

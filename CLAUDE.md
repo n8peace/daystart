@@ -152,6 +152,10 @@ DayStart is a **LIVE PRODUCTION** iOS app (16K+ lines) with active paying users 
 - **Test on device**: Background tasks and audio require physical device testing
 - **StoreKit testing**: Use local configuration file for subscription testing
 - **Database migrations**: Test thoroughly, rollback plans required
+- **Prompt testing**: Use `scripts/test_prompt_variety.sh` to verify script generation changes
+  - Creates 3 test jobs with identical settings to check tone and variety
+  - Tests authoritative delivery, natural variance, and anti-pattern compliance
+  - See `scripts/README_TEST_SCRIPT.md` for usage and analysis guidelines
 
 ### Deployment Rules
 - **🚫 NEVER AUTO-DEPLOY**: User must explicitly approve all deployments to production
