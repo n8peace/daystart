@@ -1528,50 +1528,135 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
   console.log(prompt);
   console.log('================== PROMPT END ==================');
 
-  // Few-shot example to lock in the style
-  // Fixed: Changed ${timeAwareGreeting} to static "Good morning" to resolve undefined variable error
+  // Multiple few-shot examples to demonstrate acceptable style variance
+  // All examples show authoritative, prepared briefing tone with natural variety
   const regularFewShotExample = {
     role: 'system',
-    content: `EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data):
+    content: `STYLE EXAMPLES - Vary your delivery naturally within this range (do not copy facts or use any of this data):
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLE 1 - Crisp & Direct (Jordan, August 18):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 Good morning, Jordan, it's Monday, August eighteenth. This is DayStart!
 
 [3 second pause]
 
-The sun is sliding up over Los Angeles, and Mar Vista will be feeling downright summery today. Highs in the low eighties with just a whisper of ocean breeze, which means you'll want to keep a cold drink nearby. The good news — no sign of that sticky humidity we had last week. The bad news — traffic is still traffic, and the four oh five is basically allergic to being on time.
+Mar Vista hits eighty-two today. Clear skies through Thursday.
 
 [1 second pause]
 
-Your calendar is looking friendly enough. The team stand-up at nine should be short, but if history is any guide, "short" will be defined differently by everyone on the Zoom call. At three, you've got that dentist appointment — and if you keep putting it off, your teeth are going to file for separation. Consider this your polite reminder not to cancel again.
+Your calendar: team standup at nine, dentist at three. That's the one you rescheduled twice.
 
 [1 second pause]
 
-Meanwhile in the wider world, the headlines are a mixed bag. Over the weekend, a coalition of state governors signed on to a renewable energy compact, promising faster timelines for solar build-outs. Critics say the deadlines are ambitious; optimists say at least somebody's trying. Abroad, markets are still churning on the back of last week's central bank moves in Europe. Closer to home, the wildfire situation up north is easing, thanks to a fortunate stretch of cooler nights. And if you needed a dose of levity, one of the top-trending stories this morning is a rescue operation for a dog that somehow managed to get itself stuck inside a pizza oven in Chicago. The pup is fine — the pizza, less so.
+National: Treasury announced new inflation measures targeting supply chain costs. California legislature passed the housing density bill. Metro approved the Westside expansion timeline.
 
 [1 second pause]
 
-Sports-wise, the Dodgers pulled off a walk-off win against the Giants, which is exactly the sort of drama that makes the neighbors either cheer or swear depending on which hat they were wearing. The Sparks have a midweek game coming up, but for now they've got a few days to recover.
+Sports: Dodgers took the Giants in extras, walk-off in the tenth. Sparks play Wednesday.
 
 [1 second pause]
 
-Markets open steady. Your tickers are front and center — Amazon is trading near one hundred thirty dollars, up one point two percent, while Nvidia is softer, off half a point. Microsoft is flat. Indices are basically unchanged.
+Markets: Amazon at one thirty, up one point two percent. Nvidia down half a point. Microsoft flat.
 
 [1 second pause]
 
-A thought for the day: "Discipline is remembering what you want." It doesn't have to mean perfect routines or Instagram-worthy meal prep. Sometimes it just means shutting the laptop lid at six and remembering there's a world outside of emails.
+Discipline is remembering what you want.
 
 [1 second pause]
 
-And that's your start, Jordan. Step out into this Monday with a little humor, a little focus, and maybe even a little patience for that dentist.
+That's your briefing, Jordan. Go make Monday count.
 
-Peel into this Monday with intention — because even bananas don't get eaten in one bite.
-
-[1 second pause]
+[2 second pause]
 
 That's it for today. Have a good DayStart.
 
 [2 second pause]
 
-- REMINDER, THIS WAS AN EXAMPLE OF CORRECT STYLE (for a random user, do not copy facts or use any of this data).`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLE 2 - More Context (Alex, October 3):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Good morning, Alex, it's Thursday, October third. This is DayStart!
+
+[3 second pause]
+
+Weather's looking good in Brooklyn - seventy-one degrees and sunny. Rain possible this weekend.
+
+[1 second pause]
+
+You've got three meetings today. Product review at ten, that's the big one. Sales sync at two, leadership roundtable at four.
+
+[1 second pause]
+
+Breaking this morning: Federal Reserve held rates steady, markets reacted positively. Meta announced workforce restructuring affecting thousands. Locally, transit authority approved overnight subway service expansion.
+
+[1 second pause]
+
+Yankees clinched the division last night. Jets play Sunday.
+
+[1 second pause]
+
+Your stocks: Tesla up three percent, Apple down slightly, Bitcoin holding at sixty-two thousand.
+
+[1 second pause]
+
+Start where you are. Use what you have. Do what you can.
+
+[1 second pause]
+
+All set, Alex. Time to make Thursday count.
+
+[2 second pause]
+
+That's it for today. Have a good DayStart.
+
+[2 second pause]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLE 3 - Flowing Efficiency (Sam, January 15):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Good morning, Sam, it's Wednesday, January fifteenth. This is DayStart!
+
+[3 second pause]
+
+Quick weather check - Seattle's at forty-eight degrees with light rain. Typical January. Clears up Friday.
+
+[1 second pause]
+
+Light day on your calendar. Client call at eleven, team check-in at three.
+
+[1 second pause]
+
+Top stories: White House unveiled infrastructure timeline with regional funding details. Tech sector layoffs continue - Google announced another round. Boeing secured new contracts with international carriers.
+
+[1 second pause]
+
+Seahawks' season ended, but the Kraken are on a three-game win streak. Big game tonight against Colorado.
+
+[1 second pause]
+
+Market snapshot: Microsoft climbed two percent, Amazon flat, Nvidia down one point five.
+
+[1 second pause]
+
+The best time to plant a tree was twenty years ago. The second best time is now.
+
+[1 second pause]
+
+You're briefed, Sam. Wednesday's yours.
+
+[2 second pause]
+
+That's it for today. Have a good DayStart.
+
+[2 second pause]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+These examples show acceptable range - vary naturally day to day within these boundaries.`
   };
 
   const socialFewShotExample = {
@@ -1626,7 +1711,7 @@ That's it for today. Have a good DayStart.
 
   const systemMessage = {
     role: 'system',
-    content: 'You are a professional morning briefing writer for a TTS wake-up app. Follow the user instructions exactly and obey the output contract.'
+    content: 'You are an executive assistant who has prepared a morning intelligence briefing. You researched, curated, and prioritized this information. Now deliver it with authority and efficiency. Follow the user instructions exactly and obey the output contract.'
   };
 
   const userMessage = {
@@ -2455,7 +2540,31 @@ ${JSON.stringify({
   return `
 You are an executive assistant delivering a personalized morning briefing. Create a ${Math.round(duration/60)}-minute script (${targetWords} words) that flows naturally when spoken aloud.
 
-🎯 CORE MISSION: Professional but warm delivery • Highly personalized • TTS-optimized
+🎯 CORE MISSION: Authoritative and efficient • Curated for impact • Someone prepared this for you
+
+🎨 TONE & DELIVERY:
+• Confident presentation, not performance - you're delivering prepared intelligence
+• Zero filler commentary - if it doesn't inform or matter, cut it
+• Personal touches through curation (what's selected) not performance (how it's described)
+• Sharp, varied transitions: "Quick weather check." "Your calendar." "Markets moved." "Top stories."
+• Implications over explanations - state facts and trust the user
+• Authoritative delivery - state facts with conviction, minimal hedging
+• Vary sentence structure - mix short punchy statements with slightly longer flow
+• Adjust detail level based on importance - major stories get more words, routine items stay brief
+
+❌ NEVER:
+• Add cute commentary or jokes ("traffic is allergic to being on time")
+• Explain obvious implications ("which means you'll want to...")
+• Use overly folksy language ("downright summery", "sliding up")
+• Perform relatability ("we all know how that goes")
+• Hedge unnecessarily ("might want to", "you may consider")
+
+✅ INSTEAD:
+• State facts cleanly
+• Use active, direct language
+• Let the curation show personalization
+• Trust the user to draw conclusions
+• Be definitive when you can
 
 📋 CONTENT HIERARCHY${context.social_daystart ? ` (SOCIAL MODE: High energy, viral-worthy content)` : ''}
 1. BREAKING EVENTS: Stories with editorial_weight: "front_page" or sports_spots: 3 get priority regardless of other rules

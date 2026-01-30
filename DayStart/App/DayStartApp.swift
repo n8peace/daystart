@@ -8,6 +8,7 @@ import MediaPlayer
 import FirebaseCore
 import FirebaseAnalytics
 import FirebaseCrashlytics
+import FirebasePerformance
 
 /// Minimal DayStartApp with aggressive service deferral
 /// Only loads 3 essential services on startup for Spotify-level performance

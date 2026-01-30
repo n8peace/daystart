@@ -50,6 +50,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Helps identify patterns in location parsing failures
   - Improves production debugging when users report missing travel weather
 
+- **Script Generation Tone & Variety** - Reimagined briefing delivery for more authoritative, professional feel
+  - Shifted from "morning DJ" performance style to "executive assistant briefing" delivery
+  - Eliminated filler commentary and performative personalization ("which means you'll want to...")
+  - Three style examples teach AI natural variance while maintaining authority
+  - Direct, confident presentation - facts first, minimal interpretation
+  - Zero cute commentary, hedging, or overly folksy language
+  - Personalization through curation (what's selected) not performance (how it's described)
+  - Explicit anti-pattern guidelines prevent regression to performative style
+  - Updated system message: "executive assistant who prepared intelligence briefing"
+  - Natural day-to-day variety without losing professional tone
+  - Still warm and personalized, but feels like someone prepared this for you
+
 ### Fixed
 - **Privacy Compliance** - Enhanced weather data now properly cleaned up after job completion
   - `enhanced_weather_data` column added to auto-deletion after audio generation
