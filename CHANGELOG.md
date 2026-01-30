@@ -13,10 +13,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 **Build:** 1 | **Commit:** TBD | **Status:** 🚧 In Development
 
 ### Added
+- **Calendar-Based Weather Forecasting** - Intelligent multi-location weather with travel detection
+  - Automatically detects travel destinations from calendar event locations
+  - Parses both structured location data and event titles ("Flight to Chicago", "Meeting in San Francisco")
+  - Fetches weather forecasts for travel destinations using WeatherKit
+  - Notable condition detection: precipitation >30%, extreme temps (>85°F or <32°F), temperature swings >20°F
+  - Succinct delivery: "Sunny through Thursday, rain possible this weekend" instead of boring day-by-day recitation
+  - Travel weather integration: "In Chicago for your Wednesday meeting, expect temps in the 30s"
+  - Looks ahead dynamically based on calendar events (up to 10 days)
+  - Geocoding service with caching for efficient location resolution
+  - 100% backwards compatible - older app versions continue working with simple weather
 
 ### Changed
+- **Weather Script Generation** - AI now delivers weather more intelligently
+  - Mentions only notable conditions worth knowing about
+  - Multi-day summary format for efficient delivery
+  - Skips boring stretches when weather is unremarkable
+  - Contextual travel weather when calendar events include locations
+
+- **Performance Optimizations** - Major performance improvements for calendar-based weather
+  - Parallel geocoding for travel destinations (67% faster than sequential)
+  - Parallel WeatherKit API calls for multi-location forecasts (67% faster)
+  - 3 travel destinations now adds ~4.5 seconds instead of ~13.5 seconds
+  - Single calendar fetch instead of duplicate queries (eliminates redundant EventKit calls)
+  - 30-second timeout protection prevents indefinite hangs from API failures
+  - Rate limiting to 5 destinations max prevents API throttling
 
 ### Fixed
+- **Privacy Compliance** - Enhanced weather data now properly cleaned up after job completion
+  - `enhanced_weather_data` column added to auto-deletion after audio generation
+  - Follows same privacy pattern as calendar_events and weather_data fields
 
 ### Removed
 

@@ -20,6 +20,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private var weatherCache: (weather: Weather, timestamp: Date)?
     private var forecastCache: (forecast: String, timestamp: Date)?
     private let cacheExpiration: TimeInterval = 3600 // 1 hour
+
+    // Geocoding cache
+    private var geocodeCache: [String: CLLocation] = [:]
     
     override init() {
         super.init()
@@ -145,7 +148,61 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         return forecast
     }
-    
+
+    // MARK: - Geocoding Service
+
+    /// Converts a location name (city, address, etc.) to CLLocation coordinates
+    func geocodeLocation(_ locationName: String) async -> CLLocation? {
+        // Check cache first
+        if let cached = geocodeCache[locationName] {
+            logger.log("Using cached geocoding result for '\(locationName)'", level: .info)
+            return cached
+        }
+
+        let geocoder = CLGeocoder()
+
+        do {
+            let placemarks = try await geocoder.geocodeAddressString(locationName)
+
+            if let location = placemarks.first?.location {
+                // Cache the result
+                geocodeCache[locationName] = location
+                logger.log("Successfully geocoded '\(locationName)' to \(location.coordinate)", level: .info)
+                return location
+            } else {
+                logger.log("No location found for '\(locationName)'", level: .warning)
+                return nil
+            }
+        } catch {
+            logger.logError(error, context: "Failed to geocode location '\(locationName)'")
+            return nil
+        }
+    }
+
+    // MARK: - Timeout Protection
+
+    /// Executes an async operation with a timeout
+    /// Returns nil if the timeout is exceeded
+    func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async rethrows -> T? {
+        try await withThrowingTaskGroup(of: T?.self) { group in
+            // Task 1: Execute the operation
+            group.addTask {
+                try await operation()
+            }
+
+            // Task 2: Timeout timer
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                return nil
+            }
+
+            // Return first result (operation or timeout)
+            let result = try await group.next()
+            group.cancelAll()
+            return result ?? nil
+        }
+    }
+
     // MARK: - CLLocationManagerDelegate
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -198,6 +255,32 @@ struct WeatherData: Codable {
     let precipitationChance: Int? // Percentage (0-100)
     // Date this forecast is for (YYYY-MM-DD format)
     let forecastDate: String?
+}
+
+// MARK: - Enhanced Weather Data Structures
+
+struct LocationForecast: Codable {
+    let locationName: String
+    let date: String  // YYYY-MM-DD
+    let highTempF: Int
+    let lowTempF: Int
+    let condition: String
+    let precipitationChance: Int
+    let hasAlert: Bool
+}
+
+struct NotableWeather: Codable {
+    let date: String  // YYYY-MM-DD
+    let location: String
+    let reason: String  // "high_precipitation", "extreme_heat", "extreme_cold", "temp_swing", "severe_alert"
+    let description: String  // Human-readable: "Heavy rain likely", "Freezing temperatures"
+}
+
+struct EnhancedWeatherContext: Codable {
+    let currentLocation: String
+    let currentForecast: [LocationForecast]  // 3-4 days from current location
+    let travelForecasts: [LocationForecast]  // Forecasts for travel destinations
+    let notableConditions: [NotableWeather]  // Flagged notable weather
 }
 
 // MARK: - CLAuthorizationStatus Extension

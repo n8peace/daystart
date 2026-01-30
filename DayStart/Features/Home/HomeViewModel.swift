@@ -1304,6 +1304,7 @@ class HomeViewModel: ObservableObject {
                     schedule: userPreferences.schedule,
                     locationData: snapshot.location,
                     weatherData: snapshot.weather,
+                    enhancedWeatherData: snapshot.enhancedWeather,
                     calendarEvents: snapshot.calendar
                 )
                 
@@ -1368,6 +1369,7 @@ class HomeViewModel: ObservableObject {
                     schedule: userPreferences.schedule,
                     locationData: snapshot.location,
                     weatherData: snapshot.weather,
+                    enhancedWeatherData: snapshot.enhancedWeather,
                     calendarEvents: snapshot.calendar,
                     isWelcome: true
                 )
@@ -1728,6 +1730,7 @@ class HomeViewModel: ObservableObject {
                 schedule: userPreferences.schedule,
                 locationData: snapshot.location,
                 weatherData: snapshot.weather,
+                enhancedWeatherData: snapshot.enhancedWeather,
                 calendarEvents: snapshot.calendar
             )
             

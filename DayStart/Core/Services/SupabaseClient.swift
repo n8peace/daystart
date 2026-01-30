@@ -162,6 +162,7 @@ class SupabaseClient {
         schedule: DayStartSchedule,
         locationData: LocationData? = nil,
         weatherData: WeatherData? = nil,
+        enhancedWeatherData: EnhancedWeatherContext? = nil,  // NEW: Enhanced multi-location weather
         calendarEvents: [String]? = nil,
         isWelcome: Bool = false
     ) async throws -> JobResponse {
@@ -196,6 +197,7 @@ class SupabaseClient {
             timezone: TimeZone.current.identifier,
             location_data: locationData,
             weather_data: weatherData,
+            enhanced_weather_data: enhancedWeatherData,
             calendar_events: calendarEvents,
             force_update: nil,
             is_welcome: isWelcome
@@ -747,7 +749,8 @@ fileprivate struct CreateJobRequest: Codable {
     let daystart_length: Int
     let timezone: String
     let location_data: LocationData?
-    let weather_data: WeatherData?
+    let weather_data: WeatherData?  // Simple weather (backwards compat)
+    let enhanced_weather_data: EnhancedWeatherContext?  // NEW: Enhanced multi-location weather
     let calendar_events: [String]?
     let force_update: Bool? // optional, when set true allows re-queueing existing job
     let is_welcome: Bool? // optional, when set true indicates this is a welcome/onboarding job

@@ -336,6 +336,7 @@ class WelcomeDayStartScheduler: ObservableObject {
                 schedule: scheduler,
                 locationData: snapshot.location,
                 weatherData: snapshot.weather,
+                enhancedWeatherData: snapshot.enhancedWeather,
                 calendarEvents: snapshot.calendar,
                 isWelcome: true
             )
@@ -367,6 +368,7 @@ class WelcomeDayStartScheduler: ObservableObject {
                 schedule: UserPreferences.shared.schedule,
                 locationData: snapshot.location,
                 weatherData: snapshot.weather,
+                enhancedWeatherData: snapshot.enhancedWeather,
                 calendarEvents: snapshot.calendar,
                 isWelcome: true
             )

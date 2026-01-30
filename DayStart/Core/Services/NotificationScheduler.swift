@@ -81,6 +81,7 @@ class NotificationScheduler {
                             schedule: UserPreferences.shared.schedule,
                             locationData: snapshot.location,
                             weatherData: snapshot.weather,
+                            enhancedWeatherData: snapshot.enhancedWeather,
                             calendarEvents: snapshot.calendar
                         )
                     }

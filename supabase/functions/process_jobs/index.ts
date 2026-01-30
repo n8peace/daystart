@@ -1407,6 +1407,7 @@ async function processJob(supabase: any, jobId: string, workerId: string): Promi
       .from('jobs')
       .update({
         weather_data: null,
+        enhanced_weather_data: null,
         calendar_events: null,
         location_data: null,
         updated_at: new Date().toISOString()
@@ -1501,6 +1502,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     dayStartLength: job.daystart_length,
     locationData: job.location_data,
     weatherData: job.weather_data,
+    enhancedWeatherData: job.enhanced_weather_data || null,
     calendarEvents: job.calendar_events,
     contentData: contentData,
     is_welcome: job.is_welcome || false,
@@ -1742,6 +1744,7 @@ That's it for today. Have a good DayStart.
         calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0,
       },
       weather: context.weatherData || null,
+      enhancedWeather: context.enhancedWeatherData || null,
       news: flattenedNews,
       sports: sportsToday,
       sportsTeamWhitelist,
@@ -2205,6 +2208,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
       calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0
     }, context.social_daystart),
     weather: context.weatherData || null,
+    enhancedWeather: context.enhancedWeatherData || null,
     news: filteredNews.map(article => ({
       title: article.title || article.description?.slice(0, 160) || '',
       description: article.description || '',
@@ -2480,9 +2484,9 @@ CONTENT SELECTION:
   - Games with sports_spots: 3 = championship games requiring extended coverage
   - Games with sports_spots: 2 = major events needing deeper analysis
   - Always prioritize games with highest significance_score values
-• CHAMPIONSHIP OVERRIDE: World Series/Finals games (sports_spots: 3) get priority regardless of normal limits  
+• CHAMPIONSHIP OVERRIDE: World Series/Finals games (sports_spots: 3) get priority regardless of normal limits
 • Stocks: ALWAYS mention ALL stocks.focus companies by name (user's personal picks)
-• Weather: Include temps/conditions with neighborhood specificity when available
+• Weather: Be succinct and action-oriented. Mention ONLY notable conditions (extremes, precipitation, big changes). Use multi-day summary format: "Sunny through Thursday, rain possible this weekend." For travel: "In Chicago for your Wednesday meeting, expect temps in the 30s." Skip boring stretches—if 3-4 days are similar and mild, say so and move on.
 • Calendar: Prioritize personal/social events over routine meetings
 
 PRODUCTION QUALITY:

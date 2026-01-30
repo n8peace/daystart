@@ -11,8 +11,9 @@ class SnapshotBuilder {
     
     struct Snapshot {
         let location: LocationData?
-        let weather: WeatherData?
+        let weather: WeatherData?  // Simple weather (backwards compat)
         let calendar: [String]?
+        let enhancedWeather: EnhancedWeatherContext?  // NEW: Enhanced multi-location weather
     }
     
     func buildSnapshot(for date: Date = Date()) async -> Snapshot {
@@ -137,15 +138,96 @@ class SnapshotBuilder {
             }
         }
         
-        // Calendar - get events for the specific date
+        // Calendar - fetch upcoming events once (includes today + next 10 days)
+        // This single fetch will be used for both calendar formatting and travel location extraction
+        var upcomingEvents: [EKEvent] = []
         if CalendarManager.shared.hasCalendarAccess() {
-            let events = getEventsForDate(date)
-            let lines = CalendarManager.shared.formatEventsForDayStart(events)
+            upcomingEvents = CalendarManager.shared.getUpcomingEvents(days: 10)
+
+            // Filter for today's events for calendar lines
+            let calendar = Calendar.current
+            let todayEvents = upcomingEvents.filter { event in
+                calendar.isDate(event.startDate, inSameDayAs: date)
+            }
+
+            let lines = CalendarManager.shared.formatEventsForDayStart(todayEvents)
             calendarLines = lines
         }
-        
-        logger.log("Snapshot built for \(date): loc=\(locData != nil), weather=\(weatherData != nil), calendar=\((calendarLines?.count ?? 0)) items", level: .info)
-        return Snapshot(location: locData, weather: weatherData, calendar: calendarLines)
+
+        // Enhanced Weather - multi-location forecasts with travel detection
+        // Apply 30-second timeout to prevent indefinite hangs
+        var enhancedWeather: EnhancedWeatherContext? = nil
+        if #available(iOS 16.0, *), let currentLoc = await LocationManager.shared.getCurrentLocation() {
+            enhancedWeather = try? await LocationManager.shared.withTimeout(seconds: 30) {
+                // Extract travel locations from already-fetched calendar events
+                let eventLocations = CalendarManager.shared.extractLocationsFromEvents(upcomingEvents)
+
+                // Rate limiting: Limit to 5 travel destinations to prevent API throttling
+                let limitedLocations = Array(eventLocations.prefix(5))
+                if eventLocations.count > 5 {
+                    self.logger.log("⚠️ Limited to 5 travel destinations (found \(eventLocations.count))", level: .info)
+                }
+
+                // Parallel geocoding for locations without coordinates
+                var locationsWithCoords: [(name: String, location: CLLocation, date: Date)] = []
+                await withTaskGroup(of: (String, CLLocation?, Date).self) { group in
+                    for eventLoc in limitedLocations {
+                        group.addTask {
+                            if let coords = eventLoc.coordinates {
+                                // Use existing coordinates from structured location
+                                let location = CLLocation(latitude: coords.latitude, longitude: coords.longitude)
+                                return (eventLoc.locationName, location, eventLoc.eventDate)
+                            } else {
+                                // Geocode location name (in parallel)
+                                let geocoded = await LocationManager.shared.geocodeLocation(eventLoc.locationName)
+                                return (eventLoc.locationName, geocoded, eventLoc.eventDate)
+                            }
+                        }
+                    }
+
+                    for await result in group {
+                        if let location = result.1 {
+                            locationsWithCoords.append((result.0, location, result.2))
+                        }
+                    }
+                }
+
+                self.logger.log("Geocoded \(locationsWithCoords.count)/\(limitedLocations.count) travel locations", level: .info)
+
+                // Build current location name
+                let currentLocationName = [locData?.neighborhood, locData?.city, locData?.state]
+                    .compactMap { $0 }
+                    .first ?? "Current Location"
+
+                // Fetch multi-location forecasts with notable condition detection
+                let result = await WeatherService.shared.getMultiLocationForecasts(
+                    eventLocations: locationsWithCoords,
+                    currentLocation: currentLoc,
+                    currentLocationName: currentLocationName
+                )
+
+                if let enhanced = result {
+                    self.logger.log("Enhanced weather built: \(enhanced.currentForecast.count) current forecasts, \(enhanced.travelForecasts.count) travel forecasts, \(enhanced.notableConditions.count) notable conditions", level: .info)
+                }
+
+                return result
+            }
+
+            if enhancedWeather == nil {
+                logger.log("⏱️ Enhanced weather building timed out or failed", level: .warning)
+
+                // Track failure rate for monitoring
+                if !upcomingEvents.isEmpty {
+                    let eventLocations = CalendarManager.shared.extractLocationsFromEvents(upcomingEvents)
+                    if !eventLocations.isEmpty {
+                        logger.log("⚠️ Enhanced weather unavailable despite \(eventLocations.count) travel event(s) detected", level: .warning)
+                    }
+                }
+            }
+        }
+
+        logger.log("Snapshot built for \(date): loc=\(locData != nil), weather=\(weatherData != nil), calendar=\((calendarLines?.count ?? 0)) items, enhanced=\(enhancedWeather != nil)", level: .info)
+        return Snapshot(location: locData, weather: weatherData, calendar: calendarLines, enhancedWeather: enhancedWeather)
     }
     
     private func getEventsForDate(_ date: Date) -> [EKEvent] {
