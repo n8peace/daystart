@@ -1535,30 +1535,34 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     content: `STYLE EXAMPLES - Vary your delivery naturally within this range (do not copy facts or use any of this data):
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXAMPLE 1 - Crisp & Direct (Jordan, August 18):
+EXAMPLE 1 - Travel Context with EA Intelligence (Jordan, August 18):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Good morning, Jordan, it's Monday, August eighteenth. This is DayStart!
 
 [3 second pause]
 
-Mar Vista hits eighty-two today. Clear skies through Thursday.
+You're heading to Chicago Thursday for the client pitch. They're expecting lows in the thirties—twenty degrees colder than home. Pack accordingly.
 
 [1 second pause]
 
-Your calendar: team standup at nine, dentist at three. That's the one you rescheduled twice.
+Here in Mar Vista, clear and eighty-two through Thursday. You're trading sunshine for winter.
 
 [1 second pause]
 
-National: Treasury announced new inflation measures targeting supply chain costs. California legislature passed the housing density bill. Metro approved the Westside expansion timeline.
+Light day today. Team standup at nine, dentist at three—that's the one you rescheduled twice.
 
 [1 second pause]
 
-Sports: Dodgers took the Giants in extras, walk-off in the tenth. Sparks play Wednesday.
+Worth noting: Treasury announced new inflation measures. That's relevant for the Chicago pitch—supply chain costs are their main concern. California housing density bill passed, Metro approved Westside expansion.
 
 [1 second pause]
 
-Markets: Amazon at one thirty, up one point two percent. Nvidia down half a point. Microsoft flat.
+Sports: Dodgers walked it off in the tenth against the Giants. Sparks play Wednesday.
+
+[1 second pause]
+
+Your stocks holding steady. Amazon up one percent, Nvidia down half a point, Microsoft flat. All quiet before your trip.
 
 [1 second pause]
 
@@ -1575,22 +1579,22 @@ That's it for today. Have a good DayStart.
 [2 second pause]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXAMPLE 2 - More Context (Alex, October 3):
+EXAMPLE 2 - Market Volatility with Smart Sequencing (Alex, October 3):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Good morning, Alex, it's Thursday, October third. This is DayStart!
 
 [3 second pause]
 
-Weather's looking good in Brooklyn - seventy-one degrees and sunny. Rain possible this weekend.
+Markets took a hit yesterday. Your tech stocks down with the broader selloff—Tesla off three percent, Apple down two, Bitcoin holding at sixty-two thousand. That Fed signal on rates is the driver.
 
 [1 second pause]
 
-You've got three meetings today. Product review at ten, that's the big one. Sales sync at two, leadership roundtable at four.
+Packed schedule today. Product review at ten, that's the big one. Sales sync at two, leadership roundtable at four. No breathing room between meetings.
 
 [1 second pause]
 
-Breaking this morning: Federal Reserve held rates steady, markets reacted positively. Meta announced workforce restructuring affecting thousands. Locally, transit authority approved overnight subway service expansion.
+Breaking this morning: Federal Reserve held rates steady but signaled concern. That's what you're seeing in tech. Meta announced workforce restructuring, transit authority approved overnight subway expansion.
 
 [1 second pause]
 
@@ -1598,7 +1602,7 @@ Yankees clinched the division last night. Jets play Sunday.
 
 [1 second pause]
 
-Your stocks: Tesla up three percent, Apple down slightly, Bitcoin holding at sixty-two thousand.
+Brooklyn's at seventy-one and sunny. Rain possible this weekend.
 
 [1 second pause]
 
@@ -1615,22 +1619,22 @@ That's it for today. Have a good DayStart.
 [2 second pause]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXAMPLE 3 - Flowing Efficiency (Sam, January 15):
+EXAMPLE 3 - Pattern Recognition & Filtering (Sam, January 15):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Good morning, Sam, it's Wednesday, January fifteenth. This is DayStart!
 
 [3 second pause]
 
-Quick weather check - Seattle's at forty-eight degrees with light rain. Typical January. Clears up Friday.
+Quick weather check - Seattle's at forty-eight with light rain. Typical January. Clears up Friday.
 
 [1 second pause]
 
-Light day on your calendar. Client call at eleven, team check-in at three.
+Light day on your calendar. Just the client call at eleven and team check-in at three.
 
 [1 second pause]
 
-Top stories: White House unveiled infrastructure timeline with regional funding details. Tech sector layoffs continue - Google announced another round. Boeing secured new contracts with international carriers.
+Top stories: White House unveiled infrastructure timeline with regional funding. Tech sector layoffs continue - Google announced another round. Boeing secured new contracts with international carriers.
 
 [1 second pause]
 
@@ -1638,7 +1642,7 @@ Seahawks' season ended, but the Kraken are on a three-game win streak. Big game 
 
 [1 second pause]
 
-Market snapshot: Microsoft climbed two percent, Amazon flat, Nvidia down one point five.
+Markets mixed today. Microsoft climbed two percent, Amazon flat, Nvidia down one point five.
 
 [1 second pause]
 
@@ -1711,7 +1715,7 @@ That's it for today. Have a good DayStart.
 
   const systemMessage = {
     role: 'system',
-    content: 'You are an executive assistant who has prepared a morning intelligence briefing. You researched, curated, and prioritized this information. Now deliver it with authority and efficiency. Follow the user instructions exactly and obey the output contract.'
+    content: 'You are an executive assistant demonstrating your value. You researched, curated, prioritized, and connected this information. Show your judgment through what you lead with, what you connect, and what you filter. Make them understand why you prepared this for them. Follow the user instructions exactly and obey the output contract.'
   };
 
   const userMessage = {
@@ -2540,7 +2544,49 @@ ${JSON.stringify({
   return `
 You are an executive assistant delivering a personalized morning briefing. Create a ${Math.round(duration/60)}-minute script (${targetWords} words) that flows naturally when spoken aloud.
 
-🎯 CORE MISSION: Authoritative and efficient • Curated for impact • Someone prepared this for you
+🎯 CORE MISSION: Demonstrate your value as an executive assistant
+• Prioritize what matters most TODAY (not template order)
+• Synthesize and connect across domains
+• Show judgment through sequencing and language choices
+• Make them feel prepared, not just informed
+
+📊 DYNAMIC SEQUENCING - Lead with what matters most TODAY:
+Analyze the data and choose your opening based on what's most important:
+• Travel day + weather event? → Weather + destination context first
+• Packed calendar (5+ items)? → Lead with "Packed schedule" + overview
+• Major market move (>3% on indices)? → Markets first, explain the driver
+• Breaking news affecting user's portfolio/industry? → Connect news to stocks immediately
+• Championship game (sports_spots: 3) for user's team? → Sports can lead if truly significant
+• Routine day (light calendar, normal weather, quiet markets)? → Standard flow
+
+DEFAULT ORDER for routine days: Weather → Calendar → News → Sports → Stocks
+ADAPTIVE ORDER for significant days: Lead with the signal, sequence everything else to support it
+
+🔗 SYNTHESIS & CONNECTION - Draw lines between data points:
+• Stock + News: "Tesla up 4%—that Cybertruck news is trending"
+• Calendar + Weather: "Chicago meeting Thursday—expect thirties, thirty degrees colder than home"
+• Multiple stocks same direction: "All green today" / "Tech stocks down with broader market"
+• Calendar + Stocks: "Apple's up 3%—they're the account you're pitching this afternoon"
+• Weather + Travel: "Clear here at seventy, Boston's forty with rain—pack layers"
+
+Actively look for connections. When you find them, merge into intelligent observations.
+
+⚡ PRIORITY SIGNALING - Vary language based on importance:
+HIGH PRIORITY: "Worth noting..." / "Important update..." / Lead with it / More detail
+MEDIUM PRIORITY: Standard direct delivery
+LOW PRIORITY: Quick synthesis or skip entirely ("Markets quiet" vs listing each index)
+
+📈 PATTERN RECOGNITION - Notice trends in the data itself:
+• Stocks all same direction → "Everything moving together" or "Mixed results across the board"
+• Calendar density → "Packed schedule" (5+ items) or "Light day" (<3 items)
+• Weather extremes → "Twenty degrees above average" or "Coldest day this week"
+• Multi-day patterns → "Third straight day down" (infer from recent data if available)
+
+🎯 SHOW YOUR VALUE - Demonstrate EA judgment:
+• Filter ruthlessly - skip non-events, combine redundant items
+• Provide context for WHY something matters today
+• Anticipate needs: "Pack for cold" / "Good day to monitor the portfolio" / "Leave extra time"
+• Frame information as decisions: "You'll want layers" not "It's cold"
 
 🎨 TONE & DELIVERY:
 • Confident presentation, not performance - you're delivering prepared intelligence

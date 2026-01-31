@@ -50,7 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Helps identify patterns in location parsing failures
   - Improves production debugging when users report missing travel weather
 
-- **Script Generation Tone & Variety** - Reimagined briefing delivery for more authoritative, professional feel
+- **Script Generation Tone & Variety (Phase 1)** - Reimagined briefing delivery for more authoritative, professional feel
   - Shifted from "morning DJ" performance style to "executive assistant briefing" delivery
   - Eliminated filler commentary and performative personalization ("which means you'll want to...")
   - Three style examples teach AI natural variance while maintaining authority
@@ -61,6 +61,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Updated system message: "executive assistant who prepared intelligence briefing"
   - Natural day-to-day variety without losing professional tone
   - Still warm and personalized, but feels like someone prepared this for you
+
+- **EA Intelligence Enhancement (Phase 2)** - Briefings now demonstrate executive assistant value through intelligent curation
+  - **Dynamic Content Sequencing**: Leads with what matters most TODAY (not fixed template order)
+    - Travel days lead with destination weather and context ("Chicago meeting Thursday—pack for thirties")
+    - Packed calendar days (5+ events) lead with schedule overview ("No breathing room between meetings")
+    - Market volatility days lead with stocks first, explain the driver
+    - Routine days follow standard flow (Weather → Calendar → News → Sports → Stocks)
+  - **Cross-Domain Synthesis**: Connects related information across categories
+    - Stocks + News: "Tesla up 4%—that announcement is trending"
+    - Calendar + Weather: "You're flying to Boston—pack for rain, forty-two degrees"
+    - Calendar + Stocks: "Apple's up 3%—they're the account you're pitching this afternoon"
+  - **Pattern Recognition**: Notices trends without requiring historical data
+    - All stocks moving together: "Everything green today" vs "Mixed results across the board"
+    - Calendar density: "Packed schedule" (5+ items) vs "Light day" (< 3 items)
+    - Weather patterns: "Third straight day of rain" or "Twenty degrees above average"
+  - **Priority Signaling**: Language varies based on importance
+    - High priority: "Worth noting...", leads section, more detail
+    - Low priority: Quick synthesis or skip entirely ("Markets quiet today")
+  - **EA Judgment**: Demonstrates value through filtering and anticipation
+    - Ruthlessly skips non-events, combines redundant items
+    - Anticipates needs: "Pack for cold" / "Leave extra time"
+    - Frames as decisions: "You'll want layers" not "It's cold"
+  - **Updated Few-Shot Examples**: Show EA intelligence in action
+    - Travel context example with cross-domain synthesis
+    - Market volatility example with smart sequencing
+    - Pattern recognition example demonstrating filtering
+  - Uses ONLY existing data - no new API calls or data sources required
+  - Each briefing feels custom-crafted for THAT user on THAT day
+  - User perceives EA "did work" - researched, filtered, connected
 
 ### Fixed
 - **Privacy Compliance** - Enhanced weather data now properly cleaned up after job completion
@@ -75,6 +104,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Tests authoritative tone, natural variance, and elimination of filler commentary
 
 ### Removed
+- **RevenueCat Dependency Cleanup** - Removed legacy subscription framework references
+  - Deleted RevenueCat Swift Package dependency from Xcode project
+  - Removed all orphaned references from `project.pbxproj` build configuration
+  - Cleaned up `.revenuecat_backup` and `.backup` files from old migration
+  - DayStart uses native StoreKit 2 for subscription management (no third-party dependencies)
 
 ---
 
