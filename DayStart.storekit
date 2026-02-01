@@ -110,12 +110,12 @@
             "displayPrice" : "0.00",
             "identifier" : "monthly_free_trial",
             "paymentMode" : "free",
-            "subscriptionPeriod" : "P7D",
+            "subscriptionPeriod" : "P3D",
             "type" : "FreeTrial"
           },
           "localizations" : [
             {
-              "description" : "Monthly access to AI-powered morning briefings with 7-day free trial",
+              "description" : "Monthly access to AI-powered morning briefings with 3-day free trial",
               "displayName" : "DayStart AI Pro Monthly",
               "locale" : "en_US"
             }

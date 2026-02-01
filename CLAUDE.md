@@ -183,7 +183,7 @@ DayStart is a **LIVE PRODUCTION** iOS app (16K+ lines) with active paying users 
 ### StoreKit Integration
 - **Receipt validation**: Always validate receipts server-side
 - **Restore purchases**: Handle gracefully across device transfers
-- **Free trial**: 7-day trials configured for both subscription tiers
+- **Free trial**: 3-day trial (monthly), 7-day trial (annual), no trial (weekly)
 - **Sandbox testing**: Use local StoreKit configuration for development
 
 ### State Management

@@ -3,7 +3,7 @@
 ## Basic Information
 - **App Name:** DayStart AI: Morning Briefing
 - **Subtitle:** News, Weather & Calendar
-- **In Development:** 2026.02.01 (Build 1) - 🚧 In Development
+- **In Development:** 2026.02.1 (Build 1) - 🚧 Submitted to App Store on Jan 31, 2026
 - **Current Version:** 2026.01.23 (Build 1) - **LIVE** on App Store as of Jan 25, 2026
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
@@ -43,48 +43,23 @@ Terms of Service: https://daystart.bananaintelligence.ai/terms
 
 ## What's New in Version 2026.02.01
 ```
-[TO BE DETERMINED]
+SMARTER BRIEFINGS. TRAVEL INTELLIGENCE. EXECUTIVE DELIVERY.
 
 NEW FEATURES:
-• TBD
+• Travel Weather Intelligence - Automatically detects destinations from calendar events and delivers relevant forecasts ("In Chicago for your Wednesday meeting, expect temps in the 30s")
+• Dynamic Content Sequencing - Your briefing now leads with what matters most TODAY (travel days prioritize destination weather, packed schedules lead with calendar overview)
+• Cross-Domain Synthesis - Intelligent connections across categories ("Tesla up 4%—that announcement is trending")
 
-IMPROVEMENTS:
-• TBD
+DELIVERY IMPROVEMENTS:
+• Executive Assistant Tone - Briefings now feel like someone prepared intelligence FOR you, not reading AT you
+• Smarter Weather - Only mentions notable conditions worth knowing, skips boring stretches
+• Multi-Location Forecasting - Parses calendar events for travel destinations, delivers weather for everywhere you need to be
 
-Your morning intelligence platform, continuously improving.
-```
+PERFORMANCE:
+• 67% Faster Generation - Parallel processing for travel weather and calendar data
+• Enhanced AI Prompting - Better context awareness and priority signaling
 
-## What's New in Version 2026.01.23
-```
-MORE FLEXIBILITY. BETTER EXPERIENCE. ROCK-SOLID RELIABILITY.
-
-NEW FEATURES:
-• Weekly Subscription - Try DayStart for just $1.99/week with no trial commitment
-• Enhanced Analytics - Improved crash reporting for better app stability
-• Streamlined Paywall - Cleaner, more focused subscription experience
-
-RELIABILITY IMPROVEMENTS:
-• Settings Persistence - Your preferences now survive app updates (never lose your personalization again)
-• Fixed Welcome Briefing - New users get a perfect onboarding experience
-• Fixed Share Functionality - Share your briefings with friends and colleagues
-• Improved Audio Playback - Smoother, more reliable playback experience
-
-Your morning intelligence platform, now more accessible and reliable than ever.
-```
-
-## What's New in Version 2025.11.1
-```
-PERSONALIZE YOUR NEWS INTELLIGENCE
-
-Take control of your morning brief with granular news filtering! Choose from 5 categories (World, Business, Technology, Politics, Science) to craft your perfect briefing.
-
-NEW FEATURES:
-• News Category Selection - Filter news by your interests and priorities
-• Enhanced Content Freshness - Always-current news with intelligent fallback 
-• Re-engagement Notifications - Smart reminders to maintain your morning advantage
-• Timezone-Independent Scheduling
-
-Your morning brief, your priorities. Start ahead with intelligence that matters to you.
+Your morning intelligence platform—now anticipates where you're going and what you need to know.
 ```
 
 ## Categories
@@ -227,32 +202,47 @@ All data: Linked to identity via receipt ID, NOT used for tracking
 - [x] Complete subscription metadata in App Store Connect
 - [x] Ensure Supabase backend is running during review
 
-### App Store Review Notes - Version 2026.01.23
+### App Store Review Notes - Version 2026.02.01
 ```
 QUICK TEST:
-1. Complete onboarding → Try NEW Weekly Subscription ($1.99, no trial) or start free trial
-2. Receive your first Personal Morning Brief (generated in ~2 minutes)
-3. Test Share Functionality: Play briefing → Tap share icon → Share link with contacts
-4. Verify Settings Persistence: Change name/preferences → Force quit app → Reopen (settings should persist)
+1. Complete onboarding → Start subscription (Weekly $1.99 or try Monthly/Annual with free trial)
+2. Add calendar events with TRAVEL LOCATIONS to test new intelligence features:
+   - Add event: "Flight to Chicago" or use location field "New York, NY" for dates 2-3 days out
+   - Add event: "Meeting in San Francisco" with location for tomorrow
+3. Generate briefing (2-3 minutes) → Listen for:
+   - Travel weather mentions ("In Chicago for your Wednesday meeting, expect temps in the 30s")
+   - Executive assistant tone (authoritative, direct, no filler commentary)
+   - Dynamic sequencing (briefing leads with travel context when you have upcoming trips)
+   - Cross-domain connections (stocks + news synthesis, calendar + weather integration)
+4. Test different scenarios:
+   - Packed calendar (5+ events) → Briefing should lead with schedule overview
+   - Travel day → Should prioritize destination weather
+   - Routine day → Standard weather → calendar → news flow
 
 POSITIONING:
-DayStart AI delivers a Personal Morning Brief, the same type of intelligence briefing successful executives receive. We've democratized this advantage for ambitious professionals.
+DayStart AI delivers a Personal Morning Brief that now intelligently adapts to YOUR day. Travel briefings prioritize destination weather. Packed days lead with schedule context. The AI acts like an executive assistant who researched, filtered, and connected the dots.
 
 KEY FEATURES:
 - 3 minute audio intelligence briefs
+- NEW: Travel weather detection from calendar events
+- NEW: Dynamic content sequencing based on daily context
+- NEW: Executive assistant delivery style
 - Personalized to each user's priorities
 - Professional voice synthesis via OpenAI TTS and ElevenLabs
 - No login required, privacy-first approach
 
-WHAT'S NEW IN 2026.01.23:
-- WEEKLY SUBSCRIPTION: New $1.99/week option with no trial for immediate access (first pricing tier)
-- FIREBASE ANALYTICS: Integrated crash reporting for improved stability
-- STREAMLINED PAYWALL: Cleaner design with dynamic pricing visibility
-- CRITICAL FIXES: Settings persistence, Welcome DayStart generation, share functionality, audio playback reliability
+WHAT'S NEW IN 2026.02.01:
+- TRAVEL WEATHER INTELLIGENCE: Automatically detects travel destinations from calendar (parses "Flight to Chicago", location fields) and delivers relevant weather forecasts
+- DYNAMIC CONTENT SEQUENCING: Briefing adapts opening based on what matters TODAY (travel days prioritize destination weather, packed schedules lead with calendar)
+- EXECUTIVE ASSISTANT TONE: Shifted from "morning DJ" to "prepared intelligence briefing" delivery style
+- CROSS-DOMAIN SYNTHESIS: AI connects related information ("Tesla up 4%—that announcement is trending", "Chicago meeting Thursday—pack for thirties")
+- PERFORMANCE: 67% faster travel weather processing via parallel geocoding and API calls
+- PRIVACY: Enhanced weather data cleanup after job completion
 - Core functionality unchanged: scheduling, audio generation, news/sports selection work as in previous version
 
 WEATHERKIT:
 - Yes, app uses WeatherKit for weather data
+- NEW: Multi-location weather for travel destinations detected from calendar
 - Weather plays automatically in every briefing (no navigation needed)
 - Toggle weather: Onboarding page 5 or Edit screen
 - Apple Weather attribution properly displayed
@@ -266,99 +256,9 @@ BACKGROUND PROCESSING:
 Essential for prefetching audio before scheduled wake time using BGTaskScheduler. Prevents playback delays and enables offline functionality.
 
 PERMISSIONS (BOTH OPTIONAL):
-- Location: Weather updates only
-- Calendar: Event summaries only
+- Location: Weather updates (now includes travel destinations)
+- Calendar: Event summaries + NEW travel destination detection
 - App works fully without any permissions (graceful degradation)
 
 CONTACT: nate@bananaintelligence.ai
 ```
-
-### App Store Review Notes - Version 2025.11.1
-```
-QUICK TEST:
-1. Experience the Sports Intelligence Revolution
-2. Complete onboarding → Start free trial → Receive your first Personal Morning Brief
-3. Test NEW Sports Selection: Settings → Edit Schedule → Sports card → Select individual leagues (MLB, NHL, NBA, NFL, NCAAF)
-4. Your brief is generated in ~2 minutes with only your selected sports included
-
-POSITIONING:
-DayStart AI delivers a Personal Morning Brief, the same type of intelligence briefing successful executives receive. We've democratized this advantage for ambitious professionals.
-
-KEY FEATURES:
-- 3 minute audio intelligence briefs
-- Personalized to each user's priorities
-- Professional voice synthesis via OpenAI TTS and ElevenLabs
-- No login required, privacy-first approach
-
-WHAT'S NEW IN 2025.11.1:
-- NEWS CATEGORY SELECTION: Choose from 5 categories (World, Business, Technology, Politics, Science) for personalized news filtering
-- Enhanced Content Freshness: Always-current news with intelligent 30-minute refresh cycles
-- Re-engagement Notifications: Smart reminders for inactive users to maintain their morning advantage
-- Timezone-Independent Scheduling
-- Core functionality unchanged: scheduling, audio generation, paywall flows work as in previous version
-
-WEATHERKIT:
-- Yes, app uses WeatherKit for weather data
-- Weather plays automatically in every briefing (no navigation needed)
-- Toggle weather: Onboarding page 5 or Edit screen
-- Apple Weather attribution properly displayed
-
-SUBSCRIPTIONS:
-- Product IDs: daystart_monthly_subscription, daystart_annual_subscription
-- Free trials: 3-day (monthly), 7-day (annual)
-- No login required, uses StoreKit receipt IDs
-
-BACKGROUND PROCESSING:
-Essential for prefetching audio before scheduled wake time using BGTaskScheduler. Prevents playback delays and enables offline functionality.
-
-PERMISSIONS (BOTH OPTIONAL):
-- Location: Weather updates only
-- Calendar: Event summaries only
-- App works fully without any permissions (graceful degradation)
-
-CONTACT: nate@bananaintelligence.ai
-```
-
-
-### Completed ✓
-- [x] App Store metadata prepared (descriptions, keywords, categories)
-- [x] In-App Purchase products defined with updated IDs
-- [x] Privacy manifest (PrivacyInfo.xcprivacy) created
-- [x] App record created in App Store Connect
-- [x] App icon (1024x1024) uploaded to App Store Connect
-- [x] In-App Purchase products created in App Store Connect
-- [x] StoreKit configuration file created and added to Xcode
-- [x] StoreKit testing enabled in Xcode scheme
-- [x] Subscription handling code already implemented in PurchaseManager
-- [x] ITSAppUsesNonExemptEncryption added to Info.plist
-- [x] Swift 6 concurrency compliance implemented
-- [x] All concurrency errors resolved (HomeViewModel @MainActor, Timer closures fixed)
-- [x] dSYM generation settings configured
-- [x] Info.plist legal URLs added (privacy, terms, copyright)
-- [x] NSCalendarsUsageDescription added to Info.plist
-- [x] Paywall messaging updated
-- [x] Archive successfully uploaded to App Store Connect
-- [x] Build 2 (2025.09.22) submitted to App Store
-- [x] Build 2 (2025.10.16) submitted to App Store
-- [x] Build 2 (2025.10.19) submitted to App Store - Previous LIVE version (Oct 22, 2025)
-- [x] Build 1 (2025.10.24) submitted to App Store - Previously LIVE as of Oct 24, 2025
-- [x] Build 2 (2025.10.28) submitted to App Store - Previously LIVE as of Oct 28, 2025
-- [x] Build 2 (2025.11.1) - Previously LIVE on App Store (Nov 2, 2025 - Jan 25, 2026)
-- [x] Build 1 (2026.01.23) - **LIVE** on App Store as of Jan 25, 2026
-- [ ] Build 1 (2026.02.01) - 🚧 In Development
-
-### Remaining Tasks
-- [x] App Store Connect setup
-  - [x] Prepare app screenshots (iPhone & iPad sizes)
-  - [x] Configure privacy settings as listed above
-  
-- [x] Testing & Validation
-  - [x] Test purchase flow with sandbox account
-  - [x] Test app works without location permission
-  - [x] Test app works without calendar permission
-  - [x] Test on clean device without debug environment
-  
-- [x] Marketing Assets (Optional)
-  - [] App preview video
-  - [x] Marketing website at daystart.bananaintelligence.ai
-  - [x] Support documentation at daystart.bananaintelligence.ai
