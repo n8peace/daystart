@@ -103,6 +103,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Documentation in `scripts/README_TEST_SCRIPT.md` with analysis guidelines
   - Tests authoritative tone, natural variance, and elimination of filler commentary
 
+### Changed
+- **App Store Metadata Optimization** - Streamlined positioning for better discoverability and conversion
+  - Subtitle changed from "Wake Up. Get Briefed. Succeed." to "News, Weather & Calendar" (22 chars)
+  - Keywords refined to remove redundancy with title: `morning brief,ai news,daily briefing,news summary,weather,calendar,routine` (78 chars)
+  - App description streamlined from 1,800+ to ~600 characters for clarity
+  - Promotional text updated to: "Wake up. Get briefed. Succeed. Your personalized AI morning brief with news, weather, and your calendar." (107 chars)
+  - Optimized for App Store search while maintaining brand voice
+
 ### Removed
 - **RevenueCat Dependency Cleanup** - Removed legacy subscription framework references
   - Deleted RevenueCat Swift Package dependency from Xcode project

@@ -13,7 +13,8 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation,
 - ✅ App Store Connect configured with subscription products (Weekly $1.99, Monthly $4.99, Annual $39.99)
 - ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete
 - ✅ Legal documents hosted at daystart.bananaintelligence.ai
-- ✅ Positioned as "Your Personal Morning Brief" targeting ambitious professionals
+- ✅ Subtitle: "News, Weather & Calendar" - optimized for App Store search
+- ✅ Streamlined app description (600 chars) for clarity and conversion
 - ✅ 3-minute intelligence briefings with dynamic content scaling
 - ✅ Welcome Brief for new users (60-second personalized introduction)
 - ✅ Firebase Analytics integration with lazy loading architecture
