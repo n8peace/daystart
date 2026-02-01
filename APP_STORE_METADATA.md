@@ -3,7 +3,7 @@
 ## Basic Information
 - **App Name:** DayStart AI: Morning Briefing
 - **Subtitle:** News, Weather & Calendar
-- **In Development:** 2026.02.1 (Build 1) - 🚧 In Development
+- **In Development:** 2026.02.01 (Build 1) - 🚧 In Development
 - **Current Version:** 2026.01.23 (Build 1) - **LIVE** on App Store as of Jan 25, 2026
 - **Support URL:** https://daystart.bananaintelligence.ai
 - **Marketing URL:** https://daystart.bananaintelligence.ai
@@ -41,7 +41,7 @@ Privacy Policy: https://daystart.bananaintelligence.ai/privacy
 Terms of Service: https://daystart.bananaintelligence.ai/terms
 ```
 
-## What's New in Version 2026.02.1
+## What's New in Version 2026.02.01
 ```
 [TO BE DETERMINED]
 
@@ -345,7 +345,7 @@ CONTACT: nate@bananaintelligence.ai
 - [x] Build 2 (2025.10.28) submitted to App Store - Previously LIVE as of Oct 28, 2025
 - [x] Build 2 (2025.11.1) - Previously LIVE on App Store (Nov 2, 2025 - Jan 25, 2026)
 - [x] Build 1 (2026.01.23) - **LIVE** on App Store as of Jan 25, 2026
-- [ ] Build 1 (2026.02.1) - 🚧 In Development
+- [ ] Build 1 (2026.02.01) - 🚧 In Development
 
 ### Remaining Tasks
 - [x] App Store Connect setup

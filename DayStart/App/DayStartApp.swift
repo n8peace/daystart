@@ -246,12 +246,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         DebugLogger.shared.log("🚀 App didFinishLaunchingWithOptions - START", level: .info)
-        
+
         // Configure Firebase
         DebugLogger.shared.log("🔥 Configuring Firebase", level: .info)
         FirebaseApp.configure()
         DebugLogger.shared.log("✅ Firebase configured", level: .info)
-        
+
         // REQUIRED: Register all background task handlers before app finishes launching
         DebugLogger.shared.log("📱 Registering background tasks", level: .info)
         registerBackgroundTasks()

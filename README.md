@@ -26,7 +26,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation,
 - Fixed: Welcome DayStart generation and audio playback
 - Fixed: Anonymous user authentication for pre-purchase users
 
-**In Development**: v2026.02.1 Build 1
+**In Development**: v2026.02.01 Build 1
 - New: Calendar-based weather forecasting with travel detection
 - New: Authoritative briefing tone (executive assistant vs morning DJ)
 - Enhanced: Multi-location weather with geocoding and WeatherKit integration

@@ -15,6 +15,7 @@
 		B34BF6AF2E56CD4000D23C40 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B34BF6AE2E56CD4000D23C40 /* Supabase */; };
 		B377F8292EC2B5B600044683 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = B377F8282EC2B5B600044683 /* FirebaseAnalytics */; };
 		B377F82B2EC2B5B600044683 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = B377F82A2EC2B5B600044683 /* FirebaseCrashlytics */; };
+		B3FD72372F2F127100C676F9 /* FirebasePerformance in Frameworks */ = {isa = PBXBuildFile; productRef = B3FD72362F2F127100C676F9 /* FirebasePerformance */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +79,7 @@
 			files = (
 				B377F8292EC2B5B600044683 /* FirebaseAnalytics in Frameworks */,
 				B34BF6A92E56CD4000D23C40 /* PostgREST in Frameworks */,
+				B3FD72372F2F127100C676F9 /* FirebasePerformance in Frameworks */,
 				B34BF6A72E56CD4000D23C40 /* Functions in Frameworks */,
 				B34BF6AF2E56CD4000D23C40 /* Supabase in Frameworks */,
 				B34BF6A52E56CD4000D23C40 /* Auth in Frameworks */,
@@ -110,6 +112,7 @@
 				B350B7242E45D78B009A6C78 /* DayStart */,
 				B350B7392E45D78C009A6C78 /* DayStartTests */,
 				B350B7432E45D78C009A6C78 /* DayStartUITests */,
+				B3FD72352F2F127100C676F9 /* Frameworks */,
 				B350B7232E45D78B009A6C78 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -122,6 +125,13 @@
 				B350B7402E45D78C009A6C78 /* DayStartUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B3FD72352F2F127100C676F9 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -152,6 +162,7 @@
 				B34BF6AE2E56CD4000D23C40 /* Supabase */,
 				B377F8282EC2B5B600044683 /* FirebaseAnalytics */,
 				B377F82A2EC2B5B600044683 /* FirebaseCrashlytics */,
+				B3FD72362F2F127100C676F9 /* FirebasePerformance */,
 			);
 			productName = DayStart;
 			productReference = B350B7222E45D78B009A6C78 /* DayStart.app */;
@@ -698,6 +709,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B377F8272EC2B5B600044683 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCrashlytics;
+		};
+		B3FD72362F2F127100C676F9 /* FirebasePerformance */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B377F8272EC2B5B600044683 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebasePerformance;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

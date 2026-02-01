@@ -208,11 +208,14 @@ class SnapshotBuilder {
                     currentLocationName: currentLocationName
                 )
 
-                if let enhanced = result {
-                    self.logger.log("Enhanced weather built: \(enhanced.currentForecast.count) current forecasts, \(enhanced.travelForecasts.count) travel forecasts, \(enhanced.notableConditions.count) notable conditions", level: .info)
+                guard let enhanced = result else {
+                    self.logger.log("⚠️ Enhanced weather unavailable - no forecast data returned", level: .warning)
+                    throw NSError(domain: "SnapshotBuilder", code: -1, userInfo: [NSLocalizedDescriptionKey: "Enhanced weather unavailable"])
                 }
 
-                return result
+                self.logger.log("Enhanced weather built: \(enhanced.currentForecast.count) current forecasts, \(enhanced.travelForecasts.count) travel forecasts, \(enhanced.notableConditions.count) notable conditions", level: .info)
+
+                return enhanced
             }
 
             if enhancedWeather == nil {
