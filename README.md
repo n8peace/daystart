@@ -8,7 +8,7 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation,
 
 ## 🚀 App Store Status
 
-**Production**: Live on App Store (v2026.01.23 Build 1) as of January 25, 2026
+**Production**: Live on App Store (v2026.02.1 Build 1) as of February 1, 2026
 - ✅ Backend deployed and tested in production with receipt-based authentication
 - ✅ App Store Connect configured with subscription products (Weekly $1.99, Monthly $4.99, Annual $39.99)
 - ✅ Privacy manifest (PrivacyInfo.xcprivacy) and StoreKit 2 integration complete
@@ -19,18 +19,15 @@ Built with SwiftUI, Supabase backend, OpenAI GPT-4o-mini for content generation,
 - ✅ Welcome Brief for new users (60-second personalized introduction)
 - ✅ Firebase Analytics integration with lazy loading architecture
 
-**Latest Production Release**: v2026.01.23 Build 1 (January 25, 2026)
-- New: Weekly $1.99 subscription tier for faster user acquisition
-- New: Firebase Analytics + Crashlytics integration
-- Fixed: Settings persistence across app updates
-- Fixed: Welcome DayStart generation and audio playback
-- Fixed: Anonymous user authentication for pre-purchase users
-
-**In Development**: v2026.02.01 Build 1
+**Latest Production Release**: v2026.02.1 Build 1 (February 1, 2026)
 - New: Calendar-based weather forecasting with travel detection
 - New: Authoritative briefing tone (executive assistant vs morning DJ)
+- New: EA intelligence enhancement with dynamic sequencing and synthesis
 - Enhanced: Multi-location weather with geocoding and WeatherKit integration
 - Enhanced: Script generation variety and professionalism
+- Changed: App Store metadata optimization for better discoverability
+
+**In Development**: v2026.02.18 Build 1
 
 ## Table of Contents
 - [Features](#features)

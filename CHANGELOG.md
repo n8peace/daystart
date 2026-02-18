@@ -8,9 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2026.02.1] - In Development
+## [2026.02.18] - In Development
 
-**Build:** 1 | **Commit:** 4f188ad | **Status:** 🚧 Submitted to App Store on Jan 31, 2026
+**Build:** 1 | **Commit:** d523542 | **Status:** 🚧 Development Build
+
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+---
+
+## [2026.02.1] - 2026-02-01
+
+**Build:** 1 | **Commit:** d523542 | **Status:** **LIVE** on App Store as of 2026-02-01
 
 ### Added
 - **Calendar-Based Weather Forecasting** - Intelligent multi-location weather with travel detection
