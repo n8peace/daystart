@@ -59,25 +59,29 @@ class SnapshotBuilder {
                 if let dayForecast = try await WeatherService.shared.getForecast(for: loc, date: date) {
                     let highTempF = Int(dayForecast.highTemperature.converted(to: .fahrenheit).value)
                     let lowTempF = Int(dayForecast.lowTemperature.converted(to: .fahrenheit).value)
+                    let highTempC = Int(dayForecast.highTemperature.converted(to: .celsius).value)
+                    let lowTempC = Int(dayForecast.lowTemperature.converted(to: .celsius).value)
                     let conditionDesc = dayForecast.condition.description
                     let symbolName = dayForecast.symbolName
                     let precipChance = Int((dayForecast.precipitationChance * 100).rounded())
-                    
+
                     // Format the forecast date as YYYY-MM-DD
                     let dateFormatter = DateFormatter()
                     dateFormatter.dateFormat = "yyyy-MM-dd"
                     dateFormatter.timeZone = TimeZone.current
                     let forecastDateString = dateFormatter.string(from: date)
-                    
+
                     // Include current temp for today, nil for future dates
                     let calendar = Calendar.current
                     var currentTempF: Int? = nil
+                    var currentTempC: Int? = nil
                     if calendar.isDateInToday(date) {
                         if let weather = await LocationManager.shared.getCurrentWeather() {
                             currentTempF = Int(weather.currentWeather.temperature.converted(to: .fahrenheit).value)
+                            currentTempC = Int(weather.currentWeather.temperature.converted(to: .celsius).value)
                         }
                     }
-                    
+
                     weatherData = WeatherData(
                         temperatureF: currentTempF,
                         condition: conditionDesc,
@@ -86,10 +90,13 @@ class SnapshotBuilder {
                         highTemperatureF: highTempF,
                         lowTemperatureF: lowTempF,
                         precipitationChance: precipChance,
-                        forecastDate: forecastDateString
+                        forecastDate: forecastDateString,
+                        temperatureC: currentTempC,
+                        highTemperatureC: highTempC,
+                        lowTemperatureC: lowTempC
                     )
-                    
-                    logger.log("Weather forecast for \(forecastDateString): High \(highTempF)°, Low \(lowTempF)°, \(conditionDesc)", level: .info)
+
+                    logger.log("Weather forecast for \(forecastDateString): High \(highTempF)°F/\(highTempC)°C, Low \(lowTempF)°F/\(lowTempC)°C, \(conditionDesc)", level: .info)
                 }
             } catch {
                 logger.logError(error, context: "Failed to get weather forecast for date \(date)")
@@ -99,27 +106,32 @@ class SnapshotBuilder {
                 if calendar.isDateInToday(date) {
                     if let weather = await LocationManager.shared.getCurrentWeather() {
                         let tempF = Int(weather.currentWeather.temperature.converted(to: .fahrenheit).value)
+                        let tempC = Int(weather.currentWeather.temperature.converted(to: .celsius).value)
                         let conditionDesc = weather.currentWeather.condition.description
                         let symbolName = weather.currentWeather.symbolName
-                        
+
                         // Try to get today's forecast data as backup
                         var highTempF: Int? = nil
                         var lowTempF: Int? = nil
+                        var highTempC: Int? = nil
+                        var lowTempC: Int? = nil
                         var precipChance: Int? = nil
-                        
+
                         if let todayForecast = weather.dailyForecast.forecast.first(where: { dayWeather in
                             calendar.isDate(dayWeather.date, inSameDayAs: date)
                         }) {
                             highTempF = Int(todayForecast.highTemperature.converted(to: .fahrenheit).value)
                             lowTempF = Int(todayForecast.lowTemperature.converted(to: .fahrenheit).value)
+                            highTempC = Int(todayForecast.highTemperature.converted(to: .celsius).value)
+                            lowTempC = Int(todayForecast.lowTemperature.converted(to: .celsius).value)
                             precipChance = Int((todayForecast.precipitationChance * 100).rounded())
                         }
-                        
+
                         let dateFormatter = DateFormatter()
                         dateFormatter.dateFormat = "yyyy-MM-dd"
                         dateFormatter.timeZone = TimeZone.current
                         let forecastDateString = dateFormatter.string(from: date)
-                        
+
                         weatherData = WeatherData(
                             temperatureF: tempF,
                             condition: conditionDesc,
@@ -128,10 +140,13 @@ class SnapshotBuilder {
                             highTemperatureF: highTempF,
                             lowTemperatureF: lowTempF,
                             precipitationChance: precipChance,
-                            forecastDate: forecastDateString
+                            forecastDate: forecastDateString,
+                            temperatureC: tempC,
+                            highTemperatureC: highTempC,
+                            lowTemperatureC: lowTempC
                         )
-                        
-                        logger.log("Weather fallback for today: Current \(tempF)°, High \(highTempF ?? 0)°, \(conditionDesc)", level: .info)
+
+                        logger.log("Weather fallback for today: Current \(tempF)°F/\(tempC)°C, High \(highTempF ?? 0)°, \(conditionDesc)", level: .info)
                     }
                 }
                 // For future dates, if forecast fails, we just continue with no weather data

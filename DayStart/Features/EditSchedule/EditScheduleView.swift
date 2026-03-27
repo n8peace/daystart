@@ -20,6 +20,7 @@ struct EditScheduleView: View {
     @State private var selectedSports: [SportType] = []
     @State private var selectedNewsCategories: [NewsCategory] = []
     @State private var selectedVoice: VoiceOption
+    @State private var temperatureUnit: TemperatureUnit
     @State private var showResetConfirmation = false
     @EnvironmentObject var themeManager: ThemeManager
     @State private var showVoicePicker = false
@@ -93,7 +94,8 @@ struct EditScheduleView: View {
         let quotesChanged = includeQuotes != userPreferences.settings.includeQuotes
         let quotePrefChanged = quotePreference != userPreferences.settings.quotePreference
         let voiceChanged = selectedVoice != userPreferences.settings.selectedVoice
-        
+        let tempUnitChanged = temperatureUnit != userPreferences.settings.temperatureUnit
+
         // Normalize stock symbols for comparison (uppercase, trimmed, no empties)
         let currentSymbols = stockSymbolItems
             .map { $0.symbol.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
@@ -118,6 +120,7 @@ struct EditScheduleView: View {
             || quotePrefChanged
             || voiceChanged
             || symbolsChanged
+            || tempUnitChanged
     }
     
     private var shouldHighlightSave: Bool {
@@ -147,6 +150,7 @@ struct EditScheduleView: View {
         _quotePreference = State(initialValue: prefs.settings.quotePreference)
         _stockSymbolItems = State(initialValue: prefs.settings.stockSymbols.asStockSymbolItems)
         _selectedVoice = State(initialValue: prefs.settings.selectedVoice)
+        _temperatureUnit = State(initialValue: prefs.settings.temperatureUnit)
     }
     
     var body: some View {
@@ -533,6 +537,14 @@ struct EditScheduleView: View {
                             stockSymbolItems: $stockSymbolItems,
                             isDisabled: isLocked
                         )
+                    case .weather:
+                        Picker("Temperature", selection: $temperatureUnit) {
+                            ForEach(TemperatureUnit.allCases, id: \.self) { unit in
+                                Text(unit.displayName).tag(unit)
+                            }
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                        .disabled(isLocked)
                     default:
                         EmptyView()
                     }
@@ -814,6 +826,7 @@ struct EditScheduleView: View {
         settings.includeQuotes = includeQuotes
         settings.quotePreference = quotePreference
         settings.selectedVoice = selectedVoice
+        settings.temperatureUnit = temperatureUnit
         userPreferences.settings = settings
         userPreferences.saveSettings()
         

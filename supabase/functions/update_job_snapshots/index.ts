@@ -12,6 +12,7 @@ interface UpdateJobSnapshotsRequest {
   };
   weather_data?: {
     temperatureF?: number;
+    temperatureC?: number;
     condition?: string;
     symbol?: string;
     updated_at?: string;

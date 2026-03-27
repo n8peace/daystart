@@ -255,6 +255,26 @@ struct WeatherData: Codable {
     let precipitationChance: Int? // Percentage (0-100)
     // Date this forecast is for (YYYY-MM-DD format)
     let forecastDate: String?
+    // Celsius equivalents (optional for backwards compat with older stored data)
+    let temperatureC: Int?
+    let highTemperatureC: Int?
+    let lowTemperatureC: Int?
+
+    init(temperatureF: Int?, condition: String?, symbol: String?, updated_at: String?,
+         highTemperatureF: Int?, lowTemperatureF: Int?, precipitationChance: Int?, forecastDate: String?,
+         temperatureC: Int? = nil, highTemperatureC: Int? = nil, lowTemperatureC: Int? = nil) {
+        self.temperatureF = temperatureF
+        self.condition = condition
+        self.symbol = symbol
+        self.updated_at = updated_at
+        self.highTemperatureF = highTemperatureF
+        self.lowTemperatureF = lowTemperatureF
+        self.precipitationChance = precipitationChance
+        self.forecastDate = forecastDate
+        self.temperatureC = temperatureC
+        self.highTemperatureC = highTemperatureC
+        self.lowTemperatureC = lowTemperatureC
+    }
 }
 
 // MARK: - Enhanced Weather Data Structures
@@ -264,6 +284,8 @@ struct LocationForecast: Codable {
     let date: String  // YYYY-MM-DD
     let highTempF: Int
     let lowTempF: Int
+    let highTempC: Int?
+    let lowTempC: Int?
     let condition: String
     let precipitationChance: Int
     let hasAlert: Bool

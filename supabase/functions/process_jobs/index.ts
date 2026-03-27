@@ -1507,6 +1507,7 @@ async function generateScript(job: any): Promise<{content: string, cost: number}
     contentData: contentData,
     is_welcome: job.is_welcome || false,
     social_daystart: job.social_daystart || false,
+    temperatureUnit: job.temperature_unit || 'F',
     user_id: job.user_id,
     scheduled_at: job.scheduled_at
   };
@@ -1832,6 +1833,7 @@ That's it for today. Have a good DayStart.
         quotes: !!context.includeQuotes,
         calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0,
       },
+      temperatureUnit: context.temperatureUnit,
       weather: context.weatherData || null,
       enhancedWeather: context.enhancedWeatherData || null,
       news: flattenedNews,
@@ -2296,6 +2298,7 @@ async function buildScriptPrompt(context: any): Promise<string> {
       quotes: !!context.includeQuotes,
       calendar: Array.isArray(context.calendarEvents) && context.calendarEvents.length > 0
     }, context.social_daystart),
+    temperatureUnit: context.temperatureUnit,
     weather: context.weatherData || null,
     enhancedWeather: context.enhancedWeatherData || null,
     news: filteredNews.map(article => ({
@@ -2667,7 +2670,8 @@ PRODUCTION QUALITY:
 
 CRITICAL RULES:
 • Use ONLY data provided below • No labels/headers • Natural conversational flow • Skip missing sections gracefully${context.social_daystart ? `
-• SOCIAL MANDATORY: Include "To get your own personalized DayStart every morning, search DayStart AI in the App Store."` : ''}
+• SOCIAL MANDATORY: Include "To get your own personalized DayStart every morning, search DayStart AI in the App Store."` : ''}${context.temperatureUnit === 'C' ? `
+🌡️ TEMPERATURE UNIT: The user prefers Celsius. All spoken temperatures MUST use Celsius values. Use the C-suffixed fields (highTempC, lowTempC, temperatureC, highTemperatureC, lowTemperatureC) from the weather data. Say temperatures like "twenty-eight degrees" meaning 28°C. Never use Fahrenheit values.` : ''}
 
 DATA YOU CAN USE (JSON):
 ${JSON.stringify(data, null, 2)}

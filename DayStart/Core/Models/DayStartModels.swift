@@ -276,6 +276,25 @@ enum QuotePreference: String, CaseIterable, Codable {
     }
 }
 
+enum TemperatureUnit: String, CaseIterable, Codable {
+    case fahrenheit = "F"
+    case celsius = "C"
+
+    var displayName: String {
+        switch self {
+        case .fahrenheit: return "Fahrenheit"
+        case .celsius: return "Celsius"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .fahrenheit: return "°F"
+        case .celsius: return "°C"
+        }
+    }
+}
+
 enum ThemePreference: String, CaseIterable, Codable {
     case system = "System"
     case light = "Light"
@@ -335,7 +354,8 @@ enum ContentType: String, CaseIterable, Identifiable {
     var hasExpandableSettings: Bool {
         switch self {
         case .quotes, .sports, .stocks, .news: return true
-        case .weather, .calendar: return false
+        case .weather: return true
+        case .calendar: return false
         }
     }
     
@@ -374,7 +394,53 @@ struct UserSettings: Codable, Equatable {
     var selectedSports: [SportType]
     var selectedNewsCategories: [NewsCategory]
     var allowReengagementNotifications: Bool
-    
+    var temperatureUnit: TemperatureUnit
+
+    // Memberwise init required since custom Codable init suppresses the synthesized one
+    init(preferredName: String, includeWeather: Bool, includeNews: Bool, includeSports: Bool,
+         includeStocks: Bool, stockSymbols: [String], includeCalendar: Bool, includeQuotes: Bool,
+         quotePreference: QuotePreference, selectedVoice: VoiceOption, dayStartLength: Int,
+         themePreference: ThemePreference, selectedSports: [SportType], selectedNewsCategories: [NewsCategory],
+         allowReengagementNotifications: Bool, temperatureUnit: TemperatureUnit = .fahrenheit) {
+        self.preferredName = preferredName
+        self.includeWeather = includeWeather
+        self.includeNews = includeNews
+        self.includeSports = includeSports
+        self.includeStocks = includeStocks
+        self.stockSymbols = stockSymbols
+        self.includeCalendar = includeCalendar
+        self.includeQuotes = includeQuotes
+        self.quotePreference = quotePreference
+        self.selectedVoice = selectedVoice
+        self.dayStartLength = dayStartLength
+        self.themePreference = themePreference
+        self.selectedSports = selectedSports
+        self.selectedNewsCategories = selectedNewsCategories
+        self.allowReengagementNotifications = allowReengagementNotifications
+        self.temperatureUnit = temperatureUnit
+    }
+
+    // Custom decoder to handle backwards compatibility when temperatureUnit is missing from stored JSON
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        preferredName = try container.decode(String.self, forKey: .preferredName)
+        includeWeather = try container.decode(Bool.self, forKey: .includeWeather)
+        includeNews = try container.decode(Bool.self, forKey: .includeNews)
+        includeSports = try container.decode(Bool.self, forKey: .includeSports)
+        includeStocks = try container.decode(Bool.self, forKey: .includeStocks)
+        stockSymbols = try container.decode([String].self, forKey: .stockSymbols)
+        includeCalendar = try container.decode(Bool.self, forKey: .includeCalendar)
+        includeQuotes = try container.decode(Bool.self, forKey: .includeQuotes)
+        quotePreference = try container.decode(QuotePreference.self, forKey: .quotePreference)
+        selectedVoice = try container.decode(VoiceOption.self, forKey: .selectedVoice)
+        dayStartLength = try container.decode(Int.self, forKey: .dayStartLength)
+        themePreference = try container.decode(ThemePreference.self, forKey: .themePreference)
+        selectedSports = try container.decode([SportType].self, forKey: .selectedSports)
+        selectedNewsCategories = try container.decode([NewsCategory].self, forKey: .selectedNewsCategories)
+        allowReengagementNotifications = try container.decode(Bool.self, forKey: .allowReengagementNotifications)
+        temperatureUnit = (try? container.decode(TemperatureUnit.self, forKey: .temperatureUnit)) ?? .fahrenheit
+    }
+
     static func isValidStockSymbol(_ symbol: String) -> Bool {
         let trimmed = symbol.trimmingCharacters(in: .whitespaces).uppercased()
         // Allow letters, numbers, hyphens, dots, and equals for crypto pairs (BTC-USD), forex (EUR=X), and futures
@@ -429,7 +495,8 @@ extension UserSettings {
             themePreference: .system,
             selectedSports: SportType.allCases, // Default all sports selected
             selectedNewsCategories: NewsCategory.allCases, // Default all news categories selected
-            allowReengagementNotifications: true // Default enabled
+            allowReengagementNotifications: true, // Default enabled
+            temperatureUnit: .fahrenheit
         )
     }
 }

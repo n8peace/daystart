@@ -8,11 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2026.02.18] - In Development
+## [2026.04.01] - In Development
 
-**Build:** 1 | **Commit:** d523542 | **Status:** 🚧 Development Build
+**Build:** 1 | **Status:** 🚧 Development Build
 
 ### Added
+- **Celsius/Fahrenheit Temperature Preference** - Users can now choose their preferred temperature unit
+  - New segmented picker in Weather settings (expandable under Weather toggle)
+  - Temperatures displayed in user's preferred unit across notifications and AI briefings
+  - iOS sends both °F and °C values to backend for accurate unit-aware script generation
+  - AI prompt includes explicit Celsius instruction when user prefers °C
+  - Fully backwards compatible — existing users default to Fahrenheit
+  - Notable weather condition descriptions now unit-neutral for cleaner AI context
+  - New `temperature_unit` field in job requests for backend temperature awareness
 
 ### Changed
 

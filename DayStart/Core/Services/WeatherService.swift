@@ -160,6 +160,8 @@ class WeatherService {
             date: dateFormatter.string(from: dayWeather.date),
             highTempF: Int(dayWeather.highTemperature.converted(to: .fahrenheit).value),
             lowTempF: Int(dayWeather.lowTemperature.converted(to: .fahrenheit).value),
+            highTempC: Int(dayWeather.highTemperature.converted(to: .celsius).value),
+            lowTempC: Int(dayWeather.lowTemperature.converted(to: .celsius).value),
             condition: dayWeather.condition.description,
             precipitationChance: Int(dayWeather.precipitationChance * 100),
             hasAlert: false  // TODO: Implement alert detection if WeatherKit provides it
@@ -198,7 +200,7 @@ class WeatherService {
                 date: dateString,
                 location: locationName,
                 reason: "extreme_heat",
-                description: "High of \(Int(highTempF))°F"
+                description: "Extreme heat expected"
             ))
         }
 
@@ -208,7 +210,7 @@ class WeatherService {
                 date: dateString,
                 location: locationName,
                 reason: "extreme_cold",
-                description: "Freezing temps, low of \(Int(lowTempF))°F"
+                description: "Freezing temperatures expected"
             ))
         }
 

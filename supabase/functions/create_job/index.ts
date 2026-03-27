@@ -28,7 +28,9 @@ interface CreateJobRequest {
     // Removed coordinates for privacy compliance
   };
   weather_data?: any;
+  enhanced_weather_data?: any;
   calendar_events?: any[];
+  temperature_unit?: string; // "F" or "C", defaults to "F"
   // Explicitly allow re-queuing and updating an existing ready/processing job
   force_update?: boolean;
   // Flag to indicate this is a welcome/onboarding job
@@ -255,6 +257,7 @@ serve(async (req: Request): Promise<Response> => {
             weather_data: body.weather_data,
             enhanced_weather_data: body.enhanced_weather_data || null,
             calendar_events: body.calendar_events,
+            temperature_unit: body.temperature_unit || 'F',
             social_daystart: body.social_daystart || false,
             tts_provider: 'openai',
             // Clear generated results and costs
@@ -371,6 +374,7 @@ serve(async (req: Request): Promise<Response> => {
         weather_data: body.weather_data,
         enhanced_weather_data: body.enhanced_weather_data || null,
         calendar_events: body.calendar_events,
+        temperature_unit: body.temperature_unit || 'F',
         social_daystart: body.social_daystart || false,
         tts_provider: 'openai',
         estimated_ready_time,

@@ -6,8 +6,36 @@ import CoreLocation
 /// Generates personalized notification content with variety to increase engagement
 class NotificationContentGenerator {
     static let shared = NotificationContentGenerator()
-    
+
     private let logger = DebugLogger.shared
+
+    /// Returns the display temperature and unit symbol based on user's preference
+    private func displayTemp(from weather: WeatherData) -> (temp: Int, symbol: String)? {
+        // Read temperature unit directly from UserDefaults to avoid MainActor requirement
+        let unit: TemperatureUnit = {
+            guard let data = UserDefaults.standard.data(forKey: "settings"),
+                  let settings = try? JSONDecoder().decode(UserSettings.self, from: data) else {
+                return .fahrenheit
+            }
+            return settings.temperatureUnit
+        }()
+        switch unit {
+        case .celsius:
+            if let temp = weather.highTemperatureC ?? weather.temperatureC {
+                return (temp, "°C")
+            }
+            // Fallback to F if C not available (older cached data)
+            if let temp = weather.highTemperatureF ?? weather.temperatureF {
+                return (temp, "°F")
+            }
+            return nil
+        case .fahrenheit:
+            if let temp = weather.highTemperatureF ?? weather.temperatureF {
+                return (temp, "°F")
+            }
+            return nil
+        }
+    }
     
     // MARK: - Notification Style Types
     
@@ -252,27 +280,27 @@ class NotificationContentGenerator {
     // Morning Notifications
     
     private func generateWeatherNotification(weather: WeatherData?) -> (String, String) {
-        guard let weather = weather, 
+        guard let weather = weather,
               let condition = weather.condition?.lowercased() else {
             return ("🌅 Time for Your DayStart!", "Your personalized morning briefing is ready.")
         }
-        
-        // Prefer forecast high temp, fallback to current temp
-        let temp = weather.highTemperatureF ?? weather.temperatureF
-        
-        if let temp = temp {
-            if temp < 32 {
-                return ("🌅 Brrr! High of \(temp)°F", "Bundle up! Your DayStart includes cold weather tips.")
-            } else if temp > 90 {
-                return ("🌅 Hot day ahead! High of \(temp)°F", "Stay cool - your briefing is ready.")
+
+        if let display = displayTemp(from: weather) {
+            let t = "\(display.temp)\(display.symbol)"
+            // Use F values for threshold decisions (always available)
+            let tempF = weather.highTemperatureF ?? weather.temperatureF ?? 70
+            if tempF < 32 {
+                return ("🌅 Brrr! High of \(t)", "Bundle up! Your DayStart includes cold weather tips.")
+            } else if tempF > 90 {
+                return ("🌅 Hot day ahead! High of \(t)", "Stay cool - your briefing is ready.")
             } else if condition.contains("rain") {
-                return ("🌅 High of \(temp)°F and rainy", "Your DayStart has umbrella weather updates.")
+                return ("🌅 High of \(t) and rainy", "Your DayStart has umbrella weather updates.")
             } else if condition.contains("snow") {
-                return ("❄️ Snow day! High of \(temp)°F", "Your briefing includes weather safety tips.")
+                return ("❄️ Snow day! High of \(t)", "Your briefing includes weather safety tips.")
             } else if condition.contains("sunny") || condition.contains("clear") {
-                return ("🌅 Beautiful \(temp)°F high", "Perfect day ahead - get briefed!")
+                return ("🌅 Beautiful \(t) high", "Perfect day ahead - get briefed!")
             } else {
-                return ("🌅 High of \(temp)°F and \(weather.condition ?? "")", "Your morning briefing is ready.")
+                return ("🌅 High of \(t) and \(weather.condition ?? "")", "Your morning briefing is ready.")
             }
         } else {
             // No temperature available, use condition only
@@ -372,15 +400,14 @@ class NotificationContentGenerator {
         let dayName = formatter.string(from: date)
         
         if let weather = weather {
-            // Prefer forecast high temp, fallback to current temp
-            let temp = weather.highTemperatureF ?? weather.temperatureF
             let condition = weather.condition?.lowercased() ?? "expected"
-            
-            if let temp = temp {
-                return ("🌙 \(dayName): High of \(temp)°F and \(condition)", 
+
+            if let display = displayTemp(from: weather) {
+                let t = "\(display.temp)\(display.symbol)"
+                return ("🌙 \(dayName): High of \(t) and \(condition)",
                         "Your morning briefing is scheduled.")
             } else {
-                return ("🌙 \(dayName): \(condition) weather expected", 
+                return ("🌙 \(dayName): \(condition) weather expected",
                         "Your morning briefing is scheduled.")
             }
         }
