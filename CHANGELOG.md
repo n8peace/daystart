@@ -32,7 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [2026.02.1] - 2026-02-01
 
-**Build:** 1 | **Commit:** d523542 | **Status:** **LIVE** on App Store as of 2026-02-01
+**Build:** 1 | **Commit:** c6614bb | **Status:** **LIVE** on App Store as of 2026-02-01
 
 ### Added
 - **Calendar-Based Weather Forecasting** - Intelligent multi-location weather with travel detection
