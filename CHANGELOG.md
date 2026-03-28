@@ -25,6 +25,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 ### Fixed
+- **Database Migration for Temperature Unit** - Added missing migration for temperature_unit column
+  - Migration 043_add_temperature_unit.sql adds temperature_unit column to jobs table
+  - Defaults to 'F' (Fahrenheit) for backwards compatibility
+  - Includes CHECK constraint to validate 'F' or 'C' values only
+  - Fixes DATABASE_ERROR during deployment validation
 
 ### Removed
 
